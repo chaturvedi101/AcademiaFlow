@@ -1,5 +1,7 @@
-"use client";
 
+'use client';
+
+import { useMemo } from 'react';
 import {
   Sidebar,
   SidebarContent,
@@ -17,15 +19,17 @@ import {
   LayoutDashboard,
   FileCheck,
   History,
-  Settings,
   ShieldCheck,
   Layers,
   LogOut,
-  GraduationCap
+  GraduationCap,
+  Loader2
 } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { MOCK_USER } from "@/lib/mock-data";
+import { useAuth, useUser, useDoc, useFirestore } from "@/firebase";
+import { doc } from "firebase/firestore";
+import { UserProfile, UserRole } from "@/lib/types";
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['bos_convenor', 'dean_faculty', 'dean_academics', 'admin'] },
@@ -38,9 +42,22 @@ const navigation = [
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const user = MOCK_USER; // In real app, get from AuthContext
+  const router = useRouter();
+  const { user, loading: userLoading } = useUser();
+  const auth = useAuth();
+  const db = useFirestore();
 
-  const filteredNav = navigation.filter(item => item.roles.includes(user.role));
+  const userDocRef = useMemo(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
+  const { data: profile, loading: profileLoading } = useDoc<UserProfile>(userDocRef);
+
+  const role: UserRole = profile?.role || 'bos_convenor';
+
+  const filteredNav = navigation.filter(item => item.roles.includes(role));
+
+  const handleLogout = async () => {
+    await auth.signOut();
+    router.push('/');
+  };
 
   return (
     <Sidebar variant="inset" collapsible="icon">
@@ -53,32 +70,42 @@ export function AppSidebar() {
         </span>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Menu</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {filteredNav.map((item) => (
-                <SidebarMenuItem key={item.name}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname === item.href}
-                    tooltip={item.name}
-                  >
-                    <Link href={item.href}>
-                      <item.icon />
-                      <span>{item.name}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {profileLoading ? (
+          <div className="p-4 flex justify-center">
+            <Loader2 className="animate-spin text-white/20" />
+          </div>
+        ) : (
+          <SidebarGroup>
+            <SidebarGroupLabel>Menu</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {filteredNav.map((item) => (
+                  <SidebarMenuItem key={item.name}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={pathname === item.href}
+                      tooltip={item.name}
+                    >
+                      <Link href={item.href}>
+                        <item.icon />
+                        <span>{item.name}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarFooter className="p-4 border-t border-sidebar-border">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Logout" className="text-red-400 hover:text-red-300 hover:bg-red-900/20">
+            <SidebarMenuButton 
+              tooltip="Logout" 
+              className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
+              onClick={handleLogout}
+            >
               <LogOut />
               <span>Logout</span>
             </SidebarMenuButton>
