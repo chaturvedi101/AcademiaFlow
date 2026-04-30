@@ -8,7 +8,7 @@ import { ShieldCheck, GraduationCap, FileCheck, Layers, Loader2 } from "lucide-r
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore, useUser } from "@/firebase";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Home() {
@@ -25,17 +25,21 @@ export default function Home() {
     try {
       const result = await signInWithPopup(auth, provider);
       const userRef = doc(db, 'users', result.user.uid);
+      
+      // We must await the read to check existence
       const userDoc = await getDoc(userRef);
 
       if (!userDoc.exists()) {
         // Create a default profile if it's the first time login
-        await setDoc(userRef, {
+        // Following guidelines: avoid awaiting mutation calls (setDoc)
+        setDoc(userRef, {
           displayName: result.user.displayName,
           email: result.user.email,
           role: 'bos_convenor', // Default role for new users
           photoURL: result.user.photoURL,
-          createdAt: new Date(),
+          createdAt: serverTimestamp(),
         });
+        
         toast({
           title: "Account Created",
           description: "Welcome to Academia Flow! You have been assigned the BoS Convenor role.",
