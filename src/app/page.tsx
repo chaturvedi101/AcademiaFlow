@@ -4,10 +4,16 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShieldCheck, GraduationCap, FileCheck, Layers, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore, useUser } from "@/firebase";
-import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword 
+} from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 
@@ -17,34 +23,17 @@ export default function Home() {
   const db = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
-  const [isSigningIn, setIsSigningIn] = useState(false);
+  
+  const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
 
-  const handleSignIn = async () => {
-    setIsSigningIn(true);
-    const provider = new GoogleAuthProvider();
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
     try {
-      const result = await signInWithPopup(auth, provider);
-      const userRef = doc(db, 'users', result.user.uid);
-      
-      // We must await the read to check existence
-      const userDoc = await getDoc(userRef);
-
-      if (!userDoc.exists()) {
-        // Create a default profile if it's the first time login
-        // Following guidelines: avoid awaiting mutation calls (setDoc)
-        setDoc(userRef, {
-          displayName: result.user.displayName,
-          email: result.user.email,
-          role: 'bos_convenor', // Default role for new users
-          photoURL: result.user.photoURL,
-          createdAt: serverTimestamp(),
-        });
-        
-        toast({
-          title: "Account Created",
-          description: "Welcome to Academia Flow! You have been assigned the BoS Convenor role.",
-        });
-      }
+      await signInWithEmailAndPassword(auth, email, password);
       router.push('/dashboard');
     } catch (error: any) {
       toast({
@@ -53,7 +42,38 @@ export default function Home() {
         description: error.message,
       });
     } finally {
-      setIsSigningIn(false);
+      setIsLoading(false);
+    }
+  };
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      const userRef = doc(db, 'users', result.user.uid);
+      
+      // Mutation guideline: no await on setDoc
+      setDoc(userRef, {
+        displayName: displayName || email.split('@')[0],
+        email: email,
+        role: 'bos_convenor', // Default role for new users
+        createdAt: serverTimestamp(),
+      });
+      
+      toast({
+        title: "Account Created",
+        description: "Welcome to Academia Flow! You have been assigned the BoS Convenor role.",
+      });
+      router.push('/dashboard');
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: "Registration Failed",
+        description: error.message,
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -109,28 +129,96 @@ export default function Home() {
         <div className="flex justify-center">
           <Card className="w-full max-w-md shadow-2xl border-primary/10">
             <CardHeader className="space-y-1">
-              <CardTitle className="text-2xl text-center font-headline">Secure Login</CardTitle>
+              <CardTitle className="text-2xl text-center font-headline">Secure Access</CardTitle>
               <CardDescription className="text-center">
-                Access your academic management portal using Google
+                Manage your academic credentials
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <Button 
-                onClick={handleSignIn} 
-                disabled={isSigningIn || userLoading}
-                className="w-full bg-primary hover:bg-primary/90 text-white py-6 text-lg font-medium shadow-lg hover:shadow-xl transition-all"
-              >
-                {isSigningIn ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Signing In...
-                  </>
-                ) : (
-                  "Sign In with Google"
-                )}
-              </Button>
-              <div className="text-center text-sm text-muted-foreground pt-4">
-                Access is restricted to authorized university domains.
+            <CardContent>
+              <Tabs defaultValue="login" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 mb-6">
+                  <TabsTrigger value="login">Sign In</TabsTrigger>
+                  <TabsTrigger value="register">Register</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="login">
+                  <form onSubmit={handleSignIn} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input 
+                        id="email" 
+                        type="email" 
+                        placeholder="name@university.edu" 
+                        required 
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Password</Label>
+                      <Input 
+                        id="password" 
+                        type="password" 
+                        required 
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                      />
+                    </div>
+                    <Button 
+                      type="submit" 
+                      className="w-full h-11" 
+                      disabled={isLoading}
+                    >
+                      {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Sign In"}
+                    </Button>
+                  </form>
+                </TabsContent>
+
+                <TabsContent value="register">
+                  <form onSubmit={handleSignUp} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="reg-name">Full Name</Label>
+                      <Input 
+                        id="reg-name" 
+                        placeholder="Dr. Sarah Smith" 
+                        required 
+                        value={displayName}
+                        onChange={(e) => setDisplayName(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="reg-email">University Email</Label>
+                      <Input 
+                        id="reg-email" 
+                        type="email" 
+                        placeholder="name@university.edu" 
+                        required 
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="reg-password">Password</Label>
+                      <Input 
+                        id="reg-password" 
+                        type="password" 
+                        required 
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                      />
+                    </div>
+                    <Button 
+                      type="submit" 
+                      className="w-full h-11" 
+                      disabled={isLoading}
+                    >
+                      {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Create Account"}
+                    </Button>
+                  </form>
+                </TabsContent>
+              </Tabs>
+              <div className="text-center text-sm text-muted-foreground pt-6">
+                Access is restricted to authorized academic personnel.
               </div>
             </CardContent>
           </Card>
