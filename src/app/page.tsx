@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,8 +13,10 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword 
 } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function Home() {
   const { user, loading: userLoading } = useUser();
@@ -28,6 +29,12 @@ export default function Home() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+
+  useEffect(() => {
+    if (user && !userLoading) {
+      router.push('/dashboard');
+    }
+  }, [user, userLoading, router]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,13 +60,22 @@ export default function Home() {
       const result = await createUserWithEmailAndPassword(auth, email, password);
       const userRef = doc(db, 'users', result.user.uid);
       
-      // Mutation guideline: no await on setDoc
-      setDoc(userRef, {
+      const userData = {
         displayName: displayName || email.split('@')[0],
         email: email,
-        role: 'bos_convenor', // Default role for new users
+        role: 'bos_convenor',
         createdAt: serverTimestamp(),
-      });
+      };
+
+      setDoc(userRef, userData, { merge: true })
+        .catch(async (serverError) => {
+          const permissionError = new FirestorePermissionError({
+            path: userRef.path,
+            operation: 'write',
+            requestResourceData: userData,
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        });
       
       toast({
         title: "Account Created",
@@ -77,9 +93,12 @@ export default function Home() {
     }
   };
 
-  if (user && !userLoading) {
-    router.push('/dashboard');
-    return null;
+  if (userLoading || (user && !userLoading)) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   return (
