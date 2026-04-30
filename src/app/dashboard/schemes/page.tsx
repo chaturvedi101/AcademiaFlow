@@ -1,0 +1,182 @@
+
+'use client';
+
+import { useState } from 'react';
+import { useFirestore, useCollection, useUser } from '@/firebase';
+import { collection, addDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
+import { Scheme, Program } from '@/lib/types';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Plus, BookOpen, Loader2, Calendar, FileText, ArrowRight } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useRouter } from 'next/navigation';
+import { useToast } from '@/hooks/use-toast';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
+
+export default function SchemesPage() {
+  const db = useFirestore();
+  const { user } = useUser();
+  const router = useRouter();
+  const { toast } = useToast();
+  const { data: schemes, loading: schemesLoading } = useCollection<Scheme>(
+    query(collection(db, 'schemes'), orderBy('updatedAt', 'desc'))
+  );
+  const { data: programs } = useCollection<Program>(collection(db, 'programs'));
+  
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [newScheme, setNewScheme] = useState({
+    programId: '',
+    batchYear: '',
+    version: 'v1.0'
+  });
+
+  const handleCreateScheme = () => {
+    if (!newScheme.programId || !newScheme.batchYear) {
+      toast({ title: "Validation Error", description: "Program and Batch are required.", variant: "destructive" });
+      return;
+    }
+
+    const schemeData = {
+      ...newScheme,
+      status: 'Draft' as const,
+      createdBy: user?.uid,
+      hasMultipleExits: false,
+      abcEnabled: true,
+      exitOptions: [],
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+
+    addDoc(collection(db, 'schemes'), schemeData)
+      .then((docRef) => {
+        toast({ title: "Success", description: "Scheme created successfully." });
+        router.push(`/dashboard/schemes/${docRef.id}`);
+      })
+      .catch((err) => {
+        const permissionError = new FirestorePermissionError({
+          path: 'schemes',
+          operation: 'create',
+          requestResourceData: schemeData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      });
+  };
+
+  if (schemesLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-headline font-bold">Academic Schemes</h1>
+          <p className="text-muted-foreground">Draft, build, and manage university academic layouts.</p>
+        </div>
+        <Button onClick={() => setIsDialogOpen(true)} className="gap-2 shadow-lg">
+          <Plus className="w-4 h-4" /> New Scheme
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {schemes.map((scheme) => {
+          const program = programs.find(p => p.id === scheme.programId);
+          return (
+            <Card key={scheme.id} className="hover:shadow-md transition-shadow group">
+              <CardHeader className="pb-4">
+                <div className="flex justify-between items-start mb-2">
+                  <Badge variant="outline" className="bg-primary/5 text-primary border-none text-[10px]">
+                    {scheme.version}
+                  </Badge>
+                  <StatusBadge status={scheme.status} />
+                </div>
+                <CardTitle className="font-headline text-lg group-hover:text-primary transition-colors">
+                  {program?.name || 'Loading program...'}
+                </CardTitle>
+                <CardDescription className="flex items-center gap-2">
+                  <Calendar className="w-3.5 h-3.5" />
+                  Batch: {scheme.batchYear}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button variant="ghost" className="w-full justify-between group-hover:bg-primary group-hover:text-white" asChild>
+                  <a href={`/dashboard/schemes/${scheme.id}`}>
+                    Manage Scheme <ArrowRight className="w-4 h-4" />
+                  </a>
+                </Button>
+              </CardContent>
+            </Card>
+          );
+        })}
+        {schemes.length === 0 && (
+          <div className="col-span-full py-20 text-center border-2 border-dashed rounded-2xl bg-muted/20">
+            <BookOpen className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-20" />
+            <p className="text-muted-foreground">No schemes created yet. Start by defining a new academic layout.</p>
+          </div>
+        )}
+      </div>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Academic Scheme</DialogTitle>
+            <DialogDescription>Select the program and batch year to initialize a new layout.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Academic Program</Label>
+              <Select onValueChange={(v) => setNewScheme({...newScheme, programId: v})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select program..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {programs.map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name} ({p.code})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Batch Year</Label>
+              <Input 
+                placeholder="e.g., 2024-28" 
+                value={newScheme.batchYear} 
+                onChange={(e) => setNewScheme({...newScheme, batchYear: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Initial Version</Label>
+              <Input 
+                value={newScheme.version} 
+                onChange={(e) => setNewScheme({...newScheme, version: e.target.value})}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreateScheme}>Initialize Scheme</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const colors: any = {
+    'Draft': 'bg-slate-100 text-slate-700',
+    'Pending Dean': 'bg-amber-100 text-amber-700',
+    'Pending Academics': 'bg-blue-100 text-blue-700',
+    'Approved': 'bg-emerald-100 text-emerald-700'
+  };
+  return <Badge variant="secondary" className={`${colors[status] || ''} border-none font-medium text-[10px]`}>{status}</Badge>;
+}

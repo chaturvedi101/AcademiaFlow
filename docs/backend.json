@@ -50,8 +50,7 @@
           "type": "string"
         },
         "totalSemesters": {
-          "type": "number",
-          "description": "The total number of semesters in the program (e.g., 8 for B.Tech, 4 for MBA)."
+          "type": "number"
         },
         "level": {
           "type": "string",
@@ -91,6 +90,42 @@
         "level",
         "totalSemesters"
       ]
+    },
+    "Scheme": {
+      "title": "Scheme",
+      "description": "An academic scheme for a specific program and batch.",
+      "type": "object",
+      "properties": {
+        "programId": { "type": "string" },
+        "batchYear": { "type": "string" },
+        "status": { "type": "string", "enum": ["Draft", "Pending Dean", "Pending Academics", "Approved"] },
+        "version": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "hasMultipleExits": { "type": "boolean" },
+        "exitOptions": { "type": "array", "items": { "type": "string" } },
+        "abcEnabled": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["programId", "batchYear", "status"]
+    },
+    "Syllabus": {
+      "title": "Syllabus",
+      "description": "Details of a specific subject within a scheme.",
+      "type": "object",
+      "properties": {
+        "subjectCode": { "type": "string" },
+        "title": { "type": "string" },
+        "type": { "type": "string" },
+        "credits": { "type": "number" },
+        "semester": { "type": "number" },
+        "creditCategory": { "type": "string" },
+        "prerequisites": { "type": "array", "items": { "type": "string" } },
+        "courseOutcomes": { "type": "array", "items": { "type": "string" } },
+        "programOutcomes": { "type": "array", "items": { "type": "string" } },
+        "resources": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["subjectCode", "title", "credits", "semester", "creditCategory"]
     }
   },
   "auth": {
@@ -106,6 +141,14 @@
     "/programs/{programId}": {
       "schema": "Program",
       "description": "Stores program definitions and credit compliance rules."
+    },
+    "/schemes/{schemeId}": {
+      "schema": "Scheme",
+      "description": "Stores high-level scheme definitions."
+    },
+    "/schemes/{schemeId}/syllabi/{syllabusId}": {
+      "schema": "Syllabus",
+      "description": "Stores syllabi for subjects within a scheme."
     }
   }
 }

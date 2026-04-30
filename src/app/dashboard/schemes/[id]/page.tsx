@@ -1,81 +1,103 @@
-"use client";
 
-import { useState } from "react";
+'use client';
+
+import { useState, useMemo } from "react";
+import { useFirestore, useDoc, useCollection } from "@/firebase";
+import { doc, collection, setDoc, deleteDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/tabs";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Save, Send, History, Trash2, Edit3, Download, GraduationCap, Layers } from "lucide-react";
-import { MOCK_PROGRAMS } from "@/lib/mock-data";
+import { Plus, Save, Send, History, Trash2, Edit3, Download, GraduationCap, Layers, Loader2 } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
-import { Syllabus, Scheme, SchemeStatus } from "@/lib/types";
+import { Syllabus, Scheme, Program, CreditCategory } from "@/lib/types";
+import { useToast } from "@/hooks/use-toast";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
+import { useMemoFirebase } from "@/firebase/firestore/use-collection"; // If available, or use useMemo
 
 export default function SchemeDetailPage({ params }: { params: { id: string } }) {
+  const { id: schemeId } = params;
+  const db = useFirestore();
+  const { toast } = useToast();
+
+  const schemeRef = useMemo(() => doc(db, 'schemes', schemeId), [db, schemeId]);
+  const { data: scheme, loading: schemeLoading } = useDoc<Scheme>(schemeRef);
+
+  const syllabiRef = useMemo(() => collection(db, 'schemes', schemeId, 'syllabi'), [db, schemeId]);
+  const { data: syllabi, loading: syllabiLoading } = useCollection<Syllabus>(syllabiRef);
+
+  const programRef = useMemo(() => (scheme?.programId ? doc(db, 'programs', scheme.programId) : null), [db, scheme?.programId]);
+  const { data: program } = useDoc<Program>(programRef);
+
   const [isSyllabusDialogOpen, setIsSyllabusDialogOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Partial<Syllabus> | undefined>(undefined);
-  
-  // Mock State
-  const [scheme, setScheme] = useState<Partial<Scheme>>({
-    id: 's1',
-    programId: 'btech-cs',
-    batchYear: '2024-28',
-    status: 'Draft',
-    version: 'v1.0',
-    hasMultipleExits: true,
-    exitOptions: ['Certificate', 'Diploma'],
-    abcEnabled: true
-  });
 
-  const [subjects, setSubjects] = useState<Syllabus[]>([
-    {
-      id: 'sub1',
-      schemeId: 's1',
-      subjectCode: 'CS101',
-      title: 'Introduction to Programming',
-      type: 'Theory',
-      credits: 4,
-      semester: 1,
-      creditCategory: 'DSC',
-      prerequisites: [],
-      courseOutcomes: [],
-      programOutcomes: [],
-      resources: []
-    },
-    {
-      id: 'sub2',
-      schemeId: 's1',
-      subjectCode: 'CS102L',
-      title: 'Programming Lab',
-      type: 'Practical/Lab',
-      credits: 2,
-      semester: 1,
-      creditCategory: 'DSC',
-      prerequisites: [],
-      courseOutcomes: [],
-      programOutcomes: [],
-      resources: []
-    }
-  ]);
+  const creditDistribution = useMemo(() => {
+    const dist = { DSC: 0, DSE: 0, OFE: 0, CPF: 0, VAC: 0, AEC: 0, SEC: 0, MDC: 0, total: 0 };
+    syllabi.forEach(sub => {
+      dist[sub.creditCategory] = (dist[sub.creditCategory] || 0) + (sub.credits || 0);
+      dist.total += (sub.credits || 0);
+    });
+    return dist;
+  }, [syllabi]);
 
-  const creditDistribution = subjects.reduce((acc, sub) => {
-    acc[sub.creditCategory] = (acc[sub.creditCategory] || 0) + sub.credits;
-    acc.total += sub.credits;
-    return acc;
-  }, { DSC: 0, DSE: 0, OFE: 0, CPF: 0, total: 0 });
+  const handleUpdateScheme = (updates: Partial<Scheme>) => {
+    updateDoc(schemeRef, { ...updates, updatedAt: serverTimestamp() })
+      .catch(err => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: schemeRef.path,
+          operation: 'update',
+          requestResourceData: updates
+        }));
+      });
+  };
 
-  const program = MOCK_PROGRAMS.find(p => p.id === scheme.programId);
+  const handleSaveSyllabus = (data: Partial<Syllabus>) => {
+    const syllabusId = data.id || doc(collection(db, 'temp')).id;
+    const docRef = doc(db, 'schemes', schemeId, 'syllabi', syllabusId);
+    
+    setDoc(docRef, { ...data, id: syllabusId }, { merge: true })
+      .then(() => toast({ title: "Syllabus Saved" }))
+      .catch(err => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: docRef.path,
+          operation: 'write',
+          requestResourceData: data
+        }));
+      });
+  };
+
+  const handleDeleteSyllabus = (id: string) => {
+    const docRef = doc(db, 'schemes', schemeId, 'syllabi', id);
+    deleteDoc(docRef).catch(err => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: docRef.path,
+        operation: 'delete'
+      }));
+    });
+  };
+
+  if (schemeLoading || syllabiLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!scheme) return <div>Scheme not found.</div>;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-headline font-bold">{program?.name}</h1>
+            <h1 className="text-3xl font-headline font-bold">{program?.name || 'Academic Layout'}</h1>
             <Badge variant="outline" className="bg-primary/10 text-primary border-none font-medium">
               {scheme.version}
             </Badge>
@@ -88,10 +110,10 @@ export default function SchemeDetailPage({ params }: { params: { id: string } })
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" className="gap-2">
-            <Save className="w-4 h-4" /> Save Draft
+          <Button variant="outline" className="gap-2" onClick={() => toast({ title: "Draft Saved Locally" })}>
+            <Save className="w-4 h-4" /> Save Work
           </Button>
-          <Button className="gap-2 shadow-lg">
+          <Button className="gap-2 shadow-lg" onClick={() => handleUpdateScheme({ status: 'Pending Dean' })}>
             <Send className="w-4 h-4" /> Submit for Approval
           </Button>
         </div>
@@ -113,16 +135,15 @@ export default function SchemeDetailPage({ params }: { params: { id: string } })
             </TabsList>
 
             <TabsContent value="syllabi" className="mt-6 space-y-6">
-              {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => {
-                const semSubjects = subjects.filter(s => s.semester === sem);
-                if (semSubjects.length === 0 && sem > 1) return null;
+              {Array.from({ length: program?.totalSemesters || 8 }, (_, i) => i + 1).map(sem => {
+                const semSubjects = syllabi.filter(s => s.semester === sem);
                 
                 return (
                   <Card key={sem} className="shadow-sm">
                     <CardHeader className="flex flex-row items-center justify-between bg-muted/20 py-4">
                       <div>
                         <CardTitle className="text-lg">Semester {sem}</CardTitle>
-                        <CardDescription>Total Semester Credits: {semSubjects.reduce((a,b) => a + b.credits, 0)}</CardDescription>
+                        <CardDescription>Total Semester Credits: {semSubjects.reduce((a,b) => a + (b.credits || 0), 0)}</CardDescription>
                       </div>
                       <Button size="sm" variant="outline" className="gap-2" onClick={() => {
                         setActiveSubject({ semester: sem });
@@ -163,7 +184,7 @@ export default function SchemeDetailPage({ params }: { params: { id: string } })
                                   }}>
                                     <Edit3 className="w-3.5 h-3.5" />
                                   </Button>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400">
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={() => handleDeleteSyllabus(sub.id)}>
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </Button>
                                 </div>
@@ -201,7 +222,7 @@ export default function SchemeDetailPage({ params }: { params: { id: string } })
                         </div>
                         <Switch 
                           checked={scheme.hasMultipleExits}
-                          onCheckedChange={checked => setScheme({...scheme, hasMultipleExits: checked})}
+                          onCheckedChange={checked => handleUpdateScheme({ hasMultipleExits: checked })}
                         />
                       </div>
                       
@@ -212,7 +233,7 @@ export default function SchemeDetailPage({ params }: { params: { id: string } })
                         </div>
                         <Switch 
                           checked={scheme.abcEnabled}
-                          onCheckedChange={checked => setScheme({...scheme, abcEnabled: checked})}
+                          onCheckedChange={checked => handleUpdateScheme({ abcEnabled: checked })}
                         />
                       </div>
                     </div>
@@ -241,8 +262,7 @@ export default function SchemeDetailPage({ params }: { params: { id: string } })
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="relative pl-8 space-y-6 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-px before:bg-border">
-                    <AuditItem version="v1.0" action="Draft Created" user="Sarah Smith" date="Oct 12, 2023" />
-                    <AuditItem version="v0.9" action="Initial Layout Import" user="Admin" date="Oct 10, 2023" />
+                    <AuditItem version={scheme.version} action="Last Updated" user="Current User" date={scheme.updatedAt?.toDate().toLocaleDateString() || 'Today'} />
                   </div>
                 </CardContent>
               </Card>
@@ -251,7 +271,7 @@ export default function SchemeDetailPage({ params }: { params: { id: string } })
         </div>
 
         <div className="space-y-6">
-          <CreditValidator currentCredits={creditDistribution} />
+          <CreditValidator currentCredits={creditDistribution} rules={program?.rules} />
           
           <Card className="shadow-sm border-accent/10">
             <CardHeader className="pb-2">
@@ -279,14 +299,7 @@ export default function SchemeDetailPage({ params }: { params: { id: string } })
         open={isSyllabusDialogOpen} 
         onOpenChange={setIsSyllabusDialogOpen} 
         syllabus={activeSubject}
-        onSave={(data) => {
-          if (data.id) {
-            setSubjects(subjects.map(s => s.id === data.id ? data as Syllabus : s));
-          } else {
-            const newSub = { ...data, id: Math.random().toString() } as Syllabus;
-            setSubjects([...subjects, newSub]);
-          }
-        }}
+        onSave={handleSaveSyllabus}
       />
     </div>
   );
