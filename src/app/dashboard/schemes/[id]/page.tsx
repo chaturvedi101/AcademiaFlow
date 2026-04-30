@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo } from "react";
@@ -88,7 +89,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     );
   }
 
-  if (!scheme) return <div>Scheme not found.</div>;
+  if (!scheme) return <div className="p-8 text-center text-muted-foreground">Scheme not found.</div>;
 
   return (
     <div className="space-y-6">
@@ -120,14 +121,14 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
         <div className="xl:col-span-3 space-y-6">
           <Tabs defaultValue="syllabi" className="w-full">
-            <TabsList className="bg-white border p-1 h-12 w-full justify-start gap-2">
-              <TabsTrigger value="syllabi" className="h-10 px-6 data-[state=active]:bg-primary data-[state=active]:text-white">
+            <TabsList className="bg-white border p-1 h-12 w-full justify-start gap-2 overflow-x-auto">
+              <TabsTrigger value="syllabi" className="h-10 px-6 data-[state=active]:bg-primary data-[state=active]:text-white whitespace-nowrap">
                 Course Structure
               </TabsTrigger>
-              <TabsTrigger value="nep" className="h-10 px-6 data-[state=active]:bg-primary data-[state=active]:text-white">
+              <TabsTrigger value="nep" className="h-10 px-6 data-[state=active]:bg-primary data-[state=active]:text-white whitespace-nowrap">
                 NEP 2020 Builder
               </TabsTrigger>
-              <TabsTrigger value="history" className="h-10 px-6 data-[state=active]:bg-primary data-[state=active]:text-white">
+              <TabsTrigger value="history" className="h-10 px-6 data-[state=active]:bg-primary data-[state=active]:text-white whitespace-nowrap">
                 Audit & Versioning
               </TabsTrigger>
             </TabsList>
@@ -135,15 +136,16 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             <TabsContent value="syllabi" className="mt-6 space-y-6">
               {Array.from({ length: program?.totalSemesters || 8 }, (_, i) => i + 1).map(sem => {
                 const semSubjects = syllabi.filter(s => s.semester === sem);
+                const semTotal = semSubjects.reduce((a, b) => a + (b.credits || 0), 0);
                 
                 return (
-                  <Card key={sem} className="shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between bg-muted/20 py-4">
-                      <div>
-                        <CardTitle className="text-lg">Semester {sem}</CardTitle>
-                        <CardDescription>Total Semester Credits: {semSubjects.reduce((a,b) => a + (b.credits || 0), 0)}</CardDescription>
+                  <Card key={sem} className="shadow-sm border-none bg-white overflow-hidden">
+                    <CardHeader className="flex flex-row items-center justify-between bg-muted/20 py-4 px-6">
+                      <div className="space-y-0.5">
+                        <CardTitle className="text-lg font-headline">Semester {sem}</CardTitle>
+                        <CardDescription className="text-xs font-medium">Credits: <span className="text-primary font-bold">{semTotal}</span></CardDescription>
                       </div>
-                      <Button size="sm" variant="outline" className="gap-2" onClick={() => {
+                      <Button size="sm" variant="outline" className="gap-2 h-9 rounded-lg" onClick={() => {
                         setActiveSubject({ semester: sem });
                         setIsSyllabusDialogOpen(true);
                       }}>
@@ -152,37 +154,44 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                     </CardHeader>
                     <CardContent className="p-0">
                       <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-24">Code</TableHead>
+                        <TableHeader className="bg-muted/10">
+                          <TableRow className="hover:bg-transparent">
+                            <TableHead className="w-24 pl-6">Code</TableHead>
                             <TableHead>Subject Title</TableHead>
-                            <TableHead>Type</TableHead>
+                            <TableHead className="w-24 text-center">L-T-P</TableHead>
                             <TableHead>Category</TableHead>
                             <TableHead className="text-right">Credits</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
+                            <TableHead className="text-right pr-6">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {semSubjects.map(sub => (
-                            <TableRow key={sub.id}>
-                              <TableCell className="font-mono text-xs font-bold">{sub.subjectCode}</TableCell>
-                              <TableCell className="font-medium">{sub.title}</TableCell>
-                              <TableCell>
-                                <Badge variant="outline" className="text-[10px] uppercase">{sub.type}</Badge>
+                            <TableRow key={sub.id} className="group transition-colors">
+                              <TableCell className="font-mono text-xs font-bold pl-6 text-primary">{sub.subjectCode}</TableCell>
+                              <TableCell className="font-medium">
+                                <div className="flex flex-col">
+                                  <span>{sub.title}</span>
+                                  <span className="text-[10px] text-muted-foreground uppercase">{sub.type}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <span className="text-xs font-mono text-muted-foreground">
+                                  {sub.lectureCredits || 0}-{sub.tutorialCredits || 0}-{sub.practicalCredits || 0}
+                                </span>
                               </TableCell>
                               <TableCell>
-                                <Badge variant="secondary" className="text-[10px] font-bold">{sub.creditCategory}</Badge>
+                                <Badge variant="secondary" className="text-[9px] font-bold px-1.5 py-0.5">{sub.creditCategory}</Badge>
                               </TableCell>
-                              <TableCell className="text-right font-bold">{sub.credits}</TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex justify-end gap-1">
-                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => {
+                              <TableCell className="text-right font-bold text-sm">{sub.credits}</TableCell>
+                              <TableCell className="text-right pr-6">
+                                <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => {
                                     setActiveSubject(sub);
                                     setIsSyllabusDialogOpen(true);
                                   }}>
                                     <Edit3 className="w-3.5 h-3.5" />
                                   </Button>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={() => handleDeleteSyllabus(sub.id)}>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:bg-red-50" onClick={() => handleDeleteSyllabus(sub.id)}>
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </Button>
                                 </div>
@@ -191,8 +200,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                           ))}
                           {semSubjects.length === 0 && (
                             <TableRow>
-                              <TableCell colSpan={6} className="text-center py-8 text-muted-foreground text-sm italic">
-                                No subjects added for this semester yet.
+                              <TableCell colSpan={6} className="text-center py-10 text-muted-foreground text-sm italic">
+                                No subjects added for this semester. Click "Add Subject" to begin.
                               </TableCell>
                             </TableRow>
                           )}
@@ -205,7 +214,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             </TabsContent>
 
             <TabsContent value="nep" className="mt-6">
-              <Card>
+              <Card className="border-none shadow-sm">
                 <CardHeader>
                   <CardTitle className="font-headline">NEP 2020 Configurations</CardTitle>
                   <CardDescription>Setup Academic Bank of Credits and Exit pathways.</CardDescription>
@@ -251,7 +260,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             </TabsContent>
 
             <TabsContent value="history" className="mt-6">
-              <Card>
+              <Card className="border-none shadow-sm">
                 <CardHeader>
                   <CardTitle className="font-headline flex items-center gap-2">
                     <History className="w-5 h-5 text-muted-foreground" />
@@ -305,7 +314,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
 function ExitOption({ label, credits, active }: { label: string, credits: string, active: boolean }) {
   return (
-    <div className={`p-4 rounded-xl border flex items-center justify-between transition-all ${active ? 'border-primary/20 bg-primary/5' : 'bg-muted/50 border-border opacity-60'}`}>
+    <div className={`p-4 rounded-xl border flex items-center justify-between transition-all ${active ? 'border-primary/20 bg-primary/5 shadow-sm' : 'bg-muted/50 border-border opacity-60'}`}>
       <div className="space-y-0.5">
         <p className="font-semibold text-sm">{label}</p>
         <p className="text-xs text-muted-foreground">{credits}</p>

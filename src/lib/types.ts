@@ -60,6 +60,9 @@ export interface Syllabus {
   subjectCode: string;
   title: string;
   type: SubjectType;
+  lectureCredits: number;
+  tutorialCredits: number;
+  practicalCredits: number;
   credits: number;
   semester: number;
   prerequisites: string[];
