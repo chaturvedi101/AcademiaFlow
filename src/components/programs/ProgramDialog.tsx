@@ -72,7 +72,7 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
     
     const data = {
       ...formData,
-      totalSemesters: Number(formData.totalSemesters),
+      totalSemesters: Number(formData.totalSemesters || 0),
       updatedAt: serverTimestamp(),
       createdAt: program?.createdAt || serverTimestamp(),
     };
@@ -122,7 +122,7 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
                 <Label>Program Name</Label>
                 <Input 
                   placeholder="B.Tech in Computer Science" 
-                  value={formData.name}
+                  value={formData.name || ''}
                   onChange={e => setFormData({ ...formData, name: e.target.value })}
                 />
               </div>
@@ -130,7 +130,7 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
                 <Label>Program Code</Label>
                 <Input 
                   placeholder="BTECH-CS" 
-                  value={formData.code}
+                  value={formData.code || ''}
                   onChange={e => setFormData({ ...formData, code: e.target.value })}
                 />
               </div>
@@ -139,7 +139,7 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Level</Label>
-                <Select value={formData.level} onValueChange={(v: any) => setFormData({ ...formData, level: v })}>
+                <Select value={formData.level || 'UG'} onValueChange={(v: any) => setFormData({ ...formData, level: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="UG">Undergraduate (UG)</SelectItem>
@@ -154,7 +154,7 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
                 <Input 
                   type="number" 
                   placeholder="8"
-                  value={formData.totalSemesters}
+                  value={formData.totalSemesters || ''}
                   onChange={e => setFormData({ ...formData, totalSemesters: parseInt(e.target.value) || 0 })}
                 />
               </div>
@@ -162,7 +162,7 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
                 <Label>Total Required Credits</Label>
                 <Input 
                   type="number" 
-                  value={formData.rules?.totalRequired} 
+                  value={formData.rules?.totalRequired || ''} 
                   onChange={e => updateRule('totalRequired', e.target.value)}
                 />
               </div>
@@ -172,7 +172,7 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
               <Label>Description</Label>
               <Textarea 
                 placeholder="Brief overview of the program objectives..."
-                value={formData.description}
+                value={formData.description || ''}
                 onChange={e => setFormData({ ...formData, description: e.target.value })}
               />
             </div>
@@ -185,22 +185,22 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
                       <Label className="text-xs">DSC Min</Label>
-                      <Input type="number" value={formData.rules?.dscMin} onChange={e => updateRule('dscMin', e.target.value)} />
+                      <Input type="number" value={formData.rules?.dscMin || ''} onChange={e => updateRule('dscMin', e.target.value)} />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">DSC Max</Label>
-                      <Input type="number" value={formData.rules?.dscMax} onChange={e => updateRule('dscMax', e.target.value)} />
+                      <Input type="number" value={formData.rules?.dscMax || ''} onChange={e => updateRule('dscMax', e.target.value)} />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
                       <Label className="text-xs">Experiential Min</Label>
-                      <Input type="number" value={formData.rules?.experientialMin} onChange={e => updateRule('experientialMin', e.target.value)} />
+                      <Input type="number" value={formData.rules?.experientialMin || ''} onChange={e => updateRule('experientialMin', e.target.value)} />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Experiential Max</Label>
-                      <Input type="number" value={formData.rules?.experientialMax} onChange={e => updateRule('experientialMax', e.target.value)} />
+                      <Input type="number" value={formData.rules?.experientialMax || ''} onChange={e => updateRule('experientialMax', e.target.value)} />
                     </div>
                   </div>
                 </div>
@@ -209,22 +209,22 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
                       <Label className="text-xs">DSE Min</Label>
-                      <Input type="number" value={formData.rules?.dseMin} onChange={e => updateRule('dseMin', e.target.value)} />
+                      <Input type="number" value={formData.rules?.dseMin || ''} onChange={e => updateRule('dseMin', e.target.value)} />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">DSE Max</Label>
-                      <Input type="number" value={formData.rules?.dseMax} onChange={e => updateRule('dseMax', e.target.value)} />
+                      <Input type="number" value={formData.rules?.dseMax || ''} onChange={e => updateRule('dseMax', e.target.value)} />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
                       <Label className="text-xs">OFE Min</Label>
-                      <Input type="number" value={formData.rules?.ofeMin} onChange={e => updateRule('ofeMin', e.target.value)} />
+                      <Input type="number" value={formData.rules?.ofeMin || ''} onChange={e => updateRule('ofeMin', e.target.value)} />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">OFE Max</Label>
-                      <Input type="number" value={formData.rules?.ofeMax} onChange={e => updateRule('ofeMax', e.target.value)} />
+                      <Input type="number" value={formData.rules?.ofeMax || ''} onChange={e => updateRule('ofeMax', e.target.value)} />
                     </div>
                   </div>
                 </div>
