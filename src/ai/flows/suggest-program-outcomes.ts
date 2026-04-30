@@ -34,6 +34,14 @@ const prompt = ai.definePrompt({
   name: 'suggestProgramOutcomesPrompt',
   input: {schema: SuggestProgramOutcomesInputSchema},
   output: {schema: SuggestProgramOutcomesOutputSchema},
+  config: {
+    safetySettings: [
+      {
+        category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+        threshold: 'BLOCK_NONE',
+      },
+    ],
+  },
   prompt: `You are an expert academic assistant specializing in Outcome-Based Education (OBE) and academic compliance (NAAC/AICTE).
 Your task is to suggest relevant Program Outcomes (POs) based on a given Course Outcome (CO).
 
@@ -53,6 +61,9 @@ const suggestProgramOutcomesFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await prompt(input);
-    return output!;
+    if (!output) {
+      throw new Error('AI failed to suggest program outcomes.');
+    }
+    return output;
   }
 );

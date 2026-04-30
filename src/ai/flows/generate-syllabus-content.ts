@@ -49,6 +49,26 @@ const prompt = ai.definePrompt({
   name: 'generateSyllabusContentPrompt',
   input: { schema: GenerateSyllabusContentInputSchema },
   output: { schema: GenerateSyllabusContentOutputSchema },
+  config: {
+    safetySettings: [
+      {
+        category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+        threshold: 'BLOCK_NONE',
+      },
+      {
+        category: 'HARM_CATEGORY_HATE_SPEECH',
+        threshold: 'BLOCK_NONE',
+      },
+      {
+        category: 'HARM_CATEGORY_HARASSMENT',
+        threshold: 'BLOCK_NONE',
+      },
+      {
+        category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+        threshold: 'BLOCK_NONE',
+      },
+    ],
+  },
   prompt: `You are an expert academic content creator for technical university syllabi. Your task is to generate a subject description, course outcomes, and learning resources based on a given subject title and keywords.
 
 Generate the content in a structured JSON object with the following fields:
@@ -70,6 +90,9 @@ const generateSyllabusContentFlow = ai.defineFlow(
   },
   async (input) => {
     const { output } = await prompt(input);
-    return output!;
+    if (!output) {
+      throw new Error('AI failed to generate a valid syllabus structure.');
+    }
+    return output;
   }
 );
