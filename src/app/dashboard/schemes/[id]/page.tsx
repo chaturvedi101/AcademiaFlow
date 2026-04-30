@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { useFirestore, useDoc, useCollection } from "@/firebase";
 import { doc, collection, setDoc, deleteDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
@@ -18,8 +18,8 @@ import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 
-export default function SchemeDetailPage({ params }: { params: { id: string } }) {
-  const { id: schemeId } = params;
+export default function SchemeDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: schemeId } = React.use(params);
   const db = useFirestore();
   const { toast } = useToast();
 
