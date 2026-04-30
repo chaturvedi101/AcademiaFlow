@@ -15,12 +15,28 @@ export type SubjectType = 'Theory' | 'Tutorial' | 'Practical/Lab' | 'Sessional' 
 
 export type CreditCategory = 'DSC' | 'DSE' | 'OFE' | 'CPF' | 'VAC' | 'AEC' | 'SEC' | 'MDC';
 
+export interface CreditRules {
+  dscMin: number;
+  dscMax: number;
+  experientialMin: number;
+  experientialMax: number;
+  dseMin: number;
+  dseMax: number;
+  ofeMin: number;
+  ofeMax: number;
+  totalRequired: number;
+}
+
 export interface Program {
   id: string;
   name: string;
   code: string;
   totalCredits: number;
   description: string;
+  level: 'UG' | 'PG' | 'Diploma' | 'Certificate';
+  rules: CreditRules;
+  createdAt: any;
+  updatedAt: any;
 }
 
 export interface Scheme {

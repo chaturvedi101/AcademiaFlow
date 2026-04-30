@@ -34,6 +34,58 @@
         "email",
         "role"
       ]
+    },
+    "Program": {
+      "title": "Program",
+      "description": "Definition of an academic program and its associated NEP 2020 credit rules.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "level": {
+          "type": "string",
+          "enum": [
+            "UG",
+            "PG",
+            "Diploma",
+            "Certificate"
+          ]
+        },
+        "rules": {
+          "type": "object",
+          "properties": {
+            "dscMin": { "type": "number" },
+            "dscMax": { "type": "number" },
+            "experientialMin": { "type": "number" },
+            "experientialMax": { "type": "number" },
+            "dseMin": { "type": "number" },
+            "dseMax": { "type": "number" },
+            "ofeMin": { "type": "number" },
+            "ofeMax": { "type": "number" },
+            "totalRequired": { "type": "number" }
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "name",
+        "code",
+        "level"
+      ]
     }
   },
   "auth": {
@@ -45,6 +97,10 @@
     "/users/{userId}": {
       "schema": "UserProfile",
       "description": "Stores user profiles and their associated roles."
+    },
+    "/programs/{programId}": {
+      "schema": "Program",
+      "description": "Stores program definitions and credit compliance rules."
     }
   }
 }
