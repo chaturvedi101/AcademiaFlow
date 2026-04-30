@@ -1,3 +1,4 @@
+
 export type UserRole = 'bos_convenor' | 'dean_faculty' | 'dean_academics' | 'admin';
 
 export interface UserProfile {
@@ -5,6 +6,7 @@ export interface UserProfile {
   email: string;
   displayName: string;
   role: UserRole;
+  createdAt?: any;
 }
 
 export type SchemeStatus = 'Draft' | 'Pending Dean' | 'Pending Academics' | 'Approved';

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from "react";
@@ -6,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ShieldCheck, GraduationCap, FileCheck, Layers, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore, useUser } from "@/firebase";
@@ -17,6 +19,7 @@ import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { UserRole } from "@/lib/types";
 
 export default function Home() {
   const { user, loading: userLoading } = useUser();
@@ -29,6 +32,7 @@ export default function Home() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [role, setRole] = useState<UserRole>("bos_convenor");
 
   useEffect(() => {
     if (user && !userLoading) {
@@ -63,7 +67,7 @@ export default function Home() {
       const userData = {
         displayName: displayName || email.split('@')[0],
         email: email,
-        role: 'bos_convenor',
+        role: role,
         createdAt: serverTimestamp(),
       };
 
@@ -79,7 +83,7 @@ export default function Home() {
       
       toast({
         title: "Account Created",
-        description: "Welcome to Academia Flow! You have been assigned the BoS Convenor role.",
+        description: `Welcome! You have been registered as a ${role.replace('_', ' ')}.`,
       });
       router.push('/dashboard');
     } catch (error: any) {
@@ -225,6 +229,20 @@ export default function Home() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                       />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="reg-role">Academic Role</Label>
+                      <Select value={role} onValueChange={(val: UserRole) => setRole(val)}>
+                        <SelectTrigger id="reg-role">
+                          <SelectValue placeholder="Select a role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="bos_convenor">BoS Convenor</SelectItem>
+                          <SelectItem value="dean_faculty">Dean of Faculty</SelectItem>
+                          <SelectItem value="dean_academics">Dean Academics</SelectItem>
+                          <SelectItem value="admin">System Administrator</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <Button 
                       type="submit" 
