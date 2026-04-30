@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -97,7 +96,7 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
     setFormData(prev => ({
       ...prev,
       rules: {
-        ...(prev.rules as CreditRules),
+        ...(prev.rules || DEFAULT_RULES),
         [key]: numValue
       }
     }));
@@ -162,6 +161,7 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
                 <Label>Total Required Credits</Label>
                 <Input 
                   type="number" 
+                  placeholder="160"
                   value={formData.rules?.totalRequired || ''} 
                   onChange={e => updateRule('totalRequired', e.target.value)}
                 />
@@ -178,53 +178,65 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
             </div>
 
             <div className="border-t pt-4 space-y-4">
-              <h3 className="font-headline font-bold text-lg">Credit Framework (Min / Max Limits)</h3>
+              <h3 className="font-headline font-bold text-lg">NEP 2020 Credit Framework (Min / Max)</h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs">DSC Min</Label>
-                      <Input type="number" value={formData.rules?.dscMin || ''} onChange={e => updateRule('dscMin', e.target.value)} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">DSC Max</Label>
-                      <Input type="number" value={formData.rules?.dscMax || ''} onChange={e => updateRule('dscMax', e.target.value)} />
+                  <div className="p-3 bg-muted/30 rounded-lg space-y-3">
+                    <Label className="text-primary font-bold">Discipline Specific Core (DSC)</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Min Credits</Label>
+                        <Input type="number" value={formData.rules?.dscMin || ''} onChange={e => updateRule('dscMin', e.target.value)} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Max Credits</Label>
+                        <Input type="number" value={formData.rules?.dscMax || ''} onChange={e => updateRule('dscMax', e.target.value)} />
+                      </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Experiential Min</Label>
-                      <Input type="number" value={formData.rules?.experientialMin || ''} onChange={e => updateRule('experientialMin', e.target.value)} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Experiential Max</Label>
-                      <Input type="number" value={formData.rules?.experientialMax || ''} onChange={e => updateRule('experientialMax', e.target.value)} />
+                  <div className="p-3 bg-muted/30 rounded-lg space-y-3">
+                    <Label className="text-primary font-bold">Experiential Learning</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Min Credits</Label>
+                        <Input type="number" value={formData.rules?.experientialMin || ''} onChange={e => updateRule('experientialMin', e.target.value)} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Max Credits</Label>
+                        <Input type="number" value={formData.rules?.experientialMax || ''} onChange={e => updateRule('experientialMax', e.target.value)} />
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs">DSE Min</Label>
-                      <Input type="number" value={formData.rules?.dseMin || ''} onChange={e => updateRule('dseMin', e.target.value)} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">DSE Max</Label>
-                      <Input type="number" value={formData.rules?.dseMax || ''} onChange={e => updateRule('dseMax', e.target.value)} />
+                  <div className="p-3 bg-muted/30 rounded-lg space-y-3">
+                    <Label className="text-primary font-bold">Discipline Specific Elective (DSE)</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Min Credits</Label>
+                        <Input type="number" value={formData.rules?.dseMin || ''} onChange={e => updateRule('dseMin', e.target.value)} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Max Credits</Label>
+                        <Input type="number" value={formData.rules?.dseMax || ''} onChange={e => updateRule('dseMax', e.target.value)} />
+                      </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs">OFE Min</Label>
-                      <Input type="number" value={formData.rules?.ofeMin || ''} onChange={e => updateRule('ofeMin', e.target.value)} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">OFE Max</Label>
-                      <Input type="number" value={formData.rules?.ofeMax || ''} onChange={e => updateRule('ofeMax', e.target.value)} />
+                  <div className="p-3 bg-accent/5 border border-accent/10 rounded-lg space-y-3">
+                    <Label className="text-accent font-bold">Open / Free Electives (OFE)</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Min Credits</Label>
+                        <Input type="number" value={formData.rules?.ofeMin || ''} onChange={e => updateRule('ofeMin', e.target.value)} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Max Credits</Label>
+                        <Input type="number" value={formData.rules?.ofeMax || ''} onChange={e => updateRule('ofeMax', e.target.value)} />
+                      </div>
                     </div>
                   </div>
                 </div>
