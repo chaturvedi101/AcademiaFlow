@@ -104,8 +104,8 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden shadow-2xl">
-        <DialogHeader className="p-6 border-b shrink-0 bg-background z-10">
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden shadow-2xl border-none">
+        <DialogHeader className="p-6 border-b shrink-0 bg-background z-20">
           <DialogTitle className="font-headline text-2xl">
             {program ? 'Edit Program' : 'New Program Definition'}
           </DialogTitle>
@@ -114,8 +114,8 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1">
-          <div className="p-6 space-y-8">
+        <ScrollArea className="flex-1 w-full outline-none" tabIndex={0}>
+          <div className="p-6 space-y-8 pb-12">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label className="text-sm font-semibold">Program Name</Label>
@@ -155,7 +155,7 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
                 <Input 
                   type="number" 
                   placeholder="8"
-                  value={formData.totalSemesters || ''}
+                  value={formData.totalSemesters ?? ''}
                   onChange={e => setFormData({ ...formData, totalSemesters: parseInt(e.target.value) || 0 })}
                   className="h-11"
                 />
@@ -165,7 +165,7 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
                 <Input 
                   type="number" 
                   placeholder="160"
-                  value={formData.rules?.totalRequired || ''} 
+                  value={formData.rules?.totalRequired ?? ''} 
                   onChange={e => updateRule('totalRequired', e.target.value)}
                   className="h-11 font-bold border-primary/20 bg-primary/5 focus:bg-background"
                 />
@@ -191,29 +191,29 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div className="p-4 bg-muted/30 rounded-xl border border-border/50 space-y-4">
-                    <Label className="text-primary font-bold text-sm block border-b pb-2">Discipline Specific Core (DSC)</Label>
+                    <Label className="text-primary font-bold text-sm block border-b pb-2 uppercase tracking-wide">Discipline Specific Core (DSC)</Label>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1.5">
                         <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Min Credits</Label>
-                        <Input type="number" value={formData.rules?.dscMin || ''} onChange={e => updateRule('dscMin', e.target.value)} className="h-9" />
+                        <Input type="number" value={formData.rules?.dscMin ?? ''} onChange={e => updateRule('dscMin', e.target.value)} className="h-9" />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Max Credits</Label>
-                        <Input type="number" value={formData.rules?.dscMax || ''} onChange={e => updateRule('dscMax', e.target.value)} className="h-9" />
+                        <Input type="number" value={formData.rules?.dscMax ?? ''} onChange={e => updateRule('dscMax', e.target.value)} className="h-9" />
                       </div>
                     </div>
                   </div>
 
                   <div className="p-4 bg-muted/30 rounded-xl border border-border/50 space-y-4">
-                    <Label className="text-primary font-bold text-sm block border-b pb-2">Experiential Learning</Label>
+                    <Label className="text-primary font-bold text-sm block border-b pb-2 uppercase tracking-wide">Experiential Learning</Label>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1.5">
                         <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Min Credits</Label>
-                        <Input type="number" value={formData.rules?.experientialMin || ''} onChange={e => updateRule('experientialMin', e.target.value)} className="h-9" />
+                        <Input type="number" value={formData.rules?.experientialMin ?? ''} onChange={e => updateRule('experientialMin', e.target.value)} className="h-9" />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Max Credits</Label>
-                        <Input type="number" value={formData.rules?.experientialMax || ''} onChange={e => updateRule('experientialMax', e.target.value)} className="h-9" />
+                        <Input type="number" value={formData.rules?.experientialMax ?? ''} onChange={e => updateRule('experientialMax', e.target.value)} className="h-9" />
                       </div>
                     </div>
                   </div>
@@ -221,29 +221,29 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
 
                 <div className="space-y-4">
                   <div className="p-4 bg-muted/30 rounded-xl border border-border/50 space-y-4">
-                    <Label className="text-primary font-bold text-sm block border-b pb-2">Discipline Specific Elective (DSE)</Label>
+                    <Label className="text-primary font-bold text-sm block border-b pb-2 uppercase tracking-wide">Discipline Specific Elective (DSE)</Label>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1.5">
                         <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Min Credits</Label>
-                        <Input type="number" value={formData.rules?.dseMin || ''} onChange={e => updateRule('dseMin', e.target.value)} className="h-9" />
+                        <Input type="number" value={formData.rules?.dseMin ?? ''} onChange={e => updateRule('dseMin', e.target.value)} className="h-9" />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Max Credits</Label>
-                        <Input type="number" value={formData.rules?.dseMax || ''} onChange={e => updateRule('dseMax', e.target.value)} className="h-9" />
+                        <Input type="number" value={formData.rules?.dseMax ?? ''} onChange={e => updateRule('dseMax', e.target.value)} className="h-9" />
                       </div>
                     </div>
                   </div>
 
                   <div className="p-4 bg-accent/5 border border-accent/20 rounded-xl space-y-4">
-                    <Label className="text-accent font-bold text-sm block border-b border-accent/10 pb-2">Open / Free Electives (OFE)</Label>
+                    <Label className="text-accent font-bold text-sm block border-b border-accent/10 pb-2 uppercase tracking-wide">Open / Free Electives (OFE)</Label>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1.5">
                         <Label className="text-[10px] uppercase text-accent/60 font-bold tracking-wider">Min Credits</Label>
-                        <Input type="number" value={formData.rules?.ofeMin || ''} onChange={e => updateRule('ofeMin', e.target.value)} className="h-9 border-accent/20 focus:ring-accent/20" />
+                        <Input type="number" value={formData.rules?.ofeMin ?? ''} onChange={e => updateRule('ofeMin', e.target.value)} className="h-9 border-accent/20 focus:ring-accent/20" />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-[10px] uppercase text-accent/60 font-bold tracking-wider">Max Credits</Label>
-                        <Input type="number" value={formData.rules?.ofeMax || ''} onChange={e => updateRule('ofeMax', e.target.value)} className="h-9 border-accent/20 focus:ring-accent/20" />
+                        <Input type="number" value={formData.rules?.ofeMax ?? ''} onChange={e => updateRule('ofeMax', e.target.value)} className="h-9 border-accent/20 focus:ring-accent/20" />
                       </div>
                     </div>
                   </div>
@@ -253,7 +253,7 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
           </div>
         </ScrollArea>
 
-        <DialogFooter className="p-6 bg-muted/20 border-t shrink-0">
+        <DialogFooter className="p-6 bg-muted/20 border-t shrink-0 z-20">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="px-6">Cancel</Button>
           <Button onClick={handleSave} className="px-8 shadow-lg">Save Program Configuration</Button>
         </DialogFooter>
