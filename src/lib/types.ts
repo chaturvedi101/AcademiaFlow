@@ -32,6 +32,7 @@ export interface Program {
   name: string;
   code: string;
   totalCredits: number;
+  totalSemesters: number;
   description: string;
   level: 'UG' | 'PG' | 'Diploma' | 'Certificate';
   rules: CreditRules;

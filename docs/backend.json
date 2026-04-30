@@ -49,6 +49,10 @@
         "description": {
           "type": "string"
         },
+        "totalSemesters": {
+          "type": "number",
+          "description": "The total number of semesters in the program (e.g., 8 for B.Tech, 4 for MBA)."
+        },
         "level": {
           "type": "string",
           "enum": [
@@ -84,7 +88,8 @@
       "required": [
         "name",
         "code",
-        "level"
+        "level",
+        "totalSemesters"
       ]
     }
   },

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useFirestore } from '@/firebase';
-import { doc, setDoc, serverTimestamp, collection } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Program, CreditRules } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -42,6 +42,7 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
     code: '',
     description: '',
     level: 'UG',
+    totalSemesters: 8,
     rules: { ...DEFAULT_RULES }
   });
 
@@ -54,17 +55,24 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
         code: '',
         description: '',
         level: 'UG',
+        totalSemesters: 8,
         rules: { ...DEFAULT_RULES }
       });
     }
   }, [program, open]);
 
   const handleSave = () => {
-    const programId = program?.id || formData.code?.toLowerCase().replace(/\s+/g, '-') || Math.random().toString(36).substr(2, 9);
+    if (!formData.code) {
+      toast({ title: "Validation Error", description: "Program code is required.", variant: "destructive" });
+      return;
+    }
+
+    const programId = program?.id || formData.code.toLowerCase().replace(/\s+/g, '-') || Math.random().toString(36).substr(2, 9);
     const programRef = doc(db, 'programs', programId);
     
     const data = {
       ...formData,
+      totalSemesters: Number(formData.totalSemesters),
       updatedAt: serverTimestamp(),
       createdAt: program?.createdAt || serverTimestamp(),
     };
@@ -103,7 +111,7 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
             {program ? 'Edit Program' : 'New Program Definition'}
           </DialogTitle>
           <DialogDescription>
-            Configure program details and credit limits for NEP 2020 compliance.
+            Configure program details, semesters, and credit limits for NEP 2020 compliance.
           </DialogDescription>
         </DialogHeader>
 
@@ -128,7 +136,7 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Level</Label>
                 <Select value={formData.level} onValueChange={(v: any) => setFormData({ ...formData, level: v })}>
@@ -140,6 +148,15 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
                     <SelectItem value="Certificate">Certificate</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Total Semesters</Label>
+                <Input 
+                  type="number" 
+                  placeholder="8"
+                  value={formData.totalSemesters}
+                  onChange={e => setFormData({ ...formData, totalSemesters: parseInt(e.target.value) || 0 })}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Total Required Credits</Label>
