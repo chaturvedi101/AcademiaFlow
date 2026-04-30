@@ -1,26 +1,18 @@
 'use server';
 /**
- * @fileOverview An AI assistant that suggests relevant program outcomes based on a course outcome.
- *
- * - suggestProgramOutcomes - A function that handles the program outcome suggestion process.
- * - SuggestProgramOutcomesInput - The input type for the suggestProgramOutcomes function.
- * - SuggestProgramOutcomesOutput - The return type for the suggestProgramOutcomes function.
+ * @fileOverview Suggests relevant program outcomes based on a course outcome.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const SuggestProgramOutcomesInputSchema = z.object({
-  courseOutcome: z
-    .string()
-    .describe("The text of the course outcome for which to suggest program outcomes."),
+  courseOutcome: z.string().describe("The course outcome text."),
 });
 export type SuggestProgramOutcomesInput = z.infer<typeof SuggestProgramOutcomesInputSchema>;
 
 const SuggestProgramOutcomesOutputSchema = z.object({
-  suggestedProgramOutcomes: z
-    .array(z.string())
-    .describe("An array of relevant program outcomes suggested based on the course outcome."),
+  suggestedProgramOutcomes: z.array(z.string()).describe("Array of suggested PO codes (e.g., PO1, PO2)."),
 });
 export type SuggestProgramOutcomesOutput = z.infer<typeof SuggestProgramOutcomesOutputSchema>;
 
@@ -35,22 +27,11 @@ const prompt = ai.definePrompt({
   input: {schema: SuggestProgramOutcomesInputSchema},
   output: {schema: SuggestProgramOutcomesOutputSchema},
   config: {
-    safetySettings: [
-      {
-        category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
-        threshold: 'BLOCK_NONE',
-      },
-    ],
+    safetySettings: [{ category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }],
   },
-  prompt: `You are an expert academic assistant specializing in Outcome-Based Education (OBE) and academic compliance (NAAC/AICTE).
-Your task is to suggest relevant Program Outcomes (POs) based on a given Course Outcome (CO).
+  prompt: `Based on the following Course Outcome, suggest which standard Engineering Program Outcomes (PO1 to PO12) it maps to. Provide the PO identifiers as strings.
 
-When suggesting Program Outcomes, consider the scope, depth, and learning objectives implied by the Course Outcome.
-Provide a list of program outcomes that are most directly aligned with or supported by the given Course Outcome.
-
-Course Outcome: {{{courseOutcome}}}
-
-Suggest relevant Program Outcomes as a JSON array of strings.`,
+Course Outcome: {{{courseOutcome}}}`,
 });
 
 const suggestProgramOutcomesFlow = ai.defineFlow(
@@ -61,9 +42,7 @@ const suggestProgramOutcomesFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await prompt(input);
-    if (!output) {
-      throw new Error('AI failed to suggest program outcomes.');
-    }
+    if (!output) throw new Error('AI failed to suggest program outcomes.');
     return output;
   }
 );

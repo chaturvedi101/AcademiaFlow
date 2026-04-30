@@ -1,10 +1,6 @@
 'use server';
 /**
  * @fileOverview An AI assistant flow for generating initial drafts of syllabus content.
- *
- * - generateSyllabusContent - A function that generates course outcomes, learning resources, and a subject description.
- * - GenerateSyllabusContentInput - The input type for the generateSyllabusContent function.
- * - GenerateSyllabusContentOutput - The return type for the generateSyllabusContent function.
  */
 
 import { ai } from '@/ai/genkit';
@@ -32,7 +28,7 @@ const GenerateSyllabusContentOutputSchema = z.object({
   learningResources: z
     .array(z.string())
     .describe(
-      'A list of 3-5 recommended learning resources (e.g., textbooks, online courses, research papers).'
+      'A list of 3-5 recommended learning resources (e.g., textbooks, online courses).'
     ),
 });
 export type GenerateSyllabusContentOutput = z.infer<
@@ -51,35 +47,18 @@ const prompt = ai.definePrompt({
   output: { schema: GenerateSyllabusContentOutputSchema },
   config: {
     safetySettings: [
-      {
-        category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
-        threshold: 'BLOCK_NONE',
-      },
-      {
-        category: 'HARM_CATEGORY_HATE_SPEECH',
-        threshold: 'BLOCK_NONE',
-      },
-      {
-        category: 'HARM_CATEGORY_HARASSMENT',
-        threshold: 'BLOCK_NONE',
-      },
-      {
-        category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-        threshold: 'BLOCK_NONE',
-      },
+      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
     ],
   },
-  prompt: `You are an expert academic content creator for technical university syllabi. Your task is to generate a subject description, course outcomes, and learning resources based on a given subject title and keywords.
-
-Generate the content in a structured JSON object with the following fields:
-- 'subjectDescription': A brief, concise description of the subject.
-- 'courseOutcomes': A list of 3-5 specific, measurable, achievable, relevant, and time-bound learning outcomes for the subject.
-- 'learningResources': A list of 3-5 recommended learning resources, such as textbooks, online courses, research papers, or software tools.
+  prompt: `You are an expert academic content creator. Generate a subject description, course outcomes, and learning resources for a technical university syllabus.
 
 Subject Title: "{{{subjectTitle}}}"
 Keywords: {{{keywords}}}
 
-Ensure the content is appropriate for a technical university curriculum. Do not include any introductory or concluding remarks outside the JSON.`,
+Ensure outcomes are specific and measurable.`,
 });
 
 const generateSyllabusContentFlow = ai.defineFlow(
@@ -90,9 +69,7 @@ const generateSyllabusContentFlow = ai.defineFlow(
   },
   async (input) => {
     const { output } = await prompt(input);
-    if (!output) {
-      throw new Error('AI failed to generate a valid syllabus structure.');
-    }
+    if (!output) throw new Error('AI failed to generate syllabus structure.');
     return output;
   }
 );
