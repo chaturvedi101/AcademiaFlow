@@ -17,7 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { initializeApp, deleteApp, getApp, getApps } from "firebase/app";
+import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { firebaseConfig } from "@/firebase/config";
 
@@ -30,21 +30,25 @@ export default function UserManagementPage() {
   const [assigningUser, setAssigningUser] = useState<string | null>(null);
   const [selection, setSelection] = useState({ programId: '', branch: '' });
   const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
-  const [registerForm, setRegisterForm] = useState({ email: '', displayName: '' });
+  const [registerForm, setRegisterForm] = useState({ 
+    email: '', 
+    displayName: '',
+    programId: '',
+    branch: ''
+  });
   const [isRegistering, setIsRegistering] = useState(false);
 
   const convenors = users.filter(u => u.role === 'bos_convenor');
 
   const handleRegisterConvenor = async () => {
     if (!registerForm.email || !registerForm.displayName) {
-      toast({ title: "Validation Error", description: "All fields are required.", variant: "destructive" });
+      toast({ title: "Validation Error", description: "Email and Name are required.", variant: "destructive" });
       return;
     }
 
     setIsRegistering(true);
     let tempApp;
     try {
-      // Create a secondary app to avoid logging out the Dean
       const appName = `temp-admin-${Date.now()}`;
       tempApp = initializeApp(firebaseConfig, appName);
       const tempAuth = getAuth(tempApp);
@@ -53,12 +57,21 @@ export default function UserManagementPage() {
       const newUid = userCredential.user.uid;
 
       const userRef = doc(db, 'users', newUid);
+      
+      const initialBranches: ManagedBranch[] = [];
+      if (registerForm.programId && registerForm.branch) {
+        initialBranches.push({
+          programId: registerForm.programId,
+          branch: registerForm.branch
+        });
+      }
+
       const userData = {
         displayName: registerForm.displayName,
         email: registerForm.email,
         role: 'bos_convenor',
         createdAt: serverTimestamp(),
-        managedBranches: []
+        managedBranches: initialBranches
       };
 
       await setDoc(userRef, userData);
@@ -68,7 +81,7 @@ export default function UserManagementPage() {
         description: `${registerForm.displayName} registered successfully with password 'abcd1234'.` 
       });
       setIsRegisterDialogOpen(false);
-      setRegisterForm({ email: '', displayName: '' });
+      setRegisterForm({ email: '', displayName: '', programId: '', branch: '' });
     } catch (error: any) {
       toast({ 
         variant: "destructive", 
@@ -122,6 +135,8 @@ export default function UserManagementPage() {
         }));
       });
   };
+
+  const selectedRegisterProgram = programs.find(p => p.id === registerForm.programId);
 
   if (usersLoading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary w-8 h-8" /></div>;
 
@@ -229,11 +244,11 @@ export default function UserManagementPage() {
       </Card>
 
       <Dialog open={isRegisterDialogOpen} onOpenChange={setIsRegisterDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Register Faculty Member</DialogTitle>
             <DialogDescription>
-              Create a new account for a faculty member. They will be assigned the BoS Convenor role with a temporary password: <span className="font-bold text-primary">abcd1234</span>
+              Create a new account for a faculty member. Password: <span className="font-bold text-primary">abcd1234</span>
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -256,12 +271,36 @@ export default function UserManagementPage() {
                 onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
               />
             </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Initial Program</Label>
+                <Select value={registerForm.programId} onValueChange={v => setRegisterForm({...registerForm, programId: v, branch: ''})}>
+                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectContent>
+                    {programs.map(p => <SelectItem key={p.id} value={p.id}>{p.code}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Initial Branch</Label>
+                <Select value={registerForm.branch} onValueChange={v => setRegisterForm({...registerForm, branch: v})}>
+                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectContent>
+                    {selectedRegisterProgram?.branches?.map(b => (
+                      <SelectItem key={b} value={b}>{b}</SelectItem>
+                    ))}
+                    {!selectedRegisterProgram && <SelectItem value="_" disabled>Select Program first</SelectItem>}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsRegisterDialogOpen(false)} disabled={isRegistering}>Cancel</Button>
             <Button onClick={handleRegisterConvenor} disabled={isRegistering}>
               {isRegistering ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <UserPlus className="w-4 h-4 mr-2" />}
-              Register Faculty
+              Register & Assign
             </Button>
           </DialogFooter>
         </DialogContent>
