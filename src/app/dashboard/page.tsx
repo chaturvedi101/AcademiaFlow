@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo } from 'react';
@@ -7,7 +6,7 @@ import { collection, query, where, doc } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, Clock, CheckCircle2, AlertCircle, ArrowRight, Layers, ShieldCheck, GraduationCap, Loader2 } from "lucide-react";
+import { FileText, Clock, CheckCircle2, AlertCircle, ArrowRight, Layers, ShieldCheck, GraduationCap, Loader2, FileCheck } from "lucide-react";
 import Link from "next/link";
 import { Scheme, Program, UserProfile } from '@/lib/types';
 
