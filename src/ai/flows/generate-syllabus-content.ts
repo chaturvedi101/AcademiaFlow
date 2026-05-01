@@ -51,14 +51,22 @@ const prompt = ai.definePrompt({
       { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
       { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
       { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' },
     ],
   },
-  prompt: `You are an expert academic content creator. Generate a subject description, course outcomes, and learning resources for a technical university syllabus.
+  prompt: `You are an expert academic content creator specializing in technical university curriculum development.
+  
+Generate a professional subject description, measurable course outcomes, and high-quality learning resources for the following subject.
 
 Subject Title: "{{{subjectTitle}}}"
-Keywords: {{{keywords}}}
+Keywords: {{#each keywords}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
 
-Ensure outcomes are specific and measurable.`,
+Guidelines:
+1. The description should be 2-3 sentences.
+2. Course outcomes (COs) must follow Bloom's Taxonomy (e.g., "Analyze...", "Evaluate...", "Design...").
+3. Learning resources should include standard textbooks or reputable online platforms.
+
+Ensure the output is strictly in the requested JSON format.`,
 });
 
 const generateSyllabusContentFlow = ai.defineFlow(
@@ -68,8 +76,10 @@ const generateSyllabusContentFlow = ai.defineFlow(
     outputSchema: GenerateSyllabusContentOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input);
-    if (!output) throw new Error('AI failed to generate syllabus structure.');
-    return output;
+    const response = await prompt(input);
+    if (!response.output) {
+      throw new Error(`AI failed to generate syllabus structure. Finish reason: ${response.finishReason || 'Unknown'}`);
+    }
+    return response.output;
   }
 );

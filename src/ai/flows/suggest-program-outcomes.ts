@@ -27,11 +27,33 @@ const prompt = ai.definePrompt({
   input: {schema: SuggestProgramOutcomesInputSchema},
   output: {schema: SuggestProgramOutcomesOutputSchema},
   config: {
-    safetySettings: [{ category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }],
+    safetySettings: [
+      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' },
+    ],
   },
-  prompt: `Based on the following Course Outcome, suggest which standard Engineering Program Outcomes (PO1 to PO12) it maps to. Provide the PO identifiers as strings.
+  prompt: `Based on the following Course Outcome, suggest which standard Engineering Program Outcomes (PO1 to PO12) it maps to.
+  
+Engineering Program Outcomes (POs):
+PO1: Engineering Knowledge
+PO2: Problem Analysis
+PO3: Design/Development of Solutions
+PO4: Conduct Investigations of Complex Problems
+PO5: Modern Tool Usage
+PO6: The Engineer and Society
+PO7: Environment and Sustainability
+PO8: Ethics
+PO9: Individual and Team Work
+PO10: Communication
+PO11: Project Management and Finance
+PO12: Life-long Learning
 
-Course Outcome: {{{courseOutcome}}}`,
+Course Outcome: "{{{courseOutcome}}}"
+
+Provide only the identifiers like "PO1", "PO2" in the output array.`,
 });
 
 const suggestProgramOutcomesFlow = ai.defineFlow(
@@ -41,8 +63,10 @@ const suggestProgramOutcomesFlow = ai.defineFlow(
     outputSchema: SuggestProgramOutcomesOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    if (!output) throw new Error('AI failed to suggest program outcomes.');
-    return output;
+    const response = await prompt(input);
+    if (!response.output) {
+      throw new Error(`AI failed to suggest program outcomes. Finish reason: ${response.finishReason || 'Unknown'}`);
+    }
+    return response.output;
   }
 );

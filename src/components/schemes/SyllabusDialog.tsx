@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -10,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sparkles, Plus, X, Calculator } from "lucide-react";
+import { Sparkles, Plus, X, Calculator, Loader2 } from "lucide-react";
 import { suggestProgramOutcomes } from "@/ai/flows/suggest-program-outcomes";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { Syllabus, CreditCategory, SubjectType } from "@/lib/types";
@@ -59,8 +58,6 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
     const l = Number(formData.lectureCredits) || 0;
     const t = Number(formData.tutorialCredits) || 0;
     const p = Number(formData.practicalCredits) || 0;
-    // Standard calculation: 1L = 1C, 1T = 1C, 1P = 0.5C (or 1C depending on university)
-    // We'll calculate it but keep the total field editable for flexibility
     const calculated = l + t + (p * 0.5);
     setFormData(prev => ({ ...prev, credits: calculated }));
   }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits]);
@@ -81,8 +78,12 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
         courseOutcomes: result.courseOutcomes
       }));
       toast({ title: "AI Generation Success", description: "Syllabus content populated." });
-    } catch (e) {
-      toast({ title: "AI Error", description: "Could not generate content.", variant: "destructive" });
+    } catch (e: any) {
+      toast({ 
+        title: "AI Error", 
+        description: e.message || "Could not generate content. Please try again or check your API configuration.", 
+        variant: "destructive" 
+      });
     } finally {
       setLoadingAI(false);
     }
@@ -95,8 +96,8 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
         ...prev,
         programOutcomes: Array.from(new Set([...(prev.programOutcomes || []), ...result.suggestedProgramOutcomes]))
       }));
-    } catch (e) {
-      toast({ title: "AI Error", description: "Failed to suggest POs", variant: "destructive" });
+    } catch (e: any) {
+      // Silent fail for auto-suggestions to not interrupt user flow
     }
   };
 
@@ -163,7 +164,7 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
                     onClick={handleAIContent}
                     disabled={loadingAI}
                   >
-                    <Sparkles className={`w-5 h-5 ${loadingAI ? 'animate-pulse' : ''}`} />
+                    {loadingAI ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
                   </Button>
                 </div>
               </div>
@@ -272,8 +273,15 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
             <div className="space-y-4 pt-4 border-t">
               <div className="flex items-center justify-between">
                 <Label className="text-base font-bold text-primary">Course Outcomes (CO)</Label>
-                <Button variant="ghost" size="sm" onClick={handleAIContent} className="text-xs h-8 text-accent hover:bg-accent/10 gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5" /> Auto-generate COs
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleAIContent} 
+                  disabled={loadingAI}
+                  className="text-xs h-8 text-accent hover:bg-accent/10 gap-1.5"
+                >
+                  {loadingAI ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                  Auto-generate COs
                 </Button>
               </div>
               <div className="space-y-3">
