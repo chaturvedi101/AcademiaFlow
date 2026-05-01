@@ -1,42 +1,77 @@
+
+'use client';
+
+import { useMemo } from 'react';
+import { useFirestore, useCollection, useUser, useDoc } from '@/firebase';
+import { collection, query, where, doc } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, Clock, CheckCircle2, AlertCircle, ArrowRight } from "lucide-react";
+import { FileText, Clock, CheckCircle2, AlertCircle, ArrowRight, Layers, ShieldCheck, GraduationCap, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { Scheme, Program, UserProfile } from '@/lib/types';
 
 export default function DashboardPage() {
+  const db = useFirestore();
+  const { user } = useUser();
+  const userDocRef = useMemo(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
+  const { data: profile, loading: profileLoading } = useDoc<UserProfile>(userDocRef);
+
+  const { data: schemes, loading: schemesLoading } = useCollection<Scheme>(collection(db, 'schemes'));
+  const { data: programs, loading: programsLoading } = useCollection<Program>(collection(db, 'programs'));
+
+  const stats = useMemo(() => {
+    return {
+      activeSchemes: schemes.length,
+      pendingApproval: schemes.filter(s => s.status.includes('Pending')).length,
+      approved: schemes.filter(s => s.status === 'Approved').length,
+      programs: programs.length,
+    };
+  }, [schemes, programs]);
+
+  if (profileLoading || schemesLoading || programsLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-headline font-bold">Academic Overview</h1>
-        <p className="text-muted-foreground">Welcome back, Convenor. Here is what is happening across your programs.</p>
+        <p className="text-muted-foreground">
+          Welcome back, {profile?.displayName || 'User'}. 
+          Role: <span className="font-bold text-primary">{profile?.role?.replace('_', ' ').toUpperCase()}</span>
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatsCard 
           title="Active Schemes" 
-          value="12" 
-          trend="+2 this month" 
+          value={stats.activeSchemes} 
+          trend="Across all programs" 
           icon={<FileText className="text-primary" />} 
         />
         <StatsCard 
           title="Pending Approval" 
-          value="4" 
-          trend="2 overdue" 
+          value={stats.pendingApproval} 
+          trend="Awaiting review" 
           icon={<Clock className="text-accent" />} 
           variant="warning"
         />
         <StatsCard 
-          title="Approved Syllabi" 
-          value="248" 
-          trend="8 new additions" 
+          title="Approved Layouts" 
+          value={stats.approved} 
+          trend="Finalized schemes" 
           icon={<CheckCircle2 className="text-green-500" />} 
         />
         <StatsCard 
-          title="Audit Alerts" 
-          value="0" 
-          trend="System healthy" 
-          icon={<AlertCircle className="text-muted-foreground" />} 
+          title="Program Catalog" 
+          value={stats.programs} 
+          trend="Defined disciplines" 
+          icon={<GraduationCap className="text-muted-foreground" />} 
         />
       </div>
 
@@ -44,8 +79,8 @@ export default function DashboardPage() {
         <Card className="lg:col-span-2 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle className="font-headline">Recent Schemes</CardTitle>
-              <CardDescription>Latest academic schemes in draft or pending status.</CardDescription>
+              <CardTitle className="font-headline">Recent Activity</CardTitle>
+              <CardDescription>Monitor the latest changes in the academic ecosystem.</CardDescription>
             </div>
             <Button variant="outline" size="sm" asChild>
               <Link href="/dashboard/schemes">View All</Link>
@@ -53,44 +88,48 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <SchemeRow 
-                name="B.Tech Computer Science" 
-                batch="2024-28" 
-                status="Draft" 
-                updated="2h ago" 
-              />
-              <SchemeRow 
-                name="MBA Finance" 
-                batch="2024-26" 
-                status="Pending Dean" 
-                updated="1d ago" 
-              />
-              <SchemeRow 
-                name="B.Tech Civil Engineering" 
-                batch="2024-28" 
-                status="Approved" 
-                updated="3d ago" 
-              />
-              <SchemeRow 
-                name="M.Tech Data Science" 
-                batch="2024-26" 
-                status="Pending Academics" 
-                updated="5d ago" 
-              />
+              {schemes.slice(0, 5).map(scheme => {
+                const program = programs.find(p => p.id === scheme.programId);
+                return (
+                  <SchemeRow 
+                    key={scheme.id}
+                    name={program?.name || 'Unknown Program'} 
+                    batch={scheme.batchYear} 
+                    status={scheme.status} 
+                    updated="Recently" 
+                  />
+                );
+              })}
+              {schemes.length === 0 && (
+                <div className="text-center py-10 text-muted-foreground italic">
+                  No academic schemes registered yet.
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
 
         <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle className="font-headline">Quick Actions</CardTitle>
-            <CardDescription>Frequent administrative tasks.</CardDescription>
+            <CardTitle className="font-headline">Role-Specific Actions</CardTitle>
+            <CardDescription>Tasks based on your academic role.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <ActionLink href="/dashboard/schemes/new" label="New Scheme Layout" />
-            <ActionLink href="/dashboard/equivalence" label="Equivalence Mapping" />
-            <ActionLink href="/dashboard/reports" label="Accreditation Reports" />
-            <ActionLink href="/dashboard/programs" label="Program Catalog" />
+            {(profile?.role === 'bos_convenor' || profile?.role === 'admin') && (
+              <>
+                <ActionLink href="/dashboard/schemes" label="Draft New Scheme" icon={<Plus className="w-4 h-4" />} />
+                <ActionLink href="/dashboard/equivalence" label="Map Subject Equivalence" icon={<Layers className="w-4 h-4" />} />
+              </>
+            )}
+            {(profile?.role === 'dean_faculty' || profile?.role === 'dean_academics' || profile?.role === 'admin') && (
+              <ActionLink href="/dashboard/approvals" label="Review Pending Schemes" icon={<FileCheck className="w-4 h-4" />} />
+            )}
+            {(profile?.role === 'dean_academics' || profile?.role === 'admin') && (
+              <ActionLink href="/dashboard/programs" label="Configure Programs" icon={<GraduationCap className="w-4 h-4" />} />
+            )}
+            {profile?.role === 'admin' && (
+              <ActionLink href="/dashboard/audit" label="System Audit Logs" icon={<ShieldCheck className="w-4 h-4" />} />
+            )}
           </CardContent>
         </Card>
       </div>
@@ -129,28 +168,37 @@ function SchemeRow({ name, batch, status, updated }: any) {
   return (
     <div className="flex items-center justify-between p-4 rounded-lg border border-border/50 hover:bg-muted/20 transition-colors">
       <div className="space-y-1">
-        <p className="font-medium">{name}</p>
+        <p className="font-medium text-sm">{name}</p>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span>Batch: {batch}</span>
           <span className="w-1 h-1 rounded-full bg-border"></span>
           <span>Updated {updated}</span>
         </div>
       </div>
-      <Badge variant="outline" className={`${statusColors[status]} border-none font-medium`}>
+      <Badge variant="outline" className={`${statusColors[status] || 'bg-slate-100 text-slate-700'} border-none font-medium text-[10px]`}>
         {status}
       </Badge>
     </div>
   );
 }
 
-function ActionLink({ href, label }: { href: string, label: string }) {
+function ActionLink({ href, label, icon }: { href: string, label: string, icon: any }) {
   return (
     <Link 
       href={href} 
-      className="flex items-center justify-between p-3 rounded-lg border border-border bg-background hover:bg-primary hover:text-white group transition-all"
+      className="flex items-center justify-between p-3 rounded-xl border border-border bg-background hover:bg-primary hover:text-white group transition-all"
     >
-      <span className="text-sm font-medium">{label}</span>
+      <div className="flex items-center gap-3">
+        {icon}
+        <span className="text-sm font-medium">{label}</span>
+      </div>
       <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
     </Link>
+  );
+}
+
+function Plus({ className }: any) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M5 12h14"/><path d="M12 5v14"/></svg>
   );
 }
