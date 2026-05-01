@@ -76,10 +76,15 @@ const generateSyllabusContentFlow = ai.defineFlow(
     outputSchema: GenerateSyllabusContentOutputSchema,
   },
   async (input) => {
-    const response = await prompt(input);
-    if (!response.output) {
-      throw new Error(`AI failed to generate syllabus structure. Finish reason: ${response.finishReason || 'Unknown'}`);
+    try {
+      const response = await prompt(input);
+      if (!response.output) {
+        throw new Error(`AI failed to generate syllabus structure. Finish reason: ${response.finishReason || 'Unknown'}`);
+      }
+      return response.output;
+    } catch (error: any) {
+      console.error('Genkit Flow Error:', error);
+      throw error;
     }
-    return response.output;
   }
 );
