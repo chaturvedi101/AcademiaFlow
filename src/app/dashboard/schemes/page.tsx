@@ -16,6 +16,7 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import Link from 'next/link';
 
 export default function SchemesPage() {
   const db = useFirestore();
@@ -115,7 +116,7 @@ export default function SchemesPage() {
           <h1 className="text-3xl font-headline font-bold">Academic Schemes</h1>
           <p className="text-muted-foreground">Draft, build, and manage university academic layouts.</p>
         </div>
-        {(profile?.role === 'bos_convenor' || profile?.role === 'admin') && (
+        {profile?.role === 'admin' && (
           <Button onClick={() => setIsDialogOpen(true)} className="gap-2 shadow-lg">
             <Plus className="w-4 h-4" /> New Scheme
           </Button>

@@ -127,11 +127,11 @@ export default function DashboardPage() {
             <CardDescription>Tasks based on your academic role.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
+            {profile?.role === 'admin' && (
+              <ActionLink href="/dashboard/schemes" label="Draft New Scheme" icon={<Plus className="w-4 h-4" />} />
+            )}
             {(profile?.role === 'bos_convenor' || profile?.role === 'admin') && (
-              <>
-                <ActionLink href="/dashboard/schemes" label="Draft New Scheme" icon={<Plus className="w-4 h-4" />} />
-                <ActionLink href="/dashboard/equivalence" label="Map Subject Equivalence" icon={<Layers className="w-4 h-4" />} />
-              </>
+              <ActionLink href="/dashboard/equivalence" label="Map Subject Equivalence" icon={<Layers className="w-4 h-4" />} />
             )}
             {(profile?.role === 'dean_faculty' || profile?.role === 'dean_academics' || profile?.role === 'admin') && (
               <ActionLink href="/dashboard/approvals" label="Review Pending Schemes" icon={<FileCheck className="w-4 h-4" />} />
