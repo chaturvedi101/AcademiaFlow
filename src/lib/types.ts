@@ -54,6 +54,13 @@ export interface Scheme {
   abcEnabled: boolean;
 }
 
+export interface SyllabusUnit {
+  id: string;
+  title: string;
+  content: string;
+  courseOutcome: string;
+}
+
 export interface Syllabus {
   id: string;
   schemeId: string;
@@ -66,7 +73,8 @@ export interface Syllabus {
   credits: number;
   semester: number;
   prerequisites: string[];
-  courseOutcomes: string[];
+  courseOutcomes: string[]; // Keep for legacy/summary
+  units: SyllabusUnit[];
   programOutcomes: string[];
   resources: string[];
   creditCategory: CreditCategory;
