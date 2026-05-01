@@ -23,6 +23,7 @@ import {
   Layers,
   LogOut,
   GraduationCap,
+  Users,
   Loader2
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
@@ -34,6 +35,7 @@ import { UserProfile, UserRole } from "@/lib/types";
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['bos_convenor', 'dean_faculty', 'dean_academics', 'admin'] },
   { name: 'Programs', href: '/dashboard/programs', icon: GraduationCap, roles: ['dean_academics', 'admin'] },
+  { name: 'User Access', href: '/dashboard/users', icon: Users, roles: ['dean_academics', 'admin'] },
   { name: 'Schemes', href: '/dashboard/schemes', icon: BookOpen, roles: ['bos_convenor', 'dean_faculty', 'dean_academics', 'admin'] },
   { name: 'Equivalence Manager', href: '/dashboard/equivalence', icon: Layers, roles: ['bos_convenor', 'admin'] },
   { name: 'Approvals', href: '/dashboard/approvals', icon: FileCheck, roles: ['dean_faculty', 'dean_academics'] },

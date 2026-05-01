@@ -1,11 +1,17 @@
 
 export type UserRole = 'bos_convenor' | 'dean_faculty' | 'dean_academics' | 'admin';
 
+export interface ManagedBranch {
+  programId: string;
+  branch: string;
+}
+
 export interface UserProfile {
   id: string;
   email: string;
   displayName: string;
   role: UserRole;
+  managedBranches?: ManagedBranch[];
   createdAt?: any;
 }
 
@@ -37,6 +43,7 @@ export interface Program {
   totalSemesters: number;
   description: string;
   level: 'UG' | 'PG' | 'Diploma' | 'Certificate';
+  branches: string[];
   rules: CreditRules;
   createdAt: any;
   updatedAt: any;
@@ -45,6 +52,7 @@ export interface Program {
 export interface Scheme {
   id: string;
   programId: string;
+  branch?: string;
   batchYear: string;
   status: SchemeStatus;
   version: string;

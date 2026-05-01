@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useFirestore, useCollection, useUser } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { Scheme, Program } from '@/lib/types';
@@ -31,13 +31,23 @@ export default function SchemesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newScheme, setNewScheme] = useState({
     programId: '',
+    branch: '',
     batchYear: '',
     version: 'v1.0'
   });
 
+  const selectedProgram = useMemo(() => {
+    return programs.find(p => p.id === newScheme.programId);
+  }, [programs, newScheme.programId]);
+
   const handleCreateScheme = () => {
     if (!newScheme.programId || !newScheme.batchYear) {
       toast({ title: "Validation Error", description: "Program and Batch are required.", variant: "destructive" });
+      return;
+    }
+
+    if (selectedProgram?.branches?.length && !newScheme.branch) {
+      toast({ title: "Validation Error", description: "Please select a branch for this program.", variant: "destructive" });
       return;
     }
 
@@ -102,9 +112,15 @@ export default function SchemesPage() {
                 <CardTitle className="font-headline text-lg group-hover:text-primary transition-colors">
                   {program?.name || 'Loading program...'}
                 </CardTitle>
-                <CardDescription className="flex items-center gap-2">
-                  <Calendar className="w-3.5 h-3.5" />
-                  Batch: {scheme.batchYear}
+                <CardDescription className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>{scheme.branch || 'General'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-3.5 h-3.5" />
+                    <span>Batch: {scheme.batchYear}</span>
+                  </div>
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -129,12 +145,12 @@ export default function SchemesPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create New Academic Scheme</DialogTitle>
-            <DialogDescription>Select the program and batch year to initialize a new layout.</DialogDescription>
+            <DialogDescription>Select the program, branch, and batch to initialize.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Academic Program</Label>
-              <Select onValueChange={(v) => setNewScheme({...newScheme, programId: v})}>
+              <Select onValueChange={(v) => setNewScheme({...newScheme, programId: v, branch: ''})}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select program..." />
                 </SelectTrigger>
@@ -145,6 +161,23 @@ export default function SchemesPage() {
                 </SelectContent>
               </Select>
             </div>
+            
+            {selectedProgram?.branches?.length ? (
+              <div className="space-y-2">
+                <Label>Branch / Specialization</Label>
+                <Select value={newScheme.branch} onValueChange={(v) => setNewScheme({...newScheme, branch: v})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select branch..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {selectedProgram.branches.map(b => (
+                      <SelectItem key={b} value={b}>{b}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+
             <div className="space-y-2">
               <Label>Batch Year</Label>
               <Input 

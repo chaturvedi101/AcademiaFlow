@@ -3,7 +3,7 @@
   "entities": {
     "UserProfile": {
       "title": "UserProfile",
-      "description": "Information about a user, including their assigned academic role.",
+      "description": "Information about a user, including their assigned academic role and managed branches.",
       "type": "object",
       "properties": {
         "displayName": {
@@ -25,6 +25,17 @@
         "photoURL": {
           "type": "string"
         },
+        "managedBranches": {
+          "type": "array",
+          "description": "List of program branches this user is authorized to manage.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "programId": { "type": "string" },
+              "branch": { "type": "string" }
+            }
+          }
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time"
@@ -37,7 +48,7 @@
     },
     "Program": {
       "title": "Program",
-      "description": "Definition of an academic program and its associated NEP 2020 credit rules.",
+      "description": "Definition of an academic program and its associated NEP 2020 credit rules and branches.",
       "type": "object",
       "properties": {
         "name": {
@@ -60,6 +71,11 @@
             "Diploma",
             "Certificate"
           ]
+        },
+        "branches": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of specializations or branches within this program."
         },
         "rules": {
           "type": "object",
@@ -93,10 +109,11 @@
     },
     "Scheme": {
       "title": "Scheme",
-      "description": "An academic scheme for a specific program and batch.",
+      "description": "An academic scheme for a specific program, branch, and batch.",
       "type": "object",
       "properties": {
         "programId": { "type": "string" },
+        "branch": { "type": "string" },
         "batchYear": { "type": "string" },
         "status": { "type": "string", "enum": ["Draft", "Pending Dean", "Pending Academics", "Approved"] },
         "version": { "type": "string" },
@@ -139,7 +156,7 @@
   "firestore": {
     "/users/{userId}": {
       "schema": "UserProfile",
-      "description": "Stores user profiles and their associated roles."
+      "description": "Stores user profiles and their associated roles and managed branches."
     },
     "/programs/{programId}": {
       "schema": "Program",

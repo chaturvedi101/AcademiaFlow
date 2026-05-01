@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -8,12 +9,14 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 import { useFirestore } from '@/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Program, CreditRules } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { X, Plus } from 'lucide-react';
 
 interface ProgramDialogProps {
   open: boolean;
@@ -36,18 +39,23 @@ const DEFAULT_RULES: CreditRules = {
 export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProps) {
   const db = useFirestore();
   const { toast } = useToast();
+  const [newBranch, setNewBranch] = useState('');
   const [formData, setFormData] = useState<Partial<Program>>({
     name: '',
     code: '',
     description: '',
     level: 'UG',
     totalSemesters: 8,
+    branches: [],
     rules: { ...DEFAULT_RULES }
   });
 
   useEffect(() => {
     if (program) {
-      setFormData(program);
+      setFormData({
+        ...program,
+        branches: program.branches || []
+      });
     } else {
       setFormData({
         name: '',
@@ -55,6 +63,7 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
         description: '',
         level: 'UG',
         totalSemesters: 8,
+        branches: [],
         rules: { ...DEFAULT_RULES }
       });
     }
@@ -102,6 +111,23 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
     }));
   };
 
+  const addBranch = () => {
+    if (!newBranch.trim()) return;
+    if (formData.branches?.includes(newBranch.trim())) return;
+    setFormData(prev => ({
+      ...prev,
+      branches: [...(prev.branches || []), newBranch.trim()]
+    }));
+    setNewBranch('');
+  };
+
+  const removeBranch = (branch: string) => {
+    setFormData(prev => ({
+      ...prev,
+      branches: prev.branches?.filter(b => b !== branch)
+    }));
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden shadow-2xl border-none">
@@ -110,7 +136,7 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
             {program ? 'Edit Program' : 'New Program Definition'}
           </DialogTitle>
           <DialogDescription>
-            Configure program details, semesters, and credit limits for NEP 2020 compliance.
+            Configure program details, branches, semesters, and credit limits.
           </DialogDescription>
         </DialogHeader>
 
@@ -120,7 +146,7 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
               <div className="space-y-2">
                 <Label className="text-sm font-semibold">Program Name</Label>
                 <Input 
-                  placeholder="B.Tech in Computer Science" 
+                  placeholder="B.Tech in Engineering" 
                   value={formData.name || ''}
                   onChange={e => setFormData({ ...formData, name: e.target.value })}
                   className="h-11"
@@ -129,11 +155,37 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
               <div className="space-y-2">
                 <Label className="text-sm font-semibold">Program Code</Label>
                 <Input 
-                  placeholder="BTECH-CS" 
+                  placeholder="BTECH" 
                   value={formData.code || ''}
                   onChange={e => setFormData({ ...formData, code: e.target.value })}
                   className="h-11"
                 />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Label className="text-sm font-semibold">Program Branches / Specializations</Label>
+              <div className="flex gap-2">
+                <Input 
+                  placeholder="e.g. Computer Science, Mechanical..." 
+                  value={newBranch}
+                  onChange={e => setNewBranch(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addBranch()}
+                  className="h-11"
+                />
+                <Button type="button" onClick={addBranch} variant="secondary" className="h-11">
+                  <Plus className="w-4 h-4 mr-2" /> Add
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {formData.branches?.map(branch => (
+                  <Badge key={branch} variant="secondary" className="pl-3 pr-1 py-1 gap-1">
+                    {branch}
+                    <Button variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent" onClick={() => removeBranch(branch)}>
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </Badge>
+                ))}
               </div>
             </div>
 
@@ -191,29 +243,15 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div className="p-4 bg-muted/30 rounded-xl border border-border/50 space-y-4">
-                    <Label className="text-primary font-bold text-sm block border-b pb-2 uppercase tracking-wide">Discipline Specific Core (DSC)</Label>
+                    <Label className="text-primary font-bold text-sm block border-b pb-2 uppercase tracking-wide">DSC (Core)</Label>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Min Credits</Label>
-                        <Input type="number" value={formData.rules?.dscMin ?? ''} onChange={e => updateRule('dscMin', e.target.value)} className="h-9" />
+                        <Label className="text-[10px] uppercase text-muted-foreground font-bold">Min</Label>
+                        <Input type="number" value={formData.rules?.dscMin ?? ''} onChange={e => updateRule('dscMin', e.target.value)} />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Max Credits</Label>
-                        <Input type="number" value={formData.rules?.dscMax ?? ''} onChange={e => updateRule('dscMax', e.target.value)} className="h-9" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-muted/30 rounded-xl border border-border/50 space-y-4">
-                    <Label className="text-primary font-bold text-sm block border-b pb-2 uppercase tracking-wide">Experiential Learning</Label>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Min Credits</Label>
-                        <Input type="number" value={formData.rules?.experientialMin ?? ''} onChange={e => updateRule('experientialMin', e.target.value)} className="h-9" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Max Credits</Label>
-                        <Input type="number" value={formData.rules?.experientialMax ?? ''} onChange={e => updateRule('experientialMax', e.target.value)} className="h-9" />
+                        <Label className="text-[10px] uppercase text-muted-foreground font-bold">Max</Label>
+                        <Input type="number" value={formData.rules?.dscMax ?? ''} onChange={e => updateRule('dscMax', e.target.value)} />
                       </div>
                     </div>
                   </div>
@@ -221,29 +259,15 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
 
                 <div className="space-y-4">
                   <div className="p-4 bg-muted/30 rounded-xl border border-border/50 space-y-4">
-                    <Label className="text-primary font-bold text-sm block border-b pb-2 uppercase tracking-wide">Discipline Specific Elective (DSE)</Label>
+                    <Label className="text-primary font-bold text-sm block border-b pb-2 uppercase tracking-wide">DSE (Elective)</Label>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Min Credits</Label>
-                        <Input type="number" value={formData.rules?.dseMin ?? ''} onChange={e => updateRule('dseMin', e.target.value)} className="h-9" />
+                        <Label className="text-[10px] uppercase text-muted-foreground font-bold">Min</Label>
+                        <Input type="number" value={formData.rules?.dseMin ?? ''} onChange={e => updateRule('dseMin', e.target.value)} />
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">Max Credits</Label>
-                        <Input type="number" value={formData.rules?.dseMax ?? ''} onChange={e => updateRule('dseMax', e.target.value)} className="h-9" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-4 bg-accent/5 border border-accent/20 rounded-xl space-y-4">
-                    <Label className="text-accent font-bold text-sm block border-b border-accent/10 pb-2 uppercase tracking-wide">Open / Free Electives (OFE)</Label>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <Label className="text-[10px] uppercase text-accent/60 font-bold tracking-wider">Min Credits</Label>
-                        <Input type="number" value={formData.rules?.ofeMin ?? ''} onChange={e => updateRule('ofeMin', e.target.value)} className="h-9 border-accent/20 focus:ring-accent/20" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-[10px] uppercase text-accent/60 font-bold tracking-wider">Max Credits</Label>
-                        <Input type="number" value={formData.rules?.ofeMax ?? ''} onChange={e => updateRule('ofeMax', e.target.value)} className="h-9 border-accent/20 focus:ring-accent/20" />
+                        <Label className="text-[10px] uppercase text-muted-foreground font-bold">Max</Label>
+                        <Input type="number" value={formData.rules?.dseMax ?? ''} onChange={e => updateRule('dseMax', e.target.value)} />
                       </div>
                     </div>
                   </div>
