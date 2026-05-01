@@ -15,6 +15,8 @@ export type SubjectType = 'Theory' | 'Tutorial' | 'Practical/Lab' | 'Sessional' 
 
 export type CreditCategory = 'DSC' | 'DSE' | 'OFE' | 'CPF' | 'VAC' | 'AEC' | 'SEC' | 'MDC';
 
+export type CorrelationLevel = '1' | '2' | '3' | '-';
+
 export interface CreditRules {
   dscMin: number;
   dscMax: number;
@@ -73,9 +75,14 @@ export interface Syllabus {
   credits: number;
   semester: number;
   prerequisites: string[];
-  courseOutcomes: string[]; // Keep for legacy/summary
+  courseOutcomes: string[];
   units: SyllabusUnit[];
-  programOutcomes: string[];
+  programOutcomes: string[]; // Legacy - keeping for compatibility
+  poMappings?: {
+    [unitId: string]: {
+      [poCode: string]: CorrelationLevel;
+    };
+  };
   resources: string[];
   creditCategory: CreditCategory;
 }

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -10,11 +11,30 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
-import { Sparkles, Plus, X, Calculator, Loader2, BookOpen, Layers } from "lucide-react";
-import { suggestProgramOutcomes } from "@/ai/flows/suggest-program-outcomes";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Sparkles, Plus, X, Calculator, Loader2, BookOpen, Layers, Info } from "lucide-react";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
-import { Syllabus, CreditCategory, SubjectType, SyllabusUnit } from "@/lib/types";
+import { Syllabus, CreditCategory, SubjectType, SyllabusUnit, CorrelationLevel } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
+
+const PO_DEFINITIONS = [
+  { code: 'PO1', title: 'Engineering Knowledge', desc: 'Apply mathematics, science, and engineering fundamentals.' },
+  { code: 'PO2', title: 'Problem Analysis', desc: 'Identify and analyze complex engineering problems using first principles.' },
+  { code: 'PO3', title: 'Design/Development', desc: 'Design systems for complex problems while considering safety and society.' },
+  { code: 'PO4', title: 'Investigations', desc: 'Research, interpret data, and synthesize information.' },
+  { code: 'PO5', title: 'Modern Tool Usage', desc: 'Apply appropriate techniques, resources, and IT tools.' },
+  { code: 'PO6', title: 'Engineer and Society', desc: 'Apply reasoning based on safety, health, and legal issues.' },
+  { code: 'PO7', title: 'Environment', desc: 'Understand the impact of professional solutions on the environment.' },
+  { code: 'PO8', title: 'Ethics', desc: 'Apply ethical principles and commit to professional responsibilities.' },
+  { code: 'PO9', title: 'Team Work', desc: 'Function effectively as an individual or team member.' },
+  { code: 'PO10', title: 'Communication', desc: 'Communicate effectively on complex activities.' },
+  { code: 'PO11', title: 'Project Management', desc: 'Apply engineering and management principles.' },
+  { code: 'PO12', title: 'Life-long Learning', desc: 'Engage in independent and life-long learning.' },
+];
+
+const CORRELATION_LEVELS: CorrelationLevel[] = ['1', '2', '3', '-'];
 
 interface SyllabusDialogProps {
   open: boolean;
@@ -35,7 +55,7 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
     type: 'Theory',
     creditCategory: 'DSC',
     units: [],
-    programOutcomes: [],
+    poMappings: {},
   });
   
   const [loadingAI, setLoadingAI] = useState(false);
@@ -51,6 +71,7 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
         practicalCredits: syllabus.practicalCredits || 0,
         credits: syllabus.credits || 0,
         units: syllabus.units || [],
+        poMappings: syllabus.poMappings || {},
       }));
     }
   }, [syllabus, open]);
@@ -91,13 +112,7 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
       toast({ title: "AI Generation Success", description: "Syllabus units and outcomes populated." });
     } catch (e: any) {
       const message = e.message || "Could not generate content.";
-      const isRateLimit = message.toLowerCase().includes("resource exhausted") || message.includes("429") || message.toLowerCase().includes("quota");
-      
-      toast({ 
-        title: isRateLimit ? "AI Service Busy" : "AI Generation Error", 
-        description: isRateLimit ? "The AI is currently at capacity. Please wait 10-20 seconds and try again." : message, 
-        variant: "destructive" 
-      });
+      toast({ title: "AI Generation Error", description: message, variant: "destructive" });
     } finally {
       setLoadingAI(false);
     }
@@ -126,287 +141,234 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
     updateField('units', newUnits);
   };
 
+  const updatePOMapping = (unitId: string, poCode: string, level: CorrelationLevel) => {
+    setFormData(prev => ({
+      ...prev,
+      poMappings: {
+        ...(prev.poMappings || {}),
+        [unitId]: {
+          ...(prev.poMappings?.[unitId] || {}),
+          [poCode]: level
+        }
+      }
+    }));
+  };
+
   const updateField = (field: keyof Syllabus, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[95vh] flex flex-col p-0 overflow-hidden shadow-2xl border-none">
+      <DialogContent className="max-w-6xl max-h-[95vh] flex flex-col p-0 overflow-hidden shadow-2xl border-none">
         <DialogHeader className="p-6 border-b shrink-0 bg-background z-20">
           <DialogTitle className="font-headline text-2xl">
             {syllabus?.id ? 'Edit Subject Details' : 'Add New Subject Definition'}
           </DialogTitle>
           <DialogDescription>
-            Configure credits, semester, and unit-wise syllabus content with outcomes.
+            Configure credits, semester, unit content, and CO-PO mapping matrix.
           </DialogDescription>
         </DialogHeader>
         
         <ScrollArea className="flex-1 outline-none" tabIndex={0}>
           <div className="p-6 space-y-8 pb-12">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold">Subject Code</Label>
-                <Input 
-                  placeholder="e.g., CSE302" 
-                  value={formData.subjectCode || ''} 
-                  onChange={e => updateField('subjectCode', e.target.value)}
-                  className="h-11 font-mono"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold">Subject Title</Label>
-                <div className="flex gap-2">
-                  <Input 
-                    placeholder="e.g., Analysis of Algorithms" 
-                    className="h-11 flex-1"
-                    value={formData.title || ''}
-                    onChange={e => updateField('title', e.target.value)}
-                  />
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="icon" 
-                    className="h-11 w-11 shrink-0 text-accent border-accent/20 hover:bg-accent/10"
-                    onClick={handleAIContent}
-                    disabled={loadingAI}
-                    title="Generate Syllabus using AI"
-                  >
-                    {loadingAI ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-                  </Button>
-                </div>
-              </div>
-            </div>
+            <Tabs defaultValue="basic" className="w-full">
+              <TabsList className="grid w-full grid-cols-3 mb-8">
+                <TabsTrigger value="basic">Basic Information</TabsTrigger>
+                <TabsTrigger value="syllabus">Unit Syllabus & COs</TabsTrigger>
+                <TabsTrigger value="mapping">CO-PO Mapping Matrix</TabsTrigger>
+              </TabsList>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-              <div className="p-5 bg-muted/30 rounded-2xl border border-border/50 space-y-6 lg:col-span-2">
-                <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider border-b pb-3">
-                  <Calculator className="w-4 h-4" />
-                  Credit Structure (L-T-P)
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <TabsContent value="basic" className="space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold text-muted-foreground uppercase">Lecture (L)</Label>
+                    <Label className="text-sm font-semibold">Subject Code</Label>
                     <Input 
-                      type="number" 
-                      value={formData.lectureCredits ?? 0} 
-                      onChange={e => updateField('lectureCredits', Number(e.target.value))}
-                      className="h-11"
+                      placeholder="e.g., CSE302" 
+                      value={formData.subjectCode || ''} 
+                      onChange={e => updateField('subjectCode', e.target.value)}
+                      className="h-11 font-mono"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold text-muted-foreground uppercase">Tutorial (T)</Label>
-                    <Input 
-                      type="number" 
-                      value={formData.tutorialCredits ?? 0} 
-                      onChange={e => updateField('tutorialCredits', Number(e.target.value))}
-                      className="h-11"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold text-muted-foreground uppercase">Practical (P)</Label>
-                    <Input 
-                      type="number" 
-                      value={formData.practicalCredits ?? 0} 
-                      onChange={e => updateField('practicalCredits', Number(e.target.value))}
-                      className="h-11"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold text-primary uppercase">Total Credits</Label>
-                    <Input 
-                      type="number" 
-                      value={formData.credits ?? 0} 
-                      onChange={e => updateField('credits', Number(e.target.value))}
-                      className="h-11 font-bold bg-primary/5 border-primary/20 text-primary"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-5 bg-accent/5 rounded-2xl border border-accent/10 space-y-4">
-                <div className="flex items-center gap-2 text-accent font-bold text-sm uppercase tracking-wider border-b border-accent/10 pb-3">
-                  <Layers className="w-4 h-4" />
-                  Unit Configuration
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Number of Units</Label>
-                  <Select 
-                    value={String(formData.units?.length || 0)} 
-                    onValueChange={handleNumUnitsChange}
-                  >
-                    <SelectTrigger className="h-11 bg-white">
-                      <SelectValue placeholder="Select unit count..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[0,1,2,3,4,5,6,7,8].map(n => (
-                        <SelectItem key={n} value={String(n)}>{n} Units</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-[10px] text-muted-foreground mt-2 italic">
-                    Increasing units adds placeholders; decreasing removes data. AI usually generates 5 units.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold">Semester</Label>
-                <Select 
-                  value={String(formData.semester)} 
-                  onValueChange={val => updateField('semester', Number(val))}
-                >
-                  <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {[1,2,3,4,5,6,7,8,9,10].map(s => (
-                      <SelectItem key={s} value={String(s)}>Semester {s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold">Subject Type</Label>
-                <Select 
-                  value={formData.type || 'Theory'} 
-                  onValueChange={val => updateField('type', val as SubjectType)}
-                >
-                  <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Theory">Theory</SelectItem>
-                    <SelectItem value="Practical/Lab">Practical/Lab</SelectItem>
-                    <SelectItem value="Tutorial">Tutorial</SelectItem>
-                    <SelectItem value="Skill/IKS/Experiential">Skill/IKS/Experiential</SelectItem>
-                    <SelectItem value="Sessional">Sessional</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold">Credit Category</Label>
-                <Select 
-                  value={formData.creditCategory || 'DSC'} 
-                  onValueChange={val => updateField('creditCategory', val as CreditCategory)}
-                >
-                  <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="DSC">DSC (Core)</SelectItem>
-                    <SelectItem value="DSE">DSE (Elective)</SelectItem>
-                    <SelectItem value="OFE">OFE (Open Elective)</SelectItem>
-                    <SelectItem value="CPF">CPF (Common Pool)</SelectItem>
-                    <SelectItem value="VAC">VAC (Value Added)</SelectItem>
-                    <SelectItem value="AEC">AEC (Ability Enhancement)</SelectItem>
-                    <SelectItem value="SEC">SEC (Skill Enhancement)</SelectItem>
-                    <SelectItem value="MDC">MDC (Multidisciplinary)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-6 pt-4 border-t">
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <h3 className="font-headline font-bold text-xl text-primary">Syllabus Content & Outcomes</h3>
-                  <p className="text-sm text-muted-foreground">Define unit titles, syllabus details, and unit-specific COs.</p>
-                </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleAIContent} 
-                  disabled={loadingAI}
-                  className="text-xs h-9 text-accent hover:bg-accent/10 gap-1.5 shadow-sm"
-                >
-                  {loadingAI ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                  AI Generate Full Syllabus
-                </Button>
-              </div>
-
-              <div className="space-y-6">
-                {formData.units?.map((unit, index) => (
-                  <Card key={unit.id} className="border-none shadow-sm bg-muted/10 overflow-hidden">
-                    <div className="bg-primary/5 px-4 py-2 border-b border-primary/10 flex items-center justify-between">
-                      <Badge variant="outline" className="bg-primary/10 text-primary border-none text-[10px] font-bold">
-                        UNIT {index + 1}
-                      </Badge>
+                    <Label className="text-sm font-semibold">Subject Title</Label>
+                    <div className="flex gap-2">
+                      <Input 
+                        placeholder="e.g., Analysis of Algorithms" 
+                        className="h-11 flex-1"
+                        value={formData.title || ''}
+                        onChange={e => updateField('title', e.target.value)}
+                      />
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="icon" 
+                        className="h-11 w-11 shrink-0 text-accent border-accent/20 hover:bg-accent/10"
+                        onClick={handleAIContent}
+                        disabled={loadingAI}
+                      >
+                        {loadingAI ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                      </Button>
                     </div>
-                    <CardContent className="p-4 space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-xs font-bold text-muted-foreground uppercase">Unit Title</Label>
-                          <Input 
-                            value={unit.title} 
-                            onChange={e => updateUnit(index, 'title', e.target.value)}
-                            placeholder="e.g., Introduction to Neural Networks"
-                            className="bg-white"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-xs font-bold text-primary uppercase">Course Outcome (CO)</Label>
-                          <Input 
-                            value={unit.courseOutcome} 
-                            onChange={e => updateUnit(index, 'courseOutcome', e.target.value)}
-                            placeholder="e.g., Apply gradient descent for training..."
-                            className="bg-primary/5 border-primary/20 focus:bg-white"
-                          />
-                        </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                  <div className="p-5 bg-muted/30 rounded-2xl border border-border/50 space-y-6 lg:col-span-2">
+                    <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider border-b pb-3">
+                      <Calculator className="w-4 h-4" />
+                      Credit Structure (L-T-P)
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold text-muted-foreground uppercase">Lecture (L)</Label>
+                        <Input type="number" value={formData.lectureCredits ?? 0} onChange={e => updateField('lectureCredits', Number(e.target.value))} />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-2">
-                          <BookOpen className="w-3 h-3" />
-                          Syllabus Content
-                        </Label>
-                        <Textarea 
-                          value={unit.content} 
-                          onChange={e => updateUnit(index, 'content', e.target.value)}
-                          placeholder="List of topics, modules, and sub-topics..."
-                          className="min-h-[120px] bg-white resize-none"
-                        />
+                        <Label className="text-xs font-bold text-muted-foreground uppercase">Tutorial (T)</Label>
+                        <Input type="number" value={formData.tutorialCredits ?? 0} onChange={e => updateField('tutorialCredits', Number(e.target.value))} />
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-                
-                {(!formData.units || formData.units.length === 0) && (
-                  <div className="text-center py-16 border-2 border-dashed rounded-3xl bg-muted/5">
-                    <Layers className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-20" />
-                    <p className="text-muted-foreground font-medium">No units defined. Select unit count above to begin.</p>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold text-muted-foreground uppercase">Practical (P)</Label>
+                        <Input type="number" value={formData.practicalCredits ?? 0} onChange={e => updateField('practicalCredits', Number(e.target.value))} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold text-primary uppercase">Total Credits</Label>
+                        <Input type="number" value={formData.credits ?? 0} className="h-11 font-bold bg-primary/5 border-primary/20 text-primary" readOnly />
+                      </div>
+                    </div>
                   </div>
-                )}
-              </div>
-            </div>
 
-            <div className="space-y-4 pt-4 border-t">
-              <Label className="text-base font-bold text-primary">Program Outcomes Mapping (PO)</Label>
-              <div className="flex flex-wrap gap-2">
-                {formData.programOutcomes?.map((po, idx) => (
-                  <Badge key={idx} variant="secondary" className="px-3 py-1.5 bg-accent/10 text-accent border-accent/20 font-medium">
-                    {po}
-                    <X className="w-3.5 h-3.5 ml-2 cursor-pointer hover:text-primary" onClick={() => {
-                      setFormData(prev => ({
-                        ...prev,
-                        programOutcomes: prev.programOutcomes?.filter((_, i) => i !== idx)
-                      }));
-                    }} />
-                  </Badge>
-                ))}
-                <Button variant="outline" size="sm" className="rounded-full text-xs h-8 border-dashed">
-                  <Plus className="w-3.5 h-3.5 mr-1.5" /> Map PO
-                </Button>
-              </div>
-              <p className="text-[10px] text-muted-foreground mt-2 flex items-center gap-1.5">
-                <Sparkles className="w-3 h-3 text-accent" />
-                AI-driven PO mapping helps track degree compliance across the university.
-              </p>
-            </div>
+                  <div className="p-5 bg-accent/5 rounded-2xl border border-accent/10 space-y-4">
+                    <Label className="text-sm font-semibold">Semester & Category</Label>
+                    <div className="space-y-4">
+                      <Select value={String(formData.semester)} onValueChange={val => updateField('semester', Number(val))}>
+                        <SelectTrigger className="bg-white"><SelectValue placeholder="Semester" /></SelectTrigger>
+                        <SelectContent>{[1,2,3,4,5,6,7,8].map(s => <SelectItem key={s} value={String(s)}>Semester {s}</SelectItem>)}</SelectContent>
+                      </Select>
+                      <Select value={formData.creditCategory || 'DSC'} onValueChange={val => updateField('creditCategory', val)}>
+                        <SelectTrigger className="bg-white"><SelectValue placeholder="Category" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="DSC">DSC (Core)</SelectItem>
+                          <SelectItem value="DSE">DSE (Elective)</SelectItem>
+                          <SelectItem value="OFE">OFE (Open Elective)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="syllabus" className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <Label className="font-semibold">Number of Units</Label>
+                    <Select value={String(formData.units?.length || 0)} onValueChange={handleNumUnitsChange}>
+                      <SelectTrigger className="w-[140px] h-10"><SelectValue /></SelectTrigger>
+                      <SelectContent>{[0,1,2,3,4,5,6].map(n => <SelectItem key={n} value={String(n)}>{n} Units</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={handleAIContent} disabled={loadingAI} className="gap-2 text-accent">
+                    <Sparkles className="w-4 h-4" /> AI Generate Units
+                  </Button>
+                </div>
+
+                <div className="space-y-6">
+                  {formData.units?.map((unit, index) => (
+                    <Card key={unit.id} className="border-none shadow-sm bg-muted/10">
+                      <div className="bg-primary/5 px-4 py-2 border-b border-primary/10 flex items-center justify-between">
+                        <Badge variant="outline" className="bg-primary/10 text-primary border-none text-[10px] font-bold">UNIT {index + 1}</Badge>
+                      </div>
+                      <CardContent className="p-4 space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Unit Title</Label>
+                            <Input value={unit.title} onChange={e => updateUnit(index, 'title', e.target.value)} placeholder="Title" className="bg-white" />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[10px] uppercase font-bold text-primary">Course Outcome (CO)</Label>
+                            <Input value={unit.courseOutcome} onChange={e => updateUnit(index, 'courseOutcome', e.target.value)} placeholder="Students will be able to..." className="bg-primary/5 border-primary/20 focus:bg-white" />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase font-bold text-muted-foreground">Syllabus Content</Label>
+                          <Textarea value={unit.content} onChange={e => updateUnit(index, 'content', e.target.value)} placeholder="Topics..." className="min-h-[100px] bg-white" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="mapping" className="space-y-6">
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex gap-3 text-amber-800 text-sm">
+                  <Info className="w-5 h-5 shrink-0" />
+                  <p>Map each unit's CO against standard Program Outcomes. Levels: 1 (Slight), 2 (Moderate), 3 (Strong), - (No Correlation).</p>
+                </div>
+
+                <div className="overflow-x-auto border rounded-xl bg-white shadow-sm">
+                  <Table>
+                    <TableHeader className="bg-muted/30">
+                      <TableRow>
+                        <TableHead className="w-[180px] font-bold">Course Outcomes</TableHead>
+                        {PO_DEFINITIONS.map(po => (
+                          <TableHead key={po.code} className="p-0 text-center w-[60px]">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="cursor-help py-3 px-1 font-bold text-primary hover:bg-primary/5 transition-colors uppercase text-[10px]">
+                                    {po.code}
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-[200px]">
+                                  <p className="font-bold">{po.code}: {po.title}</p>
+                                  <p className="text-xs">{po.desc}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {formData.units?.map((unit, uIdx) => (
+                        <TableRow key={unit.id} className="hover:bg-muted/5">
+                          <TableCell className="font-medium text-xs align-top pt-4">
+                            <div className="flex flex-col gap-1">
+                              <span className="font-bold text-primary">CO{uIdx + 1}</span>
+                              <span className="text-[10px] text-muted-foreground line-clamp-2 italic">{unit.courseOutcome || 'No CO defined'}</span>
+                            </div>
+                          </TableCell>
+                          {PO_DEFINITIONS.map(po => (
+                            <TableCell key={po.code} className="p-1 text-center border-l">
+                              <Select 
+                                value={formData.poMappings?.[unit.id]?.[po.code] || '-'} 
+                                onValueChange={(val: CorrelationLevel) => updatePOMapping(unit.id, po.code, val)}
+                              >
+                                <SelectTrigger className="h-9 w-12 mx-auto border-none bg-transparent hover:bg-muted focus:ring-0">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="min-w-[60px]">
+                                  {CORRELATION_LEVELS.map(lvl => (
+                                    <SelectItem key={lvl} value={lvl}>{lvl}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </TabsContent>
+            </Tabs>
           </div>
         </ScrollArea>
 
         <DialogFooter className="p-6 bg-muted/20 border-t shrink-0 z-20">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="px-6 h-11">Cancel</Button>
-          <Button onClick={() => {
-            onSave(formData);
-            onOpenChange(false);
-          }} className="px-8 h-11 shadow-lg">Save Subject Configuration</Button>
+          <Button onClick={() => { onSave(formData); onOpenChange(false); }} className="px-8 h-11 shadow-lg">Save Subject Configuration</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
