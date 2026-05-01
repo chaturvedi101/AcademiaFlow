@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sparkles, Plus, X, Calculator, Loader2 } from "lucide-react";
+import { Sparkles, Plus, X, Calculator, Loader2, AlertCircle } from "lucide-react";
 import { suggestProgramOutcomes } from "@/ai/flows/suggest-program-outcomes";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { Syllabus, CreditCategory, SubjectType } from "@/lib/types";
@@ -53,7 +53,6 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
     }
   }, [syllabus, open]);
 
-  // Auto-calculate credits when L-T-P changes
   useEffect(() => {
     const l = Number(formData.lectureCredits) || 0;
     const t = Number(formData.tutorialCredits) || 0;
@@ -79,9 +78,12 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
       }));
       toast({ title: "AI Generation Success", description: "Syllabus content populated." });
     } catch (e: any) {
+      const message = e.message || "Could not generate content.";
+      const isRateLimit = message.toLowerCase().includes("resource exhausted") || message.includes("429") || message.toLowerCase().includes("quota");
+      
       toast({ 
-        title: "AI Error", 
-        description: e.message || "Could not generate content. Please try again or check your API configuration.", 
+        title: isRateLimit ? "AI Service Busy" : "AI Generation Error", 
+        description: isRateLimit ? "The AI is currently at capacity. Please wait 10-20 seconds and try again." : message, 
         variant: "destructive" 
       });
     } finally {
@@ -97,7 +99,7 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
         programOutcomes: Array.from(new Set([...(prev.programOutcomes || []), ...result.suggestedProgramOutcomes]))
       }));
     } catch (e: any) {
-      // Silent fail for auto-suggestions to not interrupt user flow
+      // Silent fail for auto-suggestions
     }
   };
 
