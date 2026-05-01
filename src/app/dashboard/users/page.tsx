@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { useFirestore, useCollection } from '@/firebase';
-import { collection, doc, updateDoc } from 'firebase/firestore';
+import { collection, doc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { UserProfile, Program, ManagedBranch } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -11,10 +11,15 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Users, ShieldCheck, Plus, X, GraduationCap, Loader2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Users, ShieldCheck, Plus, X, GraduationCap, Loader2, UserPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { initializeApp, deleteApp, getApp, getApps } from "firebase/app";
+import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
+import { firebaseConfig } from "@/firebase/config";
 
 export default function UserManagementPage() {
   const db = useFirestore();
@@ -24,8 +29,59 @@ export default function UserManagementPage() {
   
   const [assigningUser, setAssigningUser] = useState<string | null>(null);
   const [selection, setSelection] = useState({ programId: '', branch: '' });
+  const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
+  const [registerForm, setRegisterForm] = useState({ email: '', displayName: '' });
+  const [isRegistering, setIsRegistering] = useState(false);
 
   const convenors = users.filter(u => u.role === 'bos_convenor');
+
+  const handleRegisterConvenor = async () => {
+    if (!registerForm.email || !registerForm.displayName) {
+      toast({ title: "Validation Error", description: "All fields are required.", variant: "destructive" });
+      return;
+    }
+
+    setIsRegistering(true);
+    let tempApp;
+    try {
+      // Create a secondary app to avoid logging out the Dean
+      const appName = `temp-admin-${Date.now()}`;
+      tempApp = initializeApp(firebaseConfig, appName);
+      const tempAuth = getAuth(tempApp);
+      
+      const userCredential = await createUserWithEmailAndPassword(tempAuth, registerForm.email, "abcd1234");
+      const newUid = userCredential.user.uid;
+
+      const userRef = doc(db, 'users', newUid);
+      const userData = {
+        displayName: registerForm.displayName,
+        email: registerForm.email,
+        role: 'bos_convenor',
+        createdAt: serverTimestamp(),
+        managedBranches: []
+      };
+
+      await setDoc(userRef, userData);
+      
+      toast({ 
+        title: "Convenor Created", 
+        description: `${registerForm.displayName} registered successfully with password 'abcd1234'.` 
+      });
+      setIsRegisterDialogOpen(false);
+      setRegisterForm({ email: '', displayName: '' });
+    } catch (error: any) {
+      toast({ 
+        variant: "destructive", 
+        title: "Registration Failed", 
+        description: error.message || "An error occurred while creating the user." 
+      });
+    } finally {
+      setIsRegistering(false);
+      if (tempApp) {
+        await deleteApp(tempApp);
+      }
+    }
+  };
 
   const handleAssign = (userId: string) => {
     if (!selection.programId || !selection.branch) return;
@@ -67,13 +123,18 @@ export default function UserManagementPage() {
       });
   };
 
-  if (usersLoading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin" /></div>;
+  if (usersLoading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary w-8 h-8" /></div>;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-headline font-bold">BoS Convenor Authorization</h1>
-        <p className="text-muted-foreground">Map academic personnel to specific program branches they are authorized to manage.</p>
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-headline font-bold">BoS Convenor Authorization</h1>
+          <p className="text-muted-foreground">Map academic personnel to specific program branches they are authorized to manage.</p>
+        </div>
+        <Button onClick={() => setIsRegisterDialogOpen(true)} className="gap-2 shadow-lg">
+          <UserPlus className="w-4 h-4" /> Register New Convenor
+        </Button>
       </div>
 
       <Card>
@@ -166,6 +227,45 @@ export default function UserManagementPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={isRegisterDialogOpen} onOpenChange={setIsRegisterDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Register Faculty Member</DialogTitle>
+            <DialogDescription>
+              Create a new account for a faculty member. They will be assigned the BoS Convenor role with a temporary password: <span className="font-bold text-primary">abcd1234</span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-name">Full Name</Label>
+              <Input 
+                id="new-name" 
+                placeholder="Dr. John Doe" 
+                value={registerForm.displayName}
+                onChange={(e) => setRegisterForm({ ...registerForm, displayName: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-email">University Email</Label>
+              <Input 
+                id="new-email" 
+                type="email" 
+                placeholder="faculty@university.edu" 
+                value={registerForm.email}
+                onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRegisterDialogOpen(false)} disabled={isRegistering}>Cancel</Button>
+            <Button onClick={handleRegisterConvenor} disabled={isRegistering}>
+              {isRegistering ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <UserPlus className="w-4 h-4 mr-2" />}
+              Register Faculty
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
