@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useFirestore, useCollection } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { AuditLog } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,9 +11,12 @@ import { History, ShieldCheck, Loader2 } from 'lucide-react';
 
 export default function AuditPage() {
   const db = useFirestore();
-  const { data: logs, loading } = useCollection<AuditLog>(
-    query(collection(db, 'audit_logs'), orderBy('timestamp', 'desc'), limit(50))
-  );
+
+  const auditLogsQuery = useMemoFirebase(() => {
+    return query(collection(db, 'audit_logs'), orderBy('timestamp', 'desc'), limit(50));
+  }, [db]);
+
+  const { data: logs, loading } = useCollection<AuditLog>(auditLogsQuery);
 
   if (loading) {
     return (
@@ -75,9 +78,8 @@ export default function AuditPage() {
                   <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
                     <ShieldCheck className="w-12 h-12 mx-auto mb-4 opacity-10" />
                     <p>No audit records found in the current period.</p>
-                  </TableCell>
-                </TableRow>
-              )}
+                  </TableRow>
+                )}
             </TableBody>
           </Table>
         </CardContent>

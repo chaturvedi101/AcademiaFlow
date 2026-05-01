@@ -1,8 +1,8 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
-import { useFirestore, useCollection, useUser } from '@/firebase';
+import { useState } from 'react';
+import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { Scheme, Program } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,10 +23,15 @@ export default function SchemesPage() {
   const { user } = useUser();
   const router = useRouter();
   const { toast } = useToast();
-  const { data: schemes, loading: schemesLoading } = useCollection<Scheme>(
-    query(collection(db, 'schemes'), orderBy('updatedAt', 'desc'))
-  );
-  const { data: programs } = useCollection<Program>(collection(db, 'programs'));
+
+  const schemesQuery = useMemoFirebase(() => {
+    return query(collection(db, 'schemes'), orderBy('updatedAt', 'desc'));
+  }, [db]);
+
+  const programsRef = useMemoFirebase(() => collection(db, 'programs'), [db]);
+
+  const { data: schemes, loading: schemesLoading } = useCollection<Scheme>(schemesQuery);
+  const { data: programs } = useCollection<Program>(programsRef);
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newScheme, setNewScheme] = useState({
@@ -36,9 +41,7 @@ export default function SchemesPage() {
     version: 'v1.0'
   });
 
-  const selectedProgram = useMemo(() => {
-    return programs.find(p => p.id === newScheme.programId);
-  }, [programs, newScheme.programId]);
+  const selectedProgram = programs.find(p => p.id === newScheme.programId);
 
   const handleCreateScheme = () => {
     if (!newScheme.programId || !newScheme.batchYear) {

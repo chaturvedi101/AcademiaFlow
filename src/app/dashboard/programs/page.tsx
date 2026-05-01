@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useFirestore, useCollection } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, deleteDoc, doc } from 'firebase/firestore';
 import { Program } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,7 +17,8 @@ import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function ProgramsPage() {
   const db = useFirestore();
-  const { data: programs, loading } = useCollection<Program>(collection(db, 'programs'));
+  const programsRef = useMemoFirebase(() => collection(db, 'programs'), [db]);
+  const { data: programs, loading } = useCollection<Program>(programsRef);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState<Program | undefined>(undefined);
   const { toast } = useToast();

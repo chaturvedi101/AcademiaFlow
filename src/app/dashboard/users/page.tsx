@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useFirestore, useCollection } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { UserProfile, Program, ManagedBranch } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,8 +24,12 @@ import { firebaseConfig } from "@/firebase/config";
 export default function UserManagementPage() {
   const db = useFirestore();
   const { toast } = useToast();
-  const { data: users, loading: usersLoading } = useCollection<UserProfile>(collection(db, 'users'));
-  const { data: programs } = useCollection<Program>(collection(db, 'programs'));
+
+  const usersRef = useMemoFirebase(() => collection(db, 'users'), [db]);
+  const programsRef = useMemoFirebase(() => collection(db, 'programs'), [db]);
+
+  const { data: users, loading: usersLoading } = useCollection<UserProfile>(usersRef);
+  const { data: programs } = useCollection<Program>(programsRef);
   
   const [assigningUser, setAssigningUser] = useState<string | null>(null);
   const [selection, setSelection] = useState({ programId: '', branch: '' });
