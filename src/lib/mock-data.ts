@@ -1,3 +1,4 @@
+
 import { Program, UserProfile } from "./types";
 
 export const MOCK_USER: UserProfile = {
@@ -7,30 +8,34 @@ export const MOCK_USER: UserProfile = {
   role: 'bos_convenor'
 };
 
+export const MOCK_ADMIN: UserProfile = {
+  id: 'admin1',
+  email: 'admin@university.edu',
+  displayName: 'System Admin',
+  role: 'admin'
+};
+
 export const MOCK_PROGRAMS: Program[] = [
   {
     id: 'btech-cs',
     name: 'B.Tech in Computer Science',
     code: 'BTECH-CS',
     totalCredits: 160,
-    description: 'Undergraduate engineering program in Computer Science and Engineering.'
-  },
-  {
-    id: 'mba',
-    name: 'MBA (General)',
-    code: 'MBA',
-    totalCredits: 102,
-    description: 'Master of Business Administration general program.'
+    totalSemesters: 8,
+    level: 'UG',
+    description: 'Undergraduate engineering program in Computer Science and Engineering.',
+    rules: {
+      dscMin: 96,
+      dscMax: 104,
+      experientialMin: 8,
+      experientialMax: 12,
+      dseMin: 12,
+      dseMax: 16,
+      ofeMin: 12,
+      ofeMax: 16,
+      totalRequired: 160
+    },
+    createdAt: null,
+    updatedAt: null
   }
 ];
-
-export const CREDIT_RULES = {
-  UG: {
-    total: 160,
-    categories: {
-      DSC: { min: 96, max: 104 },
-      DSE_OFE: { min: 24, max: 32 },
-      CPF: { total: 32 }
-    }
-  }
-};

@@ -1,13 +1,26 @@
+
+'use client';
+
+import { useMemo } from 'react';
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { Bell, Search, User } from "lucide-react";
+import { Bell, Search, User, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { useUser, useFirestore, useDoc } from "@/firebase";
+import { doc } from "firebase/firestore";
+import { UserProfile } from "@/lib/types";
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const { user } = useUser();
+  const db = useFirestore();
+  
+  const userDocRef = useMemo(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
+  const { data: profile, loading } = useDoc<UserProfile>(userDocRef);
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -32,8 +45,18 @@ export default function DashboardLayout({
             <div className="h-8 w-px bg-border"></div>
             <div className="flex items-center gap-3 pl-2">
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium leading-none">Sarah Smith</p>
-                <p className="text-xs text-muted-foreground">BoS Convenor</p>
+                {loading ? (
+                  <div className="flex justify-end">
+                    <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm font-medium leading-none">{profile?.displayName || 'Academic User'}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight mt-1">
+                      {profile?.role?.replace('_', ' ') || 'Guest'}
+                    </p>
+                  </>
+                )}
               </div>
               <div className="bg-primary/10 p-2 rounded-full">
                 <User className="w-5 h-5 text-primary" />
