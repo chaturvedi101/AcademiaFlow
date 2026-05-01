@@ -1,8 +1,7 @@
-
 'use client';
 
 import React, { useState, useMemo } from "react";
-import { useFirestore, useDoc, useCollection } from "@/firebase";
+import { useFirestore, useDoc, useCollection, useUser, useMemoFirebase } from "@/firebase";
 import { doc, collection, setDoc, deleteDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,30 +10,45 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Save, Send, History, Trash2, Edit3, Download, GraduationCap, Layers, Loader2 } from "lucide-react";
+import { Plus, Save, Send, History, Trash2, Edit3, Download, GraduationCap, Layers, Loader2, ShieldAlert } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
-import { Syllabus, Scheme, Program } from "@/lib/types";
+import { Syllabus, Scheme, Program, UserProfile } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
+import Link from "next/link";
 
 export default function SchemeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: schemeId } = React.use(params);
   const db = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
 
-  const schemeRef = useMemo(() => doc(db, 'schemes', schemeId), [db, schemeId]);
+  const userDocRef = useMemoFirebase(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
+  const { data: profile } = useDoc<UserProfile>(userDocRef);
+
+  const schemeRef = useMemoFirebase(() => doc(db, 'schemes', schemeId), [db, schemeId]);
   const { data: scheme, loading: schemeLoading } = useDoc<Scheme>(schemeRef);
 
-  const syllabiRef = useMemo(() => collection(db, 'schemes', schemeId, 'syllabi'), [db, schemeId]);
+  const syllabiRef = useMemoFirebase(() => collection(db, 'schemes', schemeId, 'syllabi'), [db, schemeId]);
   const { data: syllabi, loading: syllabiLoading } = useCollection<Syllabus>(syllabiRef);
 
-  const programRef = useMemo(() => (scheme?.programId ? doc(db, 'programs', scheme.programId) : null), [db, scheme?.programId]);
+  const programRef = useMemoFirebase(() => (scheme?.programId ? doc(db, 'programs', scheme.programId) : null), [db, scheme?.programId]);
   const { data: program } = useDoc<Program>(programRef);
 
   const [isSyllabusDialogOpen, setIsSyllabusDialogOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Partial<Syllabus> | undefined>(undefined);
+
+  const hasEditPermission = useMemo(() => {
+    if (!profile || !scheme) return false;
+    if (profile.role === 'admin' || profile.role === 'dean_faculty' || profile.role === 'dean_academics') return true;
+    
+    // BoS Convenor check
+    return profile.managedBranches?.some(
+      m => m.programId === scheme.programId && m.branch === scheme.branch
+    ) || false;
+  }, [profile, scheme]);
 
   const creditDistribution = useMemo(() => {
     const dist = { DSC: 0, DSE: 0, OFE: 0, CPF: 0, VAC: 0, AEC: 0, SEC: 0, MDC: 0, total: 0 };
@@ -46,6 +60,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   }, [syllabi]);
 
   const handleUpdateScheme = (updates: Partial<Scheme>) => {
+    if (!hasEditPermission) return;
     updateDoc(schemeRef, { ...updates, updatedAt: serverTimestamp() })
       .catch(err => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -57,6 +72,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const handleSaveSyllabus = (data: Partial<Syllabus>) => {
+    if (!hasEditPermission) return;
     const syllabusId = data.id || doc(collection(db, 'temp')).id;
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', syllabusId);
     
@@ -72,6 +88,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const handleDeleteSyllabus = (id: string) => {
+    if (!hasEditPermission) return;
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', id);
     deleteDoc(docRef).catch(err => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -91,6 +108,26 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
   if (!scheme) return <div className="p-8 text-center text-muted-foreground">Scheme not found.</div>;
 
+  if (!hasEditPermission) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 space-y-4">
+        <div className="bg-red-50 p-4 rounded-full">
+          <ShieldAlert className="w-12 h-12 text-red-600" />
+        </div>
+        <div className="text-center">
+          <h2 className="text-2xl font-bold">Unauthorized Access</h2>
+          <p className="text-muted-foreground max-w-md mt-2">
+            You do not have authorization to manage schemes for {program?.name} ({scheme.branch}). 
+            Please contact your Dean Academics for authorization.
+          </p>
+        </div>
+        <Button asChild variant="outline">
+          <Link href="/dashboard/schemes">Return to My Schemes</Link>
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -102,6 +139,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             </Badge>
           </div>
           <div className="flex items-center gap-3 text-muted-foreground text-sm">
+            <span>Branch: <span className="font-bold text-foreground">{scheme.branch || 'General'}</span></span>
+            <span className="w-1 h-1 rounded-full bg-border"></span>
             <span>Batch: {scheme.batchYear}</span>
             <span className="w-1 h-1 rounded-full bg-border"></span>
             <span>Status: </span>
@@ -269,7 +308,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="relative pl-8 space-y-6 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-px before:bg-border">
-                    <AuditItem version={scheme.version} action="Last Updated" user="Current User" date={scheme.updatedAt?.toDate().toLocaleDateString() || 'Today'} />
+                    <AuditItem version={scheme.version} action="Last Updated" user={profile?.displayName || 'Authorized User'} date={scheme.updatedAt?.toDate().toLocaleDateString() || 'Today'} />
                   </div>
                 </CardContent>
               </Card>

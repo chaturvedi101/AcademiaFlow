@@ -6,7 +6,7 @@ import { collection, query, where, doc } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, Clock, CheckCircle2, AlertCircle, ArrowRight, Layers, ShieldCheck, GraduationCap, Loader2, FileCheck } from "lucide-react";
+import { FileText, Clock, CheckCircle2, AlertCircle, ArrowRight, Layers, ShieldCheck, GraduationCap, Loader2, FileCheck, Plus } from "lucide-react";
 import Link from "next/link";
 import { Scheme, Program, UserProfile } from '@/lib/types';
 
@@ -19,14 +19,26 @@ export default function DashboardPage() {
   const { data: schemes, loading: schemesLoading } = useCollection<Scheme>(collection(db, 'schemes'));
   const { data: programs, loading: programsLoading } = useCollection<Program>(collection(db, 'programs'));
 
+  const filteredSchemes = useMemo(() => {
+    if (!profile) return [];
+    if (profile.role === 'admin' || profile.role === 'dean_faculty' || profile.role === 'dean_academics') {
+      return schemes;
+    }
+    // Filter for BoS Convenor: only schemes in their managed branches
+    const managed = profile.managedBranches || [];
+    return schemes.filter(s => 
+      managed.some(m => m.programId === s.programId && m.branch === s.branch)
+    );
+  }, [schemes, profile]);
+
   const stats = useMemo(() => {
     return {
-      activeSchemes: schemes.length,
-      pendingApproval: schemes.filter(s => s.status.includes('Pending')).length,
-      approved: schemes.filter(s => s.status === 'Approved').length,
+      activeSchemes: filteredSchemes.length,
+      pendingApproval: filteredSchemes.filter(s => s.status.includes('Pending')).length,
+      approved: filteredSchemes.filter(s => s.status === 'Approved').length,
       programs: programs.length,
     };
-  }, [schemes, programs]);
+  }, [filteredSchemes, programs]);
 
   if (profileLoading || schemesLoading || programsLoading) {
     return (
@@ -48,9 +60,9 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatsCard 
-          title="Active Schemes" 
+          title="Your Schemes" 
           value={stats.activeSchemes} 
-          trend="Across all programs" 
+          trend={profile?.role === 'bos_convenor' ? "In your assigned branches" : "Across all programs"} 
           icon={<FileText className="text-primary" />} 
         />
         <StatsCard 
@@ -79,7 +91,7 @@ export default function DashboardPage() {
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle className="font-headline">Recent Activity</CardTitle>
-              <CardDescription>Monitor the latest changes in the academic ecosystem.</CardDescription>
+              <CardDescription>Monitor the latest changes in your academic jurisdiction.</CardDescription>
             </div>
             <Button variant="outline" size="sm" asChild>
               <Link href="/dashboard/schemes">View All</Link>
@@ -87,11 +99,12 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {schemes.slice(0, 5).map(scheme => {
+              {filteredSchemes.slice(0, 5).map(scheme => {
                 const program = programs.find(p => p.id === scheme.programId);
                 return (
                   <SchemeRow 
                     key={scheme.id}
+                    id={scheme.id}
                     name={program?.name || 'Unknown Program'} 
                     batch={scheme.batchYear} 
                     status={scheme.status} 
@@ -99,9 +112,9 @@ export default function DashboardPage() {
                   />
                 );
               })}
-              {schemes.length === 0 && (
+              {filteredSchemes.length === 0 && (
                 <div className="text-center py-10 text-muted-foreground italic">
-                  No academic schemes registered yet.
+                  No academic schemes registered in your assigned branches yet.
                 </div>
               )}
             </div>
@@ -156,7 +169,7 @@ function StatsCard({ title, value, trend, icon, variant = 'default' }: any) {
   );
 }
 
-function SchemeRow({ name, batch, status, updated }: any) {
+function SchemeRow({ id, name, batch, status, updated }: any) {
   const statusColors: any = {
     'Draft': 'bg-slate-100 text-slate-700',
     'Pending Dean': 'bg-amber-100 text-amber-700',
@@ -165,7 +178,7 @@ function SchemeRow({ name, batch, status, updated }: any) {
   };
 
   return (
-    <div className="flex items-center justify-between p-4 rounded-lg border border-border/50 hover:bg-muted/20 transition-colors">
+    <Link href={`/dashboard/schemes/${id}`} className="flex items-center justify-between p-4 rounded-lg border border-border/50 hover:bg-muted/20 transition-colors">
       <div className="space-y-1">
         <p className="font-medium text-sm">{name}</p>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -177,7 +190,7 @@ function SchemeRow({ name, batch, status, updated }: any) {
       <Badge variant="outline" className={`${statusColors[status] || 'bg-slate-100 text-slate-700'} border-none font-medium text-[10px]`}>
         {status}
       </Badge>
-    </div>
+    </Link>
   );
 }
 
@@ -193,11 +206,5 @@ function ActionLink({ href, label, icon }: { href: string, label: string, icon: 
       </div>
       <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
     </Link>
-  );
-}
-
-function Plus({ className }: any) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M5 12h14"/><path d="M12 5v14"/></svg>
   );
 }

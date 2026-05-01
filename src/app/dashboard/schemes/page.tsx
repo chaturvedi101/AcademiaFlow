@@ -1,10 +1,9 @@
-
 'use client';
 
-import { useState } from 'react';
-import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
-import { collection, addDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
-import { Scheme, Program } from '@/lib/types';
+import { useState, useMemo } from 'react';
+import { useFirestore, useCollection, useUser, useMemoFirebase, useDoc } from '@/firebase';
+import { collection, addDoc, serverTimestamp, query, orderBy, doc } from 'firebase/firestore';
+import { Scheme, Program, UserProfile } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,14 +23,15 @@ export default function SchemesPage() {
   const router = useRouter();
   const { toast } = useToast();
 
+  const userDocRef = useMemoFirebase(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
+  const { data: profile } = useDoc<UserProfile>(userDocRef);
+
   const schemesQuery = useMemoFirebase(() => {
     return query(collection(db, 'schemes'), orderBy('updatedAt', 'desc'));
   }, [db]);
 
-  const programsRef = useMemoFirebase(() => collection(db, 'programs'), [db]);
-
   const { data: schemes, loading: schemesLoading } = useCollection<Scheme>(schemesQuery);
-  const { data: programs } = useCollection<Program>(programsRef);
+  const { data: programs } = useCollection<Program>(collection(db, 'programs'));
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newScheme, setNewScheme] = useState({
@@ -40,6 +40,26 @@ export default function SchemesPage() {
     batchYear: '',
     version: 'v1.0'
   });
+
+  const filteredSchemes = useMemo(() => {
+    if (!profile) return [];
+    if (profile.role === 'admin' || profile.role === 'dean_faculty' || profile.role === 'dean_academics') {
+      return schemes;
+    }
+    const managed = profile.managedBranches || [];
+    return schemes.filter(s => 
+      managed.some(m => m.programId === s.programId && m.branch === s.branch)
+    );
+  }, [schemes, profile]);
+
+  const availablePrograms = useMemo(() => {
+    if (!profile) return [];
+    if (profile.role === 'admin' || profile.role === 'dean_academics') {
+      return programs;
+    }
+    const managedProgramIds = new Set(profile.managedBranches?.map(b => b.programId) || []);
+    return programs.filter(p => managedProgramIds.has(p.id));
+  }, [programs, profile]);
 
   const selectedProgram = programs.find(p => p.id === newScheme.programId);
 
@@ -95,13 +115,15 @@ export default function SchemesPage() {
           <h1 className="text-3xl font-headline font-bold">Academic Schemes</h1>
           <p className="text-muted-foreground">Draft, build, and manage university academic layouts.</p>
         </div>
-        <Button onClick={() => setIsDialogOpen(true)} className="gap-2 shadow-lg">
-          <Plus className="w-4 h-4" /> New Scheme
-        </Button>
+        {(profile?.role === 'bos_convenor' || profile?.role === 'admin') && (
+          <Button onClick={() => setIsDialogOpen(true)} className="gap-2 shadow-lg">
+            <Plus className="w-4 h-4" /> New Scheme
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {schemes.map((scheme) => {
+        {filteredSchemes.map((scheme) => {
           const program = programs.find(p => p.id === scheme.programId);
           return (
             <Card key={scheme.id} className="hover:shadow-md transition-shadow group">
@@ -128,18 +150,18 @@ export default function SchemesPage() {
               </CardHeader>
               <CardContent>
                 <Button variant="ghost" className="w-full justify-between group-hover:bg-primary group-hover:text-white" asChild>
-                  <a href={`/dashboard/schemes/${scheme.id}`}>
+                  <Link href={`/dashboard/schemes/${scheme.id}`}>
                     Manage Scheme <ArrowRight className="w-4 h-4" />
-                  </a>
+                  </Link>
                 </Button>
               </CardContent>
             </Card>
           );
         })}
-        {schemes.length === 0 && (
+        {filteredSchemes.length === 0 && (
           <div className="col-span-full py-20 text-center border-2 border-dashed rounded-2xl bg-muted/20">
             <BookOpen className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-20" />
-            <p className="text-muted-foreground">No schemes created yet. Start by defining a new academic layout.</p>
+            <p className="text-muted-foreground">No schemes found for your authorized branches.</p>
           </div>
         )}
       </div>
@@ -158,7 +180,7 @@ export default function SchemesPage() {
                   <SelectValue placeholder="Select program..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {programs.map(p => (
+                  {availablePrograms.map(p => (
                     <SelectItem key={p.id} value={p.id}>{p.name} ({p.code})</SelectItem>
                   ))}
                 </SelectContent>
@@ -173,7 +195,12 @@ export default function SchemesPage() {
                     <SelectValue placeholder="Select branch..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {selectedProgram.branches.map(b => (
+                    {(profile?.role === 'bos_convenor' 
+                      ? selectedProgram.branches.filter(b => 
+                          profile.managedBranches?.some(m => m.programId === selectedProgram.id && m.branch === b)
+                        )
+                      : selectedProgram.branches
+                    ).map(b => (
                       <SelectItem key={b} value={b}>{b}</SelectItem>
                     ))}
                   </SelectContent>
