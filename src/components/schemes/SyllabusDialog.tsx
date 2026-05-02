@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -14,7 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Sparkles, Calculator, Loader2, Info, Wand2, Plus, Trash2 } from "lucide-react";
+import { Sparkles, Calculator, Loader2, Info, Wand2, Plus, Trash2, AlertCircle } from "lucide-react";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { suggestProgramOutcomes } from "@/ai/flows/suggest-program-outcomes";
 import { suggestNEPCategory } from "@/ai/flows/suggest-nep-categories";
@@ -85,6 +84,17 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
     setFormData(prev => ({ ...prev, credits: calculated }));
   }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits]);
 
+  const handleAIError = (e: any) => {
+    const isKeyError = e.message?.includes('API_KEY_ERROR') || e.message?.includes('expired') || e.message?.includes('400');
+    toast({ 
+      title: isKeyError ? "API Key Expired" : "AI Generation Error", 
+      description: isKeyError 
+        ? "Your Google AI API key is invalid or expired. Please update the .env file with a fresh key from Google AI Studio."
+        : (e.message || "An unexpected error occurred during AI generation."), 
+      variant: "destructive" 
+    });
+  };
+
   const handleAIContent = async () => {
     if (!formData.title) {
       toast({ title: "Validation Error", description: "Subject title is required for AI generation.", variant: "destructive" });
@@ -109,7 +119,7 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
 
       toast({ title: "AI Generation Success", description: `${result.units.length} syllabus units and outcomes populated.` });
     } catch (e: any) {
-      toast({ title: "AI Error", description: e.message || "Could not generate content.", variant: "destructive" });
+      handleAIError(e);
     } finally {
       setLoadingAI(false);
     }
@@ -136,7 +146,7 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
 
       toast({ title: "Mapping Suggested", description: result.justification });
     } catch (e: any) {
-      toast({ title: "AI Error", description: e.message, variant: "destructive" });
+      handleAIError(e);
     } finally {
       setLoadingPO(null);
     }
@@ -153,7 +163,7 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
       setFormData(prev => ({ ...prev, creditCategory: result.suggestedCategory as any }));
       toast({ title: "Category Suggested", description: result.reasoning });
     } catch (e: any) {
-      toast({ title: "AI Error", description: e.message, variant: "destructive" });
+      handleAIError(e);
     } finally {
       setLoadingCategory(false);
     }

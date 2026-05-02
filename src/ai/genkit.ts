@@ -3,7 +3,7 @@ import { genkit } from 'genkit';
 
 /**
  * Global Genkit instance configured for Google AI.
- * Model identifiers are specified at the prompt/generate level for clarity.
+ * Using the standard Google Generative AI plugin for Genkit 1.x.
  */
 export const ai = genkit({
   plugins: [googleAI()],
