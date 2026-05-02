@@ -22,6 +22,7 @@ export type SuggestCategoryOutput = z.infer<typeof SuggestCategoryOutputSchema>;
 
 const categoryPrompt = ai.definePrompt({
   name: 'categoryPrompt',
+  model: 'googleai/gemini-1.5-flash',
   input: { schema: SuggestCategoryInputSchema },
   output: { schema: SuggestCategoryOutputSchema },
   prompt: `Based on the course title and description, suggest the most appropriate NEP 2020 credit category.

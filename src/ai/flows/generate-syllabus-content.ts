@@ -28,8 +28,12 @@ export type GenerateSyllabusContentOutput = z.infer<typeof GenerateSyllabusConte
 
 const syllabusPrompt = ai.definePrompt({
   name: 'syllabusPrompt',
+  model: 'googleai/gemini-1.5-flash',
   input: { schema: GenerateSyllabusContentInputSchema },
   output: { schema: GenerateSyllabusContentOutputSchema },
+  config: {
+    temperature: 0.7,
+  },
   prompt: `You are an expert academic curriculum designer for a technical university following NEP 2020 guidelines.
   
 Generate a comprehensive syllabus for the course: "{{{subjectTitle}}}".
@@ -45,6 +49,8 @@ Requirements:
 
 export async function generateSyllabusContent(input: GenerateSyllabusContentInput): Promise<GenerateSyllabusContentOutput> {
   const { output } = await syllabusPrompt(input);
-  if (!output) throw new Error('AI failed to generate syllabus structure');
+  if (!output) {
+    throw new Error('AI failed to generate syllabus structure. Please try again with a more specific subject title.');
+  }
   return output;
 }
