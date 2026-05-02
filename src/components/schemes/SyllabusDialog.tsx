@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -62,6 +63,7 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
   const [loadingAI, setLoadingAI] = useState(false);
   const [loadingPO, setLoadingPO] = useState<string | null>(null);
   const [loadingCategory, setLoadingCategory] = useState(false);
+  const [unitCount, setUnitCount] = useState(5);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -92,7 +94,8 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
     try {
       const result = await generateSyllabusContent({ 
         subjectTitle: formData.title, 
-        keywords: [formData.subjectCode || ''] 
+        keywords: [formData.subjectCode || ''],
+        unitCount: unitCount
       });
       
       setFormData(prev => ({
@@ -104,7 +107,7 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
         resources: result.suggestedResources
       }));
 
-      toast({ title: "AI Generation Success", description: "Syllabus units and outcomes populated." });
+      toast({ title: "AI Generation Success", description: `${result.units.length} syllabus units and outcomes populated.` });
     } catch (e: any) {
       toast({ title: "AI Error", description: e.message || "Could not generate content.", variant: "destructive" });
     } finally {
@@ -120,7 +123,7 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
       
       const newMappings = { ...(formData.poMappings?.[unitId] || {}) };
       result.suggestedPOs.forEach(poCode => {
-        newMappings[poCode] = '3'; // Strongly suggest mapping
+        newMappings[poCode] = '3';
       });
 
       setFormData(prev => ({
@@ -145,7 +148,7 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
     try {
       const result = await suggestNEPCategory({ 
         subjectTitle: formData.title,
-        subjectDescription: formData.units?.[0]?.content // Use first unit as context
+        subjectDescription: formData.units?.[0]?.content
       });
       setFormData(prev => ({ ...prev, creditCategory: result.suggestedCategory as any }));
       toast({ title: "Category Suggested", description: result.reasoning });
@@ -231,24 +234,12 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Subject Title</Label>
-                    <div className="flex gap-2">
-                      <Input 
-                        placeholder="e.g., Analysis of Algorithms" 
-                        className="flex-1"
-                        value={formData.title || ''}
-                        onChange={e => setFormData({ ...formData, title: e.target.value })}
-                      />
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        size="icon" 
-                        className="text-accent hover:bg-accent/10"
-                        onClick={handleAIContent}
-                        disabled={loadingAI}
-                      >
-                        {loadingAI ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-                      </Button>
-                    </div>
+                    <Input 
+                      placeholder="e.g., Analysis of Algorithms" 
+                      className="flex-1"
+                      value={formData.title || ''}
+                      onChange={e => setFormData({ ...formData, title: e.target.value })}
+                    />
                   </div>
                 </div>
 
@@ -312,14 +303,29 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
               </TabsContent>
 
               <TabsContent value="syllabus" className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-headline font-bold">Course Units</h3>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={addManualUnit} className="gap-2">
-                      <Plus className="w-4 h-4" /> Add Unit Manually
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 bg-primary/5 rounded-xl border border-primary/10">
+                  <div className="space-y-1">
+                    <h3 className="font-headline font-bold text-primary">Unit Configuration</h3>
+                    <p className="text-xs text-muted-foreground">Define unit titles, topics, and course outcomes manually or using AI.</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border">
+                      <Label className="text-xs font-bold text-muted-foreground whitespace-nowrap">AI Units:</Label>
+                      <Input 
+                        type="number" 
+                        min={1} 
+                        max={10} 
+                        value={unitCount} 
+                        onChange={(e) => setUnitCount(parseInt(e.target.value) || 5)}
+                        className="w-12 h-7 p-1 text-center font-bold"
+                      />
+                    </div>
+                    <Button variant="outline" size="sm" onClick={handleAIContent} disabled={loadingAI} className="gap-2 text-accent border-accent/20 hover:bg-accent/5">
+                      {loadingAI ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                      Generate AI Syllabus
                     </Button>
-                    <Button variant="outline" size="sm" onClick={handleAIContent} disabled={loadingAI} className="gap-2 text-accent">
-                      <Sparkles className="w-4 h-4" /> AI Generate Syllabus
+                    <Button variant="outline" size="sm" onClick={addManualUnit} className="gap-2">
+                      <Plus className="w-4 h-4" /> Add Manual Unit
                     </Button>
                   </div>
                 </div>
@@ -353,7 +359,7 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
                   ))}
                   {(!formData.units || formData.units.length === 0) && (
                     <div className="text-center py-20 border border-dashed rounded-xl text-muted-foreground">
-                      No units defined. Use "Add Unit Manually" or the AI generator to get started.
+                      No units defined. Use the configuration tools above to get started.
                     </div>
                   )}
                 </div>

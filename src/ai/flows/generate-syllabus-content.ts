@@ -16,10 +16,11 @@ const SyllabusUnitSchema = z.object({
 const GenerateSyllabusContentInputSchema = z.object({
   subjectTitle: z.string(),
   keywords: z.array(z.string()).optional(),
+  unitCount: z.number().min(1).max(10).default(5).describe('Number of units to generate'),
 });
 
 const GenerateSyllabusContentOutputSchema = z.object({
-  units: z.array(SyllabusUnitSchema).length(5).describe('Exactly 5 academic units'),
+  units: z.array(SyllabusUnitSchema).describe('The requested academic units'),
   suggestedResources: z.array(z.string()).describe('Recommended textbooks or URLs'),
 });
 
@@ -41,7 +42,7 @@ Generate a comprehensive syllabus for the course: "{{{subjectTitle}}}".
 Contextual Keywords: {{#each keywords}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
 
 Requirements:
-1. Provide exactly 5 units.
+1. Provide exactly {{{unitCount}}} units.
 2. For each unit, write a professional title and a list of topics.
 3. Each unit must have one high-level Course Outcome (CO) using Bloom's Taxonomy verbs (e.g., "Analyze", "Design", "Evaluate").
 4. Suggest 3-5 standard academic resources.`,
@@ -54,13 +55,12 @@ export async function generateSyllabusContent(input: GenerateSyllabusContentInpu
     }
     const { output } = await syllabusPrompt(input);
     if (!output) {
-      throw new Error('AI returned empty output. This may be due to safety filters or an invalid API key.');
+      throw new Error('AI returned empty output.');
     }
     return output;
   } catch (error: any) {
-    // Log the error for developer reference but throw a clean message for the UI
     const message = error.message?.includes('API_KEY_INVALID') 
-      ? 'The API key provided is invalid or expired. Please update your .env file.' 
+      ? 'The API key provided is invalid or expired.' 
       : error.message || 'AI failed to generate syllabus content.';
     throw new Error(message);
   }
