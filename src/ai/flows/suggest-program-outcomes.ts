@@ -21,7 +21,6 @@ export type SuggestPOOutput = z.infer<typeof SuggestPOOutputSchema>;
 
 const poPrompt = ai.definePrompt({
   name: 'poPrompt',
-  model: 'googleai/gemini-1.5-flash',
   input: { schema: SuggestPOInputSchema },
   output: { schema: SuggestPOOutputSchema },
   prompt: `Analyze the following Course Outcome (CO) and map it to the 12 standard Engineering Program Outcomes (POs).
@@ -47,15 +46,12 @@ Return a list of PO identifiers (e.g., ["PO1", "PO2"]) that strongly correlate w
 
 export async function suggestProgramOutcomes(input: SuggestPOInput): Promise<SuggestPOOutput> {
   try {
-    if (!process.env.GOOGLE_GENAI_API_KEY) {
-      throw new Error('GOOGLE_GENAI_API_KEY is missing.');
-    }
     const { output } = await poPrompt(input);
     if (!output) throw new Error('AI failed to map program outcomes');
     return output;
   } catch (error: any) {
     const message = error.message?.includes('API_KEY_INVALID') 
-      ? 'Invalid or expired API key.' 
+      ? 'Invalid or expired Google AI API key.' 
       : error.message || 'Mapping failed.';
     throw new Error(message);
   }

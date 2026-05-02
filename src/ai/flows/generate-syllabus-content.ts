@@ -29,7 +29,6 @@ export type GenerateSyllabusContentOutput = z.infer<typeof GenerateSyllabusConte
 
 const syllabusPrompt = ai.definePrompt({
   name: 'syllabusPrompt',
-  model: 'googleai/gemini-1.5-flash',
   input: { schema: GenerateSyllabusContentInputSchema },
   output: { schema: GenerateSyllabusContentOutputSchema },
   config: {
@@ -50,17 +49,14 @@ Requirements:
 
 export async function generateSyllabusContent(input: GenerateSyllabusContentInput): Promise<GenerateSyllabusContentOutput> {
   try {
-    if (!process.env.GOOGLE_GENAI_API_KEY) {
-      throw new Error('GOOGLE_GENAI_API_KEY is missing. Please add it to your .env file.');
-    }
     const { output } = await syllabusPrompt(input);
     if (!output) {
-      throw new Error('AI returned empty output.');
+      throw new Error('AI returned empty output. This may be due to safety filters or API limits.');
     }
     return output;
   } catch (error: any) {
     const message = error.message?.includes('API_KEY_INVALID') 
-      ? 'The API key provided is invalid or expired.' 
+      ? 'The Google AI API key is invalid.' 
       : error.message || 'AI failed to generate syllabus content.';
     throw new Error(message);
   }
