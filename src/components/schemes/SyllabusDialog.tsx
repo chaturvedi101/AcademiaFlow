@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -14,7 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Sparkles, Calculator, Loader2, Info, Wand2 } from "lucide-react";
+import { Sparkles, Calculator, Loader2, Info, Wand2, Plus, Trash2 } from "lucide-react";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { suggestProgramOutcomes } from "@/ai/flows/suggest-program-outcomes";
 import { suggestNEPCategory } from "@/ai/flows/suggest-nep-categories";
@@ -157,6 +156,29 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
     }
   };
 
+  const addManualUnit = () => {
+    const newUnit: SyllabusUnit = {
+      id: Math.random().toString(36).substr(2, 9),
+      title: '',
+      content: '',
+      courseOutcome: '',
+    };
+    setFormData(prev => ({
+      ...prev,
+      units: [...(prev.units || []), newUnit]
+    }));
+  };
+
+  const removeUnit = (id: string) => {
+    setFormData(prev => ({
+      ...prev,
+      units: prev.units?.filter(u => u.id !== id),
+      poMappings: prev.poMappings ? Object.fromEntries(
+        Object.entries(prev.poMappings).filter(([k]) => k !== id)
+      ) : {}
+    }));
+  };
+
   const updateUnit = (index: number, field: keyof SyllabusUnit, value: string) => {
     const newUnits = [...(formData.units || [])];
     newUnits[index] = { ...newUnits[index], [field]: value };
@@ -292,9 +314,14 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
               <TabsContent value="syllabus" className="space-y-6">
                 <div className="flex items-center justify-between">
                   <h3 className="font-headline font-bold">Course Units</h3>
-                  <Button variant="outline" size="sm" onClick={handleAIContent} disabled={loadingAI} className="gap-2 text-accent">
-                    <Sparkles className="w-4 h-4" /> AI Generate Syllabus
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={addManualUnit} className="gap-2">
+                      <Plus className="w-4 h-4" /> Add Unit Manually
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={handleAIContent} disabled={loadingAI} className="gap-2 text-accent">
+                      <Sparkles className="w-4 h-4" /> AI Generate Syllabus
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="space-y-6">
@@ -302,6 +329,9 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
                     <Card key={unit.id} className="border-none shadow-sm bg-muted/10">
                       <div className="bg-primary/5 px-4 py-2 border-b flex items-center justify-between">
                         <Badge variant="outline" className="bg-primary/10 text-primary border-none text-[10px] font-bold uppercase">UNIT {index + 1}</Badge>
+                        <Button variant="ghost" size="icon" className="h-6 w-6 text-red-400 hover:bg-red-50" onClick={() => removeUnit(unit.id)}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
                       </div>
                       <CardContent className="p-4 space-y-4">
                         <div className="grid grid-cols-2 gap-4">
@@ -323,7 +353,7 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
                   ))}
                   {(!formData.units || formData.units.length === 0) && (
                     <div className="text-center py-20 border border-dashed rounded-xl text-muted-foreground">
-                      No units defined. Use the AI generator to get started.
+                      No units defined. Use "Add Unit Manually" or the AI generator to get started.
                     </div>
                   )}
                 </div>
