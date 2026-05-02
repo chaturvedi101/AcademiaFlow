@@ -29,11 +29,11 @@ export type GenerateSyllabusContentOutput = z.infer<typeof GenerateSyllabusConte
 const syllabusPrompt = ai.definePrompt({
   name: 'syllabusPrompt',
   input: { schema: GenerateSyllabusContentInputSchema },
-  output: { schema: SyllabusUnitSchema.array() }, // Simplified output schema for the prompt to improve reliability
+  output: { schema: SyllabusUnitSchema.array() },
   config: {
     temperature: 0.7,
   },
-  prompt: `You are an expert academic curriculum designer for a technical university.
+  prompt: `You are an expert academic curriculum designer.
   
 Generate a comprehensive syllabus for the course: "{{{subjectTitle}}}".
 
@@ -50,21 +50,25 @@ Return only the list of units.`,
 export async function generateSyllabusContent(input: GenerateSyllabusContentInput): Promise<GenerateSyllabusContentOutput> {
   try {
     const { output } = await syllabusPrompt(input);
-    if (!output) {
-      throw new Error('AI returned empty output.');
+    
+    if (!output || output.length === 0) {
+      throw new Error('AI returned an empty response. Please check your prompt or subject title.');
     }
     
-    // We enhance the output with some static resources if the model only returns units
     return {
       units: output.map(u => ({ ...u, id: Math.random().toString(36).substr(2, 9) })),
       suggestedResources: [
         "Standard University Textbook for " + input.subjectTitle,
         "NPTEL Online Certification Course",
-        "Reference Manual v1.0"
+        "Open Source Documentation and Reference Manuals"
       ]
     };
   } catch (error: any) {
-    console.error("AI Flow Error:", error);
-    throw new Error(error.message || 'AI failed to generate syllabus content.');
+    console.error("Syllabus Generation Error:", error);
+    // User-friendly error mapping
+    if (error.message?.includes('400') || error.message?.includes('expired')) {
+      throw new Error('Your AI API Key has expired. Please update the .env file with a fresh key from Google AI Studio.');
+    }
+    throw new Error(error.message || 'AI failed to generate syllabus. Please try again.');
   }
 }

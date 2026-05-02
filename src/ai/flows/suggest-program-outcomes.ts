@@ -22,7 +22,7 @@ const poPrompt = ai.definePrompt({
   name: 'poPrompt',
   input: { schema: SuggestPOInputSchema },
   output: { schema: SuggestPOOutputSchema },
-  prompt: `Analyze the following Course Outcome (CO) and map it to the 12 standard Engineering Program Outcomes (POs).
+  prompt: `Analyze the following Course Outcome (CO) and map it to standard Engineering Program Outcomes (POs).
 
 Standard POs: PO1 (Knowledge), PO2 (Analysis), PO3 (Design), PO4 (Investigation), PO5 (Tools), PO6 (Society), PO7 (Environment), PO8 (Ethics), PO9 (Team), PO10 (Comm), PO11 (PM), PO12 (Learning).
 
@@ -34,10 +34,13 @@ Return a list of PO identifiers (e.g., ["PO1", "PO2"]) and a brief justification
 export async function suggestProgramOutcomes(input: SuggestPOInput): Promise<SuggestPOOutput> {
   try {
     const { output } = await poPrompt(input);
-    if (!output) throw new Error('AI failed to map program outcomes');
+    if (!output) throw new Error('AI failed to map outcomes.');
     return output;
   } catch (error: any) {
     console.error("PO Mapping Error:", error);
+    if (error.message?.includes('400') || error.message?.includes('expired')) {
+      throw new Error('API Key Expired: Please update your Google AI API key in the .env file.');
+    }
     throw new Error('Mapping failed: ' + error.message);
   }
 }
