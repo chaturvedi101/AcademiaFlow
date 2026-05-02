@@ -65,7 +65,6 @@ export async function generateSyllabusContent(input: GenerateSyllabusContentInpu
       ]
     };
   } catch (error: any) {
-    console.error("Syllabus Generation Error:", error);
     if (error.message?.includes('400') || error.message?.toLowerCase().includes('expired') || error.message?.toLowerCase().includes('api key')) {
       throw new Error('API_KEY_ERROR: Your Google AI API Key is invalid or expired. Please update the .env file with a fresh key from Google AI Studio.');
     }
