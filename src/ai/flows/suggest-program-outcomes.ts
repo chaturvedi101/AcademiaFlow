@@ -46,7 +46,17 @@ Return a list of PO identifiers (e.g., ["PO1", "PO2"]) that strongly correlate w
 });
 
 export async function suggestProgramOutcomes(input: SuggestPOInput): Promise<SuggestPOOutput> {
-  const { output } = await poPrompt(input);
-  if (!output) throw new Error('AI failed to map program outcomes');
-  return output;
+  try {
+    if (!process.env.GOOGLE_GENAI_API_KEY) {
+      throw new Error('GOOGLE_GENAI_API_KEY is missing.');
+    }
+    const { output } = await poPrompt(input);
+    if (!output) throw new Error('AI failed to map program outcomes');
+    return output;
+  } catch (error: any) {
+    const message = error.message?.includes('API_KEY_INVALID') 
+      ? 'Invalid or expired API key.' 
+      : error.message || 'Mapping failed.';
+    throw new Error(message);
+  }
 }

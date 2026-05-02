@@ -6,7 +6,6 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { googleAI } from '@genkit-ai/google-genai';
 
 const SyllabusUnitSchema = z.object({
   title: z.string().describe('Unit title'),
@@ -50,13 +49,19 @@ Requirements:
 
 export async function generateSyllabusContent(input: GenerateSyllabusContentInput): Promise<GenerateSyllabusContentOutput> {
   try {
+    if (!process.env.GOOGLE_GENAI_API_KEY) {
+      throw new Error('GOOGLE_GENAI_API_KEY is missing. Please add it to your .env file.');
+    }
     const { output } = await syllabusPrompt(input);
     if (!output) {
-      throw new Error('AI returned empty output. Check API key and safety settings.');
+      throw new Error('AI returned empty output. This may be due to safety filters or an invalid API key.');
     }
     return output;
   } catch (error: any) {
-    console.error('Genkit Error:', error);
-    throw new Error(error.message || 'AI failed to generate syllabus structure.');
+    // Log the error for developer reference but throw a clean message for the UI
+    const message = error.message?.includes('API_KEY_INVALID') 
+      ? 'The API key provided is invalid or expired. Please update your .env file.' 
+      : error.message || 'AI failed to generate syllabus content.';
+    throw new Error(message);
   }
 }
