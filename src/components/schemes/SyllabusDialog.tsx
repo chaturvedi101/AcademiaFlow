@@ -13,12 +13,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Sparkles, Calculator, Loader2, Info, Wand2, Plus, Trash2, AlertCircle } from "lucide-react";
-import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
-import { suggestProgramOutcomes } from "@/ai/flows/suggest-program-outcomes";
-import { suggestNEPCategory } from "@/ai/flows/suggest-nep-categories";
+import { Calculator, Info, Plus, Trash2 } from "lucide-react";
 import { Syllabus, CorrelationLevel, SyllabusUnit } from "@/lib/types";
-import { useToast } from "@/hooks/use-toast";
 
 const PO_DEFINITIONS = [
   { code: 'PO1', title: 'Engineering Knowledge', desc: 'Apply mathematics, science, and engineering fundamentals.' },
@@ -58,12 +54,6 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
     units: [],
     poMappings: {},
   });
-  
-  const [loadingAI, setLoadingAI] = useState(false);
-  const [loadingPO, setLoadingPO] = useState<string | null>(null);
-  const [loadingCategory, setLoadingCategory] = useState(false);
-  const [unitCount, setUnitCount] = useState(5);
-  const { toast } = useToast();
 
   useEffect(() => {
     if (syllabus) {
@@ -83,91 +73,6 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
     const calculated = l + t + (p * 0.5);
     setFormData(prev => ({ ...prev, credits: calculated }));
   }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits]);
-
-  const handleAIError = (e: any) => {
-    const isKeyError = e.message?.includes('API_KEY_ERROR') || e.message?.includes('expired') || e.message?.includes('400');
-    toast({ 
-      title: isKeyError ? "API Key Expired" : "AI Generation Error", 
-      description: isKeyError 
-        ? "Your Google AI API key is invalid or expired. Please update the .env file with a fresh key from Google AI Studio."
-        : (e.message || "An unexpected error occurred during AI generation."), 
-      variant: "destructive" 
-    });
-  };
-
-  const handleAIContent = async () => {
-    if (!formData.title) {
-      toast({ title: "Validation Error", description: "Subject title is required for AI generation.", variant: "destructive" });
-      return;
-    }
-    setLoadingAI(true);
-    try {
-      const result = await generateSyllabusContent({ 
-        subjectTitle: formData.title, 
-        keywords: [formData.subjectCode || ''],
-        unitCount: unitCount
-      });
-      
-      setFormData(prev => ({
-        ...prev,
-        units: result.units.map(u => ({
-          id: Math.random().toString(36).substr(2, 9),
-          ...u
-        })),
-        resources: result.suggestedResources
-      }));
-
-      toast({ title: "AI Generation Success", description: `${result.units.length} syllabus units and outcomes populated.` });
-    } catch (e: any) {
-      handleAIError(e);
-    } finally {
-      setLoadingAI(false);
-    }
-  }
-
-  const handleAISuggestMapping = async (unitId: string, coText: string) => {
-    if (!coText) return;
-    setLoadingPO(unitId);
-    try {
-      const result = await suggestProgramOutcomes({ courseOutcome: coText });
-      
-      const newMappings = { ...(formData.poMappings?.[unitId] || {}) };
-      result.suggestedPOs.forEach(poCode => {
-        newMappings[poCode] = '3';
-      });
-
-      setFormData(prev => ({
-        ...prev,
-        poMappings: {
-          ...(prev.poMappings || {}),
-          [unitId]: newMappings
-        }
-      }));
-
-      toast({ title: "Mapping Suggested", description: result.justification });
-    } catch (e: any) {
-      handleAIError(e);
-    } finally {
-      setLoadingPO(null);
-    }
-  };
-
-  const handleAISuggestCategory = async () => {
-    if (!formData.title) return;
-    setLoadingCategory(true);
-    try {
-      const result = await suggestNEPCategory({ 
-        subjectTitle: formData.title,
-        subjectDescription: formData.units?.[0]?.content
-      });
-      setFormData(prev => ({ ...prev, creditCategory: result.suggestedCategory as any }));
-      toast({ title: "Category Suggested", description: result.reasoning });
-    } catch (e: any) {
-      handleAIError(e);
-    } finally {
-      setLoadingCategory(false);
-    }
-  };
 
   const addManualUnit = () => {
     const newUnit: SyllabusUnit = {
@@ -286,27 +191,16 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
                         <SelectTrigger className="bg-white"><SelectValue placeholder="Semester" /></SelectTrigger>
                         <SelectContent>{[1,2,3,4,5,6,7,8].map(s => <SelectItem key={s} value={String(s)}>Semester {s}</SelectItem>)}</SelectContent>
                       </Select>
-                      <div className="flex gap-2">
-                        <Select value={formData.creditCategory || 'DSC'} onValueChange={(val: any) => setFormData({ ...formData, creditCategory: val })}>
-                          <SelectTrigger className="bg-white flex-1"><SelectValue placeholder="Category" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="DSC">DSC (Core)</SelectItem>
-                            <SelectItem value="DSE">DSE (Elective)</SelectItem>
-                            <SelectItem value="OFE">OFE (Open Elective)</SelectItem>
-                            <SelectItem value="VAC">VAC (Value Added)</SelectItem>
-                            <SelectItem value="SEC">SEC (Skill)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Button 
-                          size="icon" 
-                          variant="ghost" 
-                          className="h-10 w-10 text-accent hover:bg-accent/10"
-                          onClick={handleAISuggestCategory}
-                          disabled={loadingCategory}
-                        >
-                          {loadingCategory ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
-                        </Button>
-                      </div>
+                      <Select value={formData.creditCategory || 'DSC'} onValueChange={(val: any) => setFormData({ ...formData, creditCategory: val })}>
+                        <SelectTrigger className="bg-white flex-1"><SelectValue placeholder="Category" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="DSC">DSC (Core)</SelectItem>
+                          <SelectItem value="DSE">DSE (Elective)</SelectItem>
+                          <SelectItem value="OFE">OFE (Open Elective)</SelectItem>
+                          <SelectItem value="VAC">VAC (Value Added)</SelectItem>
+                          <SelectItem value="SEC">SEC (Skill)</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                 </div>
@@ -316,24 +210,9 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 bg-primary/5 rounded-xl border border-primary/10">
                   <div className="space-y-1">
                     <h3 className="font-headline font-bold text-primary">Unit Configuration</h3>
-                    <p className="text-xs text-muted-foreground">Define unit titles, topics, and course outcomes manually or using AI.</p>
+                    <p className="text-xs text-muted-foreground">Define unit titles, topics, and course outcomes for the curriculum.</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border">
-                      <Label className="text-xs font-bold text-muted-foreground whitespace-nowrap">AI Units:</Label>
-                      <Input 
-                        type="number" 
-                        min={1} 
-                        max={10} 
-                        value={unitCount} 
-                        onChange={(e) => setUnitCount(parseInt(e.target.value) || 5)}
-                        className="w-12 h-7 p-1 text-center font-bold"
-                      />
-                    </div>
-                    <Button variant="outline" size="sm" onClick={handleAIContent} disabled={loadingAI} className="gap-2 text-accent border-accent/20 hover:bg-accent/5">
-                      {loadingAI ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                      Generate AI Syllabus
-                    </Button>
                     <Button variant="outline" size="sm" onClick={addManualUnit} className="gap-2">
                       <Plus className="w-4 h-4" /> Add Manual Unit
                     </Button>
@@ -369,7 +248,7 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
                   ))}
                   {(!formData.units || formData.units.length === 0) && (
                     <div className="text-center py-20 border border-dashed rounded-xl text-muted-foreground">
-                      No units defined. Use the configuration tools above to get started.
+                      No units defined. Click "Add Manual Unit" to get started.
                     </div>
                   )}
                 </div>
@@ -378,7 +257,7 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
               <TabsContent value="mapping" className="space-y-6">
                 <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex gap-3 text-amber-800 text-sm">
                   <Info className="w-5 h-5 shrink-0" />
-                  <p>Map unit outcomes against Program Outcomes. Click the AI wand to auto-suggest mappings for a row.</p>
+                  <p>Map unit outcomes against Program Outcomes to establish the correlation matrix.</p>
                 </div>
 
                 <div className="overflow-x-auto border rounded-xl bg-white shadow-sm">
@@ -414,15 +293,6 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
                                 <span className="font-bold text-primary">CO{uIdx + 1}</span>
                                 <span className="text-[10px] text-muted-foreground line-clamp-2 italic">{unit.courseOutcome || 'No CO defined'}</span>
                               </div>
-                              <Button 
-                                size="icon" 
-                                variant="ghost" 
-                                className="h-6 w-6 text-accent hover:bg-accent/10"
-                                onClick={() => handleAISuggestMapping(unit.id, unit.courseOutcome)}
-                                disabled={loadingPO === unit.id || !unit.courseOutcome}
-                              >
-                                {loadingPO === unit.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
-                              </Button>
                             </div>
                           </TableCell>
                           {PO_DEFINITIONS.map(po => (
