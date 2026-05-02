@@ -14,9 +14,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Sparkles, Plus, X, Calculator, Loader2, BookOpen, Layers, Info } from "lucide-react";
+import { Sparkles, Calculator, Loader2, Info, Wand2 } from "lucide-react";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
-import { Syllabus, CreditCategory, SubjectType, SyllabusUnit, CorrelationLevel } from "@/lib/types";
+import { suggestProgramOutcomes } from "@/ai/flows/suggest-program-outcomes";
+import { suggestNEPCategory } from "@/ai/flows/suggest-nep-categories";
+import { Syllabus, CorrelationLevel, SyllabusUnit } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 
 const PO_DEFINITIONS = [
@@ -59,6 +61,8 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
   });
   
   const [loadingAI, setLoadingAI] = useState(false);
+  const [loadingPO, setLoadingPO] = useState<string | null>(null);
+  const [loadingCategory, setLoadingCategory] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -66,10 +70,6 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
       setFormData(prev => ({
         ...prev,
         ...syllabus,
-        lectureCredits: syllabus.lectureCredits || 0,
-        tutorialCredits: syllabus.tutorialCredits || 0,
-        practicalCredits: syllabus.practicalCredits || 0,
-        credits: syllabus.credits || 0,
         units: syllabus.units || [],
         poMappings: syllabus.poMappings || {},
       }));
@@ -96,49 +96,71 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
         keywords: [formData.subjectCode || ''] 
       });
       
-      const newUnits = result.units.map(u => ({
-        id: Math.random().toString(36).substr(2, 9),
-        title: u.title,
-        content: u.content,
-        courseOutcome: u.courseOutcome
-      }));
-
       setFormData(prev => ({
         ...prev,
-        units: newUnits,
-        courseOutcomes: result.units.map(u => u.courseOutcome)
+        units: result.units.map(u => ({
+          id: Math.random().toString(36).substr(2, 9),
+          ...u
+        })),
+        resources: result.suggestedResources
       }));
 
       toast({ title: "AI Generation Success", description: "Syllabus units and outcomes populated." });
     } catch (e: any) {
-      const message = e.message || "Could not generate content.";
-      toast({ title: "AI Generation Error", description: message, variant: "destructive" });
+      toast({ title: "AI Error", description: e.message || "Could not generate content.", variant: "destructive" });
     } finally {
       setLoadingAI(false);
     }
+  }
+
+  const handleAISuggestMapping = async (unitId: string, coText: string) => {
+    if (!coText) return;
+    setLoadingPO(unitId);
+    try {
+      const result = await suggestProgramOutcomes({ courseOutcome: coText });
+      
+      const newMappings = { ...(formData.poMappings?.[unitId] || {}) };
+      result.suggestedPOs.forEach(poCode => {
+        newMappings[poCode] = '3'; // Strongly suggest mapping
+      });
+
+      setFormData(prev => ({
+        ...prev,
+        poMappings: {
+          ...(prev.poMappings || {}),
+          [unitId]: newMappings
+        }
+      }));
+
+      toast({ title: "Mapping Suggested", description: result.justification });
+    } catch (e: any) {
+      toast({ title: "AI Error", description: e.message, variant: "destructive" });
+    } finally {
+      setLoadingPO(null);
+    }
   };
 
-  const handleNumUnitsChange = (val: string) => {
-    const count = parseInt(val) || 0;
-    const currentUnits = [...(formData.units || [])];
-    
-    if (count > currentUnits.length) {
-      const additional = Array.from({ length: count - currentUnits.length }, (_, i) => ({
-        id: Math.random().toString(36).substr(2, 9),
-        title: `Unit ${currentUnits.length + i + 1}`,
-        content: '',
-        courseOutcome: ''
-      }));
-      updateField('units', [...currentUnits, ...additional]);
-    } else {
-      updateField('units', currentUnits.slice(0, count));
+  const handleAISuggestCategory = async () => {
+    if (!formData.title) return;
+    setLoadingCategory(true);
+    try {
+      const result = await suggestNEPCategory({ 
+        subjectTitle: formData.title,
+        subjectDescription: formData.units?.[0]?.content // Use first unit as context
+      });
+      setFormData(prev => ({ ...prev, creditCategory: result.suggestedCategory as any }));
+      toast({ title: "Category Suggested", description: result.reasoning });
+    } catch (e: any) {
+      toast({ title: "AI Error", description: e.message, variant: "destructive" });
+    } finally {
+      setLoadingCategory(false);
     }
   };
 
   const updateUnit = (index: number, field: keyof SyllabusUnit, value: string) => {
     const newUnits = [...(formData.units || [])];
     newUnits[index] = { ...newUnits[index], [field]: value };
-    updateField('units', newUnits);
+    setFormData(prev => ({ ...prev, units: newUnits }));
   };
 
   const updatePOMapping = (unitId: string, poCode: string, level: CorrelationLevel) => {
@@ -154,14 +176,10 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
     }));
   };
 
-  const updateField = (field: keyof Syllabus, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[95vh] flex flex-col p-0 overflow-hidden shadow-2xl border-none">
-        <DialogHeader className="p-6 border-b shrink-0 bg-background z-20">
+        <DialogHeader className="p-6 border-b shrink-0 bg-background">
           <DialogTitle className="font-headline text-2xl">
             {syllabus?.id ? 'Edit Subject Details' : 'Add New Subject Definition'}
           </DialogTitle>
@@ -170,8 +188,8 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
           </DialogDescription>
         </DialogHeader>
         
-        <ScrollArea className="flex-1 outline-none" tabIndex={0}>
-          <div className="p-6 space-y-8 pb-12">
+        <ScrollArea className="flex-1">
+          <div className="p-6 space-y-8">
             <Tabs defaultValue="basic" className="w-full">
               <TabsList className="grid w-full grid-cols-3 mb-8">
                 <TabsTrigger value="basic">Basic Information</TabsTrigger>
@@ -186,8 +204,7 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
                     <Input 
                       placeholder="e.g., CSE302" 
                       value={formData.subjectCode || ''} 
-                      onChange={e => updateField('subjectCode', e.target.value)}
-                      className="h-11 font-mono"
+                      onChange={e => setFormData({ ...formData, subjectCode: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
@@ -195,15 +212,15 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
                     <div className="flex gap-2">
                       <Input 
                         placeholder="e.g., Analysis of Algorithms" 
-                        className="h-11 flex-1"
+                        className="flex-1"
                         value={formData.title || ''}
-                        onChange={e => updateField('title', e.target.value)}
+                        onChange={e => setFormData({ ...formData, title: e.target.value })}
                       />
                       <Button 
                         type="button" 
                         variant="outline" 
                         size="icon" 
-                        className="h-11 w-11 shrink-0 text-accent border-accent/20 hover:bg-accent/10"
+                        className="text-accent hover:bg-accent/10"
                         onClick={handleAIContent}
                         disabled={loadingAI}
                       >
@@ -214,46 +231,59 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-                  <div className="p-5 bg-muted/30 rounded-2xl border border-border/50 space-y-6 lg:col-span-2">
+                  <div className="p-5 bg-muted/30 rounded-2xl border space-y-6 lg:col-span-2">
                     <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider border-b pb-3">
                       <Calculator className="w-4 h-4" />
                       Credit Structure (L-T-P)
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-4 gap-6">
                       <div className="space-y-2">
-                        <Label className="text-xs font-bold text-muted-foreground uppercase">Lecture (L)</Label>
-                        <Input type="number" value={formData.lectureCredits ?? 0} onChange={e => updateField('lectureCredits', Number(e.target.value))} />
+                        <Label className="text-xs font-bold uppercase">L</Label>
+                        <Input type="number" value={formData.lectureCredits ?? 0} onChange={e => setFormData({...formData, lectureCredits: Number(e.target.value)})} />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-xs font-bold text-muted-foreground uppercase">Tutorial (T)</Label>
-                        <Input type="number" value={formData.tutorialCredits ?? 0} onChange={e => updateField('tutorialCredits', Number(e.target.value))} />
+                        <Label className="text-xs font-bold uppercase">T</Label>
+                        <Input type="number" value={formData.tutorialCredits ?? 0} onChange={e => setFormData({...formData, tutorialCredits: Number(e.target.value)})} />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-xs font-bold text-muted-foreground uppercase">Practical (P)</Label>
-                        <Input type="number" value={formData.practicalCredits ?? 0} onChange={e => updateField('practicalCredits', Number(e.target.value))} />
+                        <Label className="text-xs font-bold uppercase">P</Label>
+                        <Input type="number" value={formData.practicalCredits ?? 0} onChange={e => setFormData({...formData, practicalCredits: Number(e.target.value)})} />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-xs font-bold text-primary uppercase">Total Credits</Label>
-                        <Input type="number" value={formData.credits ?? 0} className="h-11 font-bold bg-primary/5 border-primary/20 text-primary" readOnly />
+                        <Label className="text-xs font-bold text-primary uppercase">Total</Label>
+                        <Input type="number" value={formData.credits ?? 0} className="font-bold bg-primary/5 text-primary" readOnly />
                       </div>
                     </div>
                   </div>
 
-                  <div className="p-5 bg-accent/5 rounded-2xl border border-accent/10 space-y-4">
+                  <div className="p-5 bg-accent/5 rounded-2xl border space-y-4">
                     <Label className="text-sm font-semibold">Semester & Category</Label>
                     <div className="space-y-4">
-                      <Select value={String(formData.semester)} onValueChange={val => updateField('semester', Number(val))}>
+                      <Select value={String(formData.semester)} onValueChange={val => setFormData({ ...formData, semester: Number(val) })}>
                         <SelectTrigger className="bg-white"><SelectValue placeholder="Semester" /></SelectTrigger>
                         <SelectContent>{[1,2,3,4,5,6,7,8].map(s => <SelectItem key={s} value={String(s)}>Semester {s}</SelectItem>)}</SelectContent>
                       </Select>
-                      <Select value={formData.creditCategory || 'DSC'} onValueChange={val => updateField('creditCategory', val)}>
-                        <SelectTrigger className="bg-white"><SelectValue placeholder="Category" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="DSC">DSC (Core)</SelectItem>
-                          <SelectItem value="DSE">DSE (Elective)</SelectItem>
-                          <SelectItem value="OFE">OFE (Open Elective)</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="flex gap-2">
+                        <Select value={formData.creditCategory || 'DSC'} onValueChange={(val: any) => setFormData({ ...formData, creditCategory: val })}>
+                          <SelectTrigger className="bg-white flex-1"><SelectValue placeholder="Category" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="DSC">DSC (Core)</SelectItem>
+                            <SelectItem value="DSE">DSE (Elective)</SelectItem>
+                            <SelectItem value="OFE">OFE (Open Elective)</SelectItem>
+                            <SelectItem value="VAC">VAC (Value Added)</SelectItem>
+                            <SelectItem value="SEC">SEC (Skill)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          className="h-10 w-10 text-accent hover:bg-accent/10"
+                          onClick={handleAISuggestCategory}
+                          disabled={loadingCategory}
+                        >
+                          {loadingCategory ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -261,68 +291,67 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
 
               <TabsContent value="syllabus" className="space-y-6">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <Label className="font-semibold">Number of Units</Label>
-                    <Select value={String(formData.units?.length || 0)} onValueChange={handleNumUnitsChange}>
-                      <SelectTrigger className="w-[140px] h-10"><SelectValue /></SelectTrigger>
-                      <SelectContent>{[0,1,2,3,4,5,6].map(n => <SelectItem key={n} value={String(n)}>{n} Units</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
+                  <h3 className="font-headline font-bold">Course Units</h3>
                   <Button variant="outline" size="sm" onClick={handleAIContent} disabled={loadingAI} className="gap-2 text-accent">
-                    <Sparkles className="w-4 h-4" /> AI Generate Units
+                    <Sparkles className="w-4 h-4" /> AI Generate Syllabus
                   </Button>
                 </div>
 
                 <div className="space-y-6">
                   {formData.units?.map((unit, index) => (
                     <Card key={unit.id} className="border-none shadow-sm bg-muted/10">
-                      <div className="bg-primary/5 px-4 py-2 border-b border-primary/10 flex items-center justify-between">
-                        <Badge variant="outline" className="bg-primary/10 text-primary border-none text-[10px] font-bold">UNIT {index + 1}</Badge>
+                      <div className="bg-primary/5 px-4 py-2 border-b flex items-center justify-between">
+                        <Badge variant="outline" className="bg-primary/10 text-primary border-none text-[10px] font-bold uppercase">UNIT {index + 1}</Badge>
                       </div>
                       <CardContent className="p-4 space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">Unit Title</Label>
-                            <Input value={unit.title} onChange={e => updateUnit(index, 'title', e.target.value)} placeholder="Title" className="bg-white" />
+                            <Input value={unit.title} onChange={e => updateUnit(index, 'title', e.target.value)} className="bg-white" />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-[10px] uppercase font-bold text-primary">Course Outcome (CO)</Label>
-                            <Input value={unit.courseOutcome} onChange={e => updateUnit(index, 'courseOutcome', e.target.value)} placeholder="Students will be able to..." className="bg-primary/5 border-primary/20 focus:bg-white" />
+                            <Input value={unit.courseOutcome} onChange={e => updateUnit(index, 'courseOutcome', e.target.value)} className="bg-primary/5 border-primary/20 focus:bg-white" />
                           </div>
                         </div>
                         <div className="space-y-1">
                           <Label className="text-[10px] uppercase font-bold text-muted-foreground">Syllabus Content</Label>
-                          <Textarea value={unit.content} onChange={e => updateUnit(index, 'content', e.target.value)} placeholder="Topics..." className="min-h-[100px] bg-white" />
+                          <Textarea value={unit.content} onChange={e => updateUnit(index, 'content', e.target.value)} className="min-h-[100px] bg-white" />
                         </div>
                       </CardContent>
                     </Card>
                   ))}
+                  {(!formData.units || formData.units.length === 0) && (
+                    <div className="text-center py-20 border border-dashed rounded-xl text-muted-foreground">
+                      No units defined. Use the AI generator to get started.
+                    </div>
+                  )}
                 </div>
               </TabsContent>
 
               <TabsContent value="mapping" className="space-y-6">
                 <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex gap-3 text-amber-800 text-sm">
                   <Info className="w-5 h-5 shrink-0" />
-                  <p>Map each unit's CO against standard Program Outcomes. Levels: 1 (Slight), 2 (Moderate), 3 (Strong), - (No Correlation).</p>
+                  <p>Map unit outcomes against Program Outcomes. Click the AI wand to auto-suggest mappings for a row.</p>
                 </div>
 
                 <div className="overflow-x-auto border rounded-xl bg-white shadow-sm">
                   <Table>
                     <TableHeader className="bg-muted/30">
                       <TableRow>
-                        <TableHead className="w-[180px] font-bold">Course Outcomes</TableHead>
+                        <TableHead className="w-[200px] font-bold">Course Outcomes</TableHead>
                         {PO_DEFINITIONS.map(po => (
                           <TableHead key={po.code} className="p-0 text-center w-[60px]">
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <div className="cursor-help py-3 px-1 font-bold text-primary hover:bg-primary/5 transition-colors uppercase text-[10px]">
+                                  <div className="cursor-help py-3 px-1 font-bold text-primary hover:bg-primary/5 uppercase text-[10px]">
                                     {po.code}
                                   </div>
                                 </TooltipTrigger>
-                                <TooltipContent className="max-w-[200px]">
+                                <TooltipContent>
                                   <p className="font-bold">{po.code}: {po.title}</p>
-                                  <p className="text-xs">{po.desc}</p>
+                                  <p className="text-xs max-w-[200px]">{po.desc}</p>
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
@@ -334,9 +363,20 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
                       {formData.units?.map((unit, uIdx) => (
                         <TableRow key={unit.id} className="hover:bg-muted/5">
                           <TableCell className="font-medium text-xs align-top pt-4">
-                            <div className="flex flex-col gap-1">
-                              <span className="font-bold text-primary">CO{uIdx + 1}</span>
-                              <span className="text-[10px] text-muted-foreground line-clamp-2 italic">{unit.courseOutcome || 'No CO defined'}</span>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex flex-col gap-1">
+                                <span className="font-bold text-primary">CO{uIdx + 1}</span>
+                                <span className="text-[10px] text-muted-foreground line-clamp-2 italic">{unit.courseOutcome || 'No CO defined'}</span>
+                              </div>
+                              <Button 
+                                size="icon" 
+                                variant="ghost" 
+                                className="h-6 w-6 text-accent hover:bg-accent/10"
+                                onClick={() => handleAISuggestMapping(unit.id, unit.courseOutcome)}
+                                disabled={loadingPO === unit.id || !unit.courseOutcome}
+                              >
+                                {loadingPO === unit.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+                              </Button>
                             </div>
                           </TableCell>
                           {PO_DEFINITIONS.map(po => (
@@ -366,7 +406,7 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
           </div>
         </ScrollArea>
 
-        <DialogFooter className="p-6 bg-muted/20 border-t shrink-0 z-20">
+        <DialogFooter className="p-6 bg-muted/20 border-t z-20">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="px-6 h-11">Cancel</Button>
           <Button onClick={() => { onSave(formData); onOpenChange(false); }} className="px-8 h-11 shadow-lg">Save Subject Configuration</Button>
         </DialogFooter>
