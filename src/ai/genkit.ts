@@ -1,6 +1,5 @@
-
+import { gemini15Flash, googleAI } from '@genkit-ai/googleai';
 import { genkit } from 'genkit';
-import { googleAI, gemini15Flash } from '@genkit-ai/googleai';
 
 /**
  * Global Genkit instance configured for Google AI.

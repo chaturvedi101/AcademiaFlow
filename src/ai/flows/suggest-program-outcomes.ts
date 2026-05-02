@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview AI flow for mapping Course Outcomes to standard Program Outcomes.
@@ -25,23 +24,11 @@ const poPrompt = ai.definePrompt({
   output: { schema: SuggestPOOutputSchema },
   prompt: `Analyze the following Course Outcome (CO) and map it to the 12 standard Engineering Program Outcomes (POs).
 
-Standard POs:
-PO1: Engineering Knowledge
-PO2: Problem Analysis
-PO3: Design/Development of Solutions
-PO4: Conduct Investigations
-PO5: Modern Tool Usage
-PO6: The Engineer and Society
-PO7: Environment and Sustainability
-PO8: Ethics
-PO9: Individual and Team Work
-PO10: Communication
-PO11: Project Management and Finance
-PO12: Life-long Learning
+Standard POs: PO1 (Knowledge), PO2 (Analysis), PO3 (Design), PO4 (Investigation), PO5 (Tools), PO6 (Society), PO7 (Environment), PO8 (Ethics), PO9 (Team), PO10 (Comm), PO11 (PM), PO12 (Learning).
 
 Course Outcome: "{{{courseOutcome}}}"
 
-Return a list of PO identifiers (e.g., ["PO1", "PO2"]) that strongly correlate with this outcome and a brief justification.`,
+Return a list of PO identifiers (e.g., ["PO1", "PO2"]) and a brief justification.`,
 });
 
 export async function suggestProgramOutcomes(input: SuggestPOInput): Promise<SuggestPOOutput> {
@@ -50,9 +37,7 @@ export async function suggestProgramOutcomes(input: SuggestPOInput): Promise<Sug
     if (!output) throw new Error('AI failed to map program outcomes');
     return output;
   } catch (error: any) {
-    const message = error.message?.includes('API_KEY_INVALID') 
-      ? 'Invalid or expired Google AI API key.' 
-      : error.message || 'Mapping failed.';
-    throw new Error(message);
+    console.error("PO Mapping Error:", error);
+    throw new Error('Mapping failed: ' + error.message);
   }
 }
