@@ -6,6 +6,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 
 const SyllabusUnitSchema = z.object({
   title: z.string().describe('Unit title'),
@@ -48,9 +49,14 @@ Requirements:
 });
 
 export async function generateSyllabusContent(input: GenerateSyllabusContentInput): Promise<GenerateSyllabusContentOutput> {
-  const { output } = await syllabusPrompt(input);
-  if (!output) {
-    throw new Error('AI failed to generate syllabus structure. Please try again with a more specific subject title.');
+  try {
+    const { output } = await syllabusPrompt(input);
+    if (!output) {
+      throw new Error('AI returned empty output. Check API key and safety settings.');
+    }
+    return output;
+  } catch (error: any) {
+    console.error('Genkit Error:', error);
+    throw new Error(error.message || 'AI failed to generate syllabus structure.');
   }
-  return output;
 }
