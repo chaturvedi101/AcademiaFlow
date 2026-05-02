@@ -45,7 +45,7 @@ Requirements:
 2. For each unit, write a professional title and a list of topics.
 3. Each unit must have one high-level Course Outcome (CO) using Bloom's Taxonomy verbs.
 
-Return only the list of units.`,
+Return only the list of units as a structured array.`,
 });
 
 export async function generateSyllabusContent(input: GenerateSyllabusContentInput): Promise<GenerateSyllabusContentOutput> {
@@ -53,7 +53,7 @@ export async function generateSyllabusContent(input: GenerateSyllabusContentInpu
     const { output } = await syllabusPrompt(input);
     
     if (!output || output.length === 0) {
-      throw new Error('AI returned an empty response. Please check your prompt or subject title.');
+      throw new Error('AI returned an empty response. Please check your subject title.');
     }
     
     return {
@@ -66,9 +66,8 @@ export async function generateSyllabusContent(input: GenerateSyllabusContentInpu
     };
   } catch (error: any) {
     console.error("Syllabus Generation Error:", error);
-    // Specific check for API key issues
-    if (error.message?.includes('400') || error.message?.toLowerCase().includes('expired')) {
-      throw new Error('API_KEY_ERROR: Your Google AI API Key has expired or is invalid. Please update the .env file.');
+    if (error.message?.includes('400') || error.message?.toLowerCase().includes('expired') || error.message?.toLowerCase().includes('api key')) {
+      throw new Error('API_KEY_ERROR: Your Google AI API Key is invalid or expired. Please update the .env file with a fresh key from Google AI Studio.');
     }
     throw new Error(error.message || 'AI failed to generate syllabus. Please try again.');
   }

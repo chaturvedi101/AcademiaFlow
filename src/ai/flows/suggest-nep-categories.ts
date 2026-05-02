@@ -42,7 +42,14 @@ Suggest the most logical category and provide a brief academic justification.`,
 });
 
 export async function suggestNEPCategory(input: SuggestCategoryInput): Promise<SuggestCategoryOutput> {
-  const { output } = await categoryPrompt(input);
-  if (!output) throw new Error('AI failed to suggest NEP category');
-  return output;
+  try {
+    const { output } = await categoryPrompt(input);
+    if (!output) throw new Error('AI failed to suggest NEP category');
+    return output;
+  } catch (error: any) {
+    if (error.message?.includes('400') || error.message?.toLowerCase().includes('expired')) {
+      throw new Error('API_KEY_ERROR: Invalid API Key.');
+    }
+    throw error;
+  }
 }

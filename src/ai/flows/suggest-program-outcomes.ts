@@ -38,10 +38,9 @@ export async function suggestProgramOutcomes(input: SuggestPOInput): Promise<Sug
     if (!output) throw new Error('AI failed to map outcomes.');
     return output;
   } catch (error: any) {
-    console.error("PO Mapping Error:", error);
     if (error.message?.includes('400') || error.message?.toLowerCase().includes('expired')) {
-      throw new Error('API_KEY_ERROR: The Google AI API key is expired or invalid. Please check the .env file.');
+      throw new Error('API_KEY_ERROR: Invalid API Key.');
     }
-    throw new Error('Mapping failed: ' + error.message);
+    throw error;
   }
 }
