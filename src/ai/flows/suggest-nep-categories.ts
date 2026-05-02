@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview AI flow for suggesting NEP 2020 credit categories.
@@ -48,7 +49,7 @@ export async function suggestNEPCategory(input: SuggestCategoryInput): Promise<S
     return output;
   } catch (error: any) {
     if (error.message?.includes('400') || error.message?.toLowerCase().includes('expired')) {
-      throw new Error('API_KEY_ERROR: Invalid API Key.');
+      throw new Error('API_KEY_ERROR: Invalid or expired API Key.');
     }
     throw error;
   }

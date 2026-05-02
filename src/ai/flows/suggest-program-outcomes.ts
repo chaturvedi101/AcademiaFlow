@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview AI flow for mapping Course Outcomes to standard Program Outcomes.
@@ -39,7 +40,7 @@ export async function suggestProgramOutcomes(input: SuggestPOInput): Promise<Sug
     return output;
   } catch (error: any) {
     if (error.message?.includes('400') || error.message?.toLowerCase().includes('expired')) {
-      throw new Error('API_KEY_ERROR: Invalid API Key.');
+      throw new Error('API_KEY_ERROR: Invalid or expired API Key.');
     }
     throw error;
   }
