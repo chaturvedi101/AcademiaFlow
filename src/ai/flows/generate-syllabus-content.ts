@@ -28,6 +28,7 @@ export type GenerateSyllabusContentOutput = z.infer<typeof GenerateSyllabusConte
 
 const syllabusPrompt = ai.definePrompt({
   name: 'syllabusPrompt',
+  model: 'googleai/gemini-1.5-flash',
   input: { schema: GenerateSyllabusContentInputSchema },
   output: { schema: SyllabusUnitSchema.array() },
   config: {
@@ -65,7 +66,6 @@ export async function generateSyllabusContent(input: GenerateSyllabusContentInpu
     };
   } catch (error: any) {
     console.error("Syllabus Generation Error:", error);
-    // User-friendly error mapping
     if (error.message?.includes('400') || error.message?.includes('expired')) {
       throw new Error('Your AI API Key has expired. Please update the .env file with a fresh key from Google AI Studio.');
     }

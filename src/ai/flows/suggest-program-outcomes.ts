@@ -20,6 +20,7 @@ export type SuggestPOOutput = z.infer<typeof SuggestPOOutputSchema>;
 
 const poPrompt = ai.definePrompt({
   name: 'poPrompt',
+  model: 'googleai/gemini-1.5-flash',
   input: { schema: SuggestPOInputSchema },
   output: { schema: SuggestPOOutputSchema },
   prompt: `Analyze the following Course Outcome (CO) and map it to standard Engineering Program Outcomes (POs).
