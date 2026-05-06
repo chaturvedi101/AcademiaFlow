@@ -8,14 +8,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ShieldCheck, GraduationCap, FileCheck, Layers, Loader2 } from "lucide-react";
+import { ShieldCheck, GraduationCap, FileCheck, Layers, Loader2, Github } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore, useUser } from "@/firebase";
 import { 
   signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword 
+  createUserWithEmailAndPassword,
+  GithubAuthProvider,
+  signInWithPopup
 } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -50,6 +52,40 @@ export default function Home() {
       toast({
         variant: 'destructive',
         title: "Sign-in Failed",
+        description: error.message,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGithubSignIn = async () => {
+    setIsLoading(true);
+    const provider = new GithubAuthProvider();
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const userRef = doc(db, 'users', result.user.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists()) {
+        // Default role for new GitHub users is bos_convenor unless configured otherwise
+        const userData = {
+          displayName: result.user.displayName || result.user.email?.split('@')[0] || 'Academic User',
+          email: result.user.email || '',
+          role: 'bos_convenor' as UserRole,
+          createdAt: serverTimestamp(),
+        };
+        await setDoc(userRef, userData);
+        toast({
+          title: "Profile Created",
+          description: "Welcome to Academia Flow. Your account has been initialized.",
+        });
+      }
+      router.push('/dashboard');
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: "GitHub Authentication Failed",
         description: error.message,
       });
     } finally {
@@ -165,36 +201,57 @@ export default function Home() {
                 </TabsList>
                 
                 <TabsContent value="login">
-                  <form onSubmit={handleSignIn} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input 
-                        id="email" 
-                        type="email" 
-                        placeholder="name@university.edu" 
-                        required 
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                      />
+                  <div className="space-y-4">
+                    <form onSubmit={handleSignIn} className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="email">Email</Label>
+                        <Input 
+                          id="email" 
+                          type="email" 
+                          placeholder="name@university.edu" 
+                          required 
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="password">Password</Label>
+                        <Input 
+                          id="password" 
+                          type="password" 
+                          required 
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                        />
+                      </div>
+                      <Button 
+                        type="submit" 
+                        className="w-full h-11" 
+                        disabled={isLoading}
+                      >
+                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Sign In"}
+                      </Button>
+                    </form>
+
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="password">Password</Label>
-                      <Input 
-                        id="password" 
-                        type="password" 
-                        required 
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                      />
-                    </div>
+
                     <Button 
-                      type="submit" 
-                      className="w-full h-11" 
+                      variant="outline" 
+                      className="w-full h-11 gap-2" 
+                      onClick={handleGithubSignIn}
                       disabled={isLoading}
                     >
-                      {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Sign In"}
+                      <Github className="w-4 h-4" />
+                      GitHub
                     </Button>
-                  </form>
+                  </div>
                 </TabsContent>
 
                 <TabsContent value="register">

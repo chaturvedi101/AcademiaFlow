@@ -150,7 +150,8 @@
   },
   "auth": {
     "providers": [
-      "password"
+      "password",
+      "github"
     ]
   },
   "firestore": {
