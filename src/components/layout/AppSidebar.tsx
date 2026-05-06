@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo } from 'react';
@@ -24,7 +23,8 @@ import {
   LogOut,
   GraduationCap,
   Users,
-  Loader2
+  Loader2,
+  Settings2
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -40,6 +40,7 @@ const navigation = [
   { name: 'Equivalence Manager', href: '/dashboard/equivalence', icon: Layers, roles: ['bos_convenor', 'admin'] },
   { name: 'Approvals', href: '/dashboard/approvals', icon: FileCheck, roles: ['dean_faculty', 'dean_academics'] },
   { name: 'Audit Logs', href: '/dashboard/audit', icon: History, roles: ['admin'] },
+  { name: 'AI Diagnostics', href: '/dashboard/diagnostics', icon: Settings2, roles: ['admin', 'dean_academics'] },
 ];
 
 export function AppSidebar() {
