@@ -1,46 +1,39 @@
-
 'use server';
 /**
- * @fileOverview Flow to list available AI models using the Genkit 1.x registry.
+ * @fileOverview Flow to verify AI connectivity and list registered model actions.
  */
 
 import { ai } from '@/ai/genkit';
 
 export async function listAvailableModels() {
   try {
-    // In Genkit 1.x, registered models are part of the actions in the registry
-    const actions = ai.registry.listActions();
-    const models = actions.filter(action => action.key.includes('/'));
-    
-    if (models.length === 0) {
-      // Fallback: Check if we can at least ping the provider
-      const testResponse = await ai.generate({
-        model: 'googleai/gemini-1.5-flash',
-        prompt: 'Connectivity check. Reply with "ok".',
-        config: { maxOutputTokens: 5 }
-      });
-      
-      if (testResponse.text) {
-        return {
-          success: true,
-          models: [{ name: 'googleai/gemini-1.5-flash', info: { supports: ['text'] } }],
-          note: 'Connection verified via fallback ping.'
-        };
-      }
+    // connectivity check via a simple generation
+    const ping = await ai.generate({
+      model: 'googleai/gemini-1.5-flash',
+      prompt: 'Verify connection. Reply with "OK".',
+      config: { maxOutputTokens: 5 }
+    });
+
+    if (!ping.text) {
+      throw new Error('API reached but no text returned.');
     }
+
+    // Get actions from registry to show what's loaded
+    const actions = ai.registry.listActions();
+    const modelActions = actions.filter(a => a.key.startsWith('googleai/'));
 
     return {
       success: true,
-      models: models.map(m => ({
-        name: m.key,
-        info: m.metadata || {}
-      }))
+      models: modelActions.length > 0 
+        ? modelActions.map(m => ({ name: m.key, info: { supports: ['text'] } }))
+        : [{ name: 'googleai/gemini-1.5-flash', info: { supports: ['text'] } }],
+      note: 'Connectivity verified successfully.'
     };
   } catch (error: any) {
-    console.error('Genkit diagnostics error:', error);
+    console.error('AI Diagnostics Failed:', error);
     return {
       success: false,
-      error: error.message || 'Unknown connection error during AI diagnostics.'
+      error: error.message || 'Unknown error during AI diagnostics.'
     };
   }
 }

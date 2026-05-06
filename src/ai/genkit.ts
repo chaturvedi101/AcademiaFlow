@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview Genkit configuration for Academic AI Architect.
  * This file is server-side only to avoid browser compatibility issues.
