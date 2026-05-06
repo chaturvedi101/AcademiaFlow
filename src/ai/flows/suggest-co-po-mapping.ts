@@ -27,7 +27,7 @@ const mappingPrompt = ai.definePrompt({
   input: { schema: MappingInputSchema },
   output: { schema: MappingOutputSchema },
   config: {
-    model: 'googleai/gemini-2.0-flash',
+    model: 'googleai/gemini-3-flash-preview',
   },
   prompt: `As an academic auditor, suggest the correlation matrix between Course Outcomes (COs) and Program Outcomes (POs) for the course "{{{subjectTitle}}}".
   

@@ -8,9 +8,9 @@ import { ai } from '@/ai/genkit';
 
 export async function listAvailableModels() {
   try {
-    // Connectivity check via a simple generation using Gemini 2.0 Flash
+    // Connectivity check via a simple generation using Gemini 3 Flash Preview
     const ping = await ai.generate({
-      model: 'googleai/gemini-2.0-flash',
+      model: 'googleai/gemini-3-flash-preview',
       prompt: 'Verify connection. Reply with "OK".',
       config: { maxOutputTokens: 5 }
     });
@@ -23,8 +23,8 @@ export async function listAvailableModels() {
       success: true,
       models: modelActions.length > 0 
         ? modelActions.map(m => ({ name: m.key, info: { supports: ['text'] } }))
-        : [{ name: 'googleai/gemini-2.0-flash', info: { supports: ['text'] } }],
-      note: 'Connectivity verified successfully via Gemini 2.0 Flash.',
+        : [{ name: 'googleai/gemini-3-flash-preview', info: { supports: ['text'] } }],
+      note: 'Connectivity verified successfully via Gemini 3 Flash Preview.',
       response: ping.text
     };
   } catch (error: any) {
