@@ -22,7 +22,7 @@ const categoryPrompt = ai.definePrompt({
   input: { schema: CategoryInputSchema },
   output: { schema: CategoryOutputSchema },
   config: {
-    model: 'googleai/gemini-1.5-flash-latest'
+    model: 'googleai/gemini-1.5-flash'
   },
   prompt: `Analyze the course title and description to suggest the most appropriate NEP 2020 credit category.
   

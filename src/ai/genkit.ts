@@ -15,6 +15,7 @@ if (!apiKey) {
 
 export const googleAIPlugin = googleAI({
   apiKey: apiKey,
+  apiVersion: 'v1',
 });
 
 export const ai = genkit({
