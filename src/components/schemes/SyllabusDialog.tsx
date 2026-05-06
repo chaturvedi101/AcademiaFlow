@@ -13,8 +13,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Calculator, Info, Plus, Trash2 } from "lucide-react";
+import { Calculator, Info, Plus, Trash2, Sparkles, Loader2, Wand2 } from "lucide-react";
 import { Syllabus, CorrelationLevel, SyllabusUnit } from "@/lib/types";
+import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
+import { suggestCOPOMapping } from "@/ai/flows/suggest-co-po-mapping";
+import { useToast } from "@/hooks/use-toast";
 
 const PO_DEFINITIONS = [
   { code: 'PO1', title: 'Engineering Knowledge', desc: 'Apply mathematics, science, and engineering fundamentals.' },
@@ -41,6 +44,11 @@ interface SyllabusDialogProps {
 }
 
 export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: SyllabusDialogProps) {
+  const { toast } = useToast();
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isMapping, setIsMapping] = useState(false);
+  const [unitCount, setUnitCount] = useState(5);
+  
   const [formData, setFormData] = useState<Partial<Syllabus>>({
     subjectCode: '',
     title: '',
@@ -73,6 +81,71 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
     const calculated = l + t + (p * 0.5);
     setFormData(prev => ({ ...prev, credits: calculated }));
   }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits]);
+
+  const handleAIGenerate = async () => {
+    if (!formData.title) {
+      toast({ title: "Title Required", description: "Please enter a subject title first.", variant: "destructive" });
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const result = await generateSyllabusContent({
+        title: formData.title,
+        subjectCode: formData.subjectCode,
+        unitCount: unitCount,
+      });
+
+      const newUnits = result.units.map(u => ({
+        id: Math.random().toString(36).substr(2, 9),
+        title: u.title,
+        content: u.content,
+        courseOutcome: u.courseOutcome,
+      }));
+
+      setFormData(prev => ({
+        ...prev,
+        units: newUnits,
+        creditCategory: (result.suggestedCategory as any) || prev.creditCategory,
+      }));
+
+      toast({ title: "Syllabus Drafted", description: `AI generated ${newUnits.length} units based on subject standards.` });
+    } catch (error: any) {
+      toast({ 
+        title: "Generation Failed", 
+        description: error.message || "Could not reach AI services. Check your API key.", 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleAIMap = async () => {
+    if (!formData.units || formData.units.length === 0) {
+      toast({ title: "Units Required", description: "Define syllabus units before mapping CO-POs.", variant: "destructive" });
+      return;
+    }
+
+    setIsMapping(true);
+    try {
+      const result = await suggestCOPOMapping({
+        subjectTitle: formData.title || 'Unknown Subject',
+        units: formData.units.map(u => ({ id: u.id, courseOutcome: u.courseOutcome })),
+      });
+
+      setFormData(prev => ({
+        ...prev,
+        poMappings: result.mappings as any,
+      }));
+
+      toast({ title: "Mapping Suggested", description: "AI has filled the correlation matrix based on CO statements." });
+    } catch (error: any) {
+      toast({ title: "Mapping Failed", description: "Could not generate suggestions.", variant: "destructive" });
+    } finally {
+      setIsMapping(false);
+    }
+  };
 
   const addManualUnit = () => {
     const newUnit: SyllabusUnit = {
@@ -120,8 +193,9 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[95vh] flex flex-col p-0 overflow-hidden shadow-2xl border-none">
         <DialogHeader className="p-6 border-b shrink-0 bg-background">
-          <DialogTitle className="font-headline text-2xl">
+          <DialogTitle className="font-headline text-2xl flex items-center gap-2">
             {syllabus?.id ? 'Edit Subject Details' : 'Add New Subject Definition'}
+            {!syllabus?.id && <Badge className="bg-primary/10 text-primary border-none">AI-Enabled</Badge>}
           </DialogTitle>
           <DialogDescription>
             Configure credits, semester, unit content, and CO-PO mapping matrix.
@@ -210,9 +284,30 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 bg-primary/5 rounded-xl border border-primary/10">
                   <div className="space-y-1">
                     <h3 className="font-headline font-bold text-primary">Unit Configuration</h3>
-                    <p className="text-xs text-muted-foreground">Define unit titles, topics, and course outcomes for the curriculum.</p>
+                    <p className="text-xs text-muted-foreground">Draft syllabus using AI or add units manually.</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2 border rounded-lg px-2 bg-white">
+                       <span className="text-[10px] font-bold text-muted-foreground uppercase">AI Units:</span>
+                       <Select value={String(unitCount)} onValueChange={v => setUnitCount(Number(v))}>
+                         <SelectTrigger className="h-8 w-14 border-none shadow-none focus:ring-0">
+                           <SelectValue />
+                         </SelectTrigger>
+                         <SelectContent>
+                           {[1,2,3,4,5,6,7,8,9,10].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
+                         </SelectContent>
+                       </Select>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleAIGenerate} 
+                      disabled={isGenerating}
+                      className="gap-2 bg-primary text-white hover:bg-primary/90 hover:text-white"
+                    >
+                      {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                      Syllabus Architect
+                    </Button>
                     <Button variant="outline" size="sm" onClick={addManualUnit} className="gap-2">
                       <Plus className="w-4 h-4" /> Add Manual Unit
                     </Button>
@@ -246,18 +341,25 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
                       </CardContent>
                     </Card>
                   ))}
-                  {(!formData.units || formData.units.length === 0) && (
-                    <div className="text-center py-20 border border-dashed rounded-xl text-muted-foreground">
-                      No units defined. Click "Add Manual Unit" to get started.
-                    </div>
-                  )}
                 </div>
               </TabsContent>
 
               <TabsContent value="mapping" className="space-y-6">
-                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex gap-3 text-amber-800 text-sm">
-                  <Info className="w-5 h-5 shrink-0" />
-                  <p>Map unit outcomes against Program Outcomes to establish the correlation matrix.</p>
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-3 text-amber-800 text-sm">
+                  <div className="flex gap-3">
+                    <Info className="w-5 h-5 shrink-0" />
+                    <p>Map unit outcomes against Program Outcomes to establish the correlation matrix.</p>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="gap-2 bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200"
+                    onClick={handleAIMap}
+                    disabled={isMapping || !formData.units?.length}
+                  >
+                    {isMapping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+                    Smart Mapping Suggestions
+                  </Button>
                 </div>
 
                 <div className="overflow-x-auto border rounded-xl bg-white shadow-sm">
