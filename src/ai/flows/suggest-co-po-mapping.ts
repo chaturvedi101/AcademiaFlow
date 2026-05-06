@@ -4,7 +4,7 @@
  * @fileOverview Flow to suggest CO-PO mapping correlations.
  */
 
-import { ai } from '@/ai/genkit';
+import { ai, googleAIPlugin } from '@/ai/genkit';
 import { z } from 'genkit';
 
 const MappingInputSchema = z.object({
@@ -26,6 +26,9 @@ const mappingPrompt = ai.definePrompt({
   name: 'suggestMappingPrompt',
   input: { schema: MappingInputSchema },
   output: { schema: MappingOutputSchema },
+  config: {
+    model: 'googleai/gemini-1.5-flash'
+  },
   prompt: `As an academic auditor, suggest the correlation matrix between Course Outcomes (COs) and Program Outcomes (POs) for the course "{{{subjectTitle}}}".
   
   Standard POs (PO1-PO12) are:
@@ -46,7 +49,7 @@ const mappingPrompt = ai.definePrompt({
 });
 
 export async function suggestCOPOMapping(input: SuggestMappingInput): Promise<SuggestMappingOutput> {
-  const { output } = await mappingPrompt(input, { model: 'googleai/gemini-1.5-flash' });
+  const { output } = await mappingPrompt(input);
   if (!output) throw new Error('AI failed to generate mapping suggestions');
   return output;
 }

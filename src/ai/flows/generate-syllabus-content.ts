@@ -4,7 +4,7 @@
  * @fileOverview Flow to generate full syllabus content including units and course outcomes.
  */
 
-import { ai } from '@/ai/genkit';
+import { ai, googleAIPlugin } from '@/ai/genkit';
 import { z } from 'genkit';
 
 const SyllabusInputSchema = z.object({
@@ -31,6 +31,9 @@ const syllabusPrompt = ai.definePrompt({
   name: 'generateSyllabusPrompt',
   input: { schema: SyllabusInputSchema },
   output: { schema: SyllabusOutputSchema },
+  config: {
+    model: 'googleai/gemini-1.5-flash'
+  },
   prompt: `You are an expert academic curriculum designer for a technical university following NEP 2020 and AICTE guidelines.
   
   Generate a detailed syllabus for the course: "{{{title}}}" (Code: {{{subjectCode}}}).
@@ -46,7 +49,7 @@ const syllabusPrompt = ai.definePrompt({
 });
 
 export async function generateSyllabusContent(input: GenerateSyllabusInput): Promise<GenerateSyllabusOutput> {
-  const { output } = await syllabusPrompt(input, { model: 'googleai/gemini-1.5-flash' });
+  const { output } = await syllabusPrompt(input);
   if (!output) throw new Error('AI failed to generate syllabus content');
   return output;
 }

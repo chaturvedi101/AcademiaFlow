@@ -13,10 +13,10 @@ if (!apiKey) {
   console.warn('AI functionality is disabled: GOOGLE_GENAI_API_KEY is missing.');
 }
 
+export const googleAIPlugin = googleAI({
+  apiKey: apiKey,
+});
+
 export const ai = genkit({
-  plugins: [
-    googleAI({
-      apiKey: apiKey,
-    }),
-  ],
+  plugins: [googleAIPlugin],
 });

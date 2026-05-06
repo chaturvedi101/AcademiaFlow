@@ -21,6 +21,9 @@ const categoryPrompt = ai.definePrompt({
   name: 'suggestNEPCategoryPrompt',
   input: { schema: CategoryInputSchema },
   output: { schema: CategoryOutputSchema },
+  config: {
+    model: 'googleai/gemini-1.5-flash'
+  },
   prompt: `Analyze the course title and description to suggest the most appropriate NEP 2020 credit category.
   
   Categories:
@@ -36,7 +39,7 @@ const categoryPrompt = ai.definePrompt({
 });
 
 export async function suggestNEPCategory(input: z.infer<typeof CategoryInputSchema>): Promise<z.infer<typeof CategoryOutputSchema>> {
-  const { output } = await categoryPrompt(input, { model: 'googleai/gemini-1.5-flash' });
+  const { output } = await categoryPrompt(input);
   if (!output) throw new Error('AI failed to suggest NEP category');
   return output;
 }
