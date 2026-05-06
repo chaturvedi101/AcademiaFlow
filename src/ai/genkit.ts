@@ -1,7 +1,7 @@
 
 /**
  * @fileOverview Genkit configuration for Academic AI Architect.
- * This file is server-side only to avoid browser compatibility issues with Node.js modules like async_hooks.
+ * This file is server-side only to avoid browser compatibility issues.
  */
 
 import { googleAI } from '@genkit-ai/google-genai';

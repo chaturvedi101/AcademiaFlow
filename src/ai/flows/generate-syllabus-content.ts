@@ -27,26 +27,26 @@ const SyllabusOutputSchema = z.object({
 export type GenerateSyllabusInput = z.infer<typeof SyllabusInputSchema>;
 export type GenerateSyllabusOutput = z.infer<typeof SyllabusOutputSchema>;
 
-export async function generateSyllabusContent(input: GenerateSyllabusInput): Promise<GenerateSyllabusOutput> {
-  const prompt = ai.definePrompt({
-    name: 'generateSyllabusPrompt',
-    input: { schema: SyllabusInputSchema },
-    output: { schema: SyllabusOutputSchema },
-    prompt: `You are an expert academic curriculum designer for a technical university following NEP 2020 and AICTE guidelines.
-    
-    Generate a detailed syllabus for the course: "{{{title}}}" (Code: {{{subjectCode}}}).
-    The syllabus should have exactly {{{unitCount}}} units.
-    Level: {{{level}}}
-    
-    For each unit, provide:
-    1. A professional title.
-    2. Detailed content topics separated by semicolons.
-    3. A clear Course Outcome (CO) statement using Bloom's Taxonomy verbs (e.g., "Analyze", "Design", "Evaluate").
-    
-    Also suggest appropriate resources and the most fitting NEP credit category.`,
-  });
+const syllabusPrompt = ai.definePrompt({
+  name: 'generateSyllabusPrompt',
+  input: { schema: SyllabusInputSchema },
+  output: { schema: SyllabusOutputSchema },
+  prompt: `You are an expert academic curriculum designer for a technical university following NEP 2020 and AICTE guidelines.
+  
+  Generate a detailed syllabus for the course: "{{{title}}}" (Code: {{{subjectCode}}}).
+  The syllabus should have exactly {{{unitCount}}} units.
+  Level: {{{level}}}
+  
+  For each unit, provide:
+  1. A professional title.
+  2. Detailed content topics separated by semicolons.
+  3. A clear Course Outcome (CO) statement using Bloom's Taxonomy verbs (e.g., "Analyze", "Design", "Evaluate").
+  
+  Also suggest appropriate resources and the most fitting NEP credit category.`,
+});
 
-  const { output } = await prompt(input, { model: 'googleai/gemini-1.5-flash' });
+export async function generateSyllabusContent(input: GenerateSyllabusInput): Promise<GenerateSyllabusOutput> {
+  const { output } = await syllabusPrompt(input, { model: 'googleai/gemini-1.5-flash' });
   if (!output) throw new Error('AI failed to generate syllabus content');
   return output;
 }
