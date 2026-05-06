@@ -29,9 +29,15 @@ export async function listAvailableModels() {
     };
   } catch (error: any) {
     console.error('AI Diagnostics Failed:', error);
+    
+    let userMessage = error.message || 'Unknown error during AI diagnostics.';
+    if (userMessage.includes('429') || userMessage.includes('RESOURCE_EXHAUSTED')) {
+      userMessage = "Quota Exceeded (429): You have reached your API rate limit. Please check your billing/usage in Google AI Studio.";
+    }
+
     return {
       success: false,
-      error: error.message || 'Unknown error during AI diagnostics.',
+      error: userMessage,
       details: error.stack
     };
   }

@@ -14,7 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Calculator, Info, Plus, Trash2, Sparkles, Loader2, Wand2, AlertCircle } from "lucide-react";
+import { Calculator, Info, Plus, Trash2, Sparkles, Loader2, Wand2, AlertCircle, Clock } from "lucide-react";
 import { Syllabus, CorrelationLevel, SyllabusUnit } from "@/lib/types";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { suggestCOPOMapping } from "@/ai/flows/suggest-co-po-mapping";
@@ -50,6 +50,7 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
   const [isMapping, setIsMapping] = useState(false);
   const [unitCount, setUnitCount] = useState(5);
   const [apiKeyError, setApiKeyError] = useState(false);
+  const [quotaError, setQuotaError] = useState<string | null>(null);
   
   const [formData, setFormData] = useState<Partial<Syllabus>>({
     subjectCode: '',
@@ -92,6 +93,7 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
 
     setIsGenerating(true);
     setApiKeyError(false);
+    setQuotaError(null);
     try {
       const result = await generateSyllabusContent({
         title: formData.title,
@@ -114,14 +116,19 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
 
       toast({ title: "Syllabus Drafted", description: `AI generated ${newUnits.length} units based on subject standards.` });
     } catch (error: any) {
-      const isAuthError = error.message?.includes('API_KEY') || error.message?.includes('400') || error.message?.includes('expired');
+      console.error('Generation Error:', error);
+      const errorMessage = error.message || '';
+      const isAuthError = errorMessage.includes('API_KEY') || errorMessage.includes('401') || errorMessage.includes('expired');
+      const isQuotaError = errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('quota');
+
       if (isAuthError) setApiKeyError(true);
+      if (isQuotaError) setQuotaError("API rate limit exceeded. Please wait a minute before retrying.");
       
       toast({ 
-        title: isAuthError ? "API Key Expired" : "Generation Failed", 
+        title: isAuthError ? "API Key Issue" : (isQuotaError ? "Quota Exceeded" : "Generation Failed"), 
         description: isAuthError 
-          ? "Your Google AI API key is missing or expired. Please update it in the system settings." 
-          : error.message || "Could not reach AI services.", 
+          ? "Your Google AI API key is missing or invalid." 
+          : (isQuotaError ? "You've sent too many requests. Please wait." : "Could not reach AI services."), 
         variant: "destructive" 
       });
     } finally {
@@ -136,6 +143,7 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
     }
 
     setIsMapping(true);
+    setQuotaError(null);
     try {
       const result = await suggestCOPOMapping({
         subjectTitle: formData.title || 'Unknown Subject',
@@ -149,7 +157,11 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
 
       toast({ title: "Mapping Suggested", description: "AI has filled the correlation matrix based on CO statements." });
     } catch (error: any) {
-      toast({ title: "Mapping Failed", description: "Could not generate suggestions. Check your API key.", variant: "destructive" });
+      const errorMessage = error.message || '';
+      if (errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
+        setQuotaError("Rate limit exceeded for mapping suggestions. Please wait.");
+      }
+      toast({ title: "Mapping Failed", description: "Could not generate suggestions. Check your quota.", variant: "destructive" });
     } finally {
       setIsMapping(false);
     }
@@ -218,12 +230,22 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
                   <AlertCircle className="w-5 h-5 shrink-0" />
                   <div>
                     <p className="font-bold">Google AI API Key Required</p>
-                    <p className="text-xs opacity-90">Your current API key has expired or is invalid. Please update your environment variables to continue using AI tools.</p>
+                    <p className="text-xs opacity-90">Your current API key is missing or invalid.</p>
                   </div>
                 </div>
                 <Button variant="outline" size="sm" className="bg-white text-red-600 border-red-200 hover:bg-red-50" asChild>
                   <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer">Get New Key</a>
                 </Button>
+              </div>
+            )}
+
+            {quotaError && (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+                <Clock className="w-5 h-5 text-amber-600 shrink-0" />
+                <div className="text-amber-800 text-sm">
+                  <p className="font-bold">Rate Limit Exceeded</p>
+                  <p className="text-xs">{quotaError}</p>
+                </div>
               </div>
             )}
 
