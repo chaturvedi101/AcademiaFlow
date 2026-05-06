@@ -27,7 +27,7 @@ const mappingPrompt = ai.definePrompt({
   input: { schema: MappingInputSchema },
   output: { schema: MappingOutputSchema },
   config: {
-    model: 'googleai/gemini-2.0-flash'
+    model: 'googleai/gemini-2.0-flash',
   },
   prompt: `As an academic auditor, suggest the correlation matrix between Course Outcomes (COs) and Program Outcomes (POs) for the course "{{{subjectTitle}}}".
   
@@ -49,7 +49,12 @@ const mappingPrompt = ai.definePrompt({
 });
 
 export async function suggestCOPOMapping(input: SuggestMappingInput): Promise<SuggestMappingOutput> {
-  const { output } = await mappingPrompt(input);
-  if (!output) throw new Error('AI failed to generate mapping suggestions');
-  return output;
+  try {
+    const { output } = await mappingPrompt(input);
+    if (!output) throw new Error('AI failed to generate mapping suggestions');
+    return output;
+  } catch (error: any) {
+    console.error('Genkit CO-PO Flow Error:', error);
+    throw error;
+  }
 }

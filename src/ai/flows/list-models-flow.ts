@@ -8,7 +8,7 @@ import { ai } from '@/ai/genkit';
 
 export async function listAvailableModels() {
   try {
-    // connectivity check via a simple generation using the latest identifier
+    // Connectivity check via a simple generation using Gemini 2.0 Flash
     const ping = await ai.generate({
       model: 'googleai/gemini-2.0-flash',
       prompt: 'Verify connection. Reply with "OK".',

@@ -1,7 +1,7 @@
 
 /**
  * @fileOverview Genkit configuration for Academic AI Architect.
- * This file is server-side only to avoid browser compatibility issues.
+ * This file is server-side only.
  */
 
 import { googleAI } from '@genkit-ai/google-genai';
@@ -13,11 +13,11 @@ if (!apiKey) {
   console.warn('AI functionality is disabled: GOOGLE_GENAI_API_KEY is missing.');
 }
 
-export const googleAIPlugin = googleAI({
-  apiKey: apiKey,
-  apiVersion: 'v1',
-});
-
 export const ai = genkit({
-  plugins: [googleAIPlugin],
+  plugins: [
+    googleAI({
+      apiKey: apiKey,
+      apiVersion: 'v1',
+    }),
+  ],
 });
