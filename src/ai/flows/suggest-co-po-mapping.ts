@@ -4,7 +4,7 @@
  * @fileOverview Flow to suggest CO-PO mapping correlations.
  */
 
-import { ai, googleAIPlugin } from '@/ai/genkit';
+import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
 const MappingInputSchema = z.object({
@@ -27,7 +27,7 @@ const mappingPrompt = ai.definePrompt({
   input: { schema: MappingInputSchema },
   output: { schema: MappingOutputSchema },
   config: {
-    model: 'googleai/gemini-1.5-flash'
+    model: 'googleai/gemini-1.5-flash-latest'
   },
   prompt: `As an academic auditor, suggest the correlation matrix between Course Outcomes (COs) and Program Outcomes (POs) for the course "{{{subjectTitle}}}".
   

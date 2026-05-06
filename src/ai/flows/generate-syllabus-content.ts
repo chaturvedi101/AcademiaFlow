@@ -4,7 +4,7 @@
  * @fileOverview Flow to generate full syllabus content including units and course outcomes.
  */
 
-import { ai, googleAIPlugin } from '@/ai/genkit';
+import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
 const SyllabusInputSchema = z.object({
@@ -32,7 +32,7 @@ const syllabusPrompt = ai.definePrompt({
   input: { schema: SyllabusInputSchema },
   output: { schema: SyllabusOutputSchema },
   config: {
-    model: 'googleai/gemini-1.5-flash'
+    model: 'googleai/gemini-1.5-flash-latest'
   },
   prompt: `You are an expert academic curriculum designer for a technical university following NEP 2020 and AICTE guidelines.
   

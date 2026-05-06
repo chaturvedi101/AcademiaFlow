@@ -8,9 +8,9 @@ import { ai } from '@/ai/genkit';
 
 export async function listAvailableModels() {
   try {
-    // connectivity check via a simple generation using the standard identifier
+    // connectivity check via a simple generation using the latest identifier
     const ping = await ai.generate({
-      model: 'googleai/gemini-1.5-flash',
+      model: 'googleai/gemini-1.5-flash-latest',
       prompt: 'Verify connection. Reply with "OK".',
       config: { maxOutputTokens: 5 }
     });
@@ -23,7 +23,7 @@ export async function listAvailableModels() {
       success: true,
       models: modelActions.length > 0 
         ? modelActions.map(m => ({ name: m.key, info: { supports: ['text'] } }))
-        : [{ name: 'googleai/gemini-1.5-flash', info: { supports: ['text'] } }],
+        : [{ name: 'googleai/gemini-1.5-flash-latest', info: { supports: ['text'] } }],
       note: 'Connectivity verified successfully.',
       response: ping.text
     };
