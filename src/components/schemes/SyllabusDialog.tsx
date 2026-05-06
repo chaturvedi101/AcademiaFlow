@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -13,7 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Calculator, Info, Plus, Trash2, Sparkles, Loader2, Wand2 } from "lucide-react";
+import { Calculator, Info, Plus, Trash2, Sparkles, Loader2, Wand2, AlertCircle } from "lucide-react";
 import { Syllabus, CorrelationLevel, SyllabusUnit } from "@/lib/types";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { suggestCOPOMapping } from "@/ai/flows/suggest-co-po-mapping";
@@ -48,6 +49,7 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
   const [isGenerating, setIsGenerating] = useState(false);
   const [isMapping, setIsMapping] = useState(false);
   const [unitCount, setUnitCount] = useState(5);
+  const [apiKeyError, setApiKeyError] = useState(false);
   
   const [formData, setFormData] = useState<Partial<Syllabus>>({
     subjectCode: '',
@@ -89,6 +91,7 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
     }
 
     setIsGenerating(true);
+    setApiKeyError(false);
     try {
       const result = await generateSyllabusContent({
         title: formData.title,
@@ -111,9 +114,14 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
 
       toast({ title: "Syllabus Drafted", description: `AI generated ${newUnits.length} units based on subject standards.` });
     } catch (error: any) {
+      const isAuthError = error.message?.includes('API_KEY') || error.message?.includes('400') || error.message?.includes('expired');
+      if (isAuthError) setApiKeyError(true);
+      
       toast({ 
-        title: "Generation Failed", 
-        description: error.message || "Could not reach AI services. Check your API key.", 
+        title: isAuthError ? "API Key Expired" : "Generation Failed", 
+        description: isAuthError 
+          ? "Your Google AI API key is missing or expired. Please update it in the system settings." 
+          : error.message || "Could not reach AI services.", 
         variant: "destructive" 
       });
     } finally {
@@ -141,7 +149,7 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
 
       toast({ title: "Mapping Suggested", description: "AI has filled the correlation matrix based on CO statements." });
     } catch (error: any) {
-      toast({ title: "Mapping Failed", description: "Could not generate suggestions.", variant: "destructive" });
+      toast({ title: "Mapping Failed", description: "Could not generate suggestions. Check your API key.", variant: "destructive" });
     } finally {
       setIsMapping(false);
     }
@@ -204,6 +212,21 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
         
         <ScrollArea className="flex-1">
           <div className="p-6 space-y-8">
+            {apiKeyError && (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2">
+                <div className="flex items-center gap-3 text-red-800 text-sm">
+                  <AlertCircle className="w-5 h-5 shrink-0" />
+                  <div>
+                    <p className="font-bold">Google AI API Key Required</p>
+                    <p className="text-xs opacity-90">Your current API key has expired or is invalid. Please update your environment variables to continue using AI tools.</p>
+                  </div>
+                </div>
+                <Button variant="outline" size="sm" className="bg-white text-red-600 border-red-200 hover:bg-red-50" asChild>
+                  <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer">Get New Key</a>
+                </Button>
+              </div>
+            )}
+
             <Tabs defaultValue="basic" className="w-full">
               <TabsList className="grid w-full grid-cols-3 mb-8">
                 <TabsTrigger value="basic">Basic Information</TabsTrigger>
