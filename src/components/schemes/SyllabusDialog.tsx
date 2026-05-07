@@ -14,7 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Calculator, Info, Plus, Trash2, Sparkles, Loader2, Wand2, AlertCircle, Clock } from "lucide-react";
+import { Calculator, Info, Plus, Trash2, Sparkles, Loader2, Wand2, AlertCircle, Clock, Book, BookOpen } from "lucide-react";
 import { Syllabus, CorrelationLevel, SyllabusUnit } from "@/lib/types";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { suggestCOPOMapping } from "@/ai/flows/suggest-co-po-mapping";
@@ -64,7 +64,12 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
     creditCategory: 'DSC',
     units: [],
     poMappings: {},
+    textBooks: [],
+    referenceBooks: [],
   });
+
+  const [newTextBook, setNewTextBook] = useState('');
+  const [newReferenceBook, setNewReferenceBook] = useState('');
 
   useEffect(() => {
     if (syllabus) {
@@ -73,6 +78,8 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
         ...syllabus,
         units: syllabus.units || [],
         poMappings: syllabus.poMappings || {},
+        textBooks: syllabus.textBooks || [],
+        referenceBooks: syllabus.referenceBooks || [],
       }));
     }
   }, [syllabus, open]);
@@ -111,10 +118,12 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
       setFormData(prev => ({
         ...prev,
         units: newUnits,
+        textBooks: [...(prev.textBooks || []), ...(result.suggestedTextBooks || [])],
+        referenceBooks: [...(prev.referenceBooks || []), ...(result.suggestedReferences || [])],
         creditCategory: (result.suggestedCategory as any) || prev.creditCategory,
       }));
 
-      toast({ title: "Syllabus Drafted", description: `AI generated ${newUnits.length} units based on subject standards.` });
+      toast({ title: "Syllabus Drafted", description: `AI generated units and suggested ${result.suggestedTextBooks.length} textbooks.` });
     } catch (error: any) {
       console.error('Generation Error:', error);
       const errorMessage = error.message || '';
@@ -209,6 +218,25 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
     }));
   };
 
+  const addTextBook = () => {
+    if (!newTextBook.trim()) return;
+    setFormData(prev => ({ ...prev, textBooks: [...(prev.textBooks || []), newTextBook.trim()] }));
+    setNewTextBook('');
+  };
+
+  const addReferenceBook = () => {
+    if (!newReferenceBook.trim()) return;
+    setFormData(prev => ({ ...prev, referenceBooks: [...(prev.referenceBooks || []), newReferenceBook.trim()] }));
+    setNewReferenceBook('');
+  };
+
+  const removeItem = (type: 'text' | 'reference', index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      [type === 'text' ? 'textBooks' : 'referenceBooks']: (prev[type === 'text' ? 'textBooks' : 'referenceBooks'] || []).filter((_, i) => i !== index)
+    }));
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[95vh] flex flex-col p-0 overflow-hidden shadow-2xl border-none">
@@ -250,10 +278,11 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
             )}
 
             <Tabs defaultValue="basic" className="w-full">
-              <TabsList className="grid w-full grid-cols-3 mb-8">
-                <TabsTrigger value="basic">Basic Information</TabsTrigger>
-                <TabsTrigger value="syllabus">Unit Syllabus & COs</TabsTrigger>
-                <TabsTrigger value="mapping">CO-PO Mapping Matrix</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-4 mb-8">
+                <TabsTrigger value="basic">Basic Info</TabsTrigger>
+                <TabsTrigger value="syllabus">Units & COs</TabsTrigger>
+                <TabsTrigger value="resources">Resources</TabsTrigger>
+                <TabsTrigger value="mapping">CO-PO Matrix</TabsTrigger>
               </TabsList>
 
               <TabsContent value="basic" className="space-y-8">
@@ -386,6 +415,62 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
                       </CardContent>
                     </Card>
                   ))}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="resources" className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider mb-2">
+                      <Book className="w-4 h-4" />
+                      Text Books
+                    </div>
+                    <div className="flex gap-2">
+                      <Input 
+                        placeholder="Author, Title, Publisher, Edition..." 
+                        value={newTextBook} 
+                        onChange={e => setNewTextBook(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && addTextBook()}
+                      />
+                      <Button onClick={addTextBook} size="icon" variant="secondary"><Plus className="w-4 h-4" /></Button>
+                    </div>
+                    <div className="space-y-2">
+                      {formData.textBooks?.map((book, i) => (
+                        <div key={i} className="flex items-center justify-between p-3 bg-muted/20 border rounded-lg group">
+                          <span className="text-sm">{book}</span>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => removeItem('text', i)}>
+                            <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider mb-2">
+                      <BookOpen className="w-4 h-4" />
+                      Reference Books
+                    </div>
+                    <div className="flex gap-2">
+                      <Input 
+                        placeholder="Author, Title, Publisher, Edition..." 
+                        value={newReferenceBook} 
+                        onChange={e => setNewReferenceBook(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && addReferenceBook()}
+                      />
+                      <Button onClick={addReferenceBook} size="icon" variant="secondary"><Plus className="w-4 h-4" /></Button>
+                    </div>
+                    <div className="space-y-2">
+                      {formData.referenceBooks?.map((book, i) => (
+                        <div key={i} className="flex items-center justify-between p-3 bg-muted/20 border rounded-lg group">
+                          <span className="text-sm">{book}</span>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => removeItem('reference', i)}>
+                            <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </TabsContent>
 

@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "UserProfile": {
@@ -127,7 +128,7 @@
     },
     "Syllabus": {
       "title": "Syllabus",
-      "description": "Details of a specific subject within a scheme, including L-T-P credits.",
+      "description": "Details of a specific subject within a scheme, including L-T-P credits, unit content, and resources.",
       "type": "object",
       "properties": {
         "subjectCode": { "type": "string" },
@@ -141,7 +142,8 @@
         "creditCategory": { "type": "string" },
         "prerequisites": { "type": "array", "items": { "type": "string" } },
         "courseOutcomes": { "type": "array", "items": { "type": "string" } },
-        "programOutcomes": { "type": "array", "items": { "type": "string" } },
+        "textBooks": { "type": "array", "items": { "type": "string" } },
+        "referenceBooks": { "type": "array", "items": { "type": "string" } },
         "resources": { "type": "array", "items": { "type": "string" } }
       },
       "required": ["subjectCode", "title", "credits", "semester", "creditCategory"]

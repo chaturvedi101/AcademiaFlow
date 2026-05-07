@@ -1,6 +1,7 @@
+
 'use server';
 /**
- * @fileOverview Flow to generate full syllabus content including units and course outcomes.
+ * @fileOverview Flow to generate full syllabus content including units, outcomes, and resource recommendations.
  */
 
 import { ai } from '@/ai/genkit';
@@ -19,7 +20,8 @@ const SyllabusOutputSchema = z.object({
     content: z.string().describe('Detailed syllabus content for this unit'),
     courseOutcome: z.string().describe('The specific learning outcome for this unit (CO)'),
   })),
-  suggestedResources: z.array(z.string()).describe('List of suggested textbooks or online resources'),
+  suggestedTextBooks: z.array(z.string()).describe('List of recommended textbooks (Author, Title, Publisher)'),
+  suggestedReferences: z.array(z.string()).describe('List of suggested reference books or online resources'),
   suggestedCategory: z.string().describe('Suggested NEP category (e.g. DSC, DSE)'),
 });
 
@@ -28,7 +30,6 @@ export type GenerateSyllabusOutput = z.infer<typeof SyllabusOutputSchema>;
 
 const syllabusPrompt = ai.definePrompt({
   name: 'generateSyllabusPrompt',
-  // Explicitly defining model for Genkit 1.x stability
   model: 'googleai/gemini-2.5-flash',
   input: { schema: SyllabusInputSchema },
   output: { schema: SyllabusOutputSchema },
@@ -45,9 +46,12 @@ const syllabusPrompt = ai.definePrompt({
   For each unit, provide:
   1. A professional title.
   2. Detailed content topics separated by semicolons.
-  3. A clear Course Outcome (CO) statement using Bloom's Taxonomy verbs (e.g., "Analyze", "Design", "Evaluate").
+  3. A clear Course Outcome (CO) statement using Bloom's Taxonomy verbs.
   
-  Also suggest appropriate resources and the most fitting NEP credit category.`,
+  Also provide:
+  1. At least 2-3 standard Text Books in proper citation format.
+  2. At least 2-3 Reference Books or journals.
+  3. The most fitting NEP credit category (DSC/DSE/SEC/AEC/VAC).`,
 });
 
 export async function generateSyllabusContent(input: GenerateSyllabusInput): Promise<GenerateSyllabusOutput> {

@@ -91,7 +91,9 @@ export interface Syllabus {
       [poCode: string]: CorrelationLevel;
     };
   };
-  resources: string[];
+  resources: string[]; // Legacy - general resources
+  textBooks: string[];
+  referenceBooks: string[];
   creditCategory: CreditCategory;
 }
 
