@@ -19,9 +19,9 @@ Academia Flow is an enterprise-grade Academic Management System designed for tec
 
 ## Getting Started
 
-1. **Clone the repository** (once you've pushed this to your remote):
+1. **Clone the repository**:
    ```bash
-   git clone <your-repo-url>
+   git clone https://github.com/chaturvedi101/AcademiaFlow.git
    ```
 
 2. **Install dependencies**:
@@ -44,11 +44,10 @@ Academia Flow is an enterprise-grade Academic Management System designed for tec
 
 ## Remote Setup
 
-To push this to a new GitHub repository:
-1. Create a new repository on GitHub.
-2. Run:
+To fix the "remote origin already exists" error and push to your new repository:
+1. Run:
    ```bash
-   git remote add origin <your-repo-url>
+   git remote set-url origin https://github.com/chaturvedi101/AcademiaFlow.git
    git branch -M main
    git push -u origin main
    ```
