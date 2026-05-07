@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Flow to suggest CO-PO mapping correlations.
@@ -24,11 +23,9 @@ export type SuggestMappingOutput = z.infer<typeof MappingOutputSchema>;
 
 const mappingPrompt = ai.definePrompt({
   name: 'suggestMappingPrompt',
+  model: 'googleai/gemini-2.0-flash',
   input: { schema: MappingInputSchema },
   output: { schema: MappingOutputSchema },
-  config: {
-    model: 'googleai/gemini-3-flash-preview',
-  },
   prompt: `As an academic auditor, suggest the correlation matrix between Course Outcomes (COs) and Program Outcomes (POs) for the course "{{{subjectTitle}}}".
   
   Standard POs (PO1-PO12) are:

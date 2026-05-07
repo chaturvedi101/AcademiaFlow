@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Flow to generate full syllabus content including units and course outcomes.
@@ -29,10 +28,10 @@ export type GenerateSyllabusOutput = z.infer<typeof SyllabusOutputSchema>;
 
 const syllabusPrompt = ai.definePrompt({
   name: 'generateSyllabusPrompt',
+  model: 'googleai/gemini-2.0-flash',
   input: { schema: SyllabusInputSchema },
   output: { schema: SyllabusOutputSchema },
   config: {
-    model: 'googleai/gemini-3-flash-preview',
     maxOutputTokens: 2048,
     temperature: 0.7,
   },

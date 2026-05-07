@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Flow to suggest NEP category for a course.
@@ -19,11 +18,9 @@ const CategoryOutputSchema = z.object({
 
 const categoryPrompt = ai.definePrompt({
   name: 'suggestNEPCategoryPrompt',
+  model: 'googleai/gemini-2.0-flash',
   input: { schema: CategoryInputSchema },
   output: { schema: CategoryOutputSchema },
-  config: {
-    model: 'googleai/gemini-3-flash-preview',
-  },
   prompt: `Analyze the course title and description to suggest the most appropriate NEP 2020 credit category.
   
   Categories:

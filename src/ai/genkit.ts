@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview Genkit configuration for Academic AI Architect.
  * This file is server-side only.
@@ -20,4 +19,5 @@ export const ai = genkit({
       apiVersion: 'v1',
     }),
   ],
+  model: 'googleai/gemini-2.0-flash', // Setting a robust default model
 });
