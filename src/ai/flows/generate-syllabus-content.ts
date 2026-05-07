@@ -22,6 +22,8 @@ const SyllabusOutputSchema = z.object({
   })),
   suggestedTextBooks: z.array(z.string()).describe('List of recommended textbooks (Author, Title, Publisher)'),
   suggestedReferences: z.array(z.string()).describe('List of suggested reference books or online resources'),
+  suggestedNptelLinks: z.array(z.string()).describe('Suggested NPTEL or SWAYAM course links (if applicable)'),
+  suggestedYoutubeLinks: z.array(z.string()).describe('Suggested educational YouTube video or playlist links'),
   suggestedCategory: z.string().describe('Suggested NEP category (e.g. DSC, DSE)'),
 });
 
@@ -51,7 +53,8 @@ const syllabusPrompt = ai.definePrompt({
   Also provide:
   1. At least 2-3 standard Text Books in proper citation format.
   2. At least 2-3 Reference Books or journals.
-  3. The most fitting NEP credit category (DSC/DSE/SEC/AEC/VAC).`,
+  3. Suggestions for relevant NPTEL/SWAYAM courses and YouTube educational videos that match this syllabus.
+  4. The most fitting NEP credit category (DSC/DSE/SEC/AEC/VAC).`,
 });
 
 export async function generateSyllabusContent(input: GenerateSyllabusInput): Promise<GenerateSyllabusOutput> {

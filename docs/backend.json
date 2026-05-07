@@ -144,6 +144,8 @@
         "courseOutcomes": { "type": "array", "items": { "type": "string" } },
         "textBooks": { "type": "array", "items": { "type": "string" } },
         "referenceBooks": { "type": "array", "items": { "type": "string" } },
+        "nptelLinks": { "type": "array", "items": { "type": "string" } },
+        "youtubeLinks": { "type": "array", "items": { "type": "string" } },
         "resources": { "type": "array", "items": { "type": "string" } }
       },
       "required": ["subjectCode", "title", "credits", "semester", "creditCategory"]

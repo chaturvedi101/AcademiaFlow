@@ -94,6 +94,8 @@ export interface Syllabus {
   resources: string[]; // Legacy - general resources
   textBooks: string[];
   referenceBooks: string[];
+  nptelLinks?: string[];
+  youtubeLinks?: string[];
   creditCategory: CreditCategory;
 }
 

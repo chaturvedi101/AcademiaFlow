@@ -14,7 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Calculator, Info, Plus, Trash2, Sparkles, Loader2, Wand2, AlertCircle, Clock, Book, BookOpen } from "lucide-react";
+import { Calculator, Info, Plus, Trash2, Sparkles, Loader2, Wand2, AlertCircle, Clock, Book, BookOpen, ExternalLink, Video } from "lucide-react";
 import { Syllabus, CorrelationLevel, SyllabusUnit } from "@/lib/types";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { suggestCOPOMapping } from "@/ai/flows/suggest-co-po-mapping";
@@ -66,10 +66,14 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
     poMappings: {},
     textBooks: [],
     referenceBooks: [],
+    nptelLinks: [],
+    youtubeLinks: [],
   });
 
   const [newTextBook, setNewTextBook] = useState('');
   const [newReferenceBook, setNewReferenceBook] = useState('');
+  const [newNptelLink, setNewNptelLink] = useState('');
+  const [newYoutubeLink, setNewYoutubeLink] = useState('');
 
   useEffect(() => {
     if (syllabus) {
@@ -80,6 +84,8 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
         poMappings: syllabus.poMappings || {},
         textBooks: syllabus.textBooks || [],
         referenceBooks: syllabus.referenceBooks || [],
+        nptelLinks: syllabus.nptelLinks || [],
+        youtubeLinks: syllabus.youtubeLinks || [],
       }));
     }
   }, [syllabus, open]);
@@ -120,10 +126,12 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
         units: newUnits,
         textBooks: [...(prev.textBooks || []), ...(result.suggestedTextBooks || [])],
         referenceBooks: [...(prev.referenceBooks || []), ...(result.suggestedReferences || [])],
+        nptelLinks: [...(prev.nptelLinks || []), ...(result.suggestedNptelLinks || [])],
+        youtubeLinks: [...(prev.youtubeLinks || []), ...(result.suggestedYoutubeLinks || [])],
         creditCategory: (result.suggestedCategory as any) || prev.creditCategory,
       }));
 
-      toast({ title: "Syllabus Drafted", description: `AI generated units and suggested ${result.suggestedTextBooks.length} textbooks.` });
+      toast({ title: "Syllabus Drafted", description: "AI generated units and suggested resources." });
     } catch (error: any) {
       console.error('Generation Error:', error);
       const errorMessage = error.message || '';
@@ -218,22 +226,29 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
     }));
   };
 
-  const addTextBook = () => {
-    if (!newTextBook.trim()) return;
-    setFormData(prev => ({ ...prev, textBooks: [...(prev.textBooks || []), newTextBook.trim()] }));
-    setNewTextBook('');
+  const addResource = (type: 'text' | 'reference' | 'nptel' | 'youtube') => {
+    let value = '';
+    let field: keyof Partial<Syllabus> = 'textBooks';
+
+    if (type === 'text') { value = newTextBook; field = 'textBooks'; setNewTextBook(''); }
+    if (type === 'reference') { value = newReferenceBook; field = 'referenceBooks'; setNewReferenceBook(''); }
+    if (type === 'nptel') { value = newNptelLink; field = 'nptelLinks'; setNewNptelLink(''); }
+    if (type === 'youtube') { value = newYoutubeLink; field = 'youtubeLinks'; setNewYoutubeLink(''); }
+
+    if (!value.trim()) return;
+    setFormData(prev => ({ ...prev, [field]: [...(prev[field] as string[] || []), value.trim()] }));
   };
 
-  const addReferenceBook = () => {
-    if (!newReferenceBook.trim()) return;
-    setFormData(prev => ({ ...prev, referenceBooks: [...(prev.referenceBooks || []), newReferenceBook.trim()] }));
-    setNewReferenceBook('');
-  };
+  const removeItem = (type: 'text' | 'reference' | 'nptel' | 'youtube', index: number) => {
+    let field: keyof Partial<Syllabus> = 'textBooks';
+    if (type === 'text') field = 'textBooks';
+    if (type === 'reference') field = 'referenceBooks';
+    if (type === 'nptel') field = 'nptelLinks';
+    if (type === 'youtube') field = 'youtubeLinks';
 
-  const removeItem = (type: 'text' | 'reference', index: number) => {
     setFormData(prev => ({
       ...prev,
-      [type === 'text' ? 'textBooks' : 'referenceBooks']: (prev[type === 'text' ? 'textBooks' : 'referenceBooks'] || []).filter((_, i) => i !== index)
+      [field]: (prev[field] as string[] || []).filter((_, i) => i !== index)
     }));
   };
 
@@ -418,57 +433,55 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
                 </div>
               </TabsContent>
 
-              <TabsContent value="resources" className="space-y-6">
+              <TabsContent value="resources" className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider mb-2">
-                      <Book className="w-4 h-4" />
-                      Text Books
+                  {/* Books Section */}
+                  <div className="space-y-6">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider">
+                        <Book className="w-4 h-4" /> Text Books
+                      </div>
+                      <div className="flex gap-2">
+                        <Input placeholder="Citation format..." value={newTextBook} onChange={e => setNewTextBook(e.target.value)} onKeyDown={e => e.key === 'Enter' && addResource('text')} />
+                        <Button onClick={() => addResource('text')} size="icon" variant="secondary"><Plus className="w-4 h-4" /></Button>
+                      </div>
+                      <ResourceList items={formData.textBooks} onRemove={i => removeItem('text', i)} />
                     </div>
-                    <div className="flex gap-2">
-                      <Input 
-                        placeholder="Author, Title, Publisher, Edition..." 
-                        value={newTextBook} 
-                        onChange={e => setNewTextBook(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && addTextBook()}
-                      />
-                      <Button onClick={addTextBook} size="icon" variant="secondary"><Plus className="w-4 h-4" /></Button>
-                    </div>
-                    <div className="space-y-2">
-                      {formData.textBooks?.map((book, i) => (
-                        <div key={i} className="flex items-center justify-between p-3 bg-muted/20 border rounded-lg group">
-                          <span className="text-sm">{book}</span>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => removeItem('text', i)}>
-                            <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                          </Button>
-                        </div>
-                      ))}
+
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider">
+                        <BookOpen className="w-4 h-4" /> Reference Books
+                      </div>
+                      <div className="flex gap-2">
+                        <Input placeholder="Citation format..." value={newReferenceBook} onChange={e => setNewReferenceBook(e.target.value)} onKeyDown={e => e.key === 'Enter' && addResource('reference')} />
+                        <Button onClick={() => addResource('reference')} size="icon" variant="secondary"><Plus className="w-4 h-4" /></Button>
+                      </div>
+                      <ResourceList items={formData.referenceBooks} onRemove={i => removeItem('reference', i)} />
                     </div>
                   </div>
 
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider mb-2">
-                      <BookOpen className="w-4 h-4" />
-                      Reference Books
+                  {/* Digital Links Section */}
+                  <div className="space-y-6">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider">
+                        <ExternalLink className="w-4 h-4" /> NPTEL / SWAYAM Courses
+                      </div>
+                      <div className="flex gap-2">
+                        <Input placeholder="Course URL..." value={newNptelLink} onChange={e => setNewNptelLink(e.target.value)} onKeyDown={e => e.key === 'Enter' && addResource('nptel')} />
+                        <Button onClick={() => addResource('nptel')} size="icon" variant="secondary"><Plus className="w-4 h-4" /></Button>
+                      </div>
+                      <ResourceList items={formData.nptelLinks} onRemove={i => removeItem('nptel', i)} isLink />
                     </div>
-                    <div className="flex gap-2">
-                      <Input 
-                        placeholder="Author, Title, Publisher, Edition..." 
-                        value={newReferenceBook} 
-                        onChange={e => setNewReferenceBook(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && addReferenceBook()}
-                      />
-                      <Button onClick={addReferenceBook} size="icon" variant="secondary"><Plus className="w-4 h-4" /></Button>
-                    </div>
-                    <div className="space-y-2">
-                      {formData.referenceBooks?.map((book, i) => (
-                        <div key={i} className="flex items-center justify-between p-3 bg-muted/20 border rounded-lg group">
-                          <span className="text-sm">{book}</span>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => removeItem('reference', i)}>
-                            <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                          </Button>
-                        </div>
-                      ))}
+
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider">
+                        <Video className="w-4 h-4" /> YouTube Videos / Playlists
+                      </div>
+                      <div className="flex gap-2">
+                        <Input placeholder="Video URL..." value={newYoutubeLink} onChange={e => setNewYoutubeLink(e.target.value)} onKeyDown={e => e.key === 'Enter' && addResource('youtube')} />
+                        <Button onClick={() => addResource('youtube')} size="icon" variant="secondary"><Plus className="w-4 h-4" /></Button>
+                      </div>
+                      <ResourceList items={formData.youtubeLinks} onRemove={i => removeItem('youtube', i)} isLink />
                     </div>
                   </div>
                 </div>
@@ -560,5 +573,27 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ResourceList({ items, onRemove, isLink }: { items?: string[], onRemove: (i: number) => void, isLink?: boolean }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <div className="space-y-2">
+      {items.map((item, i) => (
+        <div key={i} className="flex items-center justify-between p-3 bg-muted/20 border rounded-lg group">
+          <span className="text-sm truncate max-w-[90%]">
+            {isLink ? (
+              <a href={item.startsWith('http') ? item : `https://${item}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1.5">
+                {item} <ExternalLink className="w-3 h-3" />
+              </a>
+            ) : item}
+          </span>
+          <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => onRemove(i)}>
+            <Trash2 className="w-3.5 h-3.5 text-red-400" />
+          </Button>
+        </div>
+      ))}
+    </div>
   );
 }
