@@ -16,8 +16,10 @@ export const ai = genkit({
   plugins: [
     googleAI({
       apiKey: apiKey,
-      apiVersion: 'v1',
+      // v1beta is used to ensure full support for structured output and responseMimeType
+      apiVersion: 'v1beta',
     }),
   ],
-  model: 'googleai/gemini-2.0-flash', // Setting a robust default model
+  // Standardized on the recommended gemini-2.5-flash model
+  model: 'googleai/gemini-2.5-flash',
 });

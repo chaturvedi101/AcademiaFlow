@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Flow to verify AI connectivity and list registered model actions using Genkit 1.x Registry.
@@ -8,9 +7,9 @@ import { ai } from '@/ai/genkit';
 
 export async function listAvailableModels() {
   try {
-    // Connectivity check via a simple generation using Gemini 3 Flash Preview
+    // Connectivity check via a simple generation using gemini-2.5-flash
     const ping = await ai.generate({
-      model: 'googleai/gemini-3-flash-preview',
+      model: 'googleai/gemini-2.5-flash',
       prompt: 'Verify connection. Reply with "OK".',
       config: { maxOutputTokens: 5 }
     });
@@ -23,8 +22,8 @@ export async function listAvailableModels() {
       success: true,
       models: modelActions.length > 0 
         ? modelActions.map(m => ({ name: m.key, info: { supports: ['text'] } }))
-        : [{ name: 'googleai/gemini-3-flash-preview', info: { supports: ['text'] } }],
-      note: 'Connectivity verified successfully via Gemini 3 Flash Preview.',
+        : [{ name: 'googleai/gemini-2.5-flash', info: { supports: ['text'] } }],
+      note: 'Connectivity verified successfully via Gemini 2.5 Flash.',
       response: ping.text
     };
   } catch (error: any) {
