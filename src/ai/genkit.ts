@@ -20,6 +20,6 @@ export const ai = genkit({
       apiVersion: 'v1beta',
     }),
   ],
-  // Standardized default model for the app
+  // Standardized default model for the app to prevent "Must supply a model" errors
   model: 'googleai/gemini-2.5-flash',
 });

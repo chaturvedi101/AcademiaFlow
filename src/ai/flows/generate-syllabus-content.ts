@@ -28,6 +28,7 @@ export type GenerateSyllabusOutput = z.infer<typeof SyllabusOutputSchema>;
 
 const syllabusPrompt = ai.definePrompt({
   name: 'generateSyllabusPrompt',
+  // Explicitly defining model for Genkit 1.x stability
   model: 'googleai/gemini-2.5-flash',
   input: { schema: SyllabusInputSchema },
   output: { schema: SyllabusOutputSchema },
