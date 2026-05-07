@@ -1,6 +1,6 @@
 /**
  * @fileOverview Genkit configuration for Academic AI Architect.
- * This file is server-side only.
+ * Standardized on Gemini 2.5 Flash and v1beta for robust JSON support.
  */
 
 import { googleAI } from '@genkit-ai/google-genai';
@@ -16,10 +16,10 @@ export const ai = genkit({
   plugins: [
     googleAI({
       apiKey: apiKey,
-      // v1beta is used to ensure full support for structured output and responseMimeType
+      // v1beta is required for stable support of responseMimeType/structured output with Genkit 1.x
       apiVersion: 'v1beta',
     }),
   ],
-  // Standardized on the recommended gemini-2.5-flash model
+  // Standardized default model
   model: 'googleai/gemini-2.5-flash',
 });

@@ -67,7 +67,6 @@ export default function Home() {
       const userSnap = await getDoc(userRef);
 
       if (!userSnap.exists()) {
-        // Default role for new GitHub users is bos_convenor unless configured otherwise
         const userData = {
           displayName: result.user.displayName || result.user.email?.split('@')[0] || 'Academic User',
           email: result.user.email || '',
@@ -77,7 +76,7 @@ export default function Home() {
         await setDoc(userRef, userData);
         toast({
           title: "Profile Created",
-          description: "Welcome to Academia Flow. Your account has been initialized.",
+          description: "Welcome! Your academic account has been initialized.",
         });
       }
       router.push('/dashboard');
@@ -106,15 +105,7 @@ export default function Home() {
         createdAt: serverTimestamp(),
       };
 
-      setDoc(userRef, userData, { merge: true })
-        .catch(async (serverError) => {
-          const permissionError = new FirestorePermissionError({
-            path: userRef.path,
-            operation: 'write',
-            requestResourceData: userData,
-          });
-          errorEmitter.emit('permission-error', permissionError);
-        });
+      await setDoc(userRef, userData, { merge: true });
       
       toast({
         title: "Account Created",
