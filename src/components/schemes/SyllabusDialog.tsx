@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,22 +42,22 @@ interface SyllabusDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   syllabus?: Partial<Syllabus>;
+  existingSyllabi?: Syllabus[];
   onSave: (data: Partial<Syllabus>) => void;
   programName?: string;
   branchName?: string;
   batchYear?: string;
-  branchPrefix?: string;
 }
 
 export function SyllabusDialog({ 
   open, 
   onOpenChange, 
   syllabus, 
+  existingSyllabi = [],
   onSave,
   programName,
   branchName,
-  batchYear,
-  branchPrefix
+  batchYear
 }: SyllabusDialogProps) {
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
@@ -89,6 +89,37 @@ export function SyllabusDialog({
   const [newNptelLink, setNewNptelLink] = useState('');
   const [newYoutubeLink, setNewYoutubeLink] = useState('');
 
+  const generateAutoSubjectCode = useCallback(() => {
+    if (!branchName) return '';
+
+    // Rule 1: First two letters from branch
+    const branchPrefix = branchName.substring(0, 2).toUpperCase();
+
+    // Rule 2: Third letter is L (Theory/Tutorial) or P (Practical)
+    const theoryHours = (formData.lectureCredits || 0) + (formData.tutorialCredits || 0);
+    const typeIndicator = theoryHours > 0 ? 'L' : 'P';
+
+    // Rule 3: Fourth digit is semester
+    const semDigit = formData.semester || 1;
+
+    // Rule 4: Sequential increasing order, not equal to existing
+    const baseCode = `${branchPrefix}${typeIndicator}${semDigit}`;
+    let sequence = 1;
+    let finalCode = `${baseCode}${String(sequence).padStart(2, '0')}`;
+
+    const existingCodes = existingSyllabi
+      .filter(s => s.id !== formData.id)
+      .map(s => s.subjectCode);
+
+    while (existingCodes.includes(finalCode)) {
+      sequence++;
+      finalCode = `${baseCode}${String(sequence).padStart(2, '0')}`;
+      if (sequence > 99) break; // Safety break
+    }
+
+    return finalCode;
+  }, [branchName, formData.lectureCredits, formData.tutorialCredits, formData.semester, existingSyllabi, formData.id]);
+
   useEffect(() => {
     if (syllabus) {
       setFormData(prev => ({
@@ -101,8 +132,16 @@ export function SyllabusDialog({
         nptelLinks: syllabus.nptelLinks || [],
         youtubeLinks: syllabus.youtubeLinks || [],
       }));
+
+      // Pre-fill subject code for new subjects
+      if (!syllabus.id && !syllabus.subjectCode) {
+        setFormData(prev => ({
+          ...prev,
+          subjectCode: generateAutoSubjectCode()
+        }));
+      }
     }
-  }, [syllabus, open]);
+  }, [syllabus, open, generateAutoSubjectCode]);
 
   useEffect(() => {
     const l = Number(formData.lectureCredits) || 0;
@@ -147,7 +186,6 @@ export function SyllabusDialog({
 
       toast({ title: "Syllabus Drafted", description: "AI generated units and suggested resources." });
     } catch (error: any) {
-      console.error('Generation Error:', error);
       const errorMessage = error.message || '';
       const isAuthError = errorMessage.includes('API_KEY') || errorMessage.includes('401') || errorMessage.includes('expired');
       const isQuotaError = errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('quota');
@@ -335,16 +373,24 @@ export function SyllabusDialog({
               <TabsContent value="basic" className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold flex items-center gap-2">
-                      Subject Code 
-                      {branchPrefix && (
-                        <Badge variant="outline" className="font-mono text-[9px] h-4 bg-muted/50">Prefix: {branchPrefix}</Badge>
-                      )}
+                    <Label className="text-sm font-semibold flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        Subject Code 
+                        <Badge variant="outline" className="font-mono text-[9px] h-4 bg-muted/50">Auto-Rules Applied</Badge>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-6 text-[10px] gap-1 text-primary hover:text-primary"
+                        onClick={() => setFormData(prev => ({ ...prev, subjectCode: generateAutoSubjectCode() }))}
+                      >
+                        <Wand2 className="w-3 h-3" /> Regenerate
+                      </Button>
                     </Label>
                     <div className="relative">
                       <Hash className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                       <Input 
-                        placeholder={branchPrefix ? `${branchPrefix}101` : 'e.g., CSE302'} 
+                        placeholder="e.g., COL301" 
                         className="pl-9 font-mono"
                         value={formData.subjectCode || ''} 
                         onChange={e => setFormData({ ...formData, subjectCode: e.target.value.toUpperCase() })}
@@ -476,7 +522,6 @@ export function SyllabusDialog({
 
               <TabsContent value="resources" className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {/* Books Section */}
                   <div className="space-y-6">
                     <div className="space-y-4">
                       <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider">
@@ -501,7 +546,6 @@ export function SyllabusDialog({
                     </div>
                   </div>
 
-                  {/* Digital Links Section */}
                   <div className="space-y-6">
                     <div className="space-y-4">
                       <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider">

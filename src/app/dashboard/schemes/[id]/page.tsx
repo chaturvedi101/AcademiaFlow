@@ -46,7 +46,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     if (!profile || !scheme) return false;
     if (profile.role === 'admin' || profile.role === 'dean_faculty' || profile.role === 'dean_academics') return true;
     
-    // BoS Convenor check
     return profile.managedBranches?.some(
       m => m.programId === scheme.programId && m.branch === scheme.branch
     ) || false;
@@ -55,7 +54,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const creditDistribution = useMemo(() => {
     const dist = { DSC: 0, DSE: 0, OFE: 0, CPF: 0, VAC: 0, AEC: 0, SEC: 0, MDC: 0, total: 0 };
     syllabi.forEach(sub => {
-      dist[sub.creditCategory] = (dist[sub.creditCategory] || 0) + (sub.credits || 0);
+      dist[sub.creditCategory as keyof typeof dist] = (dist[sub.creditCategory as keyof typeof dist] || 0) + (sub.credits || 0);
       dist.total += (sub.credits || 0);
     });
     return dist;
@@ -111,7 +110,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     toast({ title: "Syllabus Exported", description: `${syllabus.subjectCode} PDF generated.` });
   };
 
-  // Find the branch-specific prefix if it exists
   const branchPrefix = useMemo(() => {
     if (!program || !scheme?.branch) return '';
     return program.branchPrefixes?.[scheme.branch] || '';
@@ -212,7 +210,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                       <Button size="sm" variant="outline" className="gap-2 h-9 rounded-lg" onClick={() => {
                         setActiveSubject({ 
                           semester: sem,
-                          subjectCode: branchPrefix ? `${branchPrefix}${sem}01` : '' // Intelligent default
                         });
                         setIsSyllabusDialogOpen(true);
                       }}>
@@ -379,11 +376,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         open={isSyllabusDialogOpen} 
         onOpenChange={setIsSyllabusDialogOpen} 
         syllabus={activeSubject}
+        existingSyllabi={syllabi}
         onSave={handleSaveSyllabus}
         programName={program?.name}
         branchName={scheme?.branch}
         batchYear={scheme?.batchYear}
-        branchPrefix={branchPrefix}
       />
     </div>
   );
