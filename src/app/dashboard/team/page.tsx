@@ -65,7 +65,7 @@ export default function TeamManagementPage() {
       tempApp = initializeApp(firebaseConfig, appName);
       const tempAuth = getAuth(tempApp);
       
-      const userCredential = await createUserWithEmailAndPassword(tempAuth, registerForm.email, "member1234");
+      const userCredential = await createUserWithEmailAndPassword(tempAuth, registerForm.email, "abcd1234");
       const newUid = userCredential.user.uid;
 
       const userRef = doc(db, 'users', newUid);
@@ -90,7 +90,7 @@ export default function TeamManagementPage() {
       
       toast({ 
         title: "Member Registered", 
-        description: `${registerForm.displayName} added to your BoS team. Password: member1234` 
+        description: `${registerForm.displayName} added to your BoS team. Password: abcd1234` 
       });
       setIsRegisterDialogOpen(false);
       setRegisterForm({ email: '', displayName: '', programId: '', branch: '' });
@@ -252,7 +252,7 @@ export default function TeamManagementPage() {
           <DialogHeader>
             <DialogTitle>Register Faculty Member</DialogTitle>
             <DialogDescription>
-              Create a BoS Member account. Password: <span className="font-bold text-primary">member1234</span>
+              Create a BoS Member account. Password: <span className="font-bold text-primary">abcd1234</span>
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
