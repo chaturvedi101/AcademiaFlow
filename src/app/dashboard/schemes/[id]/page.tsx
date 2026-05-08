@@ -51,6 +51,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     ) || false;
   }, [profile, scheme]);
 
+  const canModifySchemeLayout = useMemo(() => {
+    if (!profile) return false;
+    // BoS Members can edit syllabi but cannot change Scheme status or layout settings
+    if (profile.role === 'bos_member') return false;
+    return hasEditPermission;
+  }, [profile, hasEditPermission]);
+
   const creditDistribution = useMemo(() => {
     const dist = { DSC: 0, DSE: 0, OFE: 0, CPF: 0, VAC: 0, AEC: 0, SEC: 0, MDC: 0, total: 0 };
     syllabi.forEach(sub => {
@@ -61,7 +68,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   }, [syllabi]);
 
   const handleUpdateScheme = (updates: Partial<Scheme>) => {
-    if (!hasEditPermission) return;
+    if (!canModifySchemeLayout) return;
     updateDoc(schemeRef, { ...updates, updatedAt: serverTimestamp() })
       .catch(err => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -135,7 +142,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           <h2 className="text-2xl font-bold">Unauthorized Access</h2>
           <p className="text-muted-foreground max-w-md mt-2">
             You do not have authorization to manage schemes for {program?.name} ({scheme.branch}). 
-            Please contact your Dean Academics for authorization.
+            Please contact your BoS Convenor for authorization.
           </p>
         </div>
         <Button asChild variant="outline">
@@ -174,9 +181,16 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           <Button variant="outline" className="gap-2 border-primary/20 text-primary" onClick={handleExportFullPDF}>
             <FileText className="w-4 h-4" /> Download Full Structure
           </Button>
-          <Button className="gap-2 shadow-lg" onClick={() => handleUpdateScheme({ status: 'Pending Dean' })}>
-            <Send className="w-4 h-4" /> Submit for Approval
-          </Button>
+          {canModifySchemeLayout && (
+            <Button className="gap-2 shadow-lg" onClick={() => handleUpdateScheme({ status: 'Pending Dean' })}>
+              <Send className="w-4 h-4" /> Submit for Approval
+            </Button>
+          )}
+          {profile?.role === 'bos_member' && (
+            <div className="text-xs text-muted-foreground italic bg-muted/30 px-3 py-2 rounded-lg">
+              Member access: Edit syllabi only.
+            </div>
+          )}
         </div>
       </div>
 
@@ -295,6 +309,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                           <p className="text-sm text-muted-foreground">Allow students to exit with Cert/Diploma.</p>
                         </div>
                         <Switch 
+                          disabled={!canModifySchemeLayout}
                           checked={scheme.hasMultipleExits}
                           onCheckedChange={checked => handleUpdateScheme({ hasMultipleExits: checked })}
                         />
@@ -306,6 +321,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                           <p className="text-sm text-muted-foreground">Enable Academic Bank of Credits sync.</p>
                         </div>
                         <Switch 
+                          disabled={!canModifySchemeLayout}
                           checked={scheme.abcEnabled}
                           onCheckedChange={checked => handleUpdateScheme({ abcEnabled: checked })}
                         />

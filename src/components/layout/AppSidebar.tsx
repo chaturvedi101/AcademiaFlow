@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo } from 'react';
@@ -24,7 +25,8 @@ import {
   GraduationCap,
   Users,
   Loader2,
-  Settings2
+  Settings2,
+  UserCircle
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -33,11 +35,12 @@ import { doc } from "firebase/firestore";
 import { UserProfile, UserRole } from "@/lib/types";
 
 const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['bos_convenor', 'dean_faculty', 'dean_academics', 'admin'] },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['bos_convenor', 'bos_member', 'dean_faculty', 'dean_academics', 'admin'] },
   { name: 'Programs', href: '/dashboard/programs', icon: GraduationCap, roles: ['dean_academics', 'admin'] },
-  { name: 'User Access', href: '/dashboard/users', icon: Users, roles: ['dean_academics', 'admin'] },
-  { name: 'Schemes', href: '/dashboard/schemes', icon: BookOpen, roles: ['bos_convenor', 'dean_faculty', 'dean_academics', 'admin'] },
-  { name: 'Equivalence Manager', href: '/dashboard/equivalence', icon: Layers, roles: ['bos_convenor', 'admin'] },
+  { name: 'BoS Authorization', href: '/dashboard/users', icon: ShieldCheck, roles: ['dean_academics', 'admin'] },
+  { name: 'My BoS Team', href: '/dashboard/team', icon: UserCircle, roles: ['bos_convenor'] },
+  { name: 'Schemes', href: '/dashboard/schemes', icon: BookOpen, roles: ['bos_convenor', 'bos_member', 'dean_faculty', 'dean_academics', 'admin'] },
+  { name: 'Equivalence Manager', href: '/dashboard/equivalence', icon: Layers, roles: ['bos_convenor', 'bos_member', 'admin'] },
   { name: 'Approvals', href: '/dashboard/approvals', icon: FileCheck, roles: ['dean_faculty', 'dean_academics'] },
   { name: 'Audit Logs', href: '/dashboard/audit', icon: History, roles: ['admin'] },
   { name: 'AI Diagnostics', href: '/dashboard/diagnostics', icon: Settings2, roles: ['admin', 'dean_academics'] },

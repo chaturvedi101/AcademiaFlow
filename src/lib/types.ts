@@ -1,5 +1,5 @@
 
-export type UserRole = 'bos_convenor' | 'dean_faculty' | 'dean_academics' | 'admin';
+export type UserRole = 'bos_convenor' | 'bos_member' | 'dean_faculty' | 'dean_academics' | 'admin';
 
 export interface ManagedBranch {
   programId: string;

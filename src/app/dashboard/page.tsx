@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo } from 'react';
@@ -6,7 +7,7 @@ import { collection, query, where, doc } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, Clock, CheckCircle2, AlertCircle, ArrowRight, Layers, ShieldCheck, GraduationCap, Loader2, FileCheck, Plus } from "lucide-react";
+import { FileText, Clock, CheckCircle2, AlertCircle, ArrowRight, Layers, ShieldCheck, GraduationCap, Loader2, FileCheck, Plus, UserCircle } from "lucide-react";
 import Link from "next/link";
 import { Scheme, Program, UserProfile } from '@/lib/types';
 
@@ -24,7 +25,7 @@ export default function DashboardPage() {
     if (profile.role === 'admin' || profile.role === 'dean_faculty' || profile.role === 'dean_academics') {
       return schemes;
     }
-    // Filter for BoS Convenor: only schemes in their managed branches
+    // Filter for BoS Convenor/Member: only schemes in their managed branches
     const managed = profile.managedBranches || [];
     return schemes.filter(s => 
       managed.some(m => m.programId === s.programId && m.branch === s.branch)
@@ -62,7 +63,7 @@ export default function DashboardPage() {
         <StatsCard 
           title="Your Schemes" 
           value={stats.activeSchemes} 
-          trend={profile?.role === 'bos_convenor' ? "In your assigned branches" : "Across all programs"} 
+          trend={(profile?.role === 'bos_convenor' || profile?.role === 'bos_member') ? "In your assigned branches" : "Across all programs"} 
           icon={<FileText className="text-primary" />} 
         />
         <StatsCard 
@@ -130,7 +131,10 @@ export default function DashboardPage() {
             {profile?.role === 'admin' && (
               <ActionLink href="/dashboard/schemes" label="Draft New Scheme" icon={<Plus className="w-4 h-4" />} />
             )}
-            {(profile?.role === 'bos_convenor' || profile?.role === 'admin') && (
+            {profile?.role === 'bos_convenor' && (
+              <ActionLink href="/dashboard/team" label="Manage BoS Team" icon={<UserCircle className="w-4 h-4" />} />
+            )}
+            {(profile?.role === 'bos_convenor' || profile?.role === 'bos_member' || profile?.role === 'admin') && (
               <ActionLink href="/dashboard/equivalence" label="Map Subject Equivalence" icon={<Layers className="w-4 h-4" />} />
             )}
             {(profile?.role === 'dean_faculty' || profile?.role === 'dean_academics' || profile?.role === 'admin') && (
