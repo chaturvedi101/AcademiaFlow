@@ -3,7 +3,7 @@
 
 import { useState, useMemo } from 'react';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
-import { collection, doc, updateDoc, setDoc, serverTimestamp, query, where } from 'firebase/firestore';
+import { collection, doc, updateDoc, setDoc, deleteDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { UserProfile, Program, ManagedBranch } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Users, UserPlus, X, ShieldCheck, Loader2, Plus } from 'lucide-react';
+import { Users, UserPlus, X, ShieldCheck, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -148,6 +148,20 @@ export default function TeamManagementPage() {
       });
   };
 
+  const handleDeleteMember = (memberId: string) => {
+    const targetUserRef = doc(db, 'users', memberId);
+    deleteDoc(targetUserRef)
+      .then(() => {
+        toast({ title: "Member Removed", description: "The BoS member's profile and permissions have been deleted." });
+      })
+      .catch(err => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: targetUserRef.path,
+          operation: 'delete'
+        }));
+      });
+  };
+
   if (usersLoading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary w-8 h-8" /></div>;
 
   return (
@@ -227,9 +241,14 @@ export default function TeamManagementPage() {
                         <Button size="sm" variant="ghost" onClick={() => setAssigningUser(null)} className="h-8">Cancel</Button>
                       </div>
                     ) : (
-                      <Button variant="outline" size="sm" className="gap-2" onClick={() => setAssigningUser(member.id)}>
-                        <Plus className="w-4 h-4" /> Delegate Access
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" size="sm" className="gap-2" onClick={() => setAssigningUser(member.id)}>
+                          <Plus className="w-4 h-4" /> Delegate Access
+                        </Button>
+                        <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-500 hover:bg-red-50" onClick={() => handleDeleteMember(member.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     )}
                   </TableCell>
                 </TableRow>
