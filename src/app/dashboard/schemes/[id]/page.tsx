@@ -111,6 +111,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     toast({ title: "Syllabus Exported", description: `${syllabus.subjectCode} PDF generated.` });
   };
 
+  // Find the branch-specific prefix if it exists
+  const branchPrefix = useMemo(() => {
+    if (!program || !scheme?.branch) return '';
+    return program.branchPrefixes?.[scheme.branch] || '';
+  }, [program, scheme?.branch]);
+
   if (schemeLoading || syllabiLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -153,6 +159,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           </div>
           <div className="flex items-center gap-3 text-muted-foreground text-sm">
             <span>Branch: <span className="font-bold text-foreground">{scheme.branch || 'General'}</span></span>
+            {branchPrefix && (
+              <>
+                <span className="w-1 h-1 rounded-full bg-border"></span>
+                <span>Prefix: <Badge variant="secondary" className="font-mono text-[10px] h-4">{branchPrefix}</Badge></span>
+              </>
+            )}
             <span className="w-1 h-1 rounded-full bg-border"></span>
             <span>Batch: {scheme.batchYear}</span>
             <span className="w-1 h-1 rounded-full bg-border"></span>
@@ -198,7 +210,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                         <CardDescription className="text-xs font-medium">Credits: <span className="text-primary font-bold">{semTotal}</span></CardDescription>
                       </div>
                       <Button size="sm" variant="outline" className="gap-2 h-9 rounded-lg" onClick={() => {
-                        setActiveSubject({ semester: sem });
+                        setActiveSubject({ 
+                          semester: sem,
+                          subjectCode: branchPrefix ? `${branchPrefix}${sem}01` : '' // Intelligent default
+                        });
                         setIsSyllabusDialogOpen(true);
                       }}>
                         <Plus className="w-4 h-4" /> Add Subject
@@ -368,6 +383,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         programName={program?.name}
         branchName={scheme?.branch}
         batchYear={scheme?.batchYear}
+        branchPrefix={branchPrefix}
       />
     </div>
   );

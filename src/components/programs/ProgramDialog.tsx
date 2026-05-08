@@ -16,7 +16,8 @@ import { Program, CreditRules } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, Hash } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface ProgramDialogProps {
   open: boolean;
@@ -40,6 +41,7 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
   const db = useFirestore();
   const { toast } = useToast();
   const [newBranch, setNewBranch] = useState('');
+  const [newPrefix, setNewPrefix] = useState('');
   const [formData, setFormData] = useState<Partial<Program>>({
     name: '',
     code: '',
@@ -47,6 +49,7 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
     level: 'UG',
     totalSemesters: 8,
     branches: [],
+    branchPrefixes: {},
     rules: { ...DEFAULT_RULES }
   });
 
@@ -54,7 +57,8 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
     if (program) {
       setFormData({
         ...program,
-        branches: program.branches || []
+        branches: program.branches || [],
+        branchPrefixes: program.branchPrefixes || {}
       });
     } else {
       setFormData({
@@ -64,6 +68,7 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
         level: 'UG',
         totalSemesters: 8,
         branches: [],
+        branchPrefixes: {},
         rules: { ...DEFAULT_RULES }
       });
     }
@@ -114,33 +119,54 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
   const addBranch = () => {
     if (!newBranch.trim()) return;
     if (formData.branches?.includes(newBranch.trim())) return;
+    
+    const branchName = newBranch.trim();
     setFormData(prev => ({
       ...prev,
-      branches: [...(prev.branches || []), newBranch.trim()]
+      branches: [...(prev.branches || []), branchName],
+      branchPrefixes: {
+        ...(prev.branchPrefixes || {}),
+        [branchName]: newPrefix.trim() || ''
+      }
     }));
     setNewBranch('');
+    setNewPrefix('');
   };
 
   const removeBranch = (branch: string) => {
+    const newPrefixes = { ...(formData.branchPrefixes || {}) };
+    delete newPrefixes[branch];
+    
     setFormData(prev => ({
       ...prev,
-      branches: prev.branches?.filter(b => b !== branch)
+      branches: prev.branches?.filter(b => b !== branch),
+      branchPrefixes: newPrefixes
+    }));
+  };
+
+  const updatePrefix = (branch: string, prefix: string) => {
+    setFormData(prev => ({
+      ...prev,
+      branchPrefixes: {
+        ...(prev.branchPrefixes || {}),
+        [branch]: prefix.toUpperCase()
+      }
     }));
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden shadow-2xl border-none">
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden shadow-2xl border-none">
         <DialogHeader className="p-6 border-b shrink-0 bg-background z-20">
           <DialogTitle className="font-headline text-2xl">
             {program ? 'Edit Program' : 'New Program Definition'}
           </DialogTitle>
           <DialogDescription>
-            Configure program details, branches, semesters, and credit limits.
+            Configure program details, branch code prefixes, and credit limits.
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 w-full outline-none" tabIndex={0}>
+        <ScrollArea className="flex-1 w-full outline-none">
           <div className="p-6 space-y-8 pb-12">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
@@ -163,30 +189,70 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
               </div>
             </div>
 
-            <div className="space-y-3">
-              <Label className="text-sm font-semibold">Program Branches / Specializations</Label>
-              <div className="flex gap-2">
-                <Input 
-                  placeholder="e.g. Computer Science, Mechanical..." 
-                  value={newBranch}
-                  onChange={e => setNewBranch(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && addBranch()}
-                  className="h-11"
-                />
-                <Button type="button" onClick={addBranch} variant="secondary" className="h-11">
+            <div className="space-y-4">
+              <div className="flex flex-col gap-1">
+                <Label className="text-sm font-semibold">Managed Branches & Subject Prefixes</Label>
+                <p className="text-xs text-muted-foreground">Define prefixes (e.g., CSE, ME) to standardize subject codes in this branch.</p>
+              </div>
+              
+              <div className="flex gap-2 items-end">
+                <div className="grid gap-2 flex-1">
+                  <Input 
+                    placeholder="Branch Name (e.g. Computer Science)" 
+                    value={newBranch}
+                    onChange={e => setNewBranch(e.target.value)}
+                    className="h-10"
+                  />
+                </div>
+                <div className="grid gap-2 w-32">
+                  <Input 
+                    placeholder="Prefix (e.g. CSE)" 
+                    value={newPrefix}
+                    onChange={e => setNewPrefix(e.target.value.toUpperCase())}
+                    className="h-10 font-mono"
+                  />
+                </div>
+                <Button type="button" onClick={addBranch} variant="secondary" className="h-10">
                   <Plus className="w-4 h-4 mr-2" /> Add
                 </Button>
               </div>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {formData.branches?.map(branch => (
-                  <Badge key={branch} variant="secondary" className="pl-3 pr-1 py-1 gap-1">
-                    {branch}
-                    <Button variant="ghost" size="icon" className="h-4 w-4 p-0 hover:bg-transparent" onClick={() => removeBranch(branch)}>
-                      <X className="w-3 h-3" />
-                    </Button>
-                  </Badge>
-                ))}
-              </div>
+
+              {formData.branches && formData.branches.length > 0 && (
+                <div className="border rounded-lg overflow-hidden mt-4">
+                  <Table>
+                    <TableHeader className="bg-muted/50">
+                      <TableRow>
+                        <TableHead>Branch Name</TableHead>
+                        <TableHead className="w-48">Code Prefix</TableHead>
+                        <TableHead className="w-16"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {formData.branches.map(branch => (
+                        <TableRow key={branch}>
+                          <TableCell className="font-medium">{branch}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Hash className="w-3.5 h-3.5 text-muted-foreground" />
+                              <Input 
+                                value={formData.branchPrefixes?.[branch] || ''} 
+                                onChange={e => updatePrefix(branch, e.target.value)}
+                                className="h-8 font-mono text-xs uppercase"
+                                placeholder="PREFIX"
+                              />
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={() => removeBranch(branch)}>
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

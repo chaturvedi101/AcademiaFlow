@@ -44,6 +44,7 @@ export interface Program {
   description: string;
   level: 'UG' | 'PG' | 'Diploma' | 'Certificate';
   branches: string[];
+  branchPrefixes?: Record<string, string>; // Mapping of branch name to code prefix
   rules: CreditRules;
   createdAt: any;
   updatedAt: any;

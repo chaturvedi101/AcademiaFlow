@@ -48,7 +48,7 @@
     },
     "Program": {
       "title": "Program",
-      "description": "Definition of an academic program and its associated NEP 2020 credit rules and branches.",
+      "description": "Definition of an academic program and its associated NEP 2020 credit rules, branches, and branch-specific code prefixes.",
       "type": "object",
       "properties": {
         "name": {
@@ -76,6 +76,11 @@
           "type": "array",
           "items": { "type": "string" },
           "description": "List of specializations or branches within this program."
+        },
+        "branchPrefixes": {
+          "type": "object",
+          "description": "Mapping of branch names to their specific subject code prefixes (e.g., {'Computer Science': 'CSE'}).",
+          "additionalProperties": { "type": "string" }
         },
         "rules": {
           "type": "object",

@@ -14,7 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Calculator, Info, Plus, Trash2, Sparkles, Loader2, Wand2, AlertCircle, Clock, Book, BookOpen, ExternalLink, Video, FileDown } from "lucide-react";
+import { Calculator, Info, Plus, Trash2, Sparkles, Loader2, Wand2, AlertCircle, Clock, Book, BookOpen, ExternalLink, Video, FileDown, Hash } from "lucide-react";
 import { Syllabus, CorrelationLevel, SyllabusUnit } from "@/lib/types";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { suggestCOPOMapping } from "@/ai/flows/suggest-co-po-mapping";
@@ -46,6 +46,7 @@ interface SyllabusDialogProps {
   programName?: string;
   branchName?: string;
   batchYear?: string;
+  branchPrefix?: string;
 }
 
 export function SyllabusDialog({ 
@@ -55,7 +56,8 @@ export function SyllabusDialog({
   onSave,
   programName,
   branchName,
-  batchYear
+  batchYear,
+  branchPrefix
 }: SyllabusDialogProps) {
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
@@ -333,12 +335,21 @@ export function SyllabusDialog({
               <TabsContent value="basic" className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold">Subject Code</Label>
-                    <Input 
-                      placeholder="e.g., CSE302" 
-                      value={formData.subjectCode || ''} 
-                      onChange={e => setFormData({ ...formData, subjectCode: e.target.value })}
-                    />
+                    <Label className="text-sm font-semibold flex items-center gap-2">
+                      Subject Code 
+                      {branchPrefix && (
+                        <Badge variant="outline" className="font-mono text-[9px] h-4 bg-muted/50">Prefix: {branchPrefix}</Badge>
+                      )}
+                    </Label>
+                    <div className="relative">
+                      <Hash className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input 
+                        placeholder={branchPrefix ? `${branchPrefix}101` : 'e.g., CSE302'} 
+                        className="pl-9 font-mono"
+                        value={formData.subjectCode || ''} 
+                        onChange={e => setFormData({ ...formData, subjectCode: e.target.value.toUpperCase() })}
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Subject Title</Label>
