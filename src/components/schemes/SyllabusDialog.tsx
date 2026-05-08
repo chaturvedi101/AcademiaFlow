@@ -92,18 +92,22 @@ export function SyllabusDialog({
   const generateAutoSubjectCode = useCallback(() => {
     if (!branchName) return '';
 
-    // Rule 1: First two letters from branch
+    // Chars 1-2: First two letters from branch
     const branchPrefix = branchName.substring(0, 2).toUpperCase();
 
-    // Rule 2: Third letter is L (Theory/Tutorial) or P (Practical)
+    // Char 3: L (Theory/Tutorial) or P (Practical)
     const theoryHours = (formData.lectureCredits || 0) + (formData.tutorialCredits || 0);
     const typeIndicator = theoryHours > 0 ? 'L' : 'P';
 
-    // Rule 3: Fourth digit is semester
+    // Char 4: C (Core) or E (Elective)
+    const category = formData.creditCategory || 'DSC';
+    const categoryIndicator = (category === 'DSE' || category === 'OFE') ? 'E' : 'C';
+
+    // Char 5: Semester digit
     const semDigit = formData.semester || 1;
 
-    // Rule 4: Sequential increasing order, not equal to existing
-    const baseCode = `${branchPrefix}${typeIndicator}${semDigit}`;
+    // Chars 6-7: Sequential increasing order
+    const baseCode = `${branchPrefix}${typeIndicator}${categoryIndicator}${semDigit}`;
     let sequence = 1;
     let finalCode = `${baseCode}${String(sequence).padStart(2, '0')}`;
 
@@ -118,7 +122,7 @@ export function SyllabusDialog({
     }
 
     return finalCode;
-  }, [branchName, formData.lectureCredits, formData.tutorialCredits, formData.semester, existingSyllabi, formData.id]);
+  }, [branchName, formData.lectureCredits, formData.tutorialCredits, formData.semester, formData.creditCategory, existingSyllabi, formData.id]);
 
   useEffect(() => {
     if (syllabus) {
@@ -390,7 +394,7 @@ export function SyllabusDialog({
                     <div className="relative">
                       <Hash className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                       <Input 
-                        placeholder="e.g., COL301" 
+                        placeholder="e.g., COLC301" 
                         className="pl-9 font-mono"
                         value={formData.subjectCode || ''} 
                         onChange={e => setFormData({ ...formData, subjectCode: e.target.value.toUpperCase() })}
@@ -449,6 +453,9 @@ export function SyllabusDialog({
                           <SelectItem value="OFE">OFE (Open Elective)</SelectItem>
                           <SelectItem value="VAC">VAC (Value Added)</SelectItem>
                           <SelectItem value="SEC">SEC (Skill)</SelectItem>
+                          <SelectItem value="AEC">AEC (Ability Enhancement)</SelectItem>
+                          <SelectItem value="MDC">MDC (Multi Disciplinary)</SelectItem>
+                          <SelectItem value="CPF">CPF (Community Project)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
