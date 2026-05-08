@@ -14,11 +14,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Calculator, Info, Plus, Trash2, Sparkles, Loader2, Wand2, AlertCircle, Clock, Book, BookOpen, ExternalLink, Video } from "lucide-react";
+import { Calculator, Info, Plus, Trash2, Sparkles, Loader2, Wand2, AlertCircle, Clock, Book, BookOpen, ExternalLink, Video, FileDown } from "lucide-react";
 import { Syllabus, CorrelationLevel, SyllabusUnit } from "@/lib/types";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { suggestCOPOMapping } from "@/ai/flows/suggest-co-po-mapping";
 import { useToast } from "@/hooks/use-toast";
+import { exportSyllabusToPDF } from "@/lib/pdf-export";
 
 const PO_DEFINITIONS = [
   { code: 'PO1', title: 'Engineering Knowledge', desc: 'Apply mathematics, science, and engineering fundamentals.' },
@@ -42,9 +43,20 @@ interface SyllabusDialogProps {
   onOpenChange: (open: boolean) => void;
   syllabus?: Partial<Syllabus>;
   onSave: (data: Partial<Syllabus>) => void;
+  programName?: string;
+  branchName?: string;
+  batchYear?: string;
 }
 
-export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: SyllabusDialogProps) {
+export function SyllabusDialog({ 
+  open, 
+  onOpenChange, 
+  syllabus, 
+  onSave,
+  programName,
+  branchName,
+  batchYear
+}: SyllabusDialogProps) {
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
   const [isMapping, setIsMapping] = useState(false);
@@ -252,17 +264,35 @@ export function SyllabusDialog({ open, onOpenChange, syllabus, onSave }: Syllabu
     }));
   };
 
+  const handleExportPDF = () => {
+    if (!formData.subjectCode || !formData.title) {
+      toast({ title: "Export Error", description: "Subject code and title are required for export.", variant: "destructive" });
+      return;
+    }
+    exportSyllabusToPDF(formData, programName, branchName, batchYear);
+    toast({ title: "PDF Generated", description: "Subject syllabus has been downloaded." });
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[95vh] flex flex-col p-0 overflow-hidden shadow-2xl border-none">
         <DialogHeader className="p-6 border-b shrink-0 bg-background">
-          <DialogTitle className="font-headline text-2xl flex items-center gap-2">
-            {syllabus?.id ? 'Edit Subject Details' : 'Add New Subject Definition'}
-            {!syllabus?.id && <Badge className="bg-primary/10 text-primary border-none">AI-Enabled</Badge>}
-          </DialogTitle>
-          <DialogDescription>
-            Configure credits, semester, unit content, and CO-PO mapping matrix.
-          </DialogDescription>
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <DialogTitle className="font-headline text-2xl flex items-center gap-2">
+                {syllabus?.id ? 'Edit Subject Details' : 'Add New Subject Definition'}
+                {!syllabus?.id && <Badge className="bg-primary/10 text-primary border-none">AI-Enabled</Badge>}
+              </DialogTitle>
+              <DialogDescription>
+                Configure credits, semester, unit content, and CO-PO mapping matrix.
+              </DialogDescription>
+            </div>
+            {syllabus?.id && (
+              <Button variant="outline" size="sm" className="gap-2 border-primary/20 text-primary hover:bg-primary/5" onClick={handleExportPDF}>
+                <FileDown className="w-4 h-4" /> Export PDF
+              </Button>
+            )}
+          </div>
         </DialogHeader>
         
         <ScrollArea className="flex-1">

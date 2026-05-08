@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo } from "react";
@@ -10,13 +11,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Save, Send, History, Trash2, Edit3, Download, GraduationCap, Layers, Loader2, ShieldAlert } from "lucide-react";
+import { Plus, Save, Send, History, Trash2, Edit3, Download, GraduationCap, Layers, Loader2, ShieldAlert, FileDown } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
+import { exportSyllabusToPDF } from "@/lib/pdf-export";
 import Link from "next/link";
 
 export default function SchemeDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -96,6 +98,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         operation: 'delete'
       }));
     });
+  };
+
+  const handleExportPDF = (syllabus: Syllabus) => {
+    exportSyllabusToPDF(syllabus, program?.name, scheme?.branch, scheme?.batchYear);
+    toast({ title: "PDF Generated", description: `${syllabus.subjectCode} syllabus downloaded.` });
   };
 
   if (schemeLoading || syllabiLoading) {
@@ -224,6 +231,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                               <TableCell className="text-right font-bold text-sm">{sub.credits}</TableCell>
                               <TableCell className="text-right pr-6">
                                 <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500 hover:bg-blue-50" title="Export PDF" onClick={() => handleExportPDF(sub)}>
+                                    <FileDown className="w-3.5 h-3.5" />
+                                  </Button>
                                   <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => {
                                     setActiveSubject(sub);
                                     setIsSyllabusDialogOpen(true);
@@ -346,6 +356,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         onOpenChange={setIsSyllabusDialogOpen} 
         syllabus={activeSubject}
         onSave={handleSaveSyllabus}
+        programName={program?.name}
+        branchName={scheme?.branch}
+        batchYear={scheme?.batchYear}
       />
     </div>
   );
