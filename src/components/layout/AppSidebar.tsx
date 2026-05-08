@@ -40,7 +40,7 @@ const navigation = [
   { name: 'BoS Authorization', href: '/dashboard/users', icon: ShieldCheck, roles: ['dean_academics', 'admin'] },
   { name: 'My BoS Team', href: '/dashboard/team', icon: UserCircle, roles: ['bos_convenor'] },
   { name: 'Schemes', href: '/dashboard/schemes', icon: BookOpen, roles: ['bos_convenor', 'bos_member', 'dean_faculty', 'dean_academics', 'admin'] },
-  { name: 'Equivalence Manager', href: '/dashboard/equivalence', icon: Layers, roles: ['bos_convenor', 'bos_member', 'admin'] },
+  { name: 'Equivalence Manager', href: '/dashboard/equivalence', icon: Layers, roles: ['bos_convenor', 'admin'] },
   { name: 'Approvals', href: '/dashboard/approvals', icon: FileCheck, roles: ['dean_faculty', 'dean_academics'] },
   { name: 'Audit Logs', href: '/dashboard/audit', icon: History, roles: ['admin'] },
   { name: 'AI Diagnostics', href: '/dashboard/diagnostics', icon: Settings2, roles: ['admin', 'dean_academics'] },

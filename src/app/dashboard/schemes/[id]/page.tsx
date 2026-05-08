@@ -54,6 +54,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const canModifySchemeLayout = useMemo(() => {
     if (!profile) return false;
     // BoS Members can edit syllabi but cannot change Scheme status or layout settings
+    // They also cannot add or delete subjects
     if (profile.role === 'bos_member') return false;
     return hasEditPermission;
   }, [profile, hasEditPermission]);
@@ -81,6 +82,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
   const handleSaveSyllabus = (data: Partial<Syllabus>) => {
     if (!hasEditPermission) return;
+    // Members can save (edit), but only if it's not a new creation (which is gated in UI)
     const syllabusId = data.id || doc(collection(db, 'temp')).id;
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', syllabusId);
     
@@ -96,7 +98,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const handleDeleteSyllabus = (id: string) => {
-    if (!hasEditPermission) return;
+    if (!canModifySchemeLayout) return; // Only Convenors/Admins can delete
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', id);
     deleteDoc(docRef).catch(err => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -221,14 +223,16 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                         <CardTitle className="text-lg font-headline">Semester {sem}</CardTitle>
                         <CardDescription className="text-xs font-medium">Credits: <span className="text-primary font-bold">{semTotal}</span></CardDescription>
                       </div>
-                      <Button size="sm" variant="outline" className="gap-2 h-9 rounded-lg" onClick={() => {
-                        setActiveSubject({ 
-                          semester: sem,
-                        });
-                        setIsSyllabusDialogOpen(true);
-                      }}>
-                        <Plus className="w-4 h-4" /> Add Subject
-                      </Button>
+                      {canModifySchemeLayout && (
+                        <Button size="sm" variant="outline" className="gap-2 h-9 rounded-lg" onClick={() => {
+                          setActiveSubject({ 
+                            semester: sem,
+                          });
+                          setIsSyllabusDialogOpen(true);
+                        }}>
+                          <Plus className="w-4 h-4" /> Add Subject
+                        </Button>
+                      )}
                     </CardHeader>
                     <CardContent className="p-0">
                       <Table>
@@ -272,9 +276,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                                   }}>
                                     <Edit3 className="w-3.5 h-3.5" />
                                   </Button>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:bg-red-50" onClick={() => handleDeleteSyllabus(sub.id)}>
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </Button>
+                                  {canModifySchemeLayout && (
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:bg-red-50" onClick={() => handleDeleteSyllabus(sub.id)}>
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                  )}
                                 </div>
                               </TableCell>
                             </TableRow>
@@ -282,7 +288,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                           {semSubjects.length === 0 && (
                             <TableRow>
                               <TableCell colSpan={6} className="text-center py-10 text-muted-foreground text-sm italic">
-                                No subjects added for this semester. Click "Add Subject" to begin.
+                                No subjects added for this semester.
                               </TableCell>
                             </TableRow>
                           )}

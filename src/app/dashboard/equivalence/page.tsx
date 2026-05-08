@@ -1,19 +1,29 @@
+
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Layers, ArrowRight, Info, AlertTriangle, Plus, Trash2 } from "lucide-react";
+import { Layers, ArrowRight, Info, AlertTriangle, Plus, Trash2, ShieldAlert } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useUser, useDoc, useFirestore } from "@/firebase";
+import { doc } from "firebase/firestore";
+import { UserProfile } from "@/lib/types";
+import Link from "next/link";
 
 export default function EquivalencePage() {
-  const [mappings, setMappings] = useState<any[]>([]);
+  const { user } = useUser();
+  const db = useFirestore();
   const { toast } = useToast();
   
+  const userDocRef = useMemo(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
+  const { data: profile } = useDoc<UserProfile>(userDocRef);
+
+  const [mappings, setMappings] = useState<any[]>([]);
   const [selection, setSelection] = useState({
     oldSub: "",
     newSub: ""
@@ -37,7 +47,6 @@ export default function EquivalencePage() {
 
     if (!oldS || !newS) return;
 
-    // Validation Rule 2: No Practical mappings
     if (oldS.type === 'Practical') {
        toast({ 
          title: "Mapping Violation", 
@@ -47,7 +56,6 @@ export default function EquivalencePage() {
        return;
     }
 
-    // Validation Rule 1: Semester Match
     if (oldS.sem !== newS.sem) {
        toast({ 
          title: "Mapping Violation", 
@@ -61,6 +69,25 @@ export default function EquivalencePage() {
     setSelection({ oldSub: "", newSub: "" });
     toast({ title: "Mapping Created", description: "Subject equivalence registered successfully." });
   };
+
+  if (profile?.role === 'bos_member') {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 space-y-4">
+        <div className="bg-red-50 p-4 rounded-full">
+          <ShieldAlert className="w-12 h-12 text-red-600" />
+        </div>
+        <div className="text-center">
+          <h2 className="text-2xl font-bold">Access Restricted</h2>
+          <p className="text-muted-foreground max-w-md mt-2">
+            Equivalence management is restricted to BoS Convenors and higher academic roles.
+          </p>
+        </div>
+        <Button asChild variant="outline">
+          <Link href="/dashboard">Return to Dashboard</Link>
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
