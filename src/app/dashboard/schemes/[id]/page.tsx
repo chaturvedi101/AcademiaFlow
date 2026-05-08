@@ -11,14 +11,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Save, Send, History, Trash2, Edit3, Download, GraduationCap, Layers, Loader2, ShieldAlert, FileDown } from "lucide-react";
+import { Plus, Save, Send, History, Trash2, Edit3, Download, GraduationCap, Layers, Loader2, ShieldAlert, FileDown, FileText } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
-import { exportSyllabusToPDF } from "@/lib/pdf-export";
+import { exportSyllabusToPDF, exportFullSchemeToPDF } from "@/lib/pdf-export";
 import Link from "next/link";
 
 export default function SchemeDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -100,9 +100,15 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     });
   };
 
-  const handleExportPDF = (syllabus: Syllabus) => {
+  const handleExportFullPDF = () => {
+    if (!scheme || !program) return;
+    exportFullSchemeToPDF(scheme, program, syllabi);
+    toast({ title: "Scheme Exported", description: "Complete course structure PDF generated." });
+  };
+
+  const handleExportSyllabusPDF = (syllabus: Syllabus) => {
     exportSyllabusToPDF(syllabus, program?.name, scheme?.branch, scheme?.batchYear);
-    toast({ title: "PDF Generated", description: `${syllabus.subjectCode} syllabus downloaded.` });
+    toast({ title: "Syllabus Exported", description: `${syllabus.subjectCode} PDF generated.` });
   };
 
   if (schemeLoading || syllabiLoading) {
@@ -155,8 +161,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" className="gap-2" onClick={() => toast({ title: "Draft Saved Locally" })}>
-            <Save className="w-4 h-4" /> Save Work
+          <Button variant="outline" className="gap-2 border-primary/20 text-primary" onClick={handleExportFullPDF}>
+            <FileText className="w-4 h-4" /> Download Full Structure
           </Button>
           <Button className="gap-2 shadow-lg" onClick={() => handleUpdateScheme({ status: 'Pending Dean' })}>
             <Send className="w-4 h-4" /> Submit for Approval
@@ -231,7 +237,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                               <TableCell className="text-right font-bold text-sm">{sub.credits}</TableCell>
                               <TableCell className="text-right pr-6">
                                 <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500 hover:bg-blue-50" title="Export PDF" onClick={() => handleExportPDF(sub)}>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500 hover:bg-blue-50" title="Export PDF" onClick={() => handleExportSyllabusPDF(sub)}>
                                     <FileDown className="w-3.5 h-3.5" />
                                   </Button>
                                   <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => {
@@ -337,6 +343,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
               </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-2 pt-2">
+              <Button variant="outline" size="sm" className="justify-start gap-2 h-11 text-xs font-medium" onClick={handleExportFullPDF}>
+                <FileDown className="w-4 h-4" /> Export Complete Structure (PDF)
+              </Button>
               <Button variant="outline" size="sm" className="justify-start gap-2 h-11 text-xs font-medium">
                 <Download className="w-4 h-4" /> Export for TEQIP-III MIS (JSON)
               </Button>

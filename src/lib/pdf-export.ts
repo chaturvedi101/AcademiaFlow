@@ -3,10 +3,13 @@
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Syllabus } from './types';
+import { Syllabus, Scheme, Program } from './types';
+
+const PRIMARY_COLOR = [77, 26, 140]; // #4D1A8C
+const ACCENT_COLOR = [61, 143, 255]; // #3D8FFF
 
 /**
- * Generates and downloads a professional PDF document for a syllabus.
+ * Generates and downloads a professional PDF document for a single subject syllabus.
  */
 export const exportSyllabusToPDF = (
   syllabus: Partial<Syllabus>, 
@@ -17,13 +20,9 @@ export const exportSyllabusToPDF = (
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  // Color Palette (matching app theme)
-  const primaryColor = [77, 26, 140]; // #4D1A8C
-  const accentColor = [61, 143, 255]; // #3D8FFF
-
   // Header - Institution Title
   doc.setFontSize(18);
-  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
   doc.setFont('helvetica', 'bold');
   doc.text('Academia Flow | Academic Management', pageWidth / 2, 15, { align: 'center' });
   
@@ -35,7 +34,7 @@ export const exportSyllabusToPDF = (
   doc.text(`Batch: ${batchYear} | Version: Draft`, pageWidth / 2, 27, { align: 'center' });
 
   // Subject Branding Strip
-  doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setFillColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
   doc.rect(15, 32, pageWidth - 30, 10, 'F');
   doc.setTextColor(255);
   doc.setFontSize(11);
@@ -61,7 +60,7 @@ export const exportSyllabusToPDF = (
 
   // Units Section
   doc.setFontSize(13);
-  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
   doc.setFont('helvetica', 'bold');
   doc.text('Course Content & Outcomes', 15, 75);
 
@@ -77,7 +76,7 @@ export const exportSyllabusToPDF = (
     body: unitRows,
     theme: 'grid',
     headStyles: { 
-      fillColor: [primaryColor[0], primaryColor[1], primaryColor[2]], 
+      fillColor: [PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]], 
       fontSize: 10,
       halign: 'center'
     },
@@ -93,14 +92,13 @@ export const exportSyllabusToPDF = (
   // Resources Section
   let finalY = (doc as any).lastAutoTable.finalY + 12;
   
-  // Page check for resources
   if (finalY > 230) {
     doc.addPage();
     finalY = 20;
   }
 
   doc.setFontSize(13);
-  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
   doc.setFont('helvetica', 'bold');
   doc.text('Learning Resources', 15, finalY);
   finalY += 8;
@@ -108,7 +106,7 @@ export const exportSyllabusToPDF = (
   const drawResourceSection = (title: string, items?: string[]) => {
     if (!items || items.length === 0) return;
     doc.setFontSize(10);
-    doc.setTextColor(accentColor[0], accentColor[1], accentColor[2]);
+    doc.setTextColor(ACCENT_COLOR[0], ACCENT_COLOR[1], ACCENT_COLOR[2]);
     doc.setFont('helvetica', 'bold');
     doc.text(title, 15, finalY);
     finalY += 5;
@@ -117,7 +115,6 @@ export const exportSyllabusToPDF = (
     doc.setTextColor(0);
     doc.setFont('helvetica', 'normal');
     items.forEach(item => {
-      // Handle text wrapping for long resource citations/links
       const splitText = doc.splitTextToSize(`• ${item}`, pageWidth - 40);
       doc.text(splitText, 20, finalY);
       finalY += (splitText.length * 4.5);
@@ -135,8 +132,122 @@ export const exportSyllabusToPDF = (
   drawResourceSection('Digital Courses (NPTEL/SWAYAM)', syllabus.nptelLinks);
   drawResourceSection('Video Resources (YouTube)', syllabus.youtubeLinks);
 
-  // Footer - Page Numbering & Generation Info
+  addFooter(doc);
+  doc.save(`${syllabus.subjectCode || 'Subject'}_Detailed_Syllabus.pdf`);
+};
+
+/**
+ * Generates and downloads a complete Course Structure PDF for an entire scheme.
+ */
+export const exportFullSchemeToPDF = (
+  scheme: Scheme,
+  program: Program,
+  syllabi: Syllabus[]
+) => {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  // Institution Title
+  doc.setFontSize(20);
+  doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Academia Flow | Course Structure', pageWidth / 2, 20, { align: 'center' });
+
+  // Program & Branch Info
+  doc.setFontSize(12);
+  doc.setTextColor(50);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`${program.name?.toUpperCase()}`, pageWidth / 2, 30, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Branch: ${scheme.branch || 'General'} | Batch: ${scheme.batchYear}`, pageWidth / 2, 36, { align: 'center' });
+  doc.text(`Scheme Status: ${scheme.status} | Version: ${scheme.version}`, pageWidth / 2, 42, { align: 'center' });
+
+  doc.setDrawColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
+  doc.setLineWidth(0.5);
+  doc.line(20, 48, pageWidth - 20, 48);
+
+  // Credit Summary Section
+  doc.setFontSize(14);
+  doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.text('NEP 2020 Credit Distribution Summary', 20, 58);
+
+  const categories = ['DSC', 'DSE', 'OFE', 'CPF', 'VAC', 'AEC', 'SEC', 'MDC'];
+  const distribution = categories.map(cat => {
+    const total = syllabi.filter(s => s.creditCategory === cat).reduce((acc, curr) => acc + (curr.credits || 0), 0);
+    return [cat, total];
+  });
+  
+  const grandTotal = syllabi.reduce((acc, curr) => acc + (curr.credits || 0), 0);
+  distribution.push(['GRAND TOTAL', grandTotal]);
+
+  autoTable(doc, {
+    startY: 63,
+    head: [['Category', 'Credits Acquired']],
+    body: distribution,
+    theme: 'striped',
+    headStyles: { fillColor: PRIMARY_COLOR, halign: 'center' },
+    bodyStyles: { halign: 'center', fontSize: 10 },
+    columnStyles: { 0: { fontStyle: 'bold' } },
+    margin: { left: 40, right: 40 }
+  });
+
+  let currentY = (doc as any).lastAutoTable.finalY + 15;
+
+  // Semester-wise Course Structure
+  for (let sem = 1; sem <= (program.totalSemesters || 8); sem++) {
+    const semSubjects = syllabi.filter(s => s.semester === sem);
+    const semCredits = semSubjects.reduce((acc, curr) => acc + (curr.credits || 0), 0);
+
+    // Page check before each semester
+    if (currentY > 230) {
+      doc.addPage();
+      currentY = 20;
+    }
+
+    doc.setFontSize(13);
+    doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`SEMESTER ${sem}`, 20, currentY);
+    doc.setFontSize(10);
+    doc.setTextColor(ACCENT_COLOR[0], ACCENT_COLOR[1], ACCENT_COLOR[2]);
+    doc.text(`Total Semester Credits: ${semCredits}`, pageWidth - 20, currentY, { align: 'right' });
+    
+    const body = semSubjects.map(s => [
+      s.subjectCode || '',
+      s.title || '',
+      `${s.lectureCredits || 0}-${s.tutorialCredits || 0}-${s.practicalCredits || 0}`,
+      s.creditCategory || '',
+      s.credits || 0
+    ]);
+
+    autoTable(doc, {
+      startY: currentY + 4,
+      head: [['Code', 'Course Title', 'L-T-P', 'Category', 'Cr']],
+      body: body.length > 0 ? body : [['-', 'No courses added yet', '-', '-', '-']],
+      theme: 'grid',
+      headStyles: { fillColor: [100, 100, 100], fontSize: 9 },
+      bodyStyles: { fontSize: 8.5 },
+      columnStyles: {
+        0: { cellWidth: 25, fontStyle: 'bold' },
+        1: { cellWidth: 'auto' },
+        2: { cellWidth: 20, halign: 'center' },
+        3: { cellWidth: 25, halign: 'center' },
+        4: { cellWidth: 15, halign: 'center', fontStyle: 'bold' }
+      },
+      margin: { left: 20, right: 20 }
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 12;
+  }
+
+  addFooter(doc);
+  doc.save(`${program.code}_${scheme.branch}_Structure.pdf`);
+};
+
+function addFooter(doc: jsPDF) {
   const pageCount = doc.internal.getNumberOfPages();
+  const pageWidth = doc.internal.pageSize.getWidth();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
     doc.setFontSize(8);
@@ -144,8 +255,6 @@ export const exportSyllabusToPDF = (
     doc.setDrawColor(200);
     doc.line(15, doc.internal.pageSize.getHeight() - 15, pageWidth - 15, doc.internal.pageSize.getHeight() - 15);
     doc.text(`Page ${i} of ${pageCount}`, pageWidth - 35, doc.internal.pageSize.getHeight() - 10);
-    doc.text(`Generated automatically by Academia Flow Academic System | ${new Date().toLocaleString()}`, 15, doc.internal.pageSize.getHeight() - 10);
+    doc.text(`Academia Flow Academic System | Official Document | ${new Date().toLocaleString()}`, 15, doc.internal.pageSize.getHeight() - 10);
   }
-
-  doc.save(`${syllabus.subjectCode || 'Subject'}_Detailed_Syllabus.pdf`);
-};
+}
