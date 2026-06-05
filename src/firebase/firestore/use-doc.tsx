@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { DocumentReference, onSnapshot } from 'firebase/firestore';
 import { errorEmitter } from '../error-emitter';
-import { FirestorePermissionError } from '../errors';
+import { FirestorePermissionError, type SecurityRuleContext } from '../errors';
 
 export function useDoc<T>(ref: DocumentReference | null) {
   const [data, setData] = useState<T | null>(null);
@@ -23,13 +23,16 @@ export function useDoc<T>(ref: DocumentReference | null) {
         setData(snapshot.exists() ? ({ ...snapshot.data(), id: snapshot.id } as T) : null);
         setLoading(false);
       },
-      async (err) => {
+      async (serverError) => {
         const permissionError = new FirestorePermissionError({
           path: ref.path,
           operation: 'get',
-        });
+        } satisfies SecurityRuleContext);
+
+        // Emit the contextual error for the development overlay
         errorEmitter.emit('permission-error', permissionError);
-        setError(err);
+
+        setError(serverError);
         setLoading(false);
       }
     );

@@ -2,9 +2,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Query, onSnapshot } from 'firebase/firestore';
+import { Query, onSnapshot, CollectionReference } from 'firebase/firestore';
 import { errorEmitter } from '../error-emitter';
-import { FirestorePermissionError } from '../errors';
+import { FirestorePermissionError, type SecurityRuleContext } from '../errors';
 
 export function useCollection<T>(query: Query | null) {
   const [data, setData] = useState<T[]>([]);
@@ -23,14 +23,22 @@ export function useCollection<T>(query: Query | null) {
         setData(snapshot.docs.map((doc) => ({ ...doc.data(), id: doc.id } as T)));
         setLoading(false);
       },
-      async (err) => {
-        // We can't easily get the path from a Query in the same way as a DocRef
+      async (serverError) => {
+        // Attempt to extract the path from the query if it's a collection reference
+        let path = 'collection';
+        if ('path' in query) {
+          path = (query as unknown as CollectionReference).path;
+        }
+
         const permissionError = new FirestorePermissionError({
-          path: 'collection',
+          path: path,
           operation: 'list',
-        });
+        } satisfies SecurityRuleContext);
+
+        // Emit the contextual error for the development overlay
         errorEmitter.emit('permission-error', permissionError);
-        setError(err);
+        
+        setError(serverError);
         setLoading(false);
       }
     );
