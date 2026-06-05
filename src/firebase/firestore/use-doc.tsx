@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -23,13 +22,12 @@ export function useDoc<T>(ref: DocumentReference | null) {
         setData(snapshot.exists() ? ({ ...snapshot.data(), id: snapshot.id } as T) : null);
         setLoading(false);
       },
-      async (serverError) => {
+      (serverError) => {
         const permissionError = new FirestorePermissionError({
           path: ref.path,
           operation: 'get',
         } satisfies SecurityRuleContext);
 
-        // Emit the contextual error for the development overlay
         errorEmitter.emit('permission-error', permissionError);
 
         setError(serverError);

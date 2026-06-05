@@ -32,7 +32,9 @@ export default function SchemesPage() {
   }, [db]);
 
   const { data: schemes, loading: schemesLoading } = useCollection<Scheme>(schemesQuery);
-  const { data: programs } = useCollection<Program>(collection(db, 'programs'));
+  
+  const programsRef = useMemoFirebase(() => collection(db, 'programs'), [db]);
+  const { data: programs } = useCollection<Program>(programsRef);
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newScheme, setNewScheme] = useState({

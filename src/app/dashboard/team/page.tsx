@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -26,13 +25,15 @@ export default function TeamManagementPage() {
   const { user } = useUser();
   const { toast } = useToast();
 
-  const userDocRef = useMemo(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
+  const userDocRef = useMemoFirebase(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
   const { data: profile } = useDoc<UserProfile>(userDocRef);
 
   // Get all users who are bos_members (BOS Convenors manage BoS Members)
   const usersRef = useMemoFirebase(() => collection(db, 'users'), [db]);
   const { data: allUsers, loading: usersLoading } = useCollection<UserProfile>(usersRef);
-  const { data: programs } = useCollection<Program>(collection(db, 'programs'));
+  
+  const programsRef = useMemoFirebase(() => collection(db, 'programs'), [db]);
+  const { data: programs } = useCollection<Program>(programsRef);
 
   const teamMembers = useMemo(() => {
     return allUsers.filter(u => u.role === 'bos_member');

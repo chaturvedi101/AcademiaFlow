@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -23,11 +22,11 @@ export function useCollection<T>(query: Query | null) {
         setData(snapshot.docs.map((doc) => ({ ...doc.data(), id: doc.id } as T)));
         setLoading(false);
       },
-      async (serverError) => {
-        // Attempt to extract the path from the query if it's a collection reference
+      (serverError) => {
         let path = 'collection';
-        if ('path' in query) {
-          path = (query as unknown as CollectionReference).path;
+        // Check if the query object has a path (for CollectionReference)
+        if ('path' in (query as any)) {
+          path = (query as any).path;
         }
 
         const permissionError = new FirestorePermissionError({
@@ -35,7 +34,6 @@ export function useCollection<T>(query: Query | null) {
           operation: 'list',
         } satisfies SecurityRuleContext);
 
-        // Emit the contextual error for the development overlay
         errorEmitter.emit('permission-error', permissionError);
         
         setError(serverError);

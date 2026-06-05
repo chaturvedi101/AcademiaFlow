@@ -1,8 +1,7 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useFirestore, useCollection, useDoc, useUser } from '@/firebase';
+import { useFirestore, useCollection, useDoc, useUser, useMemoFirebase } from '@/firebase';
 import { collection, doc, updateDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { Scheme, Program, UserProfile } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,18 +19,20 @@ export default function ApprovalsPage() {
   const { user } = useUser();
   const { toast } = useToast();
 
-  const userDocRef = useMemo(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
+  const userDocRef = useMemoFirebase(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
   const { data: profile } = useDoc<UserProfile>(userDocRef);
 
   // Filter schemes based on role: Faculty Dean sees 'Pending Dean', Academic Dean sees 'Pending Academics'
   const targetStatus = profile?.role === 'dean_faculty' ? 'Pending Dean' : 'Pending Academics';
   
-  const schemesQuery = useMemo(() => {
+  const schemesQuery = useMemoFirebase(() => {
     return query(collection(db, 'schemes'), where('status', '==', targetStatus));
   }, [db, targetStatus]);
 
   const { data: schemes, loading } = useCollection<Scheme>(schemesQuery);
-  const { data: programs } = useCollection<Program>(collection(db, 'programs'));
+  
+  const programsRef = useMemoFirebase(() => collection(db, 'programs'), [db]);
+  const { data: programs } = useCollection<Program>(programsRef);
 
   const handleApprove = (scheme: Scheme) => {
     const nextStatus = profile?.role === 'dean_faculty' ? 'Pending Academics' : 'Approved';

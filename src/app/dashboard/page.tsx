@@ -1,8 +1,7 @@
-
 'use client';
 
 import { useMemo } from 'react';
-import { useFirestore, useCollection, useUser, useDoc } from '@/firebase';
+import { useFirestore, useCollection, useUser, useDoc, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,11 +13,14 @@ import { Scheme, Program, UserProfile } from '@/lib/types';
 export default function DashboardPage() {
   const db = useFirestore();
   const { user } = useUser();
-  const userDocRef = useMemo(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
+  const userDocRef = useMemoFirebase(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
   const { data: profile, loading: profileLoading } = useDoc<UserProfile>(userDocRef);
 
-  const { data: schemes, loading: schemesLoading } = useCollection<Scheme>(collection(db, 'schemes'));
-  const { data: programs, loading: programsLoading } = useCollection<Program>(collection(db, 'programs'));
+  const schemesRef = useMemoFirebase(() => collection(db, 'schemes'), [db]);
+  const { data: schemes, loading: schemesLoading } = useCollection<Scheme>(schemesRef);
+  
+  const programsRef = useMemoFirebase(() => collection(db, 'programs'), [db]);
+  const { data: programs, loading: programsLoading } = useCollection<Program>(programsRef);
 
   const filteredSchemes = useMemo(() => {
     if (!profile) return [];
