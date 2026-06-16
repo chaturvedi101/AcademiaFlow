@@ -92,21 +92,13 @@ export function SyllabusDialog({
   const generateAutoSubjectCode = useCallback(() => {
     if (!branchName) return '';
 
-    // Chars 1-2: First two letters from branch
     const branchPrefix = branchName.substring(0, 2).toUpperCase();
-
-    // Char 3: L (Theory/Tutorial) or P (Practical)
     const theoryHours = (formData.lectureCredits || 0) + (formData.tutorialCredits || 0);
     const typeIndicator = theoryHours > 0 ? 'L' : 'P';
-
-    // Char 4: C (Core) or E (Elective)
     const category = formData.creditCategory || 'DSC';
     const categoryIndicator = (category === 'DSE' || category === 'OFE') ? 'E' : 'C';
-
-    // Char 5: Semester digit
     const semDigit = formData.semester || 1;
 
-    // Chars 6-7: Sequential increasing order
     const baseCode = `${branchPrefix}${typeIndicator}${categoryIndicator}${semDigit}`;
     let sequence = 1;
     let finalCode = `${baseCode}${String(sequence).padStart(2, '0')}`;
@@ -118,7 +110,7 @@ export function SyllabusDialog({
     while (existingCodes.includes(finalCode)) {
       sequence++;
       finalCode = `${baseCode}${String(sequence).padStart(2, '0')}`;
-      if (sequence > 99) break; // Safety break
+      if (sequence > 99) break;
     }
 
     return finalCode;
@@ -137,7 +129,6 @@ export function SyllabusDialog({
         youtubeLinks: syllabus.youtubeLinks || [],
       }));
 
-      // Pre-fill subject code for new subjects
       if (!syllabus.id && !syllabus.subjectCode) {
         setFormData(prev => ({
           ...prev,
@@ -320,7 +311,7 @@ export function SyllabusDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[95vh] flex flex-col p-0 overflow-hidden shadow-2xl border-none">
-        <DialogHeader className="p-6 border-b shrink-0 bg-background">
+        <DialogHeader className="p-6 border-b shrink-0 bg-background z-10">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <DialogTitle className="font-headline text-2xl flex items-center gap-2">
@@ -339,8 +330,8 @@ export function SyllabusDialog({
           </div>
         </DialogHeader>
         
-        <ScrollArea className="flex-1">
-          <div className="p-6 space-y-8">
+        <ScrollArea className="flex-1 w-full">
+          <div className="p-6 space-y-8 pb-12">
             {apiKeyError && (
               <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2">
                 <div className="flex items-center gap-3 text-red-800 text-sm">
@@ -367,14 +358,14 @@ export function SyllabusDialog({
             )}
 
             <Tabs defaultValue="basic" className="w-full">
-              <TabsList className="grid w-full grid-cols-4 mb-8">
+              <TabsList className="grid w-full grid-cols-4 mb-8 shrink-0">
                 <TabsTrigger value="basic">Basic Info</TabsTrigger>
                 <TabsTrigger value="syllabus">Units & COs</TabsTrigger>
                 <TabsTrigger value="resources">Resources</TabsTrigger>
                 <TabsTrigger value="mapping">CO-PO Matrix</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="basic" className="space-y-8">
+              <TabsContent value="basic" className="space-y-8 outline-none">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold flex items-center justify-between">
@@ -463,7 +454,7 @@ export function SyllabusDialog({
                 </div>
               </TabsContent>
 
-              <TabsContent value="syllabus" className="space-y-6">
+              <TabsContent value="syllabus" className="space-y-6 outline-none">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 bg-primary/5 rounded-xl border border-primary/10">
                   <div className="space-y-1">
                     <h3 className="font-headline font-bold text-primary">Unit Configuration</h3>
@@ -527,7 +518,7 @@ export function SyllabusDialog({
                 </div>
               </TabsContent>
 
-              <TabsContent value="resources" className="space-y-8">
+              <TabsContent value="resources" className="space-y-8 outline-none">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-6">
                     <div className="space-y-4">
@@ -579,7 +570,7 @@ export function SyllabusDialog({
                 </div>
               </TabsContent>
 
-              <TabsContent value="mapping" className="space-y-6">
+              <TabsContent value="mapping" className="space-y-6 outline-none">
                 <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-3 text-amber-800 text-sm">
                   <div className="flex gap-3">
                     <Info className="w-5 h-5 shrink-0" />
@@ -659,7 +650,7 @@ export function SyllabusDialog({
           </div>
         </ScrollArea>
 
-        <DialogFooter className="p-6 bg-muted/20 border-t z-20">
+        <DialogFooter className="p-6 bg-muted/20 border-t shrink-0 z-10">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="px-6 h-11">Cancel</Button>
           <Button onClick={() => { onSave(formData); onOpenChange(false); }} className="px-8 h-11 shadow-lg">Save Subject Configuration</Button>
         </DialogFooter>
