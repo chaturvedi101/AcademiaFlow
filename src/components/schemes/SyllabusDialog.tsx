@@ -310,7 +310,7 @@ export function SyllabusDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[95vh] flex flex-col p-0 overflow-hidden shadow-2xl border-none">
+      <DialogContent className="max-w-6xl h-[95vh] flex flex-col p-0 overflow-hidden shadow-2xl border-none min-h-0">
         <DialogHeader className="p-6 border-b shrink-0 bg-background z-10">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
@@ -330,7 +330,7 @@ export function SyllabusDialog({
           </div>
         </DialogHeader>
         
-        <ScrollArea className="flex-1 w-full">
+        <ScrollArea className="flex-1 w-full min-h-0">
           <div className="p-6 space-y-8 pb-12">
             {apiKeyError && (
               <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2">
@@ -365,7 +365,7 @@ export function SyllabusDialog({
                 <TabsTrigger value="mapping">CO-PO Matrix</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="basic" className="space-y-8 outline-none">
+              <TabsContent value="basic" className="space-y-8 outline-none focus-visible:ring-0">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold flex items-center justify-between">
@@ -454,7 +454,7 @@ export function SyllabusDialog({
                 </div>
               </TabsContent>
 
-              <TabsContent value="syllabus" className="space-y-6 outline-none">
+              <TabsContent value="syllabus" className="space-y-6 outline-none focus-visible:ring-0">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 bg-primary/5 rounded-xl border border-primary/10">
                   <div className="space-y-1">
                     <h3 className="font-headline font-bold text-primary">Unit Configuration</h3>
@@ -518,7 +518,7 @@ export function SyllabusDialog({
                 </div>
               </TabsContent>
 
-              <TabsContent value="resources" className="space-y-8 outline-none">
+              <TabsContent value="resources" className="space-y-8 outline-none focus-visible:ring-0">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-6">
                     <div className="space-y-4">
@@ -570,7 +570,7 @@ export function SyllabusDialog({
                 </div>
               </TabsContent>
 
-              <TabsContent value="mapping" className="space-y-6 outline-none">
+              <TabsContent value="mapping" className="space-y-6 outline-none focus-visible:ring-0">
                 <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-3 text-amber-800 text-sm">
                   <div className="flex gap-3">
                     <Info className="w-5 h-5 shrink-0" />
