@@ -31,13 +31,22 @@ export async function listAvailableModels() {
     console.error('AI Diagnostics Failed:', error);
     
     let userMessage = error.message || 'Unknown error during AI diagnostics.';
-    if (userMessage.includes('429') || userMessage.includes('RESOURCE_EXHAUSTED')) {
-      userMessage = "Quota Exceeded (429): Please wait a minute before retrying.";
+    let quotaError = false;
+
+    if (
+      userMessage.includes('429') || 
+      userMessage.includes('RESOURCE_EXHAUSTED') || 
+      userMessage.toLowerCase().includes('quota') ||
+      userMessage.toLowerCase().includes('rate limit')
+    ) {
+      userMessage = "Quota Exceeded (429): You have reached the request limit for the Gemini free tier. Please wait at least 60 seconds before retrying.";
+      quotaError = true;
     }
 
     return {
       success: false,
       error: userMessage,
+      isQuotaError: quotaError,
       details: error.stack
     };
   }

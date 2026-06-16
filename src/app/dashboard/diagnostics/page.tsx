@@ -6,16 +6,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, RefreshCw, Cpu, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Loader2, RefreshCw, Cpu, AlertCircle, CheckCircle2, ExternalLink, Clock } from 'lucide-react';
 
 export default function DiagnosticsPage() {
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<{ success: boolean; models?: any[]; error?: string } | null>(null);
+  const [data, setData] = useState<{ success: boolean; models?: any[]; error?: string; isQuotaError?: boolean } | null>(null);
 
   const fetchModels = async () => {
     setLoading(true);
     const result = await listAvailableModels();
-    setData(result);
+    setData(result as any);
     setLoading(false);
   };
 
@@ -32,19 +32,19 @@ export default function DiagnosticsPage() {
         </div>
         <Button onClick={fetchModels} disabled={loading} className="gap-2">
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-          Refresh Models
+          Refresh Health Check
         </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="md:col-span-1 h-fit">
           <CardHeader>
-            <CardTitle className="text-lg">Connection Status</CardTitle>
-            <CardDescription>System health check</CardDescription>
+            <CardTitle className="text-lg">System Health</CardTitle>
+            <CardDescription>Connectivity & API Status</CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="flex items-center gap-2 text-muted-foreground">
+              <div className="flex items-center gap-2 text-muted-foreground py-4">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 <span>Pinging Google AI Studio...</span>
               </div>
@@ -52,24 +52,32 @@ export default function DiagnosticsPage() {
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-emerald-600">
                   <CheckCircle2 className="w-5 h-5" />
-                  <span className="font-bold">Connected</span>
+                  <span className="font-bold">API Operational</span>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Your API key is valid and the Genkit provider is initialized correctly.
-                </p>
+                <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-lg text-xs text-emerald-800">
+                  Successfully connected to Gemini models. Structured generation is ready.
+                </div>
               </div>
             ) : (
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-red-600">
                   <AlertCircle className="w-5 h-5" />
-                  <span className="font-bold">Error</span>
+                  <span className="font-bold">{data?.isQuotaError ? "Quota Reached" : "Connection Error"}</span>
                 </div>
-                <div className="p-3 bg-red-50 border border-red-100 rounded-lg text-xs text-red-800 font-mono">
+                <div className={`p-3 border rounded-lg text-xs font-mono ${data?.isQuotaError ? 'bg-amber-50 border-amber-100 text-amber-800' : 'bg-red-50 border-red-100 text-red-800'}`}>
                   {data?.error || "Unknown initialization error"}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Check your .env file and ensure GOOGLE_GENAI_API_KEY is correct.
-                </p>
+                {data?.isQuotaError && (
+                  <div className="flex items-start gap-2 p-3 bg-amber-100/50 rounded-lg text-[10px] text-amber-900">
+                    <Clock className="w-3 h-3 mt-0.5 shrink-0" />
+                    <p>The free tier allows 15 requests per minute. Please wait 60 seconds and refresh.</p>
+                  </div>
+                )}
+                <Button variant="outline" size="sm" className="w-full gap-2 text-[10px]" asChild>
+                  <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="w-3 h-3" /> Check Google AI Studio
+                  </a>
+                </Button>
               </div>
             )}
           </CardContent>
@@ -77,8 +85,8 @@ export default function DiagnosticsPage() {
 
         <Card className="md:col-span-2">
           <CardHeader>
-            <CardTitle className="text-lg">Available Models</CardTitle>
-            <CardDescription>Models reported by the Google AI plugin</CardDescription>
+            <CardTitle className="text-lg">Model Registry</CardTitle>
+            <CardDescription>Models active in the current session</CardDescription>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[400px] pr-4">
@@ -89,18 +97,18 @@ export default function DiagnosticsPage() {
                       <Cpu className="w-4 h-4 text-primary" />
                       <div>
                         <p className="text-sm font-mono font-bold">{model.name}</p>
-                        <p className="text-[10px] text-muted-foreground">Supported: {model.info?.supports?.join(', ') || 'N/A'}</p>
+                        <p className="text-[10px] text-muted-foreground">Capabilities: {model.info?.supports?.join(', ') || 'text'}</p>
                       </div>
                     </div>
-                    <Badge variant="secondary" className="text-[10px]">
-                      {model.name.includes('flash') ? 'Fast' : 'Stable'}
+                    <Badge variant="secondary" className="text-[10px] bg-primary/5 text-primary border-none">
+                      {model.name.includes('flash') ? 'Performance' : 'Reasoning'}
                     </Badge>
                   </div>
                 ))}
-                {!loading && (!data?.models || data.models.length === 0) && (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <Cpu className="w-12 h-12 mx-auto mb-4 opacity-10" />
-                    <p>No models returned from API.</p>
+                {!loading && (!data?.models || data.models.length === 0) && !data?.success && (
+                  <div className="text-center py-12 text-muted-foreground bg-muted/20 rounded-xl border border-dashed">
+                    <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                    <p className="text-sm">Models unavailable due to connection failure.</p>
                   </div>
                 )}
               </div>

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -183,18 +182,22 @@ export function SyllabusDialog({
     } catch (error: any) {
       const errorMessage = error.message || '';
       const isAuthError = errorMessage.includes('API_KEY') || errorMessage.includes('401') || errorMessage.includes('expired');
-      const isQuotaError = errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('quota');
+      const isQuotaError = 
+        errorMessage.includes('429') || 
+        errorMessage.includes('RESOURCE_EXHAUSTED') || 
+        errorMessage.toLowerCase().includes('quota') ||
+        errorMessage.toLowerCase().includes('rate limit');
 
       if (isAuthError) setApiKeyError(true);
       if (isQuotaError) {
-        setQuotaError("You have reached the API rate limit. Please wait at least 60 seconds before trying again.");
+        setQuotaError("You have reached the request limit for the Gemini free tier. Please wait at least 60 seconds before retrying.");
       }
       
       toast({ 
         title: isAuthError ? "API Key Issue" : (isQuotaError ? "Quota Limit Reached" : "Generation Failed"), 
         description: isAuthError 
           ? "Your Google AI API key is missing or invalid." 
-          : (isQuotaError ? "AI Services are currently throttling requests. Please wait." : "Could not reach AI services."), 
+          : (isQuotaError ? "AI Services are rate-limiting your requests. Please wait." : "Could not reach AI services."), 
         variant: "destructive" 
       });
     } finally {
@@ -224,15 +227,19 @@ export function SyllabusDialog({
       toast({ title: "Mapping Suggested", description: "AI has filled the correlation matrix based on CO statements." });
     } catch (error: any) {
       const errorMessage = error.message || '';
-      const isQuotaError = errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('quota');
+      const isQuotaError = 
+        errorMessage.includes('429') || 
+        errorMessage.includes('RESOURCE_EXHAUSTED') || 
+        errorMessage.toLowerCase().includes('quota') ||
+        errorMessage.toLowerCase().includes('rate limit');
       
       if (isQuotaError) {
-        setQuotaError("Rate limit exceeded for mapping suggestions. The free tier allows limited requests per minute. Please wait.");
+        setQuotaError("Rate limit exceeded for mapping suggestions. The free tier allows limited requests per minute. Please wait 60 seconds.");
       }
       
       toast({ 
         title: isQuotaError ? "Quota Limit Reached" : "Mapping Failed", 
-        description: isQuotaError ? "Please wait a minute before retrying." : "Could not generate suggestions.", 
+        description: isQuotaError ? "Please check your quota limits and wait a minute." : "Could not generate suggestions.", 
         variant: "destructive" 
       });
     } finally {
@@ -363,12 +370,17 @@ export function SyllabusDialog({
                   <div className="text-amber-800 text-sm">
                     <p className="font-bold">AI Quota Limit Reached</p>
                     <p className="text-xs">{quotaError}</p>
-                    <p className="text-[10px] mt-1 opacity-75 italic">Tip: The free tier of Gemini has per-minute request limits.</p>
+                    <p className="text-[10px] mt-1 opacity-75 italic">Tip: The free tier of Gemini has per-minute request limits. Check your quota in AI Studio.</p>
                   </div>
                 </div>
-                <Button variant="outline" size="sm" className="bg-white text-amber-600 border-amber-200 hover:bg-amber-50 gap-2 shrink-0" onClick={() => setQuotaError(null)}>
-                  <RefreshCw className="w-3 h-3" /> Dismiss
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="bg-white text-amber-600 border-amber-200 hover:bg-amber-50 gap-2 shrink-0" onClick={() => setQuotaError(null)}>
+                    Dismiss
+                  </Button>
+                  <Button variant="outline" size="sm" className="bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200 gap-1 text-[10px]" asChild>
+                    <a href="/dashboard/diagnostics">Check Health</a>
+                  </Button>
+                </div>
               </div>
             )}
 
