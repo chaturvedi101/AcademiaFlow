@@ -4,12 +4,13 @@
  */
 
 import { ai } from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 
 export async function listAvailableModels() {
   try {
-    // Verify connection via Gemini 2.5 Flash
+    // Verify connection via Gemini Flash
     const ping = await ai.generate({
-      model: 'googleai/gemini-2.5-flash',
+      model: googleAI.model('gemini-1.5-flash'),
       prompt: 'Verify connection. Reply with "OK".',
       config: { maxOutputTokens: 5 }
     });
@@ -22,8 +23,8 @@ export async function listAvailableModels() {
       success: true,
       models: modelActions.length > 0 
         ? modelActions.map(m => ({ name: m.key, info: { supports: ['text'] } }))
-        : [{ name: 'googleai/gemini-2.5-flash', info: { supports: ['text'] } }],
-      note: 'Connectivity verified via Gemini 2.5 Flash (v1beta).',
+        : [{ name: 'googleai/gemini-1.5-flash', info: { supports: ['text'] } }],
+      note: 'Connectivity verified via Gemini Flash.',
       response: ping.text
     };
   } catch (error: any) {

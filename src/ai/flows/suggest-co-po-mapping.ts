@@ -5,6 +5,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 
 const MappingInputSchema = z.object({
   subjectTitle: z.string(),
@@ -23,7 +24,7 @@ export type SuggestMappingOutput = z.infer<typeof MappingOutputSchema>;
 
 const mappingPrompt = ai.definePrompt({
   name: 'suggestMappingPrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: googleAI.model('gemini-1.5-flash'),
   input: { schema: MappingInputSchema },
   output: { schema: MappingOutputSchema },
   prompt: `As an academic auditor, suggest the correlation matrix between Course Outcomes (COs) and Program Outcomes (POs) for the course "{{{subjectTitle}}}".

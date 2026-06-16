@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Flow to generate full syllabus content including units, outcomes, and resource recommendations.
@@ -6,6 +5,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 
 const SyllabusInputSchema = z.object({
   title: z.string().describe('The title of the subject'),
@@ -32,7 +32,7 @@ export type GenerateSyllabusOutput = z.infer<typeof SyllabusOutputSchema>;
 
 const syllabusPrompt = ai.definePrompt({
   name: 'generateSyllabusPrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: googleAI.model('gemini-1.5-flash'),
   input: { schema: SyllabusInputSchema },
   output: { schema: SyllabusOutputSchema },
   config: {
