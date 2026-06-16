@@ -14,7 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Calculator, Info, Plus, Trash2, Sparkles, Loader2, Wand2, AlertCircle, Clock, Book, BookOpen, ExternalLink, Video, FileDown, Hash } from "lucide-react";
+import { Calculator, Info, Plus, Trash2, Sparkles, Loader2, Wand2, AlertCircle, Clock, Book, BookOpen, ExternalLink, Video, FileDown, Hash, RefreshCw } from "lucide-react";
 import { Syllabus, CorrelationLevel, SyllabusUnit } from "@/lib/types";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { suggestCOPOMapping } from "@/ai/flows/suggest-co-po-mapping";
@@ -186,13 +186,15 @@ export function SyllabusDialog({
       const isQuotaError = errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('quota');
 
       if (isAuthError) setApiKeyError(true);
-      if (isQuotaError) setQuotaError("API rate limit exceeded. Please wait a minute before retrying.");
+      if (isQuotaError) {
+        setQuotaError("You have reached the API rate limit. Please wait at least 60 seconds before trying again.");
+      }
       
       toast({ 
-        title: isAuthError ? "API Key Issue" : (isQuotaError ? "Quota Exceeded" : "Generation Failed"), 
+        title: isAuthError ? "API Key Issue" : (isQuotaError ? "Quota Limit Reached" : "Generation Failed"), 
         description: isAuthError 
           ? "Your Google AI API key is missing or invalid." 
-          : (isQuotaError ? "You've sent too many requests. Please wait." : "Could not reach AI services."), 
+          : (isQuotaError ? "AI Services are currently throttling requests. Please wait." : "Could not reach AI services."), 
         variant: "destructive" 
       });
     } finally {
@@ -222,10 +224,17 @@ export function SyllabusDialog({
       toast({ title: "Mapping Suggested", description: "AI has filled the correlation matrix based on CO statements." });
     } catch (error: any) {
       const errorMessage = error.message || '';
-      if (errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
-        setQuotaError("Rate limit exceeded for mapping suggestions. Please wait.");
+      const isQuotaError = errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('quota');
+      
+      if (isQuotaError) {
+        setQuotaError("Rate limit exceeded for mapping suggestions. The free tier allows limited requests per minute. Please wait.");
       }
-      toast({ title: "Mapping Failed", description: "Could not generate suggestions. Check your quota.", variant: "destructive" });
+      
+      toast({ 
+        title: isQuotaError ? "Quota Limit Reached" : "Mapping Failed", 
+        description: isQuotaError ? "Please wait a minute before retrying." : "Could not generate suggestions.", 
+        variant: "destructive" 
+      });
     } finally {
       setIsMapping(false);
     }
@@ -348,12 +357,18 @@ export function SyllabusDialog({
             )}
 
             {quotaError && (
-              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
-                <Clock className="w-5 h-5 text-amber-600 shrink-0" />
-                <div className="text-amber-800 text-sm">
-                  <p className="font-bold">Rate Limit Exceeded</p>
-                  <p className="text-xs">{quotaError}</p>
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
+                <div className="flex items-start gap-3">
+                  <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="text-amber-800 text-sm">
+                    <p className="font-bold">AI Quota Limit Reached</p>
+                    <p className="text-xs">{quotaError}</p>
+                    <p className="text-[10px] mt-1 opacity-75 italic">Tip: The free tier of Gemini has per-minute request limits.</p>
+                  </div>
                 </div>
+                <Button variant="outline" size="sm" className="bg-white text-amber-600 border-amber-200 hover:bg-amber-50 gap-2 shrink-0" onClick={() => setQuotaError(null)}>
+                  <RefreshCw className="w-3 h-3" /> Dismiss
+                </Button>
               </div>
             )}
 
