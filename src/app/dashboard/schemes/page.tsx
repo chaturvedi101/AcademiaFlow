@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useFirestore, useCollection, useUser, useMemoFirebase, useDoc } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, addDoc, serverTimestamp, query, orderBy, doc } from 'firebase/firestore';
 import { Scheme, Program, UserProfile } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, BookOpen, Loader2, Calendar, FileText, ArrowRight } from 'lucide-react';
+import { Plus, BookOpen, Loader2, Calendar, FileText, ArrowRight, ShieldCheck } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -44,6 +44,8 @@ export default function SchemesPage() {
     version: 'v1.0'
   });
 
+  const isCommonBos = profile?.faculty === 'University-wide (Common BOS)';
+
   const filteredSchemes = useMemo(() => {
     if (!profile) return [];
     
@@ -51,7 +53,7 @@ export default function SchemesPage() {
     if (
       profile.role === 'admin' || 
       profile.role === 'dean_academics' || 
-      profile.faculty === 'University-wide (Common BOS)'
+      isCommonBos
     ) {
       return schemes;
     }
@@ -68,16 +70,16 @@ export default function SchemesPage() {
     return schemes.filter(s => 
       managed.some(m => m.programId === s.programId && m.branch === s.branch)
     );
-  }, [schemes, profile, programs]);
+  }, [schemes, profile, programs, isCommonBos]);
 
   const availablePrograms = useMemo(() => {
     if (!profile) return [];
     
-    // Admins, Dean Academics, and Common BOS can see all programs for selection
+    // Common BOS, Admins, Dean Academics see all
     if (
       profile.role === 'admin' || 
       profile.role === 'dean_academics' || 
-      profile.faculty === 'University-wide (Common BOS)'
+      isCommonBos
     ) {
       return programs;
     }
@@ -89,18 +91,13 @@ export default function SchemesPage() {
 
     const managedProgramIds = new Set(profile.managedBranches?.map(b => b.programId) || []);
     return programs.filter(p => managedProgramIds.has(p.id));
-  }, [programs, profile]);
+  }, [programs, profile, isCommonBos]);
 
   const selectedProgram = programs.find(p => p.id === newScheme.programId);
 
   const handleCreateScheme = () => {
     if (!newScheme.programId || !newScheme.batchYear) {
       toast({ title: "Validation Error", description: "Program and Batch are required.", variant: "destructive" });
-      return;
-    }
-
-    if (selectedProgram?.branches?.length && !newScheme.branch) {
-      toast({ title: "Validation Error", description: "Please select a branch for this program.", variant: "destructive" });
       return;
     }
 
@@ -113,6 +110,7 @@ export default function SchemesPage() {
       exitOptions: [],
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
+      isCommonPoolScheme: isCommonBos, // Flag for schemes created by Common BOS
     };
 
     addDoc(collection(db, 'schemes'), schemeData)
@@ -138,16 +136,23 @@ export default function SchemesPage() {
     );
   }
 
+  // Common BOS can create schemes
+  const canCreateScheme = profile?.role === 'admin' || profile?.role === 'bos_convenor' || profile?.role === 'dean_faculty';
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <h1 className="text-3xl font-headline font-bold">Academic Schemes</h1>
-          <p className="text-muted-foreground">Draft, build, and manage university academic layouts.</p>
+          <p className="text-muted-foreground">
+            {isCommonBos 
+              ? 'Developing common course schemes (VAC, AEC, SEC, MDC) across university programs.'
+              : 'Draft, build, and manage university academic layouts.'}
+          </p>
         </div>
-        {profile?.role === 'admin' && (
+        {canCreateScheme && (
           <Button onClick={() => setIsDialogOpen(true)} className="gap-2 shadow-lg">
-            <Plus className="w-4 h-4" /> New Scheme
+            <Plus className="w-4 h-4" /> {isCommonBos ? 'Define Common Scheme' : 'New Scheme'}
           </Button>
         )}
       </div>
@@ -156,7 +161,12 @@ export default function SchemesPage() {
         {filteredSchemes.map((scheme) => {
           const program = programs.find(p => p.id === scheme.programId);
           return (
-            <Card key={scheme.id} className="hover:shadow-md transition-shadow group">
+            <Card key={scheme.id} className="hover:shadow-md transition-shadow group relative overflow-hidden">
+              {(scheme as any).isCommonPoolScheme && (
+                <div className="absolute top-0 right-0 p-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" title="Common BOS Defined" />
+                </div>
+              )}
               <CardHeader className="pb-4">
                 <div className="flex justify-between items-start mb-2">
                   <Badge variant="outline" className="bg-primary/5 text-primary border-none text-[10px]">
@@ -199,8 +209,12 @@ export default function SchemesPage() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create New Academic Scheme</DialogTitle>
-            <DialogDescription>Select the program, branch, and batch to initialize.</DialogDescription>
+            <DialogTitle>{isCommonBos ? 'Define Common Pool Scheme' : 'Create New Academic Scheme'}</DialogTitle>
+            <DialogDescription>
+              {isCommonBos 
+                ? 'Create a scheme dedicated to common courses (VAC, AEC, SEC, MDC) for a specific program.'
+                : 'Select the program, branch, and batch to initialize.'}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -225,7 +239,7 @@ export default function SchemesPage() {
                     <SelectValue placeholder="Select branch..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {(profile?.role === 'bos_convenor' && profile?.faculty !== 'University-wide (Common BOS)'
+                    {(profile?.role === 'bos_convenor' && !isCommonBos
                       ? selectedProgram.branches.filter(b => 
                           profile.managedBranches?.some(m => m.programId === selectedProgram.id && m.branch === b)
                         )

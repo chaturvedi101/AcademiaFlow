@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit3, Trash2, GraduationCap, Loader2, Calendar } from 'lucide-react';
+import { Plus, Edit3, Trash2, GraduationCap, Loader2, Calendar, Eye } from 'lucide-react';
 import { ProgramDialog } from '@/components/programs/ProgramDialog';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -28,13 +28,15 @@ export default function ProgramsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState<Program | undefined>(undefined);
 
+  const isCommonBos = profile?.faculty === 'University-wide (Common BOS)';
+
   const filteredPrograms = useMemo(() => {
     if (!profile) return [];
-    // Admins, Dean Academics, and University-wide Common BOS can see all programs
+    // Admins, Dean Academics, and University-wide Common BOS see all programs
     if (
       profile.role === 'admin' || 
       profile.role === 'dean_academics' || 
-      profile.faculty === 'University-wide (Common BOS)'
+      isCommonBos
     ) {
       return programs;
     }
@@ -43,7 +45,7 @@ export default function ProgramsPage() {
       return programs.filter(p => p.faculty === profile.faculty);
     }
     return [];
-  }, [programs, profile]);
+  }, [programs, profile, isCommonBos]);
 
   const handleDelete = (id: string) => {
     const programRef = doc(db, 'programs', id);
@@ -65,7 +67,8 @@ export default function ProgramsPage() {
     );
   }
 
-  const canCreateProgram = profile?.role === 'admin' || profile?.role === 'dean_faculty';
+  // Common BOS cannot create programs
+  const canCreateProgram = (profile?.role === 'admin' || profile?.role === 'dean_faculty') && !isCommonBos;
 
   return (
     <div className="space-y-6">
@@ -73,8 +76,8 @@ export default function ProgramsPage() {
         <div className="space-y-1">
           <h1 className="text-3xl font-headline font-bold">Program Catalog</h1>
           <p className="text-muted-foreground">
-            {profile?.faculty === 'University-wide (Common BOS)' 
-              ? 'Viewing all university programs for common course management.'
+            {isCommonBos 
+              ? 'Viewing all university programs to coordinate common course delivery.'
               : profile?.role === 'dean_faculty' 
                 ? `Manage programs for ${profile.faculty}.` 
                 : 'Manage university-wide academic programs and NEP 2020 frameworks.'}
@@ -91,8 +94,8 @@ export default function ProgramsPage() {
         <CardHeader>
           <CardTitle>Academic Programs</CardTitle>
           <CardDescription>
-            {profile?.faculty === 'University-wide (Common BOS)'
-              ? 'Comprehensive list of programs for assigning VAC, AEC, SEC, and MDC courses.'
+            {isCommonBos
+              ? 'Institutional catalog for planning VAC, AEC, SEC, and MDC course sequences.'
               : profile?.role === 'dean_faculty' 
                 ? `Programs offered under the ${profile.faculty}.` 
                 : 'Defined programs available for scheme creation.'}
@@ -107,7 +110,6 @@ export default function ProgramsPage() {
                 <TableHead>Faculty</TableHead>
                 <TableHead>Level</TableHead>
                 <TableHead>Semesters</TableHead>
-                <TableHead>Required Credits</TableHead>
                 <TableHead className="text-right pr-6">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -128,13 +130,12 @@ export default function ProgramsPage() {
                       <span>{program.totalSemesters || 'N/A'}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="font-bold">{program.rules?.totalRequired || 'Not set'}</TableCell>
                   <TableCell className="text-right pr-6">
                     <div className="flex justify-end gap-2">
                       <Button variant="ghost" size="icon" onClick={() => { setSelectedProgram(program); setIsDialogOpen(true); }}>
-                        <Edit3 className="w-4 h-4" />
+                        {isCommonBos ? <Eye className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
                       </Button>
-                      {profile?.role === 'admin' && (
+                      {(profile?.role === 'admin' && !isCommonBos) && (
                         <Button variant="ghost" size="icon" className="text-red-400" onClick={() => handleDelete(program.id)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -145,7 +146,7 @@ export default function ProgramsPage() {
               ))}
               {filteredPrograms.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
                     <GraduationCap className="w-12 h-12 mx-auto mb-4 opacity-10" />
                     <p>No programs found.</p>
                   </TableCell>

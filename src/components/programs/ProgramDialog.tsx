@@ -14,7 +14,7 @@ import { Program, CreditRules, FACULTIES, UserProfile } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, ShieldAlert } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface ProgramDialogProps {
@@ -43,6 +43,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
   const [newPrefix, setNewPrefix] = useState('');
   
   const initialFaculty = userProfile?.role === 'dean_faculty' ? userProfile.faculty : FACULTIES[0];
+  const isCommonBos = userProfile?.faculty === 'University-wide (Common BOS)';
 
   const [formData, setFormData] = useState<Partial<Program>>({
     name: '',
@@ -79,6 +80,8 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
   }, [program, open, initialFaculty]);
 
   const handleSave = () => {
+    if (isCommonBos) return;
+
     if (!formData.code || !formData.faculty) {
       toast({ title: "Validation Error", description: "Program code and Faculty are required.", variant: "destructive" });
       return;
@@ -110,6 +113,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
   };
 
   const updateRule = (key: keyof CreditRules, value: string) => {
+    if (isCommonBos) return;
     const numValue = parseInt(value) || 0;
     setFormData(prev => ({
       ...prev,
@@ -121,7 +125,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
   };
 
   const addBranch = () => {
-    if (!newBranch.trim()) return;
+    if (isCommonBos || !newBranch.trim()) return;
     if (formData.branches?.includes(newBranch.trim())) return;
     
     const branchName = newBranch.trim();
@@ -138,6 +142,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
   };
 
   const removeBranch = (branch: string) => {
+    if (isCommonBos) return;
     const newPrefixes = { ...(formData.branchPrefixes || {}) };
     delete newPrefixes[branch];
     
@@ -148,28 +153,40 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
     }));
   };
 
-  const isFacultyDisabled = userProfile?.role === 'dean_faculty';
+  const isReadOnly = isCommonBos;
+  const isFacultyDisabled = userProfile?.role === 'dean_faculty' || isReadOnly;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl h-[95vh] max-h-[95vh] flex flex-col p-0 overflow-hidden shadow-2xl border-none">
         <DialogHeader className="p-6 border-b shrink-0 bg-background z-20">
-          <DialogTitle className="font-headline text-2xl">
-            {program ? 'Edit Program' : 'New Program Definition'}
+          <DialogTitle className="font-headline text-2xl flex items-center gap-3">
+            {program ? 'Program Details' : 'New Program Definition'}
+            {isReadOnly && <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">View Only</Badge>}
           </DialogTitle>
           <DialogDescription>
-            {isFacultyDisabled 
-              ? `Configuring program for ${userProfile.faculty}.`
-              : 'Configure program details, faculty association, and credit framework.'}
+            {isCommonBos 
+              ? 'Institutional program specifications. Editing is restricted to faculty deans.'
+              : isFacultyDisabled 
+                ? `Configuring program for ${userProfile?.faculty}.`
+                : 'Configure program details, faculty association, and credit framework.'}
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="flex-1 w-full min-h-0 outline-none">
           <div className="p-6 space-y-8 pb-12">
+            {isReadOnly && (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-amber-800 text-sm">
+                <ShieldAlert className="w-5 h-5 shrink-0 text-amber-600" />
+                <p>As a **Common BOS Convenor**, you have read-only access to program definitions for planning purposes.</p>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label className="text-sm font-semibold">Program Name</Label>
                 <Input 
+                  disabled={isReadOnly}
                   placeholder="B.Tech in Engineering" 
                   value={formData.name || ''}
                   onChange={e => setFormData({ ...formData, name: e.target.value })}
@@ -197,6 +214,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
               <div className="space-y-2">
                 <Label className="text-sm font-semibold">Program Code</Label>
                 <Input 
+                  disabled={isReadOnly}
                   placeholder="BTECH" 
                   value={formData.code || ''}
                   onChange={e => setFormData({ ...formData, code: e.target.value })}
@@ -205,7 +223,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
               </div>
               <div className="space-y-2">
                 <Label className="text-sm font-semibold">Academic Level</Label>
-                <Select value={formData.level || 'UG'} onValueChange={(v: any) => setFormData({ ...formData, level: v })}>
+                <Select disabled={isReadOnly} value={formData.level || 'UG'} onValueChange={(v: any) => setFormData({ ...formData, level: v })}>
                   <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="UG">Undergraduate (UG)</SelectItem>
@@ -219,25 +237,27 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
 
             <div className="space-y-4">
               <Label className="text-sm font-semibold">Managed Branches & Prefixes</Label>
-              <div className="flex gap-2 items-end">
-                <div className="grid gap-2 flex-1">
-                  <Input 
-                    placeholder="Branch Name" 
-                    value={newBranch}
-                    onChange={e => setNewBranch(e.target.value)}
-                  />
+              {!isReadOnly && (
+                <div className="flex gap-2 items-end">
+                  <div className="grid gap-2 flex-1">
+                    <Input 
+                      placeholder="Branch Name" 
+                      value={newBranch}
+                      onChange={e => setNewBranch(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2 w-32">
+                    <Input 
+                      placeholder="Prefix" 
+                      value={newPrefix}
+                      onChange={e => setNewPrefix(e.target.value.toUpperCase())}
+                    />
+                  </div>
+                  <Button type="button" onClick={addBranch} variant="secondary">
+                    <Plus className="w-4 h-4 mr-2" /> Add
+                  </Button>
                 </div>
-                <div className="grid gap-2 w-32">
-                  <Input 
-                    placeholder="Prefix" 
-                    value={newPrefix}
-                    onChange={e => setNewPrefix(e.target.value.toUpperCase())}
-                  />
-                </div>
-                <Button type="button" onClick={addBranch} variant="secondary">
-                  <Plus className="w-4 h-4 mr-2" /> Add
-                </Button>
-              </div>
+              )}
 
               {formData.branches && formData.branches.length > 0 && (
                 <div className="border rounded-lg overflow-hidden">
@@ -246,7 +266,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                       <TableRow>
                         <TableHead>Branch</TableHead>
                         <TableHead className="w-48">Prefix</TableHead>
-                        <TableHead className="w-16"></TableHead>
+                        {!isReadOnly && <TableHead className="w-16"></TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -254,11 +274,13 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                         <TableRow key={branch}>
                           <TableCell>{branch}</TableCell>
                           <TableCell className="font-mono text-xs">{formData.branchPrefixes?.[branch]}</TableCell>
-                          <TableCell>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={() => removeBranch(branch)}>
-                              <X className="w-4 h-4" />
-                            </Button>
-                          </TableCell>
+                          {!isReadOnly && (
+                            <TableCell>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={() => removeBranch(branch)}>
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </TableCell>
+                          )}
                         </TableRow>
                       ))}
                     </TableBody>
@@ -271,6 +293,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
               <div className="space-y-2">
                 <Label className="text-sm font-semibold">Total Semesters</Label>
                 <Input 
+                  disabled={isReadOnly}
                   type="number" 
                   value={formData.totalSemesters ?? ''}
                   onChange={e => setFormData({ ...formData, totalSemesters: parseInt(e.target.value) || 0 })}
@@ -279,6 +302,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
               <div className="space-y-2">
                 <Label className="text-sm font-semibold">Total Credits Required</Label>
                 <Input 
+                  disabled={isReadOnly}
                   type="number" 
                   value={formData.rules?.totalRequired ?? ''} 
                   onChange={e => updateRule('totalRequired', e.target.value)}
@@ -291,27 +315,27 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs">DSC Min</Label>
-                  <Input type="number" value={formData.rules?.dscMin ?? ''} onChange={e => updateRule('dscMin', e.target.value)} />
+                  <Input disabled={isReadOnly} type="number" value={formData.rules?.dscMin ?? ''} onChange={e => updateRule('dscMin', e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs">DSC Max</Label>
-                  <Input type="number" value={formData.rules?.dscMax ?? ''} onChange={e => updateRule('dscMax', e.target.value)} />
+                  <Input disabled={isReadOnly} type="number" value={formData.rules?.dscMax ?? ''} onChange={e => updateRule('dscMax', e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs">DSE Min</Label>
-                  <Input type="number" value={formData.rules?.dseMin ?? ''} onChange={e => updateRule('dseMin', e.target.value)} />
+                  <Input disabled={isReadOnly} type="number" value={formData.rules?.dseMin ?? ''} onChange={e => updateRule('dseMin', e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs">DSE Max</Label>
-                  <Input type="number" value={formData.rules?.dseMax ?? ''} onChange={e => updateRule('dseMax', e.target.value)} />
+                  <Input disabled={isReadOnly} type="number" value={formData.rules?.dseMax ?? ''} onChange={e => updateRule('dseMax', e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs">OFE Min</Label>
-                  <Input type="number" value={formData.rules?.ofeMin ?? ''} onChange={e => updateRule('ofeMin', e.target.value)} />
+                  <Input disabled={isReadOnly} type="number" value={formData.rules?.ofeMin ?? ''} onChange={e => updateRule('ofeMin', e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs">OFE Max</Label>
-                  <Input type="number" value={formData.rules?.ofeMax ?? ''} onChange={e => updateRule('ofeMax', e.target.value)} />
+                  <Input disabled={isReadOnly} type="number" value={formData.rules?.ofeMax ?? ''} onChange={e => updateRule('ofeMax', e.target.value)} />
                 </div>
               </div>
             </div>
@@ -319,6 +343,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
             <div className="space-y-2">
               <Label className="text-sm font-semibold">Program Description</Label>
               <Textarea 
+                disabled={isReadOnly}
                 placeholder="Briefly describe the program objectives..." 
                 value={formData.description || ''}
                 onChange={e => setFormData({ ...formData, description: e.target.value })}
@@ -329,8 +354,10 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
         </ScrollArea>
 
         <DialogFooter className="p-6 bg-muted/20 border-t shrink-0 z-20">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSave}>Save Program</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            {isReadOnly ? 'Close' : 'Cancel'}
+          </Button>
+          {!isReadOnly && <Button onClick={handleSave}>Save Program</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>
