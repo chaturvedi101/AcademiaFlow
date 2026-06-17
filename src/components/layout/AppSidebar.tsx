@@ -35,7 +35,7 @@ import { UserProfile, UserRole } from "@/lib/types";
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['bos_convenor', 'bos_member', 'dean_faculty', 'dean_academics', 'admin'] },
-  { name: 'Programs', href: '/dashboard/programs', icon: GraduationCap, roles: ['dean_faculty', 'dean_academics', 'admin'] },
+  { name: 'Programs', href: '/dashboard/programs', icon: GraduationCap, roles: ['dean_faculty', 'dean_academics', 'admin', 'common_bos'] },
   { name: 'BoS Authorization', href: '/dashboard/users', icon: ShieldCheck, roles: ['dean_academics', 'admin'] },
   { name: 'My BoS Team', href: '/dashboard/team', icon: UserCircle, roles: ['bos_convenor'] },
   { name: 'Schemes', href: '/dashboard/schemes', icon: BookOpen, roles: ['bos_convenor', 'bos_member', 'dean_faculty', 'dean_academics', 'admin'] },
@@ -56,8 +56,15 @@ export function AppSidebar() {
   const { data: profile, loading: profileLoading } = useDoc<UserProfile>(userDocRef);
 
   const role: UserRole = profile?.role || 'bos_convenor';
+  const isCommonBos = profile?.faculty === 'University-wide (Common BOS)';
 
-  const filteredNav = navigation.filter(item => item.roles.includes(role));
+  const filteredNav = navigation.filter(item => {
+    if (isCommonBos && item.name === 'Programs') return true;
+    // Common BOS should not see "My BoS Team" as they manage university-wide pool, not a faculty team
+    if (isCommonBos && item.name === 'My BoS Team') return false;
+    
+    return item.roles.includes(role) || (isCommonBos && item.roles.includes('common_bos'));
+  });
 
   const handleLogout = async () => {
     await auth.signOut();
@@ -66,7 +73,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar variant="inset" collapsible="icon">
-      <SidebarHeader className="p-4 flex flex-row items-center gap-2">
+      <SidebarHeader className="p-4 border-b border-sidebar-border/50 flex flex-row items-center gap-2">
         <div className="bg-accent p-1.5 rounded-lg">
           <ShieldCheck className="text-white w-6 h-6" />
         </div>

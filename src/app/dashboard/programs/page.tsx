@@ -30,7 +30,15 @@ export default function ProgramsPage() {
 
   const filteredPrograms = useMemo(() => {
     if (!profile) return [];
-    if (profile.role === 'admin' || profile.role === 'dean_academics') return programs;
+    // Admins, Dean Academics, and University-wide Common BOS can see all programs
+    if (
+      profile.role === 'admin' || 
+      profile.role === 'dean_academics' || 
+      profile.faculty === 'University-wide (Common BOS)'
+    ) {
+      return programs;
+    }
+    // Dean Faculty can see programs within their faculty
     if (profile.role === 'dean_faculty') {
       return programs.filter(p => p.faculty === profile.faculty);
     }
@@ -57,29 +65,37 @@ export default function ProgramsPage() {
     );
   }
 
+  const canCreateProgram = profile?.role === 'admin' || profile?.role === 'dean_faculty';
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <h1 className="text-3xl font-headline font-bold">Program Catalog</h1>
           <p className="text-muted-foreground">
-            {profile?.role === 'dean_faculty' 
-              ? `Manage programs for ${profile.faculty}.` 
-              : 'Manage university-wide academic programs and NEP 2020 frameworks.'}
+            {profile?.faculty === 'University-wide (Common BOS)' 
+              ? 'Viewing all university programs for common course management.'
+              : profile?.role === 'dean_faculty' 
+                ? `Manage programs for ${profile.faculty}.` 
+                : 'Manage university-wide academic programs and NEP 2020 frameworks.'}
           </p>
         </div>
-        <Button onClick={() => { setSelectedProgram(undefined); setIsDialogOpen(true); }} className="gap-2 shadow-lg">
-          <Plus className="w-4 h-4" /> Add Program
-        </Button>
+        {canCreateProgram && (
+          <Button onClick={() => { setSelectedProgram(undefined); setIsDialogOpen(true); }} className="gap-2 shadow-lg">
+            <Plus className="w-4 h-4" /> Add Program
+          </Button>
+        )}
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Academic Programs</CardTitle>
           <CardDescription>
-            {profile?.role === 'dean_faculty' 
-              ? `Programs offered under the ${profile.faculty}.` 
-              : 'Defined programs available for scheme creation.'}
+            {profile?.faculty === 'University-wide (Common BOS)'
+              ? 'Comprehensive list of programs for assigning VAC, AEC, SEC, and MDC courses.'
+              : profile?.role === 'dean_faculty' 
+                ? `Programs offered under the ${profile.faculty}.` 
+                : 'Defined programs available for scheme creation.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -118,9 +134,11 @@ export default function ProgramsPage() {
                       <Button variant="ghost" size="icon" onClick={() => { setSelectedProgram(program); setIsDialogOpen(true); }}>
                         <Edit3 className="w-4 h-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="text-red-400" onClick={() => handleDelete(program.id)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {profile?.role === 'admin' && (
+                        <Button variant="ghost" size="icon" className="text-red-400" onClick={() => handleDelete(program.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

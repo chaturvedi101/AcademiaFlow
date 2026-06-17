@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo } from 'react';
@@ -23,7 +22,12 @@ export default function DashboardPage() {
   const filteredSchemes = useMemo(() => {
     if (!profile || !programs.length) return [];
     
-    if (profile.role === 'admin' || profile.role === 'dean_academics') {
+    // Admins, Dean Academics, and University-wide Common BOS see everything
+    if (
+      profile.role === 'admin' || 
+      profile.role === 'dean_academics' || 
+      profile.faculty === 'University-wide (Common BOS)'
+    ) {
       return schemes;
     }
 
@@ -46,7 +50,7 @@ export default function DashboardPage() {
       activeSchemes: filteredSchemes.length,
       pendingApproval: filteredSchemes.filter(s => s.status.includes('Pending')).length,
       approved: filteredSchemes.filter(s => s.status === 'Approved').length,
-      programs: profile?.role === 'dean_faculty' 
+      programs: (profile?.role === 'dean_faculty') 
         ? programs.filter(p => p.faculty === profile.faculty).length 
         : programs.length,
     };
@@ -99,7 +103,7 @@ export default function DashboardPage() {
           <CardHeader><CardTitle className="font-headline">Quick Actions</CardTitle></CardHeader>
           <CardContent className="flex flex-col gap-3">
             {profile?.role === 'admin' && <ActionLink href="/dashboard/schemes" label="Draft New Scheme" icon={<Plus className="w-4 h-4" />} />}
-            {profile?.role === 'bos_convenor' && <ActionLink href="/dashboard/team" label="Manage BoS Team" icon={<UserCircle className="w-4 h-4" />} />}
+            {profile?.role === 'bos_convenor' && profile?.faculty !== 'University-wide (Common BOS)' && <ActionLink href="/dashboard/team" label="Manage BoS Team" icon={<UserCircle className="w-4 h-4" />} />}
             {(['bos_convenor', 'admin'].includes(profile?.role || '')) && <ActionLink href="/dashboard/equivalence" label="Map Equivalence" icon={<Layers className="w-4 h-4" />} />}
             {(['dean_faculty', 'dean_academics', 'admin'].includes(profile?.role || '')) && <ActionLink href="/dashboard/approvals" label="Review Pending" icon={<FileCheck className="w-4 h-4" />} />}
           </CardContent>

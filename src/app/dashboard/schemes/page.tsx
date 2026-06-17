@@ -46,20 +46,47 @@ export default function SchemesPage() {
 
   const filteredSchemes = useMemo(() => {
     if (!profile) return [];
-    if (profile.role === 'admin' || profile.role === 'dean_faculty' || profile.role === 'dean_academics') {
+    
+    // Admins, Dean Academics, and Common BOS can see all schemes
+    if (
+      profile.role === 'admin' || 
+      profile.role === 'dean_academics' || 
+      profile.faculty === 'University-wide (Common BOS)'
+    ) {
       return schemes;
     }
+
+    // Dean Faculty see schemes within their faculty
+    if (profile.role === 'dean_faculty') {
+      return schemes.filter(s => {
+        const prog = programs.find(p => p.id === s.programId);
+        return prog?.faculty === profile.faculty;
+      });
+    }
+
     const managed = profile.managedBranches || [];
     return schemes.filter(s => 
       managed.some(m => m.programId === s.programId && m.branch === s.branch)
     );
-  }, [schemes, profile]);
+  }, [schemes, profile, programs]);
 
   const availablePrograms = useMemo(() => {
     if (!profile) return [];
-    if (profile.role === 'admin' || profile.role === 'dean_academics') {
+    
+    // Admins, Dean Academics, and Common BOS can see all programs for selection
+    if (
+      profile.role === 'admin' || 
+      profile.role === 'dean_academics' || 
+      profile.faculty === 'University-wide (Common BOS)'
+    ) {
       return programs;
     }
+
+    // Dean Faculty see their programs
+    if (profile.role === 'dean_faculty') {
+      return programs.filter(p => p.faculty === profile.faculty);
+    }
+
     const managedProgramIds = new Set(profile.managedBranches?.map(b => b.programId) || []);
     return programs.filter(p => managedProgramIds.has(p.id));
   }, [programs, profile]);
@@ -198,7 +225,7 @@ export default function SchemesPage() {
                     <SelectValue placeholder="Select branch..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {(profile?.role === 'bos_convenor' 
+                    {(profile?.role === 'bos_convenor' && profile?.faculty !== 'University-wide (Common BOS)'
                       ? selectedProgram.branches.filter(b => 
                           profile.managedBranches?.some(m => m.programId === selectedProgram.id && m.branch === b)
                         )
