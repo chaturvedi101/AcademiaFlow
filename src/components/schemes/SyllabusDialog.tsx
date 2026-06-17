@@ -20,8 +20,8 @@ import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { suggestCOPOMapping } from "@/ai/flows/suggest-co-po-mapping";
 import { useToast } from "@/hooks/use-toast";
 import { exportSyllabusToPDF } from "@/lib/pdf-export";
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { collectionGroup, query, where, getDocs } from "firebase/firestore";
+import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
+import { collectionGroup, query, where, getDocs, doc } from "firebase/firestore";
 
 const PO_DEFINITIONS = [
   { code: 'PO1', title: 'Engineering Knowledge', desc: 'Apply mathematics, science, and engineering fundamentals.' },
@@ -65,6 +65,10 @@ export function SyllabusDialog({
 }: SyllabusDialogProps) {
   const { toast } = useToast();
   const db = useFirestore();
+  const { user } = useUser();
+  const userDocRef = useMemoFirebase(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
+  const { data: profile } = useDoc<any>(userDocRef);
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [isMapping, setIsMapping] = useState(false);
   const [unitCount, setUnitCount] = useState(5);
@@ -126,7 +130,7 @@ export function SyllabusDialog({
   }, [branchName, formData.lectureCredits, formData.tutorialCredits, formData.semester, formData.creditCategory, existingSyllabi, formData.id]);
 
   useEffect(() => {
-    if (syllabus) {
+    if (syllabus && open) {
       setFormData(prev => ({
         ...prev,
         ...syllabus,
@@ -136,7 +140,7 @@ export function SyllabusDialog({
         referenceBooks: syllabus.referenceBooks || [],
         nptelLinks: syllabus.nptelLinks || [],
         youtubeLinks: syllabus.youtubeLinks || [],
-        isCommonCourse: syllabus.isCommonCourse || false
+        isCommonCourse: syllabus.isCommonCourse || profile?.faculty === 'University-wide (Common BOS)'
       }));
 
       if (!syllabus.id && !syllabus.subjectCode) {
@@ -146,7 +150,7 @@ export function SyllabusDialog({
         }));
       }
     }
-  }, [syllabus, open, generateAutoSubjectCode]);
+  }, [syllabus, open, generateAutoSubjectCode, profile]);
 
   useEffect(() => {
     const l = Number(formData.lectureCredits) || 0;
@@ -166,7 +170,9 @@ export function SyllabusDialog({
       );
       const snap = await getDocs(q);
       const courses = snap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus));
-      setCommonPool(courses);
+      // Remove duplicates by code
+      const uniqueCourses = Array.from(new Map(courses.map(c => [c.subjectCode, c])).values());
+      setCommonPool(uniqueCourses);
     } catch (err) {
       console.error(err);
       toast({ variant: 'destructive', title: 'Pool Error', description: 'Could not fetch common courses.' });
@@ -189,7 +195,8 @@ export function SyllabusDialog({
       tutorialCredits: course.tutorialCredits,
       practicalCredits: course.practicalCredits,
       type: course.type,
-      followedFromId: course.id
+      followedFromId: course.id,
+      isCommonCourse: true
     }));
     setShowCourseBank(false);
     toast({ title: "Common Course Followed", description: `Synchronized with ${course.subjectCode}.` });
@@ -332,7 +339,7 @@ export function SyllabusDialog({
     }));
   };
 
-  const isFollowedCourse = !!formData.followedFromId;
+  const isFollowedCourse = !!formData.followedFromId || (formData as any).isFromCommonPool;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -342,7 +349,7 @@ export function SyllabusDialog({
             <div className="space-y-1">
               <DialogTitle className="font-headline text-2xl flex items-center gap-2">
                 {syllabus?.id ? 'Edit Subject Details' : 'Add New Subject Definition'}
-                {isFollowedCourse && <Badge className="bg-emerald-100 text-emerald-700 border-none">Common Course Followed</Badge>}
+                {isFollowedCourse && <Badge className="bg-emerald-100 text-emerald-700 border-none">Common Course Content</Badge>}
               </DialogTitle>
               <DialogDescription>
                 Configure credits, semester, unit content, and CO-PO mapping matrix.
@@ -463,7 +470,7 @@ export function SyllabusDialog({
                         </SelectContent>
                       </Select>
                       <div className="flex items-center gap-2 p-2 bg-white rounded border border-primary/10">
-                        <Label className="text-xs font-bold flex-1">University Common BOS Course?</Label>
+                        <Label className="text-xs font-bold flex-1">Institutional Common Course?</Label>
                         <Input 
                           type="checkbox" 
                           className="w-4 h-4 accent-primary" 
@@ -493,7 +500,7 @@ export function SyllabusDialog({
                       </Button>
                     </div>
                   )}
-                  {isFollowedCourse && <p className="text-xs font-bold text-emerald-600">Locked to Common Pool Content</p>}
+                  {isFollowedCourse && <p className="text-xs font-bold text-emerald-600">Locked to Institutional Content</p>}
                 </div>
 
                 <div className="space-y-6">

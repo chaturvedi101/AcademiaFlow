@@ -37,14 +37,18 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const syllabiRef = useMemoFirebase(() => collection(db, 'schemes', schemeId, 'syllabi'), [db, schemeId]);
   const { data: localSyllabi, loading: syllabiLoading } = useCollection<Syllabus>(syllabiRef);
 
-  // Fetch Common Pool Scheme for this program
+  // Fetch Institutional Common Pool Scheme for this specific program
   const commonSchemeQuery = useMemoFirebase(() => {
     if (!scheme?.programId) return null;
-    return query(collection(db, 'schemes'), where('programId', '==', scheme.programId), where('isCommonPoolScheme', '==', true));
+    return query(
+      collection(db, 'schemes'), 
+      where('programId', '==', scheme.programId), 
+      where('isCommonPoolScheme', '==', true)
+    );
   }, [db, scheme?.programId]);
 
   const { data: commonPoolSchemes } = useCollection<Scheme>(commonSchemeQuery);
-  const commonSchemeId = commonPoolSchemes?.[0]?.id;
+  const commonSchemeId = commonPoolSchemes && commonPoolSchemes.length > 0 ? commonPoolSchemes[0].id : null;
 
   const commonSyllabiRef = useMemoFirebase(() => {
     if (!commonSchemeId || commonSchemeId === schemeId) return null;
@@ -62,11 +66,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const syllabi = useMemo(() => {
     const combined = [...localSyllabi];
     // Add common syllabi if not already in local (prevent duplicates if user followed them)
-    commonSyllabi.forEach(cs => {
-      if (!combined.some(ls => ls.subjectCode === cs.subjectCode)) {
-        combined.push({ ...cs, isFromCommonPool: true } as any);
-      }
-    });
+    if (commonSyllabi && commonSyllabi.length > 0) {
+      commonSyllabi.forEach(cs => {
+        if (!combined.some(ls => ls.subjectCode === cs.subjectCode)) {
+          combined.push({ ...cs, isFromCommonPool: true } as any);
+        }
+      });
+    }
     return combined.sort((a, b) => (a.semester || 1) - (b.semester || 1));
   }, [localSyllabi, commonSyllabi]);
 
@@ -76,7 +82,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     
     return profile.managedBranches?.some(
       m => m.programId === scheme.programId && m.branch === scheme.branch
-    ) || scheme.isCommonPoolScheme || false;
+    ) || (profile.faculty === 'University-wide (Common BOS)' && scheme.isCommonPoolScheme) || false;
   }, [profile, scheme]);
 
   const canModifySchemeLayout = useMemo(() => {
@@ -88,7 +94,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const creditDistribution = useMemo(() => {
     const dist = { DSC: 0, DSE: 0, OFE: 0, CPF: 0, VAC: 0, AEC: 0, SEC: 0, MDC: 0, total: 0 };
     syllabi.forEach(sub => {
-      dist[sub.creditCategory as keyof typeof dist] = (dist[sub.creditCategory as keyof typeof dist] || 0) + (sub.credits || 0);
+      const cat = sub.creditCategory as keyof typeof dist;
+      if (cat in dist) {
+        dist[cat] = (dist[cat] || 0) + (sub.credits || 0);
+      }
       dist.total += (sub.credits || 0);
     });
     return dist;
@@ -124,13 +133,20 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const sId = data.id || doc(collection(db, 'temp')).id;
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', sId);
     
-    setDoc(docRef, { ...data, id: sId }, { merge: true })
+    // Ensure Common BOS created syllabi are marked as common courses
+    const finalData = {
+      ...data,
+      id: sId,
+      isCommonCourse: profile?.faculty === 'University-wide (Common BOS)' || data.isCommonCourse,
+    };
+
+    setDoc(docRef, finalData, { merge: true })
       .then(() => toast({ title: "Syllabus Saved" }))
       .catch(err => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: docRef.path,
           operation: 'write',
-          requestResourceData: data
+          requestResourceData: finalData
         }));
       });
   };
@@ -211,7 +227,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                     <div className="flex gap-2 items-start text-destructive">
                       <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
                       <p className="text-xs">
-                        Cannot submit: Credit framework requirements not met. Total credits must be exactly {program?.rules?.totalRequired}.
+                        Cannot submit: Credit framework requirements not met. Total credits must be exactly {program?.rules?.totalRequired}. Current: {creditDistribution.total}.
                       </p>
                     </div>
                   </TooltipContent>
@@ -279,13 +295,17 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                           {semSubjects.map(sub => {
                             const isFromCommon = (sub as any).isFromCommonPool;
                             return (
-                              <TableRow key={sub.id} className={`group transition-colors ${isFromCommon ? 'bg-emerald-50/10' : ''}`}>
+                              <TableRow key={sub.id} className={`group transition-colors ${isFromCommon ? 'bg-emerald-50/20' : ''}`}>
                                 <TableCell className="font-mono text-xs font-bold pl-6 text-primary">{sub.subjectCode}</TableCell>
                                 <TableCell className="font-medium">
                                   <div className="flex flex-col">
                                     <span className="flex items-center gap-2">
                                       {sub.title}
-                                      {isFromCommon && <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" title="Institution Defined" />}
+                                      {isFromCommon && (
+                                        <Badge variant="outline" className="bg-emerald-100 text-emerald-700 border-none text-[8px] h-4 py-0">
+                                          INSTITUTIONAL
+                                        </Badge>
+                                      )}
                                     </span>
                                     <span className="text-[10px] text-muted-foreground uppercase">{sub.type}</span>
                                   </div>
