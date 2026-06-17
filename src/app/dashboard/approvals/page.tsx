@@ -1,18 +1,19 @@
+
 'use client';
 
-import { useState, useMemo } from 'react';
-import { useFirestore, useCollection, useDoc, useUser, useMemoFirebase } from '@/firebase';
+import { useFirestore, useDoc, useCollection, useUser, useMemoFirebase } from '@/firebase';
 import { collection, doc, updateDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { Scheme, Program, UserProfile } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { CheckCircle, XCircle, Eye, Loader2, FileCheck, Clock } from 'lucide-react';
+import { CheckCircle, Eye, Loader2, FileCheck, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
+import { useMemo } from 'react';
 
 export default function ApprovalsPage() {
   const db = useFirestore();
@@ -22,7 +23,6 @@ export default function ApprovalsPage() {
   const userDocRef = useMemoFirebase(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
   const { data: profile } = useDoc<UserProfile>(userDocRef);
 
-  // Filter schemes based on role: Faculty Dean sees 'Pending Dean', Academic Dean sees 'Pending Academics'
   const targetStatus = profile?.role === 'dean_faculty' ? 'Pending Dean' : 'Pending Academics';
   
   const schemesQuery = useMemoFirebase(() => {
@@ -30,9 +30,18 @@ export default function ApprovalsPage() {
   }, [db, targetStatus]);
 
   const { data: schemes, loading } = useCollection<Scheme>(schemesQuery);
-  
-  const programsRef = useMemoFirebase(() => collection(db, 'programs'), [db]);
-  const { data: programs } = useCollection<Program>(programsRef);
+  const { data: programs } = useCollection<Program>(useMemoFirebase(() => collection(db, 'programs'), [db]));
+
+  const filteredSchemes = useMemo(() => {
+    if (!profile || !programs.length) return [];
+    if (profile.role === 'dean_academics' || profile.role === 'admin') return schemes;
+    
+    // Dean Faculty only sees schemes from their faculty
+    return schemes.filter(s => {
+      const prog = programs.find(p => p.id === s.programId);
+      return prog?.faculty === profile.faculty;
+    });
+  }, [schemes, profile, programs]);
 
   const handleApprove = (scheme: Scheme) => {
     const nextStatus = profile?.role === 'dean_faculty' ? 'Pending Academics' : 'Approved';
@@ -52,19 +61,17 @@ export default function ApprovalsPage() {
     });
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  if (loading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary w-8 h-8" /></div>;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-headline font-bold">Academic Approvals</h1>
-        <p className="text-muted-foreground">Review and validate schemes submitted by Board of Studies Convenors.</p>
+        <p className="text-muted-foreground">
+          {profile?.role === 'dean_faculty' 
+            ? `Reviewing schemes for ${profile.faculty}.` 
+            : 'Reviewing schemes for university-wide accreditation.'}
+        </p>
       </div>
 
       <Card>
@@ -74,7 +81,7 @@ export default function ApprovalsPage() {
             Pending Your Review
           </CardTitle>
           <CardDescription>
-            Schemes currently awaiting {profile?.role?.replace('_', ' ')} validation.
+            Schemes awaiting {profile?.role?.replace('_', ' ')} validation.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -82,26 +89,24 @@ export default function ApprovalsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="pl-6">Program & Batch</TableHead>
-                <TableHead>Current Status</TableHead>
+                <TableHead>Faculty</TableHead>
                 <TableHead>Version</TableHead>
                 <TableHead className="text-right pr-6">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {schemes.map((scheme) => {
+              {filteredSchemes.map((scheme) => {
                 const program = programs.find(p => p.id === scheme.programId);
                 return (
                   <TableRow key={scheme.id}>
                     <TableCell className="pl-6">
                       <div className="space-y-1">
-                        <p className="font-bold">{program?.name || 'Loading...'}</p>
+                        <p className="font-bold">{program?.name}</p>
                         <p className="text-xs text-muted-foreground">Batch: {scheme.batchYear}</p>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary" className="bg-amber-100 text-amber-700 border-none">
-                        {scheme.status}
-                      </Badge>
+                      <Badge variant="outline" className="text-[10px]">{program?.faculty}</Badge>
                     </TableCell>
                     <TableCell>{scheme.version}</TableCell>
                     <TableCell className="text-right pr-6">
@@ -119,7 +124,7 @@ export default function ApprovalsPage() {
                   </TableRow>
                 );
               })}
-              {schemes.length === 0 && (
+              {filteredSchemes.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center py-12 text-muted-foreground">
                     <FileCheck className="w-12 h-12 mx-auto mb-4 opacity-10" />

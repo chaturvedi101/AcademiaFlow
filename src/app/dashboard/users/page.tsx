@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { UserProfile, Program, ManagedBranch } from '@/lib/types';
+import { UserProfile, Program, FACULTIES, FacultyName } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -31,22 +31,27 @@ export default function UserManagementPage() {
   const { data: users, loading: usersLoading } = useCollection<UserProfile>(usersRef);
   const { data: programs } = useCollection<Program>(programsRef);
   
-  const [assigningUser, setAssigningUser] = useState<string | null>(null);
-  const [selection, setSelection] = useState({ programId: '', branch: '' });
   const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
   const [registerForm, setRegisterForm] = useState({ 
     email: '', 
     displayName: '',
+    role: 'bos_convenor' as UserProfile['role'],
+    faculty: '' as FacultyName | '',
     programId: '',
     branch: ''
   });
   const [isRegistering, setIsRegistering] = useState(false);
 
-  const convenors = users.filter(u => u.role === 'bos_convenor');
+  const academicStaff = users.filter(u => ['bos_convenor', 'dean_faculty'].includes(u.role));
 
-  const handleRegisterConvenor = async () => {
+  const handleRegisterUser = async () => {
     if (!registerForm.email || !registerForm.displayName) {
       toast({ title: "Validation Error", description: "Email and Name are required.", variant: "destructive" });
+      return;
+    }
+
+    if (registerForm.role === 'dean_faculty' && !registerForm.faculty) {
+      toast({ title: "Validation Error", description: "Dean Faculty must be assigned a Faculty.", variant: "destructive" });
       return;
     }
 
@@ -62,82 +67,33 @@ export default function UserManagementPage() {
 
       const userRef = doc(db, 'users', newUid);
       
-      const initialBranches: ManagedBranch[] = [];
-      if (registerForm.programId && registerForm.branch) {
-        initialBranches.push({
-          programId: registerForm.programId,
-          branch: registerForm.branch
-        });
-      }
-
-      const userData = {
+      const userData: Partial<UserProfile> = {
         displayName: registerForm.displayName,
         email: registerForm.email,
-        role: 'bos_convenor',
-        createdAt: serverTimestamp(),
-        managedBranches: initialBranches
+        role: registerForm.role,
+        createdAt: serverTimestamp() as any,
       };
+
+      if (registerForm.role === 'dean_faculty') {
+        userData.faculty = registerForm.faculty as FacultyName;
+      } else if (registerForm.role === 'bos_convenor' && registerForm.programId && registerForm.branch) {
+        userData.managedBranches = [{ programId: registerForm.programId, branch: registerForm.branch }];
+      }
 
       await setDoc(userRef, userData);
       
       toast({ 
-        title: "Convenor Created", 
-        description: `${registerForm.displayName} registered successfully with password 'abcd1234'.` 
+        title: "Account Created", 
+        description: `${registerForm.displayName} registered successfully. Password: abcd1234` 
       });
       setIsRegisterDialogOpen(false);
-      setRegisterForm({ email: '', displayName: '', programId: '', branch: '' });
+      setRegisterForm({ email: '', displayName: '', role: 'bos_convenor', faculty: '', programId: '', branch: '' });
     } catch (error: any) {
-      toast({ 
-        variant: "destructive", 
-        title: "Registration Failed", 
-        description: error.message || "An error occurred while creating the user." 
-      });
+      toast({ variant: "destructive", title: "Registration Failed", description: error.message });
     } finally {
       setIsRegistering(false);
-      if (tempApp) {
-        await deleteApp(tempApp);
-      }
+      if (tempApp) await deleteApp(tempApp);
     }
-  };
-
-  const handleAssign = (userId: string) => {
-    if (!selection.programId || !selection.branch) return;
-
-    const user = users.find(u => u.id === userId);
-    if (!user) return;
-
-    const managedBranches = [...(user.managedBranches || []), { ...selection }];
-    const userRef = doc(db, 'users', userId);
-
-    updateDoc(userRef, { managedBranches })
-      .then(() => {
-        toast({ title: "Convenor Assigned", description: "Authorization updated successfully." });
-        setAssigningUser(null);
-        setSelection({ programId: '', branch: '' });
-      })
-      .catch(err => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: userRef.path,
-          operation: 'update',
-          requestResourceData: { managedBranches }
-        }));
-      });
-  };
-
-  const removeAssignment = (userId: string, programId: string, branch: string) => {
-    const user = users.find(u => u.id === userId);
-    if (!user) return;
-
-    const managedBranches = user.managedBranches?.filter(b => !(b.programId === programId && b.branch === branch));
-    const userRef = doc(db, 'users', userId);
-
-    updateDoc(userRef, { managedBranches })
-      .catch(err => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: userRef.path,
-          operation: 'update'
-        }));
-      });
   };
 
   const selectedRegisterProgram = programs.find(p => p.id === registerForm.programId);
@@ -148,11 +104,11 @@ export default function UserManagementPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-headline font-bold">BoS Convenor Authorization</h1>
-          <p className="text-muted-foreground">Map academic personnel to specific program branches they are authorized to manage.</p>
+          <h1 className="text-3xl font-headline font-bold">Academic Staff Authorization</h1>
+          <p className="text-muted-foreground">Manage Deans and BoS Convenors across university faculties.</p>
         </div>
         <Button onClick={() => setIsRegisterDialogOpen(true)} className="gap-2 shadow-lg">
-          <UserPlus className="w-4 h-4" /> Register New Convenor
+          <UserPlus className="w-4 h-4" /> Register Staff
         </Button>
       </div>
 
@@ -160,21 +116,21 @@ export default function UserManagementPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="w-5 h-5 text-primary" />
-            Active BoS Convenors
+            Academic Personnel
           </CardTitle>
-          <CardDescription>Assign or revoke branch-level permissions for academic staff.</CardDescription>
+          <CardDescription>Review authorizations for faculty leadership and convenors.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="pl-6">Convenor Details</TableHead>
-                <TableHead>Authorized Branches</TableHead>
-                <TableHead className="text-right pr-6">Management</TableHead>
+                <TableHead className="pl-6">Personnel Details</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Jurisdiction</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {convenors.map((user) => (
+              {academicStaff.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell className="pl-6">
                     <div className="space-y-1">
@@ -183,65 +139,27 @@ export default function UserManagementPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex flex-wrap gap-2">
-                      {user.managedBranches?.map((mb, idx) => {
-                        const prog = programs.find(p => p.id === mb.programId);
-                        return (
-                          <Badge key={idx} variant="outline" className="gap-2 bg-primary/5 border-primary/20 text-xs py-1">
-                            <span className="font-bold">{prog?.code || '??'}</span> - {mb.branch}
-                            <button onClick={() => removeAssignment(user.id, mb.programId, mb.branch)}>
-                              <X className="w-3 h-3 hover:text-red-500" />
-                            </button>
-                          </Badge>
-                        );
-                      })}
-                      {(!user.managedBranches || user.managedBranches.length === 0) && (
-                        <span className="text-xs text-muted-foreground italic">No branches assigned</span>
-                      )}
-                    </div>
+                    <Badge variant="secondary" className="uppercase text-[10px]">
+                      {user.role.replace('_', ' ')}
+                    </Badge>
                   </TableCell>
-                  <TableCell className="text-right pr-6">
-                    {assigningUser === user.id ? (
-                      <div className="flex items-end justify-end gap-2 animate-in slide-in-from-right-2">
-                        <div className="text-left space-y-1">
-                          <Label className="text-[10px] uppercase font-bold">Program</Label>
-                          <Select value={selection.programId} onValueChange={v => setSelection({...selection, programId: v, branch: ''})}>
-                            <SelectTrigger className="w-32 h-8"><SelectValue placeholder="..." /></SelectTrigger>
-                            <SelectContent>
-                              {programs.map(p => <SelectItem key={p.id} value={p.id}>{p.code}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="text-left space-y-1">
-                          <Label className="text-[10px] uppercase font-bold">Branch</Label>
-                          <Select value={selection.branch} onValueChange={v => setSelection({...selection, branch: v})}>
-                            <SelectTrigger className="w-32 h-8"><SelectValue placeholder="..." /></SelectTrigger>
-                            <SelectContent>
-                              {programs.find(p => p.id === selection.programId)?.branches?.map(b => (
-                                <SelectItem key={b} value={b}>{b}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <Button size="sm" onClick={() => handleAssign(user.id)} disabled={!selection.branch} className="h-8">Add</Button>
-                        <Button size="sm" variant="ghost" onClick={() => setAssigningUser(null)} className="h-8">Cancel</Button>
-                      </div>
+                  <TableCell>
+                    {user.role === 'dean_faculty' ? (
+                      <Badge className="bg-primary/10 text-primary border-none text-[10px]">
+                        {user.faculty}
+                      </Badge>
                     ) : (
-                      <Button variant="outline" size="sm" className="gap-2" onClick={() => setAssigningUser(user.id)}>
-                        <Plus className="w-4 h-4" /> Assign Branch
-                      </Button>
+                      <div className="flex flex-wrap gap-2">
+                        {user.managedBranches?.map((mb, idx) => (
+                          <Badge key={idx} variant="outline" className="text-[10px]">
+                            {programs.find(p => p.id === mb.programId)?.code} - {mb.branch}
+                          </Badge>
+                        ))}
+                      </div>
                     )}
                   </TableCell>
                 </TableRow>
               ))}
-              {convenors.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={3} className="text-center py-12 text-muted-foreground">
-                    <ShieldCheck className="w-12 h-12 mx-auto mb-4 opacity-10" />
-                    <p>No active BoS Convenors found in the system.</p>
-                  </TableCell>
-                </TableRow>
-              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -250,62 +168,70 @@ export default function UserManagementPage() {
       <Dialog open={isRegisterDialogOpen} onOpenChange={setIsRegisterDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Register Faculty Member</DialogTitle>
-            <DialogDescription>
-              Create a new account for a faculty member. Password: <span className="font-bold text-primary">abcd1234</span>
-            </DialogDescription>
+            <DialogTitle>Register Academic Staff</DialogTitle>
+            <DialogDescription>Create account for Dean or BoS Convenor.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="new-name">Full Name</Label>
-              <Input 
-                id="new-name" 
-                placeholder="Dr. John Doe" 
-                value={registerForm.displayName}
-                onChange={(e) => setRegisterForm({ ...registerForm, displayName: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-email">University Email</Label>
-              <Input 
-                id="new-email" 
-                type="email" 
-                placeholder="faculty@university.edu" 
-                value={registerForm.email}
-                onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
-              />
-            </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Initial Program</Label>
-                <Select value={registerForm.programId} onValueChange={v => setRegisterForm({...registerForm, programId: v, branch: ''})}>
-                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                  <SelectContent>
-                    {programs.map(p => <SelectItem key={p.id} value={p.id}>{p.code}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Label>Full Name</Label>
+                <Input value={registerForm.displayName} onChange={e => setRegisterForm({...registerForm, displayName: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label>Initial Branch</Label>
-                <Select value={registerForm.branch} onValueChange={v => setRegisterForm({...registerForm, branch: v})}>
-                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                <Label>Email</Label>
+                <Input type="email" value={registerForm.email} onChange={e => setRegisterForm({...registerForm, email: e.target.value})} />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Academic Role</Label>
+              <Select value={registerForm.role} onValueChange={(v: any) => setRegisterForm({...registerForm, role: v})}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="dean_faculty">Dean of Faculty</SelectItem>
+                  <SelectItem value="bos_convenor">BoS Convenor</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {registerForm.role === 'dean_faculty' && (
+              <div className="space-y-2">
+                <Label>Assigned Faculty</Label>
+                <Select value={registerForm.faculty} onValueChange={(v: any) => setRegisterForm({...registerForm, faculty: v})}>
+                  <SelectTrigger><SelectValue placeholder="Select faculty..." /></SelectTrigger>
                   <SelectContent>
-                    {selectedRegisterProgram?.branches?.map(b => (
-                      <SelectItem key={b} value={b}>{b}</SelectItem>
-                    ))}
-                    {!selectedRegisterProgram && <SelectItem value="_" disabled>Select Program first</SelectItem>}
+                    {FACULTIES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-            </div>
+            )}
+
+            {registerForm.role === 'bos_convenor' && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Initial Program</Label>
+                  <Select onValueChange={v => setRegisterForm({...registerForm, programId: v})}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {programs.map(p => <SelectItem key={p.id} value={p.id}>{p.code}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Initial Branch</Label>
+                  <Select onValueChange={v => setRegisterForm({...registerForm, branch: v})}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {selectedRegisterProgram?.branches?.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsRegisterDialogOpen(false)} disabled={isRegistering}>Cancel</Button>
-            <Button onClick={handleRegisterConvenor} disabled={isRegistering}>
-              {isRegistering ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <UserPlus className="w-4 h-4 mr-2" />}
-              Register & Assign
-            </Button>
+            <Button variant="outline" onClick={() => setIsRegisterDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleRegisterUser} disabled={isRegistering}>Register Staff Member</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

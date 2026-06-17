@@ -1,6 +1,19 @@
 
 export type UserRole = 'bos_convenor' | 'bos_member' | 'dean_faculty' | 'dean_academics' | 'admin';
 
+export const FACULTIES = [
+  "Faculty of Built Environment",
+  "Faculty of Materials Science and Engineering",
+  "Faculty of Mechanical and Applied Engineering",
+  "Faculty of Computer Science and Communication Engineering",
+  "Faculty of Energy and Environment Engineering",
+  "Faculty of Management Studies",
+  "Faculty of Arts",
+  "Faculty of Sciences"
+] as const;
+
+export type FacultyName = typeof FACULTIES[number];
+
 export interface ManagedBranch {
   programId: string;
   branch: string;
@@ -11,6 +24,7 @@ export interface UserProfile {
   email: string;
   displayName: string;
   role: UserRole;
+  faculty?: FacultyName; // Assigned faculty for dean_faculty role
   managedBranches?: ManagedBranch[];
   createdAt?: any;
 }
@@ -39,12 +53,13 @@ export interface Program {
   id: string;
   name: string;
   code: string;
+  faculty: FacultyName;
   totalCredits: number;
   totalSemesters: number;
   description: string;
   level: 'UG' | 'PG' | 'Diploma' | 'Certificate';
   branches: string[];
-  branchPrefixes?: Record<string, string>; // Mapping of branch name to code prefix
+  branchPrefixes?: Record<string, string>;
   rules: CreditRules;
   createdAt: any;
   updatedAt: any;
@@ -86,28 +101,16 @@ export interface Syllabus {
   prerequisites: string[];
   courseOutcomes: string[];
   units: SyllabusUnit[];
-  programOutcomes: string[]; // Legacy - keeping for compatibility
   poMappings?: {
     [unitId: string]: {
       [poCode: string]: CorrelationLevel;
     };
   };
-  resources: string[]; // Legacy - general resources
   textBooks: string[];
   referenceBooks: string[];
   nptelLinks?: string[];
   youtubeLinks?: string[];
   creditCategory: CreditCategory;
-}
-
-export interface Equivalence {
-  id: string;
-  oldSubjectId: string;
-  oldSubjectCode: string;
-  newSubjectId: string;
-  newSubjectCode: string;
-  mappedAt: any;
-  mappedBy: string;
 }
 
 export interface AuditLog {

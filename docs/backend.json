@@ -3,31 +3,30 @@
   "entities": {
     "UserProfile": {
       "title": "UserProfile",
-      "description": "Information about a user, including their assigned academic role and managed branches.",
+      "description": "Information about a user, including their assigned academic role, managed branches, or faculty assignment.",
       "type": "object",
       "properties": {
-        "displayName": {
-          "type": "string"
-        },
-        "email": {
-          "type": "string",
-          "format": "email"
-        },
+        "displayName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
         "role": {
           "type": "string",
-          "enum": [
-            "bos_convenor",
-            "dean_faculty",
-            "dean_academics",
-            "admin"
-          ]
+          "enum": ["bos_convenor", "bos_member", "dean_faculty", "dean_academics", "admin"]
         },
-        "photoURL": {
-          "type": "string"
+        "faculty": {
+          "type": "string",
+          "enum": [
+            "Faculty of Built Environment",
+            "Faculty of Materials Science and Engineering",
+            "Faculty of Mechanical and Applied Engineering",
+            "Faculty of Computer Science and Communication Engineering",
+            "Faculty of Energy and Environment Engineering",
+            "Faculty of Management Studies",
+            "Faculty of Arts",
+            "Faculty of Sciences"
+          ]
         },
         "managedBranches": {
           "type": "array",
-          "description": "List of program branches this user is authorized to manage.",
           "items": {
             "type": "object",
             "properties": {
@@ -36,148 +35,53 @@
             }
           }
         },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time"
-        }
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "email",
-        "role"
-      ]
+      "required": ["email", "role"]
     },
     "Program": {
       "title": "Program",
-      "description": "Definition of an academic program and its associated NEP 2020 credit rules, branches, and branch-specific code prefixes.",
+      "description": "Definition of an academic program, its faculty association, and credit compliance rules.",
       "type": "object",
       "properties": {
-        "name": {
-          "type": "string"
-        },
-        "code": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
-        "totalSemesters": {
-          "type": "number"
-        },
-        "level": {
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "faculty": {
           "type": "string",
           "enum": [
-            "UG",
-            "PG",
-            "Diploma",
-            "Certificate"
+            "Faculty of Built Environment",
+            "Faculty of Materials Science and Engineering",
+            "Faculty of Mechanical and Applied Engineering",
+            "Faculty of Computer Science and Communication Engineering",
+            "Faculty of Energy and Environment Engineering",
+            "Faculty of Management Studies",
+            "Faculty of Arts",
+            "Faculty of Sciences"
           ]
         },
-        "branches": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "List of specializations or branches within this program."
-        },
-        "branchPrefixes": {
-          "type": "object",
-          "description": "Mapping of branch names to their specific subject code prefixes (e.g., {'Computer Science': 'CSE'}).",
-          "additionalProperties": { "type": "string" }
-        },
+        "description": { "type": "string" },
+        "totalSemesters": { "type": "number" },
+        "level": { "type": "string", "enum": ["UG", "PG", "Diploma", "Certificate"] },
+        "branches": { "type": "array", "items": { "type": "string" } },
         "rules": {
           "type": "object",
           "properties": {
             "dscMin": { "type": "number" },
             "dscMax": { "type": "number" },
-            "experientialMin": { "type": "number" },
-            "experientialMax": { "type": "number" },
-            "dseMin": { "type": "number" },
-            "dseMax": { "type": "number" },
-            "ofeMin": { "type": "number" },
-            "ofeMax": { "type": "number" },
             "totalRequired": { "type": "number" }
           }
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time"
         }
       },
-      "required": [
-        "name",
-        "code",
-        "level",
-        "totalSemesters"
-      ]
-    },
-    "Scheme": {
-      "title": "Scheme",
-      "description": "An academic scheme for a specific program, branch, and batch.",
-      "type": "object",
-      "properties": {
-        "programId": { "type": "string" },
-        "branch": { "type": "string" },
-        "batchYear": { "type": "string" },
-        "status": { "type": "string", "enum": ["Draft", "Pending Dean", "Pending Academics", "Approved"] },
-        "version": { "type": "string" },
-        "createdBy": { "type": "string" },
-        "hasMultipleExits": { "type": "boolean" },
-        "exitOptions": { "type": "array", "items": { "type": "string" } },
-        "abcEnabled": { "type": "boolean" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["programId", "batchYear", "status"]
-    },
-    "Syllabus": {
-      "title": "Syllabus",
-      "description": "Details of a specific subject within a scheme, including L-T-P credits, unit content, and resources.",
-      "type": "object",
-      "properties": {
-        "subjectCode": { "type": "string" },
-        "title": { "type": "string" },
-        "type": { "type": "string" },
-        "lectureCredits": { "type": "number" },
-        "tutorialCredits": { "type": "number" },
-        "practicalCredits": { "type": "number" },
-        "credits": { "type": "number" },
-        "semester": { "type": "number" },
-        "creditCategory": { "type": "string" },
-        "prerequisites": { "type": "array", "items": { "type": "string" } },
-        "courseOutcomes": { "type": "array", "items": { "type": "string" } },
-        "textBooks": { "type": "array", "items": { "type": "string" } },
-        "referenceBooks": { "type": "array", "items": { "type": "string" } },
-        "nptelLinks": { "type": "array", "items": { "type": "string" } },
-        "youtubeLinks": { "type": "array", "items": { "type": "string" } },
-        "resources": { "type": "array", "items": { "type": "string" } }
-      },
-      "required": ["subjectCode", "title", "credits", "semester", "creditCategory"]
+      "required": ["name", "code", "faculty", "level"]
     }
   },
   "auth": {
-    "providers": [
-      "password",
-      "github"
-    ]
+    "providers": ["password", "github"]
   },
   "firestore": {
-    "/users/{userId}": {
-      "schema": "UserProfile",
-      "description": "Stores user profiles and their associated roles and managed branches."
-    },
-    "/programs/{programId}": {
-      "schema": "Program",
-      "description": "Stores program definitions and credit compliance rules."
-    },
-    "/schemes/{schemeId}": {
-      "schema": "Scheme",
-      "description": "Stores high-level scheme definitions."
-    },
-    "/schemes/{schemeId}/syllabi/{syllabusId}": {
-      "schema": "Syllabus",
-      "description": "Stores syllabi for subjects within a scheme."
-    }
+    "/users/{userId}": { "schema": "UserProfile", "description": "User profiles and roles." },
+    "/programs/{programId}": { "schema": "Program", "description": "Program definitions." },
+    "/schemes/{schemeId}": { "schema": "Scheme", "description": "Scheme definitions." },
+    "/schemes/{schemeId}/syllabi/{syllabusId}": { "schema": "Syllabus", "description": "Subject syllabi." }
   }
 }
