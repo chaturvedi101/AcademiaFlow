@@ -1,10 +1,9 @@
-
 'use client';
 
-import { useState } from 'react';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useState, useMemo } from 'react';
+import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, deleteDoc, doc } from 'firebase/firestore';
-import { Program } from '@/lib/types';
+import { Program, UserProfile } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -17,11 +16,26 @@ import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function ProgramsPage() {
   const db = useFirestore();
+  const { user } = useUser();
+  const { toast } = useToast();
+  
+  const userDocRef = useMemoFirebase(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
+  const { data: profile } = useDoc<UserProfile>(userDocRef);
+
   const programsRef = useMemoFirebase(() => collection(db, 'programs'), [db]);
   const { data: programs, loading } = useCollection<Program>(programsRef);
+  
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState<Program | undefined>(undefined);
-  const { toast } = useToast();
+
+  const filteredPrograms = useMemo(() => {
+    if (!profile) return [];
+    if (profile.role === 'admin' || profile.role === 'dean_academics') return programs;
+    if (profile.role === 'dean_faculty') {
+      return programs.filter(p => p.faculty === profile.faculty);
+    }
+    return [];
+  }, [programs, profile]);
 
   const handleDelete = (id: string) => {
     const programRef = doc(db, 'programs', id);
@@ -48,7 +62,11 @@ export default function ProgramsPage() {
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <h1 className="text-3xl font-headline font-bold">Program Catalog</h1>
-          <p className="text-muted-foreground">Manage academic programs and their NEP 2020 credit frameworks.</p>
+          <p className="text-muted-foreground">
+            {profile?.role === 'dean_faculty' 
+              ? `Manage programs for ${profile.faculty}.` 
+              : 'Manage university-wide academic programs and NEP 2020 frameworks.'}
+          </p>
         </div>
         <Button onClick={() => { setSelectedProgram(undefined); setIsDialogOpen(true); }} className="gap-2 shadow-lg">
           <Plus className="w-4 h-4" /> Add Program
@@ -58,25 +76,33 @@ export default function ProgramsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Academic Programs</CardTitle>
-          <CardDescription>Defined programs available for scheme creation.</CardDescription>
+          <CardDescription>
+            {profile?.role === 'dean_faculty' 
+              ? `Programs offered under the ${profile.faculty}.` 
+              : 'Defined programs available for scheme creation.'}
+          </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Program Code</TableHead>
+                <TableHead className="pl-6">Program Code</TableHead>
                 <TableHead>Name</TableHead>
+                <TableHead>Faculty</TableHead>
                 <TableHead>Level</TableHead>
                 <TableHead>Semesters</TableHead>
                 <TableHead>Required Credits</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-right pr-6">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {programs.map((program) => (
+              {filteredPrograms.map((program) => (
                 <TableRow key={program.id}>
-                  <TableCell className="font-mono font-bold text-primary">{program.code}</TableCell>
+                  <TableCell className="pl-6 font-mono font-bold text-primary">{program.code}</TableCell>
                   <TableCell className="font-medium">{program.name}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="text-[10px] whitespace-nowrap">{program.faculty}</Badge>
+                  </TableCell>
                   <TableCell>
                     <Badge variant="outline">{program.level}</Badge>
                   </TableCell>
@@ -87,7 +113,7 @@ export default function ProgramsPage() {
                     </div>
                   </TableCell>
                   <TableCell className="font-bold">{program.rules?.totalRequired || 'Not set'}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right pr-6">
                     <div className="flex justify-end gap-2">
                       <Button variant="ghost" size="icon" onClick={() => { setSelectedProgram(program); setIsDialogOpen(true); }}>
                         <Edit3 className="w-4 h-4" />
@@ -99,11 +125,11 @@ export default function ProgramsPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {programs.length === 0 && (
+              {filteredPrograms.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                     <GraduationCap className="w-12 h-12 mx-auto mb-4 opacity-10" />
-                    <p>No programs defined yet.</p>
+                    <p>No programs found.</p>
                   </TableCell>
                 </TableRow>
               )}
@@ -116,6 +142,7 @@ export default function ProgramsPage() {
         open={isDialogOpen} 
         onOpenChange={setIsDialogOpen} 
         program={selectedProgram}
+        userProfile={profile || undefined}
       />
     </div>
   );

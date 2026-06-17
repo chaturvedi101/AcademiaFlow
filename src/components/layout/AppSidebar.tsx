@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo } from 'react';
@@ -36,7 +35,7 @@ import { UserProfile, UserRole } from "@/lib/types";
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['bos_convenor', 'bos_member', 'dean_faculty', 'dean_academics', 'admin'] },
-  { name: 'Programs', href: '/dashboard/programs', icon: GraduationCap, roles: ['dean_academics', 'admin'] },
+  { name: 'Programs', href: '/dashboard/programs', icon: GraduationCap, roles: ['dean_faculty', 'dean_academics', 'admin'] },
   { name: 'BoS Authorization', href: '/dashboard/users', icon: ShieldCheck, roles: ['dean_academics', 'admin'] },
   { name: 'My BoS Team', href: '/dashboard/team', icon: UserCircle, roles: ['bos_convenor'] },
   { name: 'Schemes', href: '/dashboard/schemes', icon: BookOpen, roles: ['bos_convenor', 'bos_member', 'dean_faculty', 'dean_academics', 'admin'] },

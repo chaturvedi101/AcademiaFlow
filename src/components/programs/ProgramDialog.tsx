@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -11,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useFirestore } from '@/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { Program, CreditRules, FACULTIES } from '@/lib/types';
+import { Program, CreditRules, FACULTIES, UserProfile } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -22,6 +21,7 @@ interface ProgramDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   program?: Program;
+  userProfile?: UserProfile;
 }
 
 const DEFAULT_RULES: CreditRules = {
@@ -36,15 +36,18 @@ const DEFAULT_RULES: CreditRules = {
   totalRequired: 160
 };
 
-export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProps) {
+export function ProgramDialog({ open, onOpenChange, program, userProfile }: ProgramDialogProps) {
   const db = useFirestore();
   const { toast } = useToast();
   const [newBranch, setNewBranch] = useState('');
   const [newPrefix, setNewPrefix] = useState('');
+  
+  const initialFaculty = userProfile?.role === 'dean_faculty' ? userProfile.faculty : FACULTIES[0];
+
   const [formData, setFormData] = useState<Partial<Program>>({
     name: '',
     code: '',
-    faculty: FACULTIES[0],
+    faculty: initialFaculty,
     description: '',
     level: 'UG',
     totalSemesters: 8,
@@ -64,7 +67,7 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
       setFormData({
         name: '',
         code: '',
-        faculty: FACULTIES[0],
+        faculty: initialFaculty,
         description: '',
         level: 'UG',
         totalSemesters: 8,
@@ -73,7 +76,7 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
         rules: { ...DEFAULT_RULES }
       });
     }
-  }, [program, open]);
+  }, [program, open, initialFaculty]);
 
   const handleSave = () => {
     if (!formData.code || !formData.faculty) {
@@ -145,6 +148,8 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
     }));
   };
 
+  const isFacultyDisabled = userProfile?.role === 'dean_faculty';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden shadow-2xl border-none">
@@ -153,7 +158,9 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
             {program ? 'Edit Program' : 'New Program Definition'}
           </DialogTitle>
           <DialogDescription>
-            Configure program details, faculty association, and credit framework.
+            {isFacultyDisabled 
+              ? `Configuring program for ${userProfile.faculty}.`
+              : 'Configure program details, faculty association, and credit framework.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -171,7 +178,11 @@ export function ProgramDialog({ open, onOpenChange, program }: ProgramDialogProp
               </div>
               <div className="space-y-2">
                 <Label className="text-sm font-semibold">Assigned Faculty</Label>
-                <Select value={formData.faculty} onValueChange={(v: any) => setFormData({ ...formData, faculty: v })}>
+                <Select 
+                  value={formData.faculty} 
+                  onValueChange={(v: any) => setFormData({ ...formData, faculty: v })}
+                  disabled={isFacultyDisabled}
+                >
                   <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {FACULTIES.map(faculty => (
