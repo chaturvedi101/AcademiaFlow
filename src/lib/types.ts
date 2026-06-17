@@ -9,7 +9,8 @@ export const FACULTIES = [
   "Faculty of Energy and Environment Engineering",
   "Faculty of Management Studies",
   "Faculty of Arts",
-  "Faculty of Sciences"
+  "Faculty of Sciences",
+  "University-wide (Common BOS)"
 ] as const;
 
 export type FacultyName = typeof FACULTIES[number];
@@ -24,7 +25,7 @@ export interface UserProfile {
   email: string;
   displayName: string;
   role: UserRole;
-  faculty?: FacultyName; // Assigned faculty for dean_faculty role
+  faculty?: FacultyName; // Assigned faculty for dean_faculty or common_bos roles
   managedBranches?: ManagedBranch[];
   createdAt?: any;
 }
@@ -111,6 +112,8 @@ export interface Syllabus {
   nptelLinks?: string[];
   youtubeLinks?: string[];
   creditCategory: CreditCategory;
+  isCommonCourse?: boolean; // Flag to indicate if this is a university-wide common course
+  followedFromId?: string; // ID of the original course in the common pool
 }
 
 export interface AuditLog {

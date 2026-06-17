@@ -42,7 +42,7 @@ export default function UserManagementPage() {
   });
   const [isRegistering, setIsRegistering] = useState(false);
 
-  const academicStaff = users.filter(u => ['bos_convenor', 'dean_faculty'].includes(u.role));
+  const academicStaff = users.filter(u => ['bos_convenor', 'dean_faculty', 'dean_academics'].includes(u.role));
 
   const handleRegisterUser = async () => {
     if (!registerForm.email || !registerForm.displayName) {
@@ -74,9 +74,11 @@ export default function UserManagementPage() {
         createdAt: serverTimestamp() as any,
       };
 
-      if (registerForm.role === 'dean_faculty') {
+      if (registerForm.role === 'dean_faculty' || registerForm.faculty === 'University-wide (Common BOS)') {
         userData.faculty = registerForm.faculty as FacultyName;
-      } else if (registerForm.role === 'bos_convenor' && registerForm.programId && registerForm.branch) {
+      }
+
+      if (registerForm.role === 'bos_convenor' && registerForm.programId && registerForm.branch) {
         userData.managedBranches = [{ programId: registerForm.programId, branch: registerForm.branch }];
       }
 
@@ -105,7 +107,7 @@ export default function UserManagementPage() {
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-headline font-bold">Academic Staff Authorization</h1>
-          <p className="text-muted-foreground">Manage Deans and BoS Convenors across university faculties.</p>
+          <p className="text-muted-foreground">Manage University-wide BOS, Deans, and Convenors.</p>
         </div>
         <Button onClick={() => setIsRegisterDialogOpen(true)} className="gap-2 shadow-lg">
           <UserPlus className="w-4 h-4" /> Register Staff
@@ -118,7 +120,7 @@ export default function UserManagementPage() {
             <Users className="w-5 h-5 text-primary" />
             Academic Personnel
           </CardTitle>
-          <CardDescription>Review authorizations for faculty leadership and convenors.</CardDescription>
+          <CardDescription>Review authorizations for faculty leadership and common BOS convenors.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -144,7 +146,7 @@ export default function UserManagementPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {user.role === 'dean_faculty' ? (
+                    {user.faculty ? (
                       <Badge className="bg-primary/10 text-primary border-none text-[10px]">
                         {user.faculty}
                       </Badge>
@@ -169,7 +171,7 @@ export default function UserManagementPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Register Academic Staff</DialogTitle>
-            <DialogDescription>Create account for Dean or BoS Convenor.</DialogDescription>
+            <DialogDescription>Create account for Common BOS Convenor, Dean or Faculty Convenor.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
@@ -194,19 +196,17 @@ export default function UserManagementPage() {
               </Select>
             </div>
 
-            {registerForm.role === 'dean_faculty' && (
-              <div className="space-y-2">
-                <Label>Assigned Faculty</Label>
-                <Select value={registerForm.faculty} onValueChange={(v: any) => setRegisterForm({...registerForm, faculty: v})}>
-                  <SelectTrigger><SelectValue placeholder="Select faculty..." /></SelectTrigger>
-                  <SelectContent>
-                    {FACULTIES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label>Assigned Faculty / Common Pool</Label>
+              <Select value={registerForm.faculty} onValueChange={(v: any) => setRegisterForm({...registerForm, faculty: v})}>
+                <SelectTrigger><SelectValue placeholder="Select faculty or common pool..." /></SelectTrigger>
+                <SelectContent>
+                  {FACULTIES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
 
-            {registerForm.role === 'bos_convenor' && (
+            {registerForm.role === 'bos_convenor' && registerForm.faculty !== 'University-wide (Common BOS)' && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Initial Program</Label>

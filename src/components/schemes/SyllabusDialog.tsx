@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,12 +14,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Calculator, Info, Plus, Trash2, Sparkles, Loader2, Wand2, AlertCircle, Clock, Book, BookOpen, ExternalLink, Video, FileDown, Hash, RefreshCw } from "lucide-react";
-import { Syllabus, CorrelationLevel, SyllabusUnit } from "@/lib/types";
+import { Calculator, Info, Plus, Trash2, Sparkles, Loader2, Wand2, AlertCircle, Clock, Book, BookOpen, ExternalLink, Video, FileDown, Hash, Library, Search } from "lucide-react";
+import { Syllabus, CorrelationLevel, SyllabusUnit, CreditCategory } from "@/lib/types";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { suggestCOPOMapping } from "@/ai/flows/suggest-co-po-mapping";
 import { useToast } from "@/hooks/use-toast";
 import { exportSyllabusToPDF } from "@/lib/pdf-export";
+import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
+import { collectionGroup, query, where, getDocs } from "firebase/firestore";
 
 const PO_DEFINITIONS = [
   { code: 'PO1', title: 'Engineering Knowledge', desc: 'Apply mathematics, science, and engineering fundamentals.' },
@@ -36,6 +39,8 @@ const PO_DEFINITIONS = [
 ];
 
 const CORRELATION_LEVELS: CorrelationLevel[] = ['1', '2', '3', '-'];
+
+const COMMON_CATEGORIES: CreditCategory[] = ['VAC', 'AEC', 'SEC', 'MDC'];
 
 interface SyllabusDialogProps {
   open: boolean;
@@ -59,11 +64,15 @@ export function SyllabusDialog({
   batchYear
 }: SyllabusDialogProps) {
   const { toast } = useToast();
+  const db = useFirestore();
   const [isGenerating, setIsGenerating] = useState(false);
   const [isMapping, setIsMapping] = useState(false);
   const [unitCount, setUnitCount] = useState(5);
   const [apiKeyError, setApiKeyError] = useState(false);
   const [quotaError, setQuotaError] = useState<string | null>(null);
+  const [showCourseBank, setShowCourseBank] = useState(false);
+  const [commonPool, setCommonPool] = useState<Syllabus[]>([]);
+  const [loadingPool, setLoadingPool] = useState(false);
   
   const [formData, setFormData] = useState<Partial<Syllabus>>({
     subjectCode: '',
@@ -81,6 +90,7 @@ export function SyllabusDialog({
     referenceBooks: [],
     nptelLinks: [],
     youtubeLinks: [],
+    isCommonCourse: false
   });
 
   const [newTextBook, setNewTextBook] = useState('');
@@ -126,6 +136,7 @@ export function SyllabusDialog({
         referenceBooks: syllabus.referenceBooks || [],
         nptelLinks: syllabus.nptelLinks || [],
         youtubeLinks: syllabus.youtubeLinks || [],
+        isCommonCourse: syllabus.isCommonCourse || false
       }));
 
       if (!syllabus.id && !syllabus.subjectCode) {
@@ -144,6 +155,45 @@ export function SyllabusDialog({
     const calculated = l + t + (p * 0.5);
     setFormData(prev => ({ ...prev, credits: calculated }));
   }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits]);
+
+  const fetchCommonPool = async () => {
+    setLoadingPool(true);
+    try {
+      const q = query(
+        collectionGroup(db, 'syllabi'), 
+        where('isCommonCourse', '==', true),
+        where('creditCategory', '==', formData.creditCategory)
+      );
+      const snap = await getDocs(q);
+      const courses = snap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus));
+      setCommonPool(courses);
+    } catch (err) {
+      console.error(err);
+      toast({ variant: 'destructive', title: 'Pool Error', description: 'Could not fetch common courses.' });
+    } finally {
+      setLoadingPool(false);
+    }
+  };
+
+  const handleFollowCourse = (course: Syllabus) => {
+    setFormData(prev => ({
+      ...prev,
+      title: course.title,
+      units: course.units,
+      textBooks: course.textBooks,
+      referenceBooks: course.referenceBooks,
+      nptelLinks: course.nptelLinks,
+      youtubeLinks: course.youtubeLinks,
+      credits: course.credits,
+      lectureCredits: course.lectureCredits,
+      tutorialCredits: course.tutorialCredits,
+      practicalCredits: course.practicalCredits,
+      type: course.type,
+      followedFromId: course.id
+    }));
+    setShowCourseBank(false);
+    toast({ title: "Common Course Followed", description: `Synchronized with ${course.subjectCode}.` });
+  };
 
   const handleAIGenerate = async () => {
     if (!formData.title) {
@@ -182,24 +232,12 @@ export function SyllabusDialog({
     } catch (error: any) {
       const errorMessage = error.message || '';
       const isAuthError = errorMessage.includes('API_KEY') || errorMessage.includes('401') || errorMessage.includes('expired');
-      const isQuotaError = 
-        errorMessage.includes('429') || 
-        errorMessage.includes('RESOURCE_EXHAUSTED') || 
-        errorMessage.toLowerCase().includes('quota') ||
-        errorMessage.toLowerCase().includes('rate limit');
+      const isQuotaError = errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.toLowerCase().includes('quota');
 
       if (isAuthError) setApiKeyError(true);
-      if (isQuotaError) {
-        setQuotaError("You have reached the request limit for the Gemini free tier. Please wait at least 60 seconds before retrying.");
-      }
+      if (isQuotaError) setQuotaError("AI Services quota reached. Please wait 60 seconds.");
       
-      toast({ 
-        title: isAuthError ? "API Key Issue" : (isQuotaError ? "Quota Limit Reached" : "Generation Failed"), 
-        description: isAuthError 
-          ? "Your Google AI API key is missing or invalid." 
-          : (isQuotaError ? "AI Services are rate-limiting your requests. Please wait." : "Could not reach AI services."), 
-        variant: "destructive" 
-      });
+      toast({ title: "Generation Failed", description: error.message, variant: "destructive" });
     } finally {
       setIsGenerating(false);
     }
@@ -207,7 +245,7 @@ export function SyllabusDialog({
 
   const handleAIMap = async () => {
     if (!formData.units || formData.units.length === 0) {
-      toast({ title: "Units Required", description: "Define syllabus units before mapping CO-POs.", variant: "destructive" });
+      toast({ title: "Units Required", description: "Define syllabus units before mapping.", variant: "destructive" });
       return;
     }
 
@@ -224,24 +262,9 @@ export function SyllabusDialog({
         poMappings: result.mappings as any,
       }));
 
-      toast({ title: "Mapping Suggested", description: "AI has filled the correlation matrix based on CO statements." });
+      toast({ title: "Mapping Suggested" });
     } catch (error: any) {
-      const errorMessage = error.message || '';
-      const isQuotaError = 
-        errorMessage.includes('429') || 
-        errorMessage.includes('RESOURCE_EXHAUSTED') || 
-        errorMessage.toLowerCase().includes('quota') ||
-        errorMessage.toLowerCase().includes('rate limit');
-      
-      if (isQuotaError) {
-        setQuotaError("Rate limit exceeded for mapping suggestions. The free tier allows limited requests per minute. Please wait 60 seconds.");
-      }
-      
-      toast({ 
-        title: isQuotaError ? "Quota Limit Reached" : "Mapping Failed", 
-        description: isQuotaError ? "Please check your quota limits and wait a minute." : "Could not generate suggestions.", 
-        variant: "destructive" 
-      });
+      toast({ title: "Mapping Failed", description: error.message, variant: "destructive" });
     } finally {
       setIsMapping(false);
     }
@@ -254,19 +277,13 @@ export function SyllabusDialog({
       content: '',
       courseOutcome: '',
     };
-    setFormData(prev => ({
-      ...prev,
-      units: [...(prev.units || []), newUnit]
-    }));
+    setFormData(prev => ({ ...prev, units: [...(prev.units || []), newUnit] }));
   };
 
   const removeUnit = (id: string) => {
     setFormData(prev => ({
       ...prev,
-      units: prev.units?.filter(u => u.id !== id),
-      poMappings: prev.poMappings ? Object.fromEntries(
-        Object.entries(prev.poMappings).filter(([k]) => k !== id)
-      ) : {}
+      units: prev.units?.filter(u => u.id !== id)
     }));
   };
 
@@ -315,77 +332,59 @@ export function SyllabusDialog({
     }));
   };
 
-  const handleExportPDF = () => {
-    if (!formData.subjectCode || !formData.title) {
-      toast({ title: "Export Error", description: "Subject code and title are required for export.", variant: "destructive" });
-      return;
-    }
-    exportSyllabusToPDF(formData, programName, branchName, batchYear);
-    toast({ title: "PDF Generated", description: "Subject syllabus has been downloaded." });
-  };
+  const isFollowedCourse = !!formData.followedFromId;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl h-[95vh] flex flex-col p-0 overflow-hidden shadow-2xl border-none min-h-0">
+      <DialogContent className="max-w-6xl h-[95vh] flex flex-col p-0 overflow-hidden shadow-2xl border-none">
         <DialogHeader className="p-6 border-b shrink-0 bg-background z-10">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <DialogTitle className="font-headline text-2xl flex items-center gap-2">
                 {syllabus?.id ? 'Edit Subject Details' : 'Add New Subject Definition'}
-                {!syllabus?.id && <Badge className="bg-primary/10 text-primary border-none">AI-Enabled</Badge>}
+                {isFollowedCourse && <Badge className="bg-emerald-100 text-emerald-700 border-none">Common Course Followed</Badge>}
               </DialogTitle>
               <DialogDescription>
                 Configure credits, semester, unit content, and CO-PO mapping matrix.
               </DialogDescription>
             </div>
-            {syllabus?.id && (
-              <Button variant="outline" size="sm" className="gap-2 border-primary/20 text-primary hover:bg-primary/5" onClick={handleExportPDF}>
-                <FileDown className="w-4 h-4" /> Export PDF
-              </Button>
-            )}
+            <div className="flex gap-2">
+              {COMMON_CATEGORIES.includes(formData.creditCategory as any) && !syllabus?.id && (
+                <Button variant="outline" size="sm" className="gap-2 border-primary/20 text-primary" onClick={() => { setShowCourseBank(true); fetchCommonPool(); }}>
+                  <Library className="w-4 h-4" /> University Course Bank
+                </Button>
+              )}
+              {syllabus?.id && (
+                <Button variant="outline" size="sm" className="gap-2 border-primary/20 text-primary" onClick={() => exportSyllabusToPDF(formData, programName, branchName, batchYear)}>
+                  <FileDown className="w-4 h-4" /> Export PDF
+                </Button>
+              )}
+            </div>
           </div>
         </DialogHeader>
         
         <ScrollArea className="flex-1 w-full min-h-0">
           <div className="p-6 space-y-8 pb-12">
             {apiKeyError && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2">
+              <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3 text-red-800 text-sm">
                   <AlertCircle className="w-5 h-5 shrink-0" />
-                  <div>
-                    <p className="font-bold">Google AI API Key Required</p>
-                    <p className="text-xs opacity-90">Your current API key is missing or invalid.</p>
-                  </div>
+                  <div><p className="font-bold">Google AI API Key Required</p></div>
                 </div>
-                <Button variant="outline" size="sm" className="bg-white text-red-600 border-red-200 hover:bg-red-50" asChild>
-                  <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer">Get New Key</a>
-                </Button>
               </div>
             )}
 
             {quotaError && (
-              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-3">
                 <div className="flex items-start gap-3">
                   <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                  <div className="text-amber-800 text-sm">
-                    <p className="font-bold">AI Quota Limit Reached</p>
-                    <p className="text-xs">{quotaError}</p>
-                    <p className="text-[10px] mt-1 opacity-75 italic">Tip: The free tier of Gemini has per-minute request limits. Check your quota in AI Studio.</p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="bg-white text-amber-600 border-amber-200 hover:bg-amber-50 gap-2 shrink-0" onClick={() => setQuotaError(null)}>
-                    Dismiss
-                  </Button>
-                  <Button variant="outline" size="sm" className="bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200 gap-1 text-[10px]" asChild>
-                    <a href="/dashboard/diagnostics">Check Health</a>
-                  </Button>
+                  <div className="text-amber-800 text-sm"><p className="font-bold">AI Quota Limit Reached</p></div>
                 </div>
               </div>
             )}
 
             <Tabs defaultValue="basic" className="w-full">
-              <TabsList className="grid w-full grid-cols-4 mb-8 shrink-0">
+              <TabsList className="grid w-full grid-cols-4 mb-8">
                 <TabsTrigger value="basic">Basic Info</TabsTrigger>
                 <TabsTrigger value="syllabus">Units & COs</TabsTrigger>
                 <TabsTrigger value="resources">Resources</TabsTrigger>
@@ -395,20 +394,7 @@ export function SyllabusDialog({
               <TabsContent value="basic" className="space-y-8 outline-none focus-visible:ring-0">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        Subject Code 
-                        <Badge variant="outline" className="font-mono text-[9px] h-4 bg-muted/50">Auto-Rules Applied</Badge>
-                      </div>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="h-6 text-[10px] gap-1 text-primary hover:text-primary"
-                        onClick={() => setFormData(prev => ({ ...prev, subjectCode: generateAutoSubjectCode() }))}
-                      >
-                        <Wand2 className="w-3 h-3" /> Regenerate
-                      </Button>
-                    </Label>
+                    <Label className="text-sm font-semibold">Subject Code</Label>
                     <div className="relative">
                       <Hash className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                       <Input 
@@ -423,9 +409,9 @@ export function SyllabusDialog({
                     <Label className="text-sm font-semibold">Subject Title</Label>
                     <Input 
                       placeholder="e.g., Analysis of Algorithms" 
-                      className="flex-1"
                       value={formData.title || ''}
                       onChange={e => setFormData({ ...formData, title: e.target.value })}
+                      disabled={isFollowedCourse}
                     />
                   </div>
                 </div>
@@ -439,15 +425,15 @@ export function SyllabusDialog({
                     <div className="grid grid-cols-4 gap-6">
                       <div className="space-y-2">
                         <Label className="text-xs font-bold uppercase">L</Label>
-                        <Input type="number" value={formData.lectureCredits ?? 0} onChange={e => setFormData({...formData, lectureCredits: Number(e.target.value)})} />
+                        <Input type="number" disabled={isFollowedCourse} value={formData.lectureCredits ?? 0} onChange={e => setFormData({...formData, lectureCredits: Number(e.target.value)})} />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs font-bold uppercase">T</Label>
-                        <Input type="number" value={formData.tutorialCredits ?? 0} onChange={e => setFormData({...formData, tutorialCredits: Number(e.target.value)})} />
+                        <Input type="number" disabled={isFollowedCourse} value={formData.tutorialCredits ?? 0} onChange={e => setFormData({...formData, tutorialCredits: Number(e.target.value)})} />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs font-bold uppercase">P</Label>
-                        <Input type="number" value={formData.practicalCredits ?? 0} onChange={e => setFormData({...formData, practicalCredits: Number(e.target.value)})} />
+                        <Input type="number" disabled={isFollowedCourse} value={formData.practicalCredits ?? 0} onChange={e => setFormData({...formData, practicalCredits: Number(e.target.value)})} />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs font-bold text-primary uppercase">Total</Label>
@@ -464,7 +450,7 @@ export function SyllabusDialog({
                         <SelectContent>{[1,2,3,4,5,6,7,8].map(s => <SelectItem key={s} value={String(s)}>Semester {s}</SelectItem>)}</SelectContent>
                       </Select>
                       <Select value={formData.creditCategory || 'DSC'} onValueChange={(val: any) => setFormData({ ...formData, creditCategory: val })}>
-                        <SelectTrigger className="bg-white flex-1"><SelectValue placeholder="Category" /></SelectTrigger>
+                        <SelectTrigger className="bg-white"><SelectValue placeholder="Category" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="DSC">DSC (Core)</SelectItem>
                           <SelectItem value="DSE">DSE (Elective)</SelectItem>
@@ -476,6 +462,15 @@ export function SyllabusDialog({
                           <SelectItem value="CPF">CPF (Community Project)</SelectItem>
                         </SelectContent>
                       </Select>
+                      <div className="flex items-center gap-2 p-2 bg-white rounded border border-primary/10">
+                        <Label className="text-xs font-bold flex-1">University Common BOS Course?</Label>
+                        <Input 
+                          type="checkbox" 
+                          className="w-4 h-4 accent-primary" 
+                          checked={formData.isCommonCourse} 
+                          onChange={e => setFormData({...formData, isCommonCourse: e.target.checked})}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -487,32 +482,18 @@ export function SyllabusDialog({
                     <h3 className="font-headline font-bold text-primary">Unit Configuration</h3>
                     <p className="text-xs text-muted-foreground">Draft syllabus using AI or add units manually.</p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex items-center gap-2 border rounded-lg px-2 bg-white">
-                       <span className="text-[10px] font-bold text-muted-foreground uppercase">AI Units:</span>
-                       <Select value={String(unitCount)} onValueChange={v => setUnitCount(Number(v))}>
-                         <SelectTrigger className="h-8 w-14 border-none shadow-none focus:ring-0">
-                           <SelectValue />
-                         </SelectTrigger>
-                         <SelectContent>
-                           {[1,2,3,4,5,6,7,8,9,10].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
-                         </SelectContent>
-                       </Select>
+                  {!isFollowedCourse && (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Button variant="outline" size="sm" onClick={handleAIGenerate} disabled={isGenerating} className="gap-2 bg-primary text-white hover:bg-primary/90 hover:text-white">
+                        {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                        Syllabus Architect
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={addManualUnit} className="gap-2">
+                        <Plus className="w-4 h-4" /> Add Manual Unit
+                      </Button>
                     </div>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={handleAIGenerate} 
-                      disabled={isGenerating}
-                      className="gap-2 bg-primary text-white hover:bg-primary/90 hover:text-white"
-                    >
-                      {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                      Syllabus Architect
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={addManualUnit} className="gap-2">
-                      <Plus className="w-4 h-4" /> Add Manual Unit
-                    </Button>
-                  </div>
+                  )}
+                  {isFollowedCourse && <p className="text-xs font-bold text-emerald-600">Locked to Common Pool Content</p>}
                 </div>
 
                 <div className="space-y-6">
@@ -520,24 +501,26 @@ export function SyllabusDialog({
                     <Card key={unit.id} className="border-none shadow-sm bg-muted/10">
                       <div className="bg-primary/5 px-4 py-2 border-b flex items-center justify-between">
                         <Badge variant="outline" className="bg-primary/10 text-primary border-none text-[10px] font-bold uppercase">UNIT {index + 1}</Badge>
-                        <Button variant="ghost" size="icon" className="h-6 w-6 text-red-400 hover:bg-red-50" onClick={() => removeUnit(unit.id)}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
+                        {!isFollowedCourse && (
+                          <Button variant="ghost" size="icon" className="h-6 w-6 text-red-400 hover:bg-red-50" onClick={() => removeUnit(unit.id)}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
                       </div>
                       <CardContent className="p-4 space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">Unit Title</Label>
-                            <Input value={unit.title} onChange={e => updateUnit(index, 'title', e.target.value)} className="bg-white" />
+                            <Input disabled={isFollowedCourse} value={unit.title} onChange={e => updateUnit(index, 'title', e.target.value)} className="bg-white" />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-[10px] uppercase font-bold text-primary">Course Outcome (CO)</Label>
-                            <Input value={unit.courseOutcome} onChange={e => updateUnit(index, 'courseOutcome', e.target.value)} className="bg-primary/5 border-primary/20 focus:bg-white" />
+                            <Input disabled={isFollowedCourse} value={unit.courseOutcome} onChange={e => updateUnit(index, 'courseOutcome', e.target.value)} className="bg-primary/5 border-primary/20 focus:bg-white" />
                           </div>
                         </div>
                         <div className="space-y-1">
                           <Label className="text-[10px] uppercase font-bold text-muted-foreground">Syllabus Content</Label>
-                          <Textarea value={unit.content} onChange={e => updateUnit(index, 'content', e.target.value)} className="min-h-[100px] bg-white" />
+                          <Textarea disabled={isFollowedCourse} value={unit.content} onChange={e => updateUnit(index, 'content', e.target.value)} className="min-h-[100px] bg-white" />
                         </div>
                       </CardContent>
                     </Card>
@@ -549,49 +532,36 @@ export function SyllabusDialog({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-6">
                     <div className="space-y-4">
-                      <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider">
-                        <Book className="w-4 h-4" /> Text Books
-                      </div>
-                      <div className="flex gap-2">
-                        <Input placeholder="Citation format..." value={newTextBook} onChange={e => setNewTextBook(e.target.value)} onKeyDown={e => e.key === 'Enter' && addResource('text')} />
-                        <Button onClick={() => addResource('text')} size="icon" variant="secondary"><Plus className="w-4 h-4" /></Button>
-                      </div>
-                      <ResourceList items={formData.textBooks} onRemove={i => removeItem('text', i)} />
+                      <Label className="text-sm font-bold uppercase tracking-wider text-primary">Text Books</Label>
+                      {!isFollowedCourse && (
+                        <div className="flex gap-2">
+                          <Input placeholder="Citation format..." value={newTextBook} onChange={e => setNewTextBook(e.target.value)} onKeyDown={e => e.key === 'Enter' && addResource('text')} />
+                          <Button onClick={() => addResource('text')} size="icon" variant="secondary"><Plus className="w-4 h-4" /></Button>
+                        </div>
+                      )}
+                      <ResourceList items={formData.textBooks} onRemove={i => removeItem('text', i)} readOnly={isFollowedCourse} />
                     </div>
-
                     <div className="space-y-4">
-                      <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider">
-                        <BookOpen className="w-4 h-4" /> Reference Books
-                      </div>
-                      <div className="flex gap-2">
-                        <Input placeholder="Citation format..." value={newReferenceBook} onChange={e => setNewReferenceBook(e.target.value)} onKeyDown={e => e.key === 'Enter' && addResource('reference')} />
-                        <Button onClick={() => addResource('reference')} size="icon" variant="secondary"><Plus className="w-4 h-4" /></Button>
-                      </div>
-                      <ResourceList items={formData.referenceBooks} onRemove={i => removeItem('reference', i)} />
+                      <Label className="text-sm font-bold uppercase tracking-wider text-primary">Reference Books</Label>
+                      {!isFollowedCourse && (
+                        <div className="flex gap-2">
+                          <Input placeholder="Citation format..." value={newReferenceBook} onChange={e => setNewReferenceBook(e.target.value)} onKeyDown={e => e.key === 'Enter' && addResource('reference')} />
+                          <Button onClick={() => addResource('reference')} size="icon" variant="secondary"><Plus className="w-4 h-4" /></Button>
+                        </div>
+                      )}
+                      <ResourceList items={formData.referenceBooks} onRemove={i => removeItem('reference', i)} readOnly={isFollowedCourse} />
                     </div>
                   </div>
-
                   <div className="space-y-6">
                     <div className="space-y-4">
-                      <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider">
-                        <ExternalLink className="w-4 h-4" /> NPTEL / SWAYAM Courses
-                      </div>
-                      <div className="flex gap-2">
-                        <Input placeholder="Course URL..." value={newNptelLink} onChange={e => setNewNptelLink(e.target.value)} onKeyDown={e => e.key === 'Enter' && addResource('nptel')} />
-                        <Button onClick={() => addResource('nptel')} size="icon" variant="secondary"><Plus className="w-4 h-4" /></Button>
-                      </div>
-                      <ResourceList items={formData.nptelLinks} onRemove={i => removeItem('nptel', i)} isLink />
-                    </div>
-
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider">
-                        <Video className="w-4 h-4" /> YouTube Videos / Playlists
-                      </div>
-                      <div className="flex gap-2">
-                        <Input placeholder="Video URL..." value={newYoutubeLink} onChange={e => setNewYoutubeLink(e.target.value)} onKeyDown={e => e.key === 'Enter' && addResource('youtube')} />
-                        <Button onClick={() => addResource('youtube')} size="icon" variant="secondary"><Plus className="w-4 h-4" /></Button>
-                      </div>
-                      <ResourceList items={formData.youtubeLinks} onRemove={i => removeItem('youtube', i)} isLink />
+                      <Label className="text-sm font-bold uppercase tracking-wider text-primary">Digital Courses (NPTEL)</Label>
+                      {!isFollowedCourse && (
+                        <div className="flex gap-2">
+                          <Input placeholder="URL..." value={newNptelLink} onChange={e => setNewNptelLink(e.target.value)} />
+                          <Button onClick={() => addResource('nptel')} size="icon" variant="secondary"><Plus className="w-4 h-4" /></Button>
+                        </div>
+                      )}
+                      <ResourceList items={formData.nptelLinks} onRemove={i => removeItem('nptel', i)} isLink readOnly={isFollowedCourse} />
                     </div>
                   </div>
                 </div>
@@ -601,58 +571,32 @@ export function SyllabusDialog({
                 <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-3 text-amber-800 text-sm">
                   <div className="flex gap-3">
                     <Info className="w-5 h-5 shrink-0" />
-                    <p>Map unit outcomes against Program Outcomes to establish the correlation matrix.</p>
+                    <p>Map unit outcomes against Program Outcomes.</p>
                   </div>
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    className="gap-2 bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200"
-                    onClick={handleAIMap}
-                    disabled={isMapping || !formData.units?.length}
-                  >
-                    {isMapping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
-                    Smart Mapping Suggestions
-                  </Button>
+                  {!isFollowedCourse && (
+                    <Button size="sm" variant="outline" onClick={handleAIMap} disabled={isMapping || !formData.units?.length}>
+                      {isMapping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />} Smart Suggestions
+                    </Button>
+                  )}
                 </div>
-
                 <div className="overflow-x-auto border rounded-xl bg-white shadow-sm">
                   <Table>
                     <TableHeader className="bg-muted/30">
                       <TableRow>
-                        <TableHead className="w-[200px] font-bold">Course Outcomes</TableHead>
+                        <TableHead className="w-[200px] font-bold">COs</TableHead>
                         {PO_DEFINITIONS.map(po => (
-                          <TableHead key={po.code} className="p-0 text-center w-[60px]">
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div className="cursor-help py-3 px-1 font-bold text-primary hover:bg-primary/5 uppercase text-[10px]">
-                                    {po.code}
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p className="font-bold">{po.code}: {po.title}</p>
-                                  <p className="text-xs max-w-[200px]">{po.desc}</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </TableHead>
+                          <TableHead key={po.code} className="text-center w-[60px] text-[10px] font-bold uppercase">{po.code}</TableHead>
                         ))}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {formData.units?.map((unit, uIdx) => (
-                        <TableRow key={unit.id} className="hover:bg-muted/5">
-                          <TableCell className="font-medium text-xs align-top pt-4">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex flex-col gap-1">
-                                <span className="font-bold text-primary">CO{uIdx + 1}</span>
-                                <span className="text-[10px] text-muted-foreground line-clamp-2 italic">{unit.courseOutcome || 'No CO defined'}</span>
-                              </div>
-                            </div>
-                          </TableCell>
+                        <TableRow key={unit.id}>
+                          <TableCell className="font-bold text-primary">CO{uIdx + 1}</TableCell>
                           {PO_DEFINITIONS.map(po => (
                             <TableCell key={po.code} className="p-1 text-center border-l">
                               <Select 
+                                disabled={isFollowedCourse}
                                 value={formData.poMappings?.[unit.id]?.[po.code] || '-'} 
                                 onValueChange={(val: CorrelationLevel) => updatePOMapping(unit.id, po.code, val)}
                               >
@@ -660,9 +604,7 @@ export function SyllabusDialog({
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent className="min-w-[60px]">
-                                  {CORRELATION_LEVELS.map(lvl => (
-                                    <SelectItem key={lvl} value={lvl}>{lvl}</SelectItem>
-                                  ))}
+                                  {CORRELATION_LEVELS.map(lvl => <SelectItem key={lvl} value={lvl}>{lvl}</SelectItem>)}
                                 </SelectContent>
                               </Select>
                             </TableCell>
@@ -679,14 +621,48 @@ export function SyllabusDialog({
 
         <DialogFooter className="p-6 bg-muted/20 border-t shrink-0 z-10">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="px-6 h-11">Cancel</Button>
-          <Button onClick={() => { onSave(formData); onOpenChange(false); }} className="px-8 h-11 shadow-lg">Save Subject Configuration</Button>
+          <Button onClick={() => { onSave(formData); onOpenChange(false); }} className="px-8 h-11 shadow-lg">Save Configuration</Button>
         </DialogFooter>
       </DialogContent>
+
+      <Dialog open={showCourseBank} onOpenChange={setShowCourseBank}>
+        <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col p-0">
+          <DialogHeader className="p-6 border-b shrink-0 bg-background">
+            <DialogTitle className="flex items-center gap-2">
+              <Library className="w-5 h-5 text-primary" />
+              University Course Bank: {formData.creditCategory}
+            </DialogTitle>
+            <DialogDescription>Developed by University Level Common BOS</DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="flex-1 p-6">
+            {loadingPool ? (
+              <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {commonPool.map(course => (
+                  <Card key={course.id} className="hover:border-primary transition-colors cursor-pointer" onClick={() => handleFollowCourse(course)}>
+                    <CardContent className="p-4 flex items-center justify-between">
+                      <div className="space-y-1">
+                        <p className="font-bold text-primary">{course.subjectCode} - {course.title}</p>
+                        <p className="text-xs text-muted-foreground">Credits: {course.credits} | L-T-P: {course.lectureCredits}-{course.tutorialCredits}-{course.practicalCredits}</p>
+                      </div>
+                      <Button variant="secondary" size="sm">Follow Course</Button>
+                    </CardContent>
+                  </Card>
+                ))}
+                {commonPool.length === 0 && (
+                  <div className="text-center py-12 text-muted-foreground italic">No common courses found for this category.</div>
+                )}
+              </div>
+            )}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
 
-function ResourceList({ items, onRemove, isLink }: { items?: string[], onRemove: (i: number) => void, isLink?: boolean }) {
+function ResourceList({ items, onRemove, isLink, readOnly }: { items?: string[], onRemove: (i: number) => void, isLink?: boolean, readOnly?: boolean }) {
   if (!items || items.length === 0) return null;
   return (
     <div className="space-y-2">
@@ -699,9 +675,11 @@ function ResourceList({ items, onRemove, isLink }: { items?: string[], onRemove:
               </a>
             ) : item}
           </span>
-          <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => onRemove(i)}>
-            <Trash2 className="w-3.5 h-3.5 text-red-400" />
-          </Button>
+          {!readOnly && (
+            <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => onRemove(i)}>
+              <Trash2 className="w-3.5 h-3.5 text-red-400" />
+            </Button>
+          )}
         </div>
       ))}
     </div>
