@@ -285,6 +285,46 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                 />
               </div>
             </div>
+
+            <div className="space-y-4">
+              <Label className="text-sm font-semibold">Credit Framework (Min-Max)</Label>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs">DSC Min</Label>
+                  <Input type="number" value={formData.rules?.dscMin ?? ''} onChange={e => updateRule('dscMin', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">DSC Max</Label>
+                  <Input type="number" value={formData.rules?.dscMax ?? ''} onChange={e => updateRule('dscMax', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">DSE Min</Label>
+                  <Input type="number" value={formData.rules?.dseMin ?? ''} onChange={e => updateRule('dseMin', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">DSE Max</Label>
+                  <Input type="number" value={formData.rules?.dseMax ?? ''} onChange={e => updateRule('dseMax', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">OFE Min</Label>
+                  <Input type="number" value={formData.rules?.ofeMin ?? ''} onChange={e => updateRule('ofeMin', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">OFE Max</Label>
+                  <Input type="number" value={formData.rules?.ofeMax ?? ''} onChange={e => updateRule('ofeMax', e.target.value)} />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Program Description</Label>
+              <Textarea 
+                placeholder="Briefly describe the program objectives..." 
+                value={formData.description || ''}
+                onChange={e => setFormData({ ...formData, description: e.target.value })}
+                className="min-h-[100px]"
+              />
+            </div>
           </div>
         </ScrollArea>
 
