@@ -14,7 +14,7 @@ import { Program, CreditRules, FACULTIES, UserProfile } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { X, Plus, Hash } from 'lucide-react';
+import { X, Plus } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface ProgramDialogProps {
@@ -152,7 +152,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden shadow-2xl border-none">
+      <DialogContent className="max-w-4xl h-[95vh] max-h-[95vh] flex flex-col p-0 overflow-hidden shadow-2xl border-none">
         <DialogHeader className="p-6 border-b shrink-0 bg-background z-20">
           <DialogTitle className="font-headline text-2xl">
             {program ? 'Edit Program' : 'New Program Definition'}
@@ -164,7 +164,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 w-full outline-none">
+        <ScrollArea className="flex-1 w-full min-h-0 outline-none">
           <div className="p-6 space-y-8 pb-12">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
