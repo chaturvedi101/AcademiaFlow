@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useMemo } from "react";
@@ -11,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Save, Send, History, Trash2, Edit3, Download, GraduationCap, Layers, Loader2, ShieldAlert, FileDown, FileText } from "lucide-react";
+import { Plus, Save, Send, History, Trash2, Edit3, Download, GraduationCap, Layers, Loader2, ShieldAlert, FileDown, FileText, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile } from "@/lib/types";
@@ -19,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { exportSyllabusToPDF, exportFullSchemeToPDF } from "@/lib/pdf-export";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import Link from "next/link";
 
 export default function SchemeDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -53,8 +53,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
   const canModifySchemeLayout = useMemo(() => {
     if (!profile) return false;
-    // BoS Members can edit syllabi but cannot change Scheme status or layout settings
-    // They also cannot add or delete subjects
     if (profile.role === 'bos_member') return false;
     return hasEditPermission;
   }, [profile, hasEditPermission]);
@@ -67,6 +65,19 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     });
     return dist;
   }, [syllabi]);
+
+  const isSchemeValid = useMemo(() => {
+    if (!program?.rules) return false;
+    const { DSC, DSE, OFE, total } = creditDistribution;
+    const { dscMin, dscMax, dseMin, dseMax, ofeMin, ofeMax, totalRequired } = program.rules;
+
+    return (
+      DSC >= dscMin && DSC <= dscMax &&
+      DSE >= dseMin && DSE <= dseMax &&
+      OFE >= ofeMin && OFE <= ofeMax &&
+      total === totalRequired
+    );
+  }, [creditDistribution, program?.rules]);
 
   const handleUpdateScheme = (updates: Partial<Scheme>) => {
     if (!canModifySchemeLayout) return;
@@ -82,7 +93,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
   const handleSaveSyllabus = (data: Partial<Syllabus>) => {
     if (!hasEditPermission) return;
-    // Members can save (edit), but only if it's not a new creation (which is gated in UI)
     const syllabusId = data.id || doc(collection(db, 'temp')).id;
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', syllabusId);
     
@@ -98,7 +108,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const handleDeleteSyllabus = (id: string) => {
-    if (!canModifySchemeLayout) return; // Only Convenors/Admins can delete
+    if (!canModifySchemeLayout) return;
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', id);
     deleteDoc(docRef).catch(err => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -183,11 +193,35 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           <Button variant="outline" className="gap-2 border-primary/20 text-primary" onClick={handleExportFullPDF}>
             <FileText className="w-4 h-4" /> Download Full Structure
           </Button>
-          {canModifySchemeLayout && (
-            <Button className="gap-2 shadow-lg" onClick={() => handleUpdateScheme({ status: 'Pending Dean' })}>
-              <Send className="w-4 h-4" /> Submit for Approval
-            </Button>
+          
+          {canModifySchemeLayout && scheme.status === 'Draft' && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="inline-block">
+                    <Button 
+                      className="gap-2 shadow-lg" 
+                      disabled={!isSchemeValid}
+                      onClick={() => handleUpdateScheme({ status: 'Pending Dean' })}
+                    >
+                      <Send className="w-4 h-4" /> Submit for Approval
+                    </Button>
+                  </div>
+                </TooltipTrigger>
+                {!isSchemeValid && (
+                  <TooltipContent className="max-w-xs p-3">
+                    <div className="flex gap-2 items-start text-destructive">
+                      <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                      <p className="text-xs">
+                        Cannot submit: Credit framework requirements not met. Total credits must be exactly {program?.rules?.totalRequired}.
+                      </p>
+                    </div>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
           )}
+
           {profile?.role === 'bos_member' && (
             <div className="text-xs text-muted-foreground italic bg-muted/30 px-3 py-2 rounded-lg">
               Member access: Edit syllabi only.
@@ -195,6 +229,30 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           )}
         </div>
       </div>
+
+      {!isSchemeValid && canModifySchemeLayout && scheme.status === 'Draft' && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-amber-800 text-sm animate-in slide-in-from-top-2">
+          <AlertTriangle className="w-5 h-5 shrink-0 text-amber-600" />
+          <p className="flex-1">
+            <span className="font-bold">Compliance Warning:</span> Your current course structure does not fulfill the NEP 2020 credit framework for this program. Submission is disabled until all criteria are met.
+          </p>
+          <div className="text-[10px] font-bold uppercase bg-amber-200 px-2 py-1 rounded">
+            Non-Compliant
+          </div>
+        </div>
+      )}
+
+      {isSchemeValid && scheme.status === 'Draft' && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-800 text-sm animate-in slide-in-from-top-2">
+          <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-600" />
+          <p className="flex-1">
+            <span className="font-bold">Ready for Submission:</span> Credit framework requirements are satisfied. You can now submit this scheme for Dean's review.
+          </p>
+          <div className="text-[10px] font-bold uppercase bg-emerald-200 px-2 py-1 rounded">
+            Framework Satisfied
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
         <div className="xl:col-span-3 space-y-6">
