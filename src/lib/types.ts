@@ -79,6 +79,7 @@ export interface Scheme {
   hasMultipleExits: boolean;
   exitOptions: string[];
   abcEnabled: boolean;
+  isCommonPoolScheme?: boolean; // Flag to indicate if this is the institutional common course scheme
 }
 
 export interface SyllabusUnit {

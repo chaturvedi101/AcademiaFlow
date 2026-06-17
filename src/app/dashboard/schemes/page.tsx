@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -68,7 +69,7 @@ export default function SchemesPage() {
 
     const managed = profile.managedBranches || [];
     return schemes.filter(s => 
-      managed.some(m => m.programId === s.programId && m.branch === s.branch)
+      managed.some(m => m.programId === s.programId && m.branch === s.branch) || s.isCommonPoolScheme
     );
   }, [schemes, profile, programs, isCommonBos]);
 
@@ -101,16 +102,16 @@ export default function SchemesPage() {
       return;
     }
 
-    const schemeData = {
+    const schemeData: Partial<Scheme> = {
       ...newScheme,
       status: 'Draft' as const,
-      createdBy: user?.uid,
+      createdBy: user?.uid || '',
       hasMultipleExits: false,
       abcEnabled: true,
       exitOptions: [],
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      isCommonPoolScheme: isCommonBos, // Flag for schemes created by Common BOS
+      isCommonPoolScheme: isCommonBos,
     };
 
     addDoc(collection(db, 'schemes'), schemeData)
@@ -136,7 +137,6 @@ export default function SchemesPage() {
     );
   }
 
-  // Common BOS can create schemes
   const canCreateScheme = profile?.role === 'admin' || profile?.role === 'bos_convenor' || profile?.role === 'dean_faculty';
 
   return (
@@ -161,9 +161,10 @@ export default function SchemesPage() {
         {filteredSchemes.map((scheme) => {
           const program = programs.find(p => p.id === scheme.programId);
           return (
-            <Card key={scheme.id} className="hover:shadow-md transition-shadow group relative overflow-hidden">
-              {(scheme as any).isCommonPoolScheme && (
-                <div className="absolute top-0 right-0 p-2">
+            <Card key={scheme.id} className={`hover:shadow-md transition-shadow group relative overflow-hidden ${scheme.isCommonPoolScheme ? 'border-emerald-200 bg-emerald-50/20' : ''}`}>
+              {scheme.isCommonPoolScheme && (
+                <div className="absolute top-0 right-0 p-2 flex items-center gap-1">
+                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 text-[8px] uppercase font-bold">Common Pool</Badge>
                   <ShieldCheck className="w-4 h-4 text-emerald-600" title="Common BOS Defined" />
                 </div>
               )}
