@@ -8,7 +8,7 @@ import { Scheme, Program, UserProfile } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, BookOpen, Loader2, Calendar, FileText, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Plus, BookOpen, Loader2, Calendar, FileText, ArrowRight, ShieldCheck, Info } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -102,8 +102,10 @@ export default function SchemesPage() {
       return;
     }
 
+    // Common Pool schemes don't have a specific branch, they are Program-wide
     const schemeData: Partial<Scheme> = {
       ...newScheme,
+      branch: isCommonBos ? 'Institutional Common Pool' : newScheme.branch,
       status: 'Draft' as const,
       createdBy: user?.uid || '',
       hasMultipleExits: false,
@@ -116,7 +118,7 @@ export default function SchemesPage() {
 
     addDoc(collection(db, 'schemes'), schemeData)
       .then((docRef) => {
-        toast({ title: "Success", description: "Scheme created successfully." });
+        toast({ title: "Success", description: isCommonBos ? "Common Pool Scheme initialized." : "Branch Scheme created successfully." });
         router.push(`/dashboard/schemes/${docRef.id}`);
       })
       .catch((err) => {
@@ -146,13 +148,13 @@ export default function SchemesPage() {
           <h1 className="text-3xl font-headline font-bold">Academic Schemes</h1>
           <p className="text-muted-foreground">
             {isCommonBos 
-              ? 'Developing common course schemes (VAC, AEC, SEC, MDC) across university programs.'
-              : 'Draft, build, and manage university academic layouts.'}
+              ? 'Developing common course schemes (VAC, AEC, SEC, MDC) once per Program for university-wide rollout.'
+              : 'Draft, build, and manage branch-specific academic layouts.'}
           </p>
         </div>
         {canCreateScheme && (
           <Button onClick={() => setIsDialogOpen(true)} className="gap-2 shadow-lg">
-            <Plus className="w-4 h-4" /> {isCommonBos ? 'Define Common Scheme' : 'New Scheme'}
+            <Plus className="w-4 h-4" /> {isCommonBos ? 'Define Common Pool Scheme' : 'New Scheme'}
           </Button>
         )}
       </div>
@@ -164,7 +166,7 @@ export default function SchemesPage() {
             <Card key={scheme.id} className={`hover:shadow-md transition-shadow group relative overflow-hidden ${scheme.isCommonPoolScheme ? 'border-emerald-200 bg-emerald-50/20' : ''}`}>
               {scheme.isCommonPoolScheme && (
                 <div className="absolute top-0 right-0 p-2 flex items-center gap-1">
-                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 text-[8px] uppercase font-bold">Common Pool</Badge>
+                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 text-[8px] uppercase font-bold">Institutional Pool</Badge>
                   <ShieldCheck className="w-4 h-4 text-emerald-600" title="Common BOS Defined" />
                 </div>
               )}
@@ -181,7 +183,9 @@ export default function SchemesPage() {
                 <CardDescription className="flex flex-col gap-1">
                   <div className="flex items-center gap-2">
                     <FileText className="w-3.5 h-3.5" />
-                    <span>{scheme.branch || 'General'}</span>
+                    <span className={scheme.isCommonPoolScheme ? 'font-bold text-emerald-700' : ''}>
+                      {scheme.branch || 'General'}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Calendar className="w-3.5 h-3.5" />
@@ -192,7 +196,7 @@ export default function SchemesPage() {
               <CardContent>
                 <Button variant="ghost" className="w-full justify-between group-hover:bg-primary group-hover:text-white" asChild>
                   <Link href={`/dashboard/schemes/${scheme.id}`}>
-                    Manage Scheme <ArrowRight className="w-4 h-4" />
+                    Manage {scheme.isCommonPoolScheme ? 'Pool' : 'Scheme'} <ArrowRight className="w-4 h-4" />
                   </Link>
                 </Button>
               </CardContent>
@@ -213,8 +217,8 @@ export default function SchemesPage() {
             <DialogTitle>{isCommonBos ? 'Define Common Pool Scheme' : 'Create New Academic Scheme'}</DialogTitle>
             <DialogDescription>
               {isCommonBos 
-                ? 'Create a scheme dedicated to common courses (VAC, AEC, SEC, MDC) for a specific program.'
-                : 'Select the program, branch, and batch to initialize.'}
+                ? 'This scheme defines VAC, AEC, SEC, and MDC courses for ALL branches of the selected program.'
+                : 'Select the program, branch, and batch to initialize your branch-specific core curriculum.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -232,7 +236,7 @@ export default function SchemesPage() {
               </Select>
             </div>
             
-            {selectedProgram?.branches?.length ? (
+            {!isCommonBos && selectedProgram?.branches?.length ? (
               <div className="space-y-2">
                 <Label>Branch / Specialization</Label>
                 <Select value={newScheme.branch} onValueChange={(v) => setNewScheme({...newScheme, branch: v})}>
@@ -240,7 +244,7 @@ export default function SchemesPage() {
                     <SelectValue placeholder="Select branch..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {(profile?.role === 'bos_convenor' && !isCommonBos
+                    {(profile?.role === 'bos_convenor'
                       ? selectedProgram.branches.filter(b => 
                           profile.managedBranches?.some(m => m.programId === selectedProgram.id && m.branch === b)
                         )
@@ -252,6 +256,13 @@ export default function SchemesPage() {
                 </Select>
               </div>
             ) : null}
+
+            {isCommonBos && (
+              <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-lg flex gap-3 text-xs text-emerald-800">
+                <Info className="w-4 h-4 shrink-0 text-emerald-600" />
+                <p>This pool will be automatically shared across all branches of <strong>{selectedProgram?.name || 'the selected program'}</strong>.</p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Batch Year</Label>

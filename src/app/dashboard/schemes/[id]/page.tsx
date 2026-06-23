@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Save, Send, History, Trash2, Edit3, Download, GraduationCap, Layers, Loader2, ShieldAlert, FileDown, FileText, AlertTriangle, CheckCircle2, ShieldCheck } from "lucide-react";
+import { Plus, Save, Send, History, Trash2, Edit3, Download, GraduationCap, Layers, Loader2, ShieldAlert, FileDown, FileText, AlertTriangle, CheckCircle2, ShieldCheck, Library } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile } from "@/lib/types";
@@ -37,7 +37,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const syllabiRef = useMemoFirebase(() => collection(db, 'schemes', schemeId, 'syllabi'), [db, schemeId]);
   const { data: localSyllabi, loading: syllabiLoading } = useCollection<Syllabus>(syllabiRef);
 
-  // Fetch Institutional Common Pool Scheme for this specific program
+  // Program-wide Common Pool Lookup
   const commonSchemeQuery = useMemoFirebase(() => {
     if (!scheme?.programId) return null;
     return query(
@@ -48,12 +48,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   }, [db, scheme?.programId]);
 
   const { data: commonPoolSchemes } = useCollection<Scheme>(commonSchemeQuery);
-  const commonSchemeId = commonPoolSchemes && commonPoolSchemes.length > 0 ? commonPoolSchemes[0].id : null;
+  const commonScheme = commonPoolSchemes && commonPoolSchemes.length > 0 ? commonPoolSchemes[0] : null;
 
   const commonSyllabiRef = useMemoFirebase(() => {
-    if (!commonSchemeId || commonSchemeId === schemeId) return null;
-    return collection(db, 'schemes', commonSchemeId, 'syllabi');
-  }, [db, commonSchemeId, schemeId]);
+    if (!commonScheme?.id || commonScheme.id === schemeId) return null;
+    return collection(db, 'schemes', commonScheme.id, 'syllabi');
+  }, [db, commonScheme?.id, schemeId]);
 
   const { data: commonSyllabi } = useCollection<Syllabus>(commonSyllabiRef);
 
@@ -65,9 +65,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
   const syllabi = useMemo(() => {
     const combined = [...localSyllabi];
-    // Add common syllabi if not already in local (prevent duplicates if user followed them)
+    // Merge common pool syllabi into the view automatically
     if (commonSyllabi && commonSyllabi.length > 0) {
       commonSyllabi.forEach(cs => {
+        // Only include common pool course if it's not already overridden locally (unlikely but safe)
         if (!combined.some(ls => ls.subjectCode === cs.subjectCode)) {
           combined.push({ ...cs, isFromCommonPool: true } as any);
         }
@@ -110,8 +111,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     return (
       DSC >= dscMin && DSC <= dscMax &&
-      DSE >= dseMin && DSE <= dseMax &&
-      OFE >= ofeMin && OFE <= ofeMax &&
+      DSE >= (dseMin || 0) && DSE <= (dseMax || 99) &&
+      OFE >= (ofeMin || 0) && OFE <= (ofeMax || 99) &&
       total === totalRequired
     );
   }, [creditDistribution, program?.rules]);
@@ -133,7 +134,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const sId = data.id || doc(collection(db, 'temp')).id;
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', sId);
     
-    // Ensure Common BOS created syllabi are marked as common courses
+    // Automatically flag as common course if developed by Common BOS
     const finalData = {
       ...data,
       id: sId,
@@ -195,7 +196,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             </Badge>
           </div>
           <div className="flex items-center gap-3 text-muted-foreground text-sm">
-            <span>Branch: <span className="font-bold text-foreground">{scheme.branch || 'General'}</span></span>
+            <span>Branch: <span className={scheme.isCommonPoolScheme ? 'font-bold text-emerald-700' : 'font-bold text-foreground'}>{scheme.branch || 'General'}</span></span>
             <span className="w-1 h-1 rounded-full bg-border"></span>
             <span>Batch: {scheme.batchYear}</span>
             <span className="w-1 h-1 rounded-full bg-border"></span>
@@ -243,7 +244,22 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           <AlertTriangle className="w-5 h-5 shrink-0 text-amber-600" />
           <p className="flex-1">
             <span className="font-bold">Compliance Warning:</span> Credit framework not satisfied. Current: {creditDistribution.total} / Required: {program?.rules?.totalRequired}.
+            {!scheme.isCommonPoolScheme && commonScheme && (
+              <span className="block mt-1 font-normal opacity-80 italic">Includes credits from the Institutional Common Pool defined by university BOS.</span>
+            )}
           </p>
+        </div>
+      )}
+
+      {commonScheme && !scheme.isCommonPoolScheme && (
+        <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-between gap-3 text-emerald-800 text-sm">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-emerald-600" />
+            <span>Integrated with Institutional Common Pool (VAC, AEC, SEC, MDC)</span>
+          </div>
+          <Button variant="ghost" size="sm" className="text-emerald-700 hover:bg-emerald-100 gap-2" asChild>
+            <Link href={`/dashboard/schemes/${commonScheme.id}`}><Library className="w-3.5 h-3.5" /> View Pool</Link>
+          </Button>
         </div>
       )}
 
@@ -295,14 +311,14 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                           {semSubjects.map(sub => {
                             const isFromCommon = (sub as any).isFromCommonPool;
                             return (
-                              <TableRow key={sub.id} className={`group transition-colors ${isFromCommon ? 'bg-emerald-50/20' : ''}`}>
+                              <TableRow key={sub.id} className={`group transition-colors ${isFromCommon ? 'bg-emerald-50/40 hover:bg-emerald-50/60' : ''}`}>
                                 <TableCell className="font-mono text-xs font-bold pl-6 text-primary">{sub.subjectCode}</TableCell>
                                 <TableCell className="font-medium">
                                   <div className="flex flex-col">
                                     <span className="flex items-center gap-2">
                                       {sub.title}
                                       {isFromCommon && (
-                                        <Badge variant="outline" className="bg-emerald-100 text-emerald-700 border-none text-[8px] h-4 py-0">
+                                        <Badge variant="outline" className="bg-emerald-100 text-emerald-700 border-none text-[8px] h-4 py-0 font-bold">
                                           INSTITUTIONAL
                                         </Badge>
                                       )}
