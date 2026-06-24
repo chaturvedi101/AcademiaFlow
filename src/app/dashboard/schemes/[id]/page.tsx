@@ -3,7 +3,7 @@
 
 import React, { useState, useMemo } from "react";
 import { useFirestore, useDoc, useCollection, useUser, useMemoFirebase } from "@/firebase";
-import { doc, collection, setDoc, deleteDoc, serverTimestamp, updateDoc, query, where } from "firebase/firestore";
+import { doc, collection, setDoc, deleteDoc, serverTimestamp, updateDoc, query, where, getDoc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -75,7 +75,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     return combined.sort((a, b) => (a.semester || 1) - (b.semester || 1));
   }, [localSyllabi, commonSyllabi]);
 
-  // Comprehensive permission logic
   const permissions = useMemo(() => {
     if (!profile || !scheme || !program) return { canEditScheme: false, canEditSyllabus: (s: Syllabus) => false };
 
@@ -83,7 +82,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const isProgramDean = profile.role === 'dean_faculty' && profile.faculty === program.faculty;
     const isCommonBOS = profile.faculty === 'University-wide (Common BOS)';
 
-    // Scheme Structure Permission (Adding/Removing Subjects, submitting status)
     let canEditScheme = false;
     if (isGlobalAdmin || isProgramDean) {
       canEditScheme = true;
@@ -95,18 +93,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       ) || false;
     }
 
-    // Syllabus Detail Permission (Editing internal content of a subject)
     const canEditSyllabus = (s: Syllabus) => {
       if (isGlobalAdmin) return true;
-
       const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(s.creditCategory);
-      
-      // Institutional courses: Only Common BOS or the Program Dean can edit
       if (isCommonCategory || s.isCommonCourse || scheme.isCommonPoolScheme) {
         return isCommonBOS || isProgramDean;
       }
-
-      // Branch courses (DSC, DSE, SEC, etc.): Branch managers or Program Dean
       const isBranchManager = profile.managedBranches?.some(
         m => m.programId === scheme.programId && m.branch === scheme.branch
       );
@@ -131,14 +123,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const isSchemeValid = useMemo(() => {
     if (!program?.rules) return false;
     const { DSC, DSE, OFE, total } = creditDistribution;
-    const { dscMin, dscMax, dseMin, dseMax, ofeMin, ofeMax, totalRequired } = program.rules;
-
-    return (
-      DSC >= dscMin && DSC <= dscMax &&
-      DSE >= (dseMin || 0) && DSE <= (dseMax || 99) &&
-      OFE >= (ofeMin || 0) && OFE <= (ofeMax || 99) &&
-      total === totalRequired
-    );
+    const { dscMin, dscMax, totalRequired } = program.rules;
+    return DSC >= dscMin && DSC <= dscMax && total === totalRequired;
   }, [creditDistribution, program?.rules]);
 
   const handleUpdateScheme = (updates: Partial<Scheme>) => {
@@ -153,26 +139,38 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       });
   };
 
-  const handleSaveSyllabus = (data: Partial<Syllabus>) => {
-    // Permission check for existing vs new syllabus
+  const handleSaveSyllabus = async (data: Partial<Syllabus>) => {
+    if (!data.subjectCode) return;
+
     const isNew = !data.id;
     if (isNew && !permissions.canEditScheme) {
       toast({ title: "Denied", description: "You cannot add new subjects to this scheme.", variant: "destructive" });
       return;
     }
-    
-    const sId = data.id || doc(collection(db, 'temp')).id;
-    const docRef = doc(db, 'schemes', schemeId, 'syllabi', sId);
-    
+
+    // Use Subject Code as the document ID
+    const syllabusId = data.subjectCode;
+    const docRef = doc(db, 'schemes', schemeId, 'syllabi', syllabusId);
+
+    // If it's a rename (subjectCode changed for an existing course), handle it
+    if (data.id && data.id !== syllabusId) {
+      const oldDocRef = doc(db, 'schemes', schemeId, 'syllabi', data.id);
+      try {
+        await deleteDoc(oldDocRef);
+      } catch (err) {
+        console.error("Failed to delete old course code entry", err);
+      }
+    }
+
     const isInstitutionalCategory = ['VAC', 'AEC', 'MDC'].includes(data.creditCategory || '');
     const finalData = {
       ...data,
-      id: sId,
+      id: syllabusId,
       isCommonCourse: (profile?.faculty === 'University-wide (Common BOS)' && isInstitutionalCategory) || data.isCommonCourse,
     };
 
     setDoc(docRef, finalData, { merge: true })
-      .then(() => toast({ title: "Syllabus Saved" }))
+      .then(() => toast({ title: "Syllabus Saved", description: `Subject ${syllabusId} updated.` }))
       .catch(err => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: docRef.path,

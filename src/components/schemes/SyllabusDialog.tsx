@@ -39,8 +39,6 @@ const PO_DEFINITIONS = [
 ];
 
 const CORRELATION_LEVELS: CorrelationLevel[] = ['1', '2', '3', '-'];
-
-// Institutional common categories
 const INSTITUTIONAL_CATEGORIES: CreditCategory[] = ['VAC', 'AEC', 'MDC'];
 
 interface SyllabusDialogProps {
@@ -107,12 +105,9 @@ export function SyllabusDialog({
 
   const generateAutoSubjectCode = useCallback(() => {
     if (!branchName) return '';
-
     const branchPrefix = branchName.substring(0, 2).toUpperCase();
-    const theoryHours = (formData.lectureCredits || 0) + (formData.tutorialCredits || 0);
-    const typeIndicator = theoryHours > 0 ? 'L' : 'P';
-    const category = formData.creditCategory || 'DSC';
-    const categoryIndicator = (category === 'DSE' || category === 'OFE') ? 'E' : 'C';
+    const typeIndicator = (formData.lectureCredits || 0) + (formData.tutorialCredits || 0) > 0 ? 'L' : 'P';
+    const categoryIndicator = (formData.creditCategory === 'DSE' || formData.creditCategory === 'OFE') ? 'E' : 'C';
     const semDigit = formData.semester || 1;
 
     const baseCode = `${branchPrefix}${typeIndicator}${categoryIndicator}${semDigit}`;
@@ -128,7 +123,6 @@ export function SyllabusDialog({
       finalCode = `${baseCode}${String(sequence).padStart(2, '0')}`;
       if (sequence > 99) break;
     }
-
     return finalCode;
   }, [branchName, formData.lectureCredits, formData.tutorialCredits, formData.semester, formData.creditCategory, existingSyllabi, formData.id]);
 
@@ -147,10 +141,7 @@ export function SyllabusDialog({
       }));
 
       if (!syllabus.id && !syllabus.subjectCode) {
-        setFormData(prev => ({
-          ...prev,
-          subjectCode: generateAutoSubjectCode()
-        }));
+        setFormData(prev => ({ ...prev, subjectCode: generateAutoSubjectCode() }));
       }
     }
   }, [syllabus, open, generateAutoSubjectCode, profile]);
@@ -159,9 +150,13 @@ export function SyllabusDialog({
     const l = Number(formData.lectureCredits) || 0;
     const t = Number(formData.tutorialCredits) || 0;
     const p = Number(formData.practicalCredits) || 0;
-    const calculated = l + t + (p * 0.5);
-    setFormData(prev => ({ ...prev, credits: calculated }));
+    setFormData(prev => ({ ...prev, credits: l + t + (p * 0.5) }));
   }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits]);
+
+  const isCodeDuplicate = useMemo(() => {
+    if (!formData.subjectCode) return false;
+    return existingSyllabi.some(s => s.subjectCode === formData.subjectCode && s.id !== formData.id);
+  }, [formData.subjectCode, formData.id, existingSyllabi]);
 
   const fetchCommonPool = async () => {
     setLoadingPool(true);
@@ -201,51 +196,27 @@ export function SyllabusDialog({
       isCommonCourse: true
     }));
     setShowCourseBank(false);
-    toast({ title: "Common Course Followed", description: `Synchronized with ${course.subjectCode}.` });
+    toast({ title: "Common Course Followed" });
   };
 
   const handleAIGenerate = async () => {
-    if (!formData.title) {
-      toast({ title: "Title Required", description: "Please enter a subject title first.", variant: "destructive" });
-      return;
-    }
-
+    if (!formData.title) return;
     setIsGenerating(true);
-    setApiKeyError(false);
-    setQuotaError(null);
     try {
       const result = await generateSyllabusContent({
         title: formData.title,
         subjectCode: formData.subjectCode,
         unitCount: unitCount,
       });
-
-      const newUnits = result.units.map(u => ({
-        id: Math.random().toString(36).substr(2, 9),
-        title: u.title,
-        content: u.content,
-        courseOutcome: u.courseOutcome,
-      }));
-
       setFormData(prev => ({
         ...prev,
-        units: newUnits,
+        units: result.units.map(u => ({ id: Math.random().toString(36).substr(2, 9), ...u })),
         textBooks: [...(prev.textBooks || []), ...(result.suggestedTextBooks || [])],
         referenceBooks: [...(prev.referenceBooks || []), ...(result.suggestedReferences || [])],
         nptelLinks: [...(prev.nptelLinks || []), ...(result.suggestedNptelLinks || [])],
         youtubeLinks: [...(prev.youtubeLinks || []), ...(result.suggestedYoutubeLinks || [])],
-        creditCategory: (result.suggestedCategory as any) || prev.creditCategory,
       }));
-
-      toast({ title: "Syllabus Drafted", description: "AI generated units and suggested resources." });
     } catch (error: any) {
-      const errorMessage = error.message || '';
-      const isAuthError = errorMessage.includes('API_KEY') || errorMessage.includes('401') || errorMessage.includes('expired');
-      const isQuotaError = errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.toLowerCase().includes('quota');
-
-      if (isAuthError) setApiKeyError(true);
-      if (isQuotaError) setQuotaError("AI Services quota reached. Please wait 60 seconds.");
-      
       toast({ title: "Generation Failed", description: error.message, variant: "destructive" });
     } finally {
       setIsGenerating(false);
@@ -253,25 +224,14 @@ export function SyllabusDialog({
   };
 
   const handleAIMap = async () => {
-    if (!formData.units || formData.units.length === 0) {
-      toast({ title: "Units Required", description: "Define syllabus units before mapping.", variant: "destructive" });
-      return;
-    }
-
+    if (!formData.units?.length) return;
     setIsMapping(true);
-    setQuotaError(null);
     try {
       const result = await suggestCOPOMapping({
         subjectTitle: formData.title || 'Unknown Subject',
         units: formData.units.map(u => ({ id: u.id, courseOutcome: u.courseOutcome })),
       });
-
-      setFormData(prev => ({
-        ...prev,
-        poMappings: result.mappings as any,
-      }));
-
-      toast({ title: "Mapping Suggested" });
+      setFormData(prev => ({ ...prev, poMappings: result.mappings as any }));
     } catch (error: any) {
       toast({ title: "Mapping Failed", description: error.message, variant: "destructive" });
     } finally {
@@ -280,21 +240,11 @@ export function SyllabusDialog({
   };
 
   const addManualUnit = () => {
-    const newUnit: SyllabusUnit = {
-      id: Math.random().toString(36).substr(2, 9),
-      title: '',
-      content: '',
-      courseOutcome: '',
-    };
+    const newUnit: SyllabusUnit = { id: Math.random().toString(36).substr(2, 9), title: '', content: '', courseOutcome: '' };
     setFormData(prev => ({ ...prev, units: [...(prev.units || []), newUnit] }));
   };
 
-  const removeUnit = (id: string) => {
-    setFormData(prev => ({
-      ...prev,
-      units: prev.units?.filter(u => u.id !== id)
-    }));
-  };
+  const removeUnit = (id: string) => setFormData(prev => ({ ...prev, units: prev.units?.filter(u => u.id !== id) }));
 
   const updateUnit = (index: number, field: keyof SyllabusUnit, value: string) => {
     const newUnits = [...(formData.units || [])];
@@ -305,25 +255,17 @@ export function SyllabusDialog({
   const updatePOMapping = (unitId: string, poCode: string, level: CorrelationLevel) => {
     setFormData(prev => ({
       ...prev,
-      poMappings: {
-        ...(prev.poMappings || {}),
-        [unitId]: {
-          ...(prev.poMappings?.[unitId] || {}),
-          [poCode]: level
-        }
-      }
+      poMappings: { ...(prev.poMappings || {}), [unitId]: { ...(prev.poMappings?.[unitId] || {}), [poCode]: level } }
     }));
   };
 
   const addResource = (type: 'text' | 'reference' | 'nptel' | 'youtube') => {
     let value = '';
     let field: keyof Partial<Syllabus> = 'textBooks';
-
     if (type === 'text') { value = newTextBook; field = 'textBooks'; setNewTextBook(''); }
     if (type === 'reference') { value = newReferenceBook; field = 'referenceBooks'; setNewReferenceBook(''); }
     if (type === 'nptel') { value = newNptelLink; field = 'nptelLinks'; setNewNptelLink(''); }
     if (type === 'youtube') { value = newYoutubeLink; field = 'youtubeLinks'; setNewYoutubeLink(''); }
-
     if (!value.trim()) return;
     setFormData(prev => ({ ...prev, [field]: [...(prev[field] as string[] || []), value.trim()] }));
   };
@@ -334,11 +276,7 @@ export function SyllabusDialog({
     if (type === 'reference') field = 'referenceBooks';
     if (type === 'nptel') field = 'nptelLinks';
     if (type === 'youtube') field = 'youtubeLinks';
-
-    setFormData(prev => ({
-      ...prev,
-      [field]: (prev[field] as string[] || []).filter((_, i) => i !== index)
-    }));
+    setFormData(prev => ({ ...prev, [field]: (prev[field] as string[] || []).filter((_, i) => i !== index) }));
   };
 
   const isFollowedCourse = !!formData.followedFromId || (formData as any).isFromCommonPool;
@@ -353,10 +291,9 @@ export function SyllabusDialog({
               <DialogTitle className="font-headline text-2xl flex items-center gap-2">
                 {isReadOnly ? 'View Subject Details' : (syllabus?.id ? 'Edit Subject Details' : 'Add New Subject Definition')}
                 {isFollowedCourse && <Badge className="bg-emerald-100 text-emerald-700 border-none">Common Course Content</Badge>}
-                {isReadOnly && <Badge variant="outline" className="text-muted-foreground border-muted">Read Only</Badge>}
               </DialogTitle>
               <DialogDescription>
-                {isReadOnly ? 'You are viewing course content managed by institutional leadership.' : 'Configure credits, semester, unit content, and CO-PO mapping matrix.'}
+                {isReadOnly ? 'Institutional course content managed by Common BOS.' : 'Configure course code, content, and credit distribution.'}
               </DialogDescription>
             </div>
             <div className="flex gap-2">
@@ -365,30 +302,16 @@ export function SyllabusDialog({
                   <Library className="w-4 h-4" /> University Course Bank
                 </Button>
               )}
-              {syllabus?.id && (
-                <Button variant="outline" size="sm" className="gap-2 border-primary/20 text-primary" onClick={() => exportSyllabusToPDF(formData, programName, branchName, batchYear)}>
-                  <FileDown className="w-4 h-4" /> Export PDF
-                </Button>
-              )}
             </div>
           </div>
         </DialogHeader>
         
         <ScrollArea className="flex-1 w-full min-h-0">
           <div className="p-6 space-y-8 pb-12">
-            {isReadOnly && (
-              <div className="p-4 bg-muted/20 border border-muted-foreground/20 rounded-xl flex items-center gap-3 text-muted-foreground text-sm">
-                <ShieldAlert className="w-5 h-5 shrink-0" />
-                <p>Course content for VAC, AEC, and MDC is managed university-wide by the Common BOS. Branch members have read-only access.</p>
-              </div>
-            )}
-
-            {apiKeyError && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3 text-red-800 text-sm">
-                  <AlertCircle className="w-5 h-5 shrink-0" />
-                  <div><p className="font-bold">Google AI API Key Required</p></div>
-                </div>
+            {isCodeDuplicate && (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-red-800 text-sm animate-in fade-in zoom-in-95">
+                <AlertCircle className="w-5 h-5 shrink-0 text-red-600" />
+                <p className="font-bold">Error: Subject Code "{formData.subjectCode}" already exists in this scheme. Use a unique code.</p>
               </div>
             )}
 
@@ -400,53 +323,47 @@ export function SyllabusDialog({
                 <TabsTrigger value="mapping">CO-PO Matrix</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="basic" className="space-y-8 outline-none focus-visible:ring-0">
+              <TabsContent value="basic" className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold">Subject Code</Label>
+                    <Label className="text-sm font-semibold">Subject Code (Document ID)</Label>
                     <div className="relative">
-                      <Hash className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Hash className={`absolute left-3 top-2.5 h-4 w-4 ${isCodeDuplicate ? 'text-red-500' : 'text-muted-foreground'}`} />
                       <Input 
                         disabled={isReadOnly}
                         placeholder="e.g., COLC301" 
-                        className="pl-9 font-mono"
+                        className={`pl-9 font-mono ${isCodeDuplicate ? 'border-red-500 ring-red-500' : ''}`}
                         value={formData.subjectCode || ''} 
-                        onChange={e => setFormData({ ...formData, subjectCode: e.target.value.toUpperCase() })}
+                        onChange={e => setFormData({ ...formData, subjectCode: e.target.value.toUpperCase().replace(/\s+/g, '') })}
                       />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Subject Title</Label>
-                    <Input 
-                      placeholder="e.g., Analysis of Algorithms" 
-                      value={formData.title || ''}
-                      onChange={e => setFormData({ ...formData, title: e.target.value })}
-                      disabled={isFollowedCourse || isReadOnly}
-                    />
+                    <Input placeholder="e.g., Analysis of Algorithms" value={formData.title || ''} onChange={e => setFormData({ ...formData, title: e.target.value })} disabled={isFollowedCourse || isReadOnly} />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
                   <div className="p-5 bg-muted/30 rounded-2xl border space-y-6 lg:col-span-2">
                     <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider border-b pb-3">
-                      <Calculator className="w-4 h-4" />
-                      Credit Structure (L-T-P)
+                      <Calculator className="w-4 h-4" /> Credit Structure (L-T-P)
                     </div>
                     <div className="grid grid-cols-4 gap-6">
                       <div className="space-y-2">
-                        <Label className="text-xs font-bold uppercase">L</Label>
+                        <Label className="text-xs">L</Label>
                         <Input type="number" disabled={isFollowedCourse || isReadOnly} value={formData.lectureCredits ?? 0} onChange={e => setFormData({...formData, lectureCredits: Number(e.target.value)})} />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-xs font-bold uppercase">T</Label>
+                        <Label className="text-xs">T</Label>
                         <Input type="number" disabled={isFollowedCourse || isReadOnly} value={formData.tutorialCredits ?? 0} onChange={e => setFormData({...formData, tutorialCredits: Number(e.target.value)})} />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-xs font-bold uppercase">P</Label>
+                        <Label className="text-xs">P</Label>
                         <Input type="number" disabled={isFollowedCourse || isReadOnly} value={formData.practicalCredits ?? 0} onChange={e => setFormData({...formData, practicalCredits: Number(e.target.value)})} />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-xs font-bold text-primary uppercase">Total</Label>
+                        <Label className="text-xs font-bold text-primary">Total</Label>
                         <Input type="number" value={formData.credits ?? 0} className="font-bold bg-primary/5 text-primary" readOnly />
                       </div>
                     </div>
@@ -456,11 +373,11 @@ export function SyllabusDialog({
                     <Label className="text-sm font-semibold">Semester & Category</Label>
                     <div className="space-y-4">
                       <Select disabled={isReadOnly} value={String(formData.semester)} onValueChange={val => setFormData({ ...formData, semester: Number(val) })}>
-                        <SelectTrigger className="bg-white"><SelectValue placeholder="Semester" /></SelectTrigger>
+                        <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
                         <SelectContent>{[1,2,3,4,5,6,7,8].map(s => <SelectItem key={s} value={String(s)}>Semester {s}</SelectItem>)}</SelectContent>
                       </Select>
                       <Select disabled={isReadOnly} value={formData.creditCategory || 'DSC'} onValueChange={(val: any) => setFormData({ ...formData, creditCategory: val })}>
-                        <SelectTrigger className="bg-white"><SelectValue placeholder="Category" /></SelectTrigger>
+                        <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="DSC">DSC (Core)</SelectItem>
                           <SelectItem value="DSE">DSE (Elective)</SelectItem>
@@ -469,154 +386,77 @@ export function SyllabusDialog({
                           <SelectItem value="SEC">SEC (Skill Enhancement)</SelectItem>
                           <SelectItem value="AEC">AEC (Ability Enhancement)</SelectItem>
                           <SelectItem value="MDC">MDC (Multi Disciplinary)</SelectItem>
-                          <SelectItem value="CPF">CPF (Community Project)</SelectItem>
                         </SelectContent>
                       </Select>
-                      <div className="flex items-center gap-2 p-2 bg-white rounded border border-primary/10">
-                        <Label className="text-xs font-bold flex-1">Institutional Common Course?</Label>
-                        <Input 
-                          type="checkbox" 
-                          className="w-4 h-4 accent-primary" 
-                          checked={formData.isCommonCourse} 
-                          onChange={e => setFormData({...formData, isCommonCourse: e.target.checked})}
-                          disabled={isReadOnly || (!INSTITUTIONAL_CATEGORIES.includes(formData.creditCategory as any) && profile?.role !== 'admin')}
-                        />
-                      </div>
                     </div>
                   </div>
                 </div>
               </TabsContent>
 
-              <TabsContent value="syllabus" className="space-y-6 outline-none focus-visible:ring-0">
-                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 bg-primary/5 rounded-xl border border-primary/10">
+              <TabsContent value="syllabus" className="space-y-6">
+                <div className="flex justify-between items-center p-4 bg-primary/5 rounded-xl border">
                   <div className="space-y-1">
-                    <h3 className="font-headline font-bold text-primary">Unit Configuration</h3>
-                    <p className="text-xs text-muted-foreground">Draft syllabus using AI or add units manually.</p>
+                    <h3 className="font-headline font-bold text-primary">Course Content</h3>
                   </div>
                   {!isFollowedCourse && !isReadOnly && (
-                    <div className="flex flex-wrap items-center gap-3">
-                      <Button variant="outline" size="sm" onClick={handleAIGenerate} disabled={isGenerating} className="gap-2 bg-primary text-white hover:bg-primary/90 hover:text-white">
-                        {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                        Syllabus Architect
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={handleAIGenerate} disabled={isGenerating} className="bg-primary text-white">
+                        {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} Syllabus AI
                       </Button>
-                      <Button variant="outline" size="sm" onClick={addManualUnit} className="gap-2">
-                        <Plus className="w-4 h-4" /> Add Manual Unit
-                      </Button>
+                      <Button variant="outline" size="sm" onClick={addManualUnit}><Plus className="w-4 h-4" /> Add Unit</Button>
                     </div>
                   )}
-                  {(isFollowedCourse || isReadOnly) && <p className="text-xs font-bold text-emerald-600">Locked to Institutional Content</p>}
                 </div>
-
-                <div className="space-y-6">
-                  {formData.units?.map((unit, index) => (
-                    <Card key={unit.id} className="border-none shadow-sm bg-muted/10">
-                      <div className="bg-primary/5 px-4 py-2 border-b flex items-center justify-between">
-                        <Badge variant="outline" className="bg-primary/10 text-primary border-none text-[10px] font-bold uppercase">UNIT {index + 1}</Badge>
-                        {!isFollowedCourse && !isReadOnly && (
-                          <Button variant="ghost" size="icon" className="h-6 w-6 text-red-400 hover:bg-red-50" onClick={() => removeUnit(unit.id)}>
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        )}
+                {formData.units?.map((unit, index) => (
+                  <Card key={unit.id} className="border-none shadow-sm bg-muted/10">
+                    <div className="bg-primary/5 px-4 py-2 border-b flex justify-between">
+                      <Badge variant="outline">UNIT {index + 1}</Badge>
+                      {!isFollowedCourse && !isReadOnly && <Button variant="ghost" size="icon" className="h-6 w-6 text-red-400" onClick={() => removeUnit(unit.id)}><Trash2 className="w-3.5 h-3.5" /></Button>}
+                    </div>
+                    <CardContent className="p-4 space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <Input disabled={isFollowedCourse || isReadOnly} value={unit.title} placeholder="Title" onChange={e => updateUnit(index, 'title', e.target.value)} />
+                        <Input disabled={isFollowedCourse || isReadOnly} value={unit.courseOutcome} placeholder="Outcome" onChange={e => updateUnit(index, 'courseOutcome', e.target.value)} />
                       </div>
-                      <CardContent className="p-4 space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Unit Title</Label>
-                            <Input disabled={isFollowedCourse || isReadOnly} value={unit.title} onChange={e => updateUnit(index, 'title', e.target.value)} className="bg-white" />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[10px] uppercase font-bold text-primary">Course Outcome (CO)</Label>
-                            <Input disabled={isFollowedCourse || isReadOnly} value={unit.courseOutcome} onChange={e => updateUnit(index, 'courseOutcome', e.target.value)} className="bg-primary/5 border-primary/20 focus:bg-white" />
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[10px] uppercase font-bold text-muted-foreground">Syllabus Content</Label>
-                          <Textarea disabled={isFollowedCourse || isReadOnly} value={unit.content} onChange={e => updateUnit(index, 'content', e.target.value)} className="min-h-[100px] bg-white" />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                      <Textarea disabled={isFollowedCourse || isReadOnly} value={unit.content} placeholder="Topics..." onChange={e => updateUnit(index, 'content', e.target.value)} />
+                    </CardContent>
+                  </Card>
+                ))}
               </TabsContent>
 
-              <TabsContent value="resources" className="space-y-8 outline-none focus-visible:ring-0">
+              <TabsContent value="resources" className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-6">
-                    <div className="space-y-4">
-                      <Label className="text-sm font-bold uppercase tracking-wider text-primary">Text Books</Label>
-                      {!isFollowedCourse && !isReadOnly && (
-                        <div className="flex gap-2">
-                          <Input placeholder="Citation format..." value={newTextBook} onChange={e => setNewTextBook(e.target.value)} onKeyDown={e => e.key === 'Enter' && addResource('text')} />
-                          <Button onClick={() => addResource('text')} size="icon" variant="secondary"><Plus className="w-4 h-4" /></Button>
-                        </div>
-                      )}
-                      <ResourceList items={formData.textBooks} onRemove={i => removeItem('text', i)} readOnly={isFollowedCourse || isReadOnly} />
-                    </div>
-                    <div className="space-y-4">
-                      <Label className="text-sm font-bold uppercase tracking-wider text-primary">Reference Books</Label>
-                      {!isFollowedCourse && !isReadOnly && (
-                        <div className="flex gap-2">
-                          <Input placeholder="Citation format..." value={newReferenceBook} onChange={e => setNewReferenceBook(e.target.value)} onKeyDown={e => e.key === 'Enter' && addResource('reference')} />
-                          <Button onClick={() => addResource('reference')} size="icon" variant="secondary"><Plus className="w-4 h-4" /></Button>
-                        </div>
-                      )}
-                      <ResourceList items={formData.referenceBooks} onRemove={i => removeItem('reference', i)} readOnly={isFollowedCourse || isReadOnly} />
-                    </div>
-                  </div>
-                  <div className="space-y-6">
-                    <div className="space-y-4">
-                      <Label className="text-sm font-bold uppercase tracking-wider text-primary">Digital Courses (NPTEL)</Label>
-                      {!isFollowedCourse && !isReadOnly && (
-                        <div className="flex gap-2">
-                          <Input placeholder="URL..." value={newNptelLink} onChange={e => setNewNptelLink(e.target.value)} />
-                          <Button onClick={() => addResource('nptel')} size="icon" variant="secondary"><Plus className="w-4 h-4" /></Button>
-                        </div>
-                      )}
-                      <ResourceList items={formData.nptelLinks} onRemove={i => removeItem('nptel', i)} isLink readOnly={isFollowedCourse || isReadOnly} />
-                    </div>
+                  <div className="space-y-4">
+                    <Label className="font-bold">Text Books</Label>
+                    {!isFollowedCourse && !isReadOnly && (
+                      <div className="flex gap-2">
+                        <Input value={newTextBook} onChange={e => setNewTextBook(e.target.value)} />
+                        <Button onClick={() => addResource('text')} size="icon"><Plus className="w-4 h-4" /></Button>
+                      </div>
+                    )}
+                    <ResourceList items={formData.textBooks} onRemove={i => removeItem('text', i)} readOnly={isFollowedCourse || isReadOnly} />
                   </div>
                 </div>
               </TabsContent>
 
-              <TabsContent value="mapping" className="space-y-6 outline-none focus-visible:ring-0">
-                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-3 text-amber-800 text-sm">
-                  <div className="flex gap-3">
-                    <Info className="w-5 h-5 shrink-0" />
-                    <p>Map unit outcomes against Program Outcomes.</p>
-                  </div>
-                  {!isFollowedCourse && !isReadOnly && (
-                    <Button size="sm" variant="outline" onClick={handleAIMap} disabled={isMapping || !formData.units?.length}>
-                      {isMapping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />} Smart Suggestions
-                    </Button>
-                  )}
-                </div>
-                <div className="overflow-x-auto border rounded-xl bg-white shadow-sm">
+              <TabsContent value="mapping" className="space-y-6">
+                <div className="overflow-x-auto border rounded-xl">
                   <Table>
                     <TableHeader className="bg-muted/30">
                       <TableRow>
-                        <TableHead className="w-[200px] font-bold">COs</TableHead>
-                        {PO_DEFINITIONS.map(po => (
-                          <TableHead key={po.code} className="text-center w-[60px] text-[10px] font-bold uppercase">{po.code}</TableHead>
-                        ))}
+                        <TableHead>COs</TableHead>
+                        {PO_DEFINITIONS.map(po => <TableHead key={po.code} className="text-center w-12">{po.code}</TableHead>)}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {formData.units?.map((unit, uIdx) => (
                         <TableRow key={unit.id}>
-                          <TableCell className="font-bold text-primary">CO{uIdx + 1}</TableCell>
+                          <TableCell className="font-bold">CO{uIdx + 1}</TableCell>
                           {PO_DEFINITIONS.map(po => (
-                            <TableCell key={po.code} className="p-1 text-center border-l">
-                              <Select 
-                                disabled={isFollowedCourse || isReadOnly}
-                                value={formData.poMappings?.[unit.id]?.[po.code] || '-'} 
-                                onValueChange={(val: CorrelationLevel) => updatePOMapping(unit.id, po.code, val)}
-                              >
-                                <SelectTrigger className="h-9 w-12 mx-auto border-none bg-transparent hover:bg-muted focus:ring-0">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent className="min-w-[60px]">
-                                  {CORRELATION_LEVELS.map(lvl => <SelectItem key={lvl} value={lvl}>{lvl}</SelectItem>)}
-                                </SelectContent>
+                            <TableCell key={po.code} className="p-1 border-l">
+                              <Select disabled={isFollowedCourse || isReadOnly} value={formData.poMappings?.[unit.id]?.[po.code] || '-'} onValueChange={(val: CorrelationLevel) => updatePOMapping(unit.id, po.code, val)}>
+                                <SelectTrigger className="h-9 w-12 border-none bg-transparent hover:bg-muted"><SelectValue /></SelectTrigger>
+                                <SelectContent className="min-w-[60px]">{CORRELATION_LEVELS.map(lvl => <SelectItem key={lvl} value={lvl}>{lvl}</SelectItem>)}</SelectContent>
                               </Select>
                             </TableCell>
                           ))}
@@ -631,39 +471,37 @@ export function SyllabusDialog({
         </ScrollArea>
 
         <DialogFooter className="p-6 bg-muted/20 border-t shrink-0 z-10">
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="px-6 h-11">Cancel</Button>
-          {!isReadOnly && <Button onClick={() => { onSave(formData); onOpenChange(false); }} className="px-8 h-11 shadow-lg">Save Configuration</Button>}
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          {!isReadOnly && (
+            <Button 
+              disabled={isCodeDuplicate || !formData.subjectCode} 
+              onClick={() => { onSave(formData); onOpenChange(false); }}
+            >
+              Save Configuration
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
 
       <Dialog open={showCourseBank} onOpenChange={setShowCourseBank}>
         <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col p-0">
-          <DialogHeader className="p-6 border-b shrink-0 bg-background">
-            <DialogTitle className="flex items-center gap-2">
-              <Library className="w-5 h-5 text-primary" />
-              University Course Bank: {formData.creditCategory}
-            </DialogTitle>
-            <DialogDescription>Developed by University Level Common BOS (VAC, AEC, MDC)</DialogDescription>
+          <DialogHeader className="p-6 border-b">
+            <DialogTitle>Institutional Course Bank: {formData.creditCategory}</DialogTitle>
           </DialogHeader>
           <ScrollArea className="flex-1 p-6">
-            {loadingPool ? (
-              <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
-            ) : (
+            {loadingPool ? <Loader2 className="w-8 h-8 animate-spin mx-auto" /> : (
               <div className="grid grid-cols-1 gap-4">
                 {commonPool.map(course => (
-                  <Card key={course.id} className="hover:border-primary transition-colors cursor-pointer" onClick={() => handleFollowCourse(course)}>
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div className="space-y-1">
-                        <p className="font-bold text-primary">{course.subjectCode} - {course.title}</p>
-                        <p className="text-xs text-muted-foreground">Credits: {course.credits} | L-T-P: {course.lectureCredits}-{course.tutorialCredits}-{course.practicalCredits}</p>
+                  <Card key={course.id} className="hover:border-primary cursor-pointer" onClick={() => handleFollowCourse(course)}>
+                    <CardContent className="p-4 flex justify-between items-center">
+                      <div>
+                        <p className="font-bold">{course.subjectCode} - {course.title}</p>
+                        <p className="text-xs text-muted-foreground">Credits: {course.credits}</p>
                       </div>
                       <Button variant="secondary" size="sm">Follow Course</Button>
                     </CardContent>
                   </Card>
                 ))}
-                {commonPool.length === 0 && (
-                  <div className="text-center py-12 text-muted-foreground italic">No institutional courses found for this category.</div>
-                )}
               </div>
             )}
           </ScrollArea>
@@ -673,24 +511,14 @@ export function SyllabusDialog({
   );
 }
 
-function ResourceList({ items, onRemove, isLink, readOnly }: { items?: string[], onRemove: (i: number) => void, isLink?: boolean, readOnly?: boolean }) {
-  if (!items || items.length === 0) return null;
+function ResourceList({ items, onRemove, readOnly }: { items?: string[], onRemove: (i: number) => void, readOnly?: boolean }) {
+  if (!items?.length) return null;
   return (
     <div className="space-y-2">
       {items.map((item, i) => (
-        <div key={i} className="flex items-center justify-between p-3 bg-muted/20 border rounded-lg group">
-          <span className="text-sm truncate max-w-[90%]">
-            {isLink ? (
-              <a href={item.startsWith('http') ? item : `https://${item}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1.5">
-                {item} <ExternalLink className="w-3 h-3" />
-              </a>
-            ) : item}
-          </span>
-          {!readOnly && (
-            <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => onRemove(i)}>
-              <Trash2 className="w-3.5 h-3.5 text-red-400" />
-            </Button>
-          )}
+        <div key={i} className="flex items-center justify-between p-2 border rounded group">
+          <span className="text-sm truncate">{item}</span>
+          {!readOnly && <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => onRemove(i)}><Trash2 className="w-3.5 h-3.5" /></Button>}
         </div>
       ))}
     </div>
