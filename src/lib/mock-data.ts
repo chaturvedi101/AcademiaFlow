@@ -14,6 +14,10 @@ export const MOCK_ADMIN: UserProfile = {
   role: 'admin'
 };
 
+/**
+ * Dean Academics: The university-level authority responsible for 
+ * final scheme approvals and institutional oversight.
+ */
 export const MOCK_DEAN_ACADEMICS: UserProfile = {
   id: 'dean_acad_1',
   email: 'dean.academics@university.edu',
@@ -30,6 +34,8 @@ export const MOCK_PROGRAMS: Program[] = [
     totalSemesters: 8,
     level: 'UG',
     description: 'Undergraduate engineering program in Computer Science and Engineering.',
+    faculty: "Faculty of Computer Science and Communication Engineering",
+    branches: ["Computer Science", "Information Technology", "AI & ML"],
     rules: {
       dscMin: 96,
       dscMax: 104,
