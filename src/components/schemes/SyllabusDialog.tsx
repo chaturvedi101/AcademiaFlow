@@ -21,7 +21,7 @@ import { suggestCOPOMapping } from "@/ai/flows/suggest-co-po-mapping";
 import { useToast } from "@/hooks/use-toast";
 import { exportSyllabusToPDF } from "@/lib/pdf-export";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
-import { collectionGroup, query, where, getDocs, doc } from "firebase/firestore";
+import { collectionGroup, query, where, getDocs, doc, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
 
 const PO_DEFINITIONS = [
   { code: 'PO1', title: 'Engineering Knowledge', desc: 'Apply mathematics, science, and engineering fundamentals.' },
@@ -73,8 +73,6 @@ export function SyllabusDialog({
   const [isGenerating, setIsGenerating] = useState(false);
   const [isMapping, setIsMapping] = useState(false);
   const [unitCount, setUnitCount] = useState(5);
-  const [apiKeyError, setApiKeyError] = useState(false);
-  const [quotaError, setQuotaError] = useState<string | null>(null);
   const [showCourseBank, setShowCourseBank] = useState(false);
   const [commonPool, setCommonPool] = useState<Syllabus[]>([]);
   const [loadingPool, setLoadingPool] = useState(false);
@@ -100,17 +98,30 @@ export function SyllabusDialog({
 
   const [newTextBook, setNewTextBook] = useState('');
   const [newReferenceBook, setNewReferenceBook] = useState('');
-  const [newNptelLink, setNewNptelLink] = useState('');
-  const [newYoutubeLink, setNewYoutubeLink] = useState('');
 
+  // Rules for Automated Subject Code Generation
   const generateAutoSubjectCode = useCallback(() => {
     if (!branchName) return '';
-    const branchPrefix = branchName.substring(0, 2).toUpperCase();
+    
+    // 1. Branch Prefix (2 chars)
+    let branchPrefix = 'PO';
+    if (branchName !== 'Institutional Common Pool') {
+      branchPrefix = branchName.substring(0, 2).toUpperCase();
+    }
+
+    // 2. Type Indicator (1 char): L for Theory/Tutorial, P for Practical
     const typeIndicator = (formData.lectureCredits || 0) + (formData.tutorialCredits || 0) > 0 ? 'L' : 'P';
-    const categoryIndicator = (formData.creditCategory === 'DSE' || formData.creditCategory === 'OFE') ? 'E' : 'C';
+    
+    // 3. Category Indicator (1 char): E for Elective, C for Core
+    const isElective = formData.creditCategory === 'DSE' || formData.creditCategory === 'OFE';
+    const categoryIndicator = isElective ? 'E' : 'C';
+    
+    // 4. Semester Digit (1 digit)
     const semDigit = formData.semester || 1;
 
     const baseCode = `${branchPrefix}${typeIndicator}${categoryIndicator}${semDigit}`;
+    
+    // 5. Sequence (2 digits) to ensure uniqueness
     let sequence = 1;
     let finalCode = `${baseCode}${String(sequence).padStart(2, '0')}`;
 
@@ -140,6 +151,7 @@ export function SyllabusDialog({
         isCommonCourse: syllabus.isCommonCourse || (profile?.faculty === 'University-wide (Common BOS)' && INSTITUTIONAL_CATEGORIES.includes(syllabus.creditCategory as any))
       }));
 
+      // If this is a new subject, generate a code automatically
       if (!syllabus.id && !syllabus.subjectCode) {
         setFormData(prev => ({ ...prev, subjectCode: generateAutoSubjectCode() }));
       }
@@ -259,23 +271,19 @@ export function SyllabusDialog({
     }));
   };
 
-  const addResource = (type: 'text' | 'reference' | 'nptel' | 'youtube') => {
+  const addResource = (type: 'text' | 'reference') => {
     let value = '';
     let field: keyof Partial<Syllabus> = 'textBooks';
     if (type === 'text') { value = newTextBook; field = 'textBooks'; setNewTextBook(''); }
     if (type === 'reference') { value = newReferenceBook; field = 'referenceBooks'; setNewReferenceBook(''); }
-    if (type === 'nptel') { value = newNptelLink; field = 'nptelLinks'; setNewNptelLink(''); }
-    if (type === 'youtube') { value = newYoutubeLink; field = 'youtubeLinks'; setNewYoutubeLink(''); }
     if (!value.trim()) return;
     setFormData(prev => ({ ...prev, [field]: [...(prev[field] as string[] || []), value.trim()] }));
   };
 
-  const removeItem = (type: 'text' | 'reference' | 'nptel' | 'youtube', index: number) => {
+  const removeItem = (type: 'text' | 'reference', index: number) => {
     let field: keyof Partial<Syllabus> = 'textBooks';
     if (type === 'text') field = 'textBooks';
     if (type === 'reference') field = 'referenceBooks';
-    if (type === 'nptel') field = 'nptelLinks';
-    if (type === 'youtube') field = 'youtubeLinks';
     setFormData(prev => ({ ...prev, [field]: (prev[field] as string[] || []).filter((_, i) => i !== index) }));
   };
 
@@ -435,6 +443,16 @@ export function SyllabusDialog({
                       </div>
                     )}
                     <ResourceList items={formData.textBooks} onRemove={i => removeItem('text', i)} readOnly={isFollowedCourse || isReadOnly} />
+                  </div>
+                  <div className="space-y-4">
+                    <Label className="font-bold">Reference Materials</Label>
+                    {!isFollowedCourse && !isReadOnly && (
+                      <div className="flex gap-2">
+                        <Input value={newReferenceBook} onChange={e => setNewReferenceBook(e.target.value)} />
+                        <Button onClick={() => addResource('reference')} size="icon"><Plus className="w-4 h-4" /></Button>
+                      </div>
+                    )}
+                    <ResourceList items={formData.referenceBooks} onRemove={i => removeItem('reference', i)} readOnly={isFollowedCourse || isReadOnly} />
                   </div>
                 </div>
               </TabsContent>
