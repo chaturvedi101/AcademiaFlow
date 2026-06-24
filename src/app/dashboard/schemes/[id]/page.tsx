@@ -151,11 +151,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       return;
     }
 
-    // Use Subject Code as the unique document identifier
     const syllabusId = data.subjectCode;
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', syllabusId);
 
-    // If the code was changed (edit), clean up the old document to avoid duplicates
     if (data.id && data.id !== syllabusId) {
       const oldDocRef = doc(db, 'schemes', schemeId, 'syllabi', data.id);
       deleteDoc(oldDocRef).catch(err => {
@@ -166,7 +164,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const isInstitutionalCategory = ['VAC', 'AEC', 'MDC'].includes(data.creditCategory || '');
     const finalData = {
       ...data,
-      id: syllabusId, // Ensure internal ID matches subjectCode for consistency
+      id: syllabusId,
       schemeId: schemeId,
       isCommonCourse: (profile?.faculty === 'University-wide (Common BOS)' && isInstitutionalCategory) || data.isCommonCourse,
       updatedAt: serverTimestamp(),
@@ -431,6 +429,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         branchName={scheme?.branch}
         batchYear={scheme?.batchYear}
         canEdit={permissions.canEditSyllabus(activeSubject as Syllabus || { creditCategory: 'DSC' })}
+        currentSchemeId={schemeId}
       />
     </div>
   );

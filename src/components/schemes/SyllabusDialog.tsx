@@ -13,7 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Calculator, Plus, Trash2, Sparkles, Loader2, Hash, Library, AlertCircle } from "lucide-react";
+import { Calculator, Plus, Trash2, Sparkles, Loader2, Hash, Library, AlertCircle, ShieldAlert, Globe } from "lucide-react";
 import { Syllabus, CorrelationLevel, SyllabusUnit, CreditCategory } from "@/lib/types";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { suggestCOPOMapping } from "@/ai/flows/suggest-co-po-mapping";
@@ -49,6 +49,7 @@ interface SyllabusDialogProps {
   branchName?: string;
   batchYear?: string;
   canEdit?: boolean;
+  currentSchemeId?: string;
 }
 
 export function SyllabusDialog({ 
@@ -60,7 +61,8 @@ export function SyllabusDialog({
   programName,
   branchName,
   batchYear,
-  canEdit = true
+  canEdit = true,
+  currentSchemeId
 }: SyllabusDialogProps) {
   const { toast } = useToast();
   const db = useFirestore();
@@ -75,6 +77,9 @@ export function SyllabusDialog({
   const [commonPool, setCommonPool] = useState<Syllabus[]>([]);
   const [loadingPool, setLoadingPool] = useState(false);
   
+  const [globalConflict, setGlobalConflict] = useState<{ schemeId: string; subjectCode: string } | null>(null);
+  const [isCheckingGlobal, setIsCheckingGlobal] = useState(false);
+
   const [formData, setFormData] = useState<Partial<Syllabus>>({
     subjectCode: '',
     title: '',
@@ -103,7 +108,6 @@ export function SyllabusDialog({
   const generateAutoSubjectCode = useCallback(() => {
     if (!branchName) return '';
     
-    // 1. Branch Prefix (2 chars)
     let branchPrefix = 'PO';
     if (branchName !== 'Institutional Common Pool') {
       const lowerBranch = branchName.toLowerCase();
@@ -114,31 +118,21 @@ export function SyllabusDialog({
       }
     }
 
-    // 2. Type Indicator (1 char): L for Theory/Tutorial, P for Practical
     const typeIndicator = (formData.lectureCredits || 0) + (formData.tutorialCredits || 0) > 0 ? 'L' : 'P';
-    
-    // 3. Category Indicator (1 char): E for Elective, C for Core
     const isElective = formData.creditCategory === 'DSE' || formData.creditCategory === 'OFE';
     const categoryIndicator = isElective ? 'E' : 'C';
-    
-    // 4. Year Digit (based on semester)
-    // Sem 1, 2 -> 1
-    // Sem 3, 4 -> 2
-    // Sem 5, 6 -> 3
-    // Sem 7, 8 -> 4
     const yearDigit = Math.ceil((formData.semester || 1) / 2);
 
     const baseCode = `${branchPrefix}${typeIndicator}${categoryIndicator}${yearDigit}`;
     
-    // 5. Sequence (2 digits)
     let sequence = 1;
     let finalCode = `${baseCode}${String(sequence).padStart(2, '0')}`;
 
-    const existingCodes = existingSyllabi
+    const existingCodesInScheme = existingSyllabi
       .filter(s => s.id !== formData.id)
       .map(s => s.subjectCode);
 
-    while (existingCodes.includes(finalCode)) {
+    while (existingCodesInScheme.includes(finalCode)) {
       sequence++;
       finalCode = `${baseCode}${String(sequence).padStart(2, '0')}`;
       if (sequence > 99) break;
@@ -173,7 +167,52 @@ export function SyllabusDialog({
     setFormData(prev => ({ ...prev, credits: l + t + (p * 0.5) }));
   }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits]);
 
-  const isCodeDuplicate = useMemo(() => {
+  // University-wide uniqueness check
+  useEffect(() => {
+    if (!open || !formData.subjectCode) return;
+    
+    const checkGlobalUniqueness = async (code: string) => {
+      // If code hasn't changed from original, it's fine
+      if (syllabus?.subjectCode === code) {
+        setGlobalConflict(null);
+        return;
+      }
+
+      setIsCheckingGlobal(true);
+      try {
+        const q = query(collectionGroup(db, 'syllabi'), where('subjectCode', '==', code));
+        const snap = await getDocs(q);
+        
+        // Find a conflict that isn't the current scheme (if editing)
+        const conflict = snap.docs.find(d => {
+          const data = d.data();
+          // Conflict found if it belongs to a different scheme
+          return data.schemeId !== currentSchemeId;
+        });
+
+        if (conflict) {
+          setGlobalConflict({ 
+            schemeId: conflict.data().schemeId, 
+            subjectCode: conflict.data().subjectCode 
+          });
+        } else {
+          setGlobalConflict(null);
+        }
+      } catch (err) {
+        console.error("Global uniqueness check failed:", err);
+      } finally {
+        setIsCheckingGlobal(false);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      checkGlobalUniqueness(formData.subjectCode!);
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [formData.subjectCode, open, db, currentSchemeId, syllabus?.subjectCode]);
+
+  const isCodeDuplicateInScheme = useMemo(() => {
     if (!formData.subjectCode) return false;
     return existingSyllabi.some(s => s.subjectCode === formData.subjectCode && s.id !== formData.id);
   }, [formData.subjectCode, formData.id, existingSyllabi]);
@@ -324,10 +363,26 @@ export function SyllabusDialog({
         
         <ScrollArea className="flex-1 w-full min-h-0">
           <div className="p-6 space-y-8 pb-12">
-            {isCodeDuplicate && (
+            {isCheckingGlobal && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse">
+                <Loader2 className="w-3 h-3 animate-spin" /> Verifying code uniqueness across university...
+              </div>
+            )}
+
+            {globalConflict && (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-amber-800 text-sm animate-in fade-in zoom-in-95">
+                <Globe className="w-5 h-5 shrink-0 text-amber-600" />
+                <div className="flex-1">
+                  <p className="font-bold">Institutional Conflict Detected</p>
+                  <p className="text-xs">Subject code "{globalConflict.subjectCode}" is already in use in scheme: <span className="font-mono font-bold bg-amber-100 px-1 rounded">{globalConflict.schemeId}</span>. Subject codes must be unique university-wide.</p>
+                </div>
+              </div>
+            )}
+
+            {isCodeDuplicateInScheme && !globalConflict && (
               <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-red-800 text-sm animate-in fade-in zoom-in-95">
                 <AlertCircle className="w-5 h-5 shrink-0 text-red-600" />
-                <p className="font-bold">Error: Subject Code "{formData.subjectCode}" already exists in this scheme. Use a unique code.</p>
+                <p className="font-bold">Local Conflict: Subject Code "{formData.subjectCode}" already exists in this scheme structure.</p>
               </div>
             )}
 
@@ -344,11 +399,11 @@ export function SyllabusDialog({
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Subject Code (Document ID)</Label>
                     <div className="relative">
-                      <Hash className={`absolute left-3 top-2.5 h-4 w-4 ${isCodeDuplicate ? 'text-red-500' : 'text-muted-foreground'}`} />
+                      <Hash className={`absolute left-3 top-2.5 h-4 w-4 ${isCodeDuplicateInScheme || globalConflict ? 'text-red-500' : 'text-muted-foreground'}`} />
                       <Input 
                         disabled={isReadOnly}
                         placeholder="e.g., COLC301" 
-                        className={`pl-9 font-mono ${isCodeDuplicate ? 'border-red-500 ring-red-500' : ''}`}
+                        className={`pl-9 font-mono ${isCodeDuplicateInScheme || globalConflict ? 'border-red-500 ring-red-500' : ''}`}
                         value={formData.subjectCode || ''} 
                         onChange={e => setFormData({ ...formData, subjectCode: e.target.value.toUpperCase().replace(/\s+/g, '') })}
                       />
@@ -504,9 +559,10 @@ export function SyllabusDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           {!isReadOnly && (
             <Button 
-              disabled={isCodeDuplicate || !formData.subjectCode} 
+              disabled={isCodeDuplicateInScheme || !!globalConflict || !formData.subjectCode || isCheckingGlobal} 
               onClick={() => { onSave(formData); onOpenChange(false); }}
             >
+              {isCheckingGlobal ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Save Configuration
             </Button>
           )}
