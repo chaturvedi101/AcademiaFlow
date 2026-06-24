@@ -114,8 +114,10 @@ export interface Syllabus {
   nptelLinks?: string[];
   youtubeLinks?: string[];
   creditCategory: CreditCategory;
-  isCommonCourse?: boolean; // Flag to indicate if this is a university-wide common course
-  followedFromId?: string; // ID of the original course in the common pool
+  isCommonCourse?: boolean;
+  followedFromId?: string;
+  electiveGroupId?: string; // e.g. "Elective-I"
+  electiveGroupName?: string; // e.g. "Cloud Computing Pool"
 }
 
 export interface AuditLog {
