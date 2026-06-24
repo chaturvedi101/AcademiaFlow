@@ -13,7 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Calculator, Plus, Trash2, Sparkles, Loader2, Hash, Library, AlertCircle, ShieldAlert, Globe } from "lucide-react";
+import { Calculator, Plus, Trash2, Sparkles, Loader2, Hash, Library, AlertCircle, ShieldAlert, Globe, Link2 } from "lucide-react";
 import { Syllabus, CorrelationLevel, SyllabusUnit, CreditCategory } from "@/lib/types";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { suggestCOPOMapping } from "@/ai/flows/suggest-co-po-mapping";
@@ -77,7 +77,7 @@ export function SyllabusDialog({
   const [commonPool, setCommonPool] = useState<Syllabus[]>([]);
   const [loadingPool, setLoadingPool] = useState(false);
   
-  const [globalConflict, setGlobalConflict] = useState<{ schemeId: string; subjectCode: string } | null>(null);
+  const [globalConflict, setGlobalConflict] = useState<{ schemeId: string; subjectCode: string; data: Syllabus } | null>(null);
   const [isCheckingGlobal, setIsCheckingGlobal] = useState(false);
 
   const [formData, setFormData] = useState<Partial<Syllabus>>({
@@ -104,7 +104,6 @@ export function SyllabusDialog({
 
   const isCommonStaff = profile?.faculty === 'University-wide (Common BOS)' || profile?.role === 'admin' || profile?.role === 'dean_academic';
 
-  // Rules for Automated Subject Code Generation
   const generateAutoSubjectCode = useCallback(() => {
     if (!branchName) return '';
     
@@ -167,12 +166,10 @@ export function SyllabusDialog({
     setFormData(prev => ({ ...prev, credits: l + t + (p * 0.5) }));
   }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits]);
 
-  // University-wide uniqueness check
   useEffect(() => {
     if (!open || !formData.subjectCode) return;
     
     const checkGlobalUniqueness = async (code: string) => {
-      // If code hasn't changed from original, it's fine
       if (syllabus?.subjectCode === code) {
         setGlobalConflict(null);
         return;
@@ -183,17 +180,16 @@ export function SyllabusDialog({
         const q = query(collectionGroup(db, 'syllabi'), where('subjectCode', '==', code));
         const snap = await getDocs(q);
         
-        // Find a conflict that isn't the current scheme (if editing)
         const conflict = snap.docs.find(d => {
           const data = d.data();
-          // Conflict found if it belongs to a different scheme
           return data.schemeId !== currentSchemeId;
         });
 
         if (conflict) {
           setGlobalConflict({ 
             schemeId: conflict.data().schemeId, 
-            subjectCode: conflict.data().subjectCode 
+            subjectCode: conflict.data().subjectCode,
+            data: conflict.data() as Syllabus
           });
         } else {
           setGlobalConflict(null);
@@ -258,6 +254,32 @@ export function SyllabusDialog({
     toast({ title: "Common Course Followed" });
   };
 
+  const handleImportExistingSubject = () => {
+    if (!globalConflict) return;
+    const existing = globalConflict.data;
+    setFormData(prev => ({
+      ...prev,
+      title: existing.title,
+      units: existing.units,
+      textBooks: existing.textBooks,
+      referenceBooks: existing.referenceBooks,
+      nptelLinks: existing.nptelLinks,
+      youtubeLinks: existing.youtubeLinks,
+      credits: existing.credits,
+      lectureCredits: existing.lectureCredits,
+      tutorialCredits: existing.tutorialCredits,
+      practicalCredits: existing.practicalCredits,
+      type: existing.type,
+      followedFromId: existing.id,
+      poMappings: existing.poMappings,
+    }));
+    setGlobalConflict(null); // Clear conflict so user can save
+    toast({ 
+      title: "Content Linked", 
+      description: `Successfully imported content from subject ${existing.subjectCode}.` 
+    });
+  };
+
   const handleAIGenerate = async () => {
     if (!formData.title) return;
     setIsGenerating(true);
@@ -279,22 +301,6 @@ export function SyllabusDialog({
       toast({ title: "Generation Failed", description: error.message, variant: "destructive" });
     } finally {
       setIsGenerating(false);
-    }
-  };
-
-  const handleAIMap = async () => {
-    if (!formData.units?.length) return;
-    setIsMapping(true);
-    try {
-      const result = await suggestCOPOMapping({
-        subjectTitle: formData.title || 'Unknown Subject',
-        units: formData.units.map(u => ({ id: u.id, courseOutcome: u.courseOutcome })),
-      });
-      setFormData(prev => ({ ...prev, poMappings: result.mappings as any }));
-    } catch (error: any) {
-      toast({ title: "Mapping Failed", description: error.message, variant: "destructive" });
-    } finally {
-      setIsMapping(false);
     }
   };
 
@@ -345,7 +351,7 @@ export function SyllabusDialog({
             <div className="space-y-1">
               <DialogTitle className="font-headline text-2xl flex items-center gap-2">
                 {isReadOnly ? 'View Subject Details' : (syllabus?.id ? 'Edit Subject Details' : 'Add New Subject Definition')}
-                {isFollowedCourse && <Badge className="bg-emerald-100 text-emerald-700 border-none">Common Course Content</Badge>}
+                {isFollowedCourse && <Badge className="bg-emerald-100 text-emerald-700 border-none">Linked Content</Badge>}
               </DialogTitle>
               <DialogDescription>
                 {isReadOnly ? 'Institutional course content managed by Common BOS.' : 'Configure course code, content, and credit distribution.'}
@@ -370,11 +376,19 @@ export function SyllabusDialog({
             )}
 
             {globalConflict && (
-              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-amber-800 text-sm animate-in fade-in zoom-in-95">
-                <Globe className="w-5 h-5 shrink-0 text-amber-600" />
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-4 text-amber-800 text-sm animate-in fade-in zoom-in-95">
+                <Globe className="w-6 h-6 shrink-0 text-amber-600" />
                 <div className="flex-1">
                   <p className="font-bold">Institutional Conflict Detected</p>
-                  <p className="text-xs">Subject code "{globalConflict.subjectCode}" is already in use in scheme: <span className="font-mono font-bold bg-amber-100 px-1 rounded">{globalConflict.schemeId}</span>. Subject codes must be unique university-wide.</p>
+                  <p className="text-xs mb-3">Subject code "{globalConflict.subjectCode}" is already in use in scheme: <span className="font-mono font-bold bg-amber-100 px-1 rounded">{globalConflict.schemeId}</span>. Would you like to use this existing subject's configuration?</p>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="gap-2 bg-white hover:bg-amber-100 text-amber-700 border-amber-200"
+                    onClick={handleImportExistingSubject}
+                  >
+                    <Link2 className="w-3.5 h-3.5" /> Use Existing Course Data
+                  </Button>
                 </div>
               </div>
             )}
@@ -486,7 +500,7 @@ export function SyllabusDialog({
                   <Card key={unit.id} className="border-none shadow-sm bg-muted/10">
                     <div className="bg-primary/5 px-4 py-2 border-b flex justify-between">
                       <Badge variant="outline">UNIT {index + 1}</Badge>
-                      {!isFollowedCourse && !isReadOnly && <Button variant="ghost" size="icon" className="h-6 w-6 text-red-400" onClick={() => removeUnit(unit.id)}><Trash2 className="w-3.5 h-3.5" /></Button>}
+                      {!isFollowedCourse && !isReadOnly && <Button variant="ghost" size="icon" className="h-6 we-6 text-red-400" onClick={() => removeUnit(unit.id)}><Trash2 className="w-3.5 h-3.5" /></Button>}
                     </div>
                     <CardContent className="p-4 space-y-4">
                       <div className="grid grid-cols-2 gap-4">
