@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo } from 'react';
@@ -8,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FileText, Clock, CheckCircle2, ArrowRight, Layers, ShieldCheck, GraduationCap, Loader2, FileCheck, Plus, UserCircle } from "lucide-react";
-import Link from "link";
+import Link from "next/link";
 import { Scheme, Program, UserProfile } from '@/lib/types';
 
 export default function DashboardPage() {
