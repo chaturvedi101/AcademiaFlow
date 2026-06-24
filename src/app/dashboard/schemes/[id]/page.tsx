@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Save, Send, History, Trash2, Edit3, Download, GraduationCap, Layers, Loader2, ShieldAlert, FileDown, FileText, AlertTriangle, CheckCircle2, ShieldCheck, Library } from "lucide-react";
+import { Plus, Save, Send, History, Trash2, Edit3, Download, GraduationCap, Layers, Loader2, ShieldAlert, FileDown, FileText, AlertTriangle, CheckCircle2, ShieldCheck, Library, Hash } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile } from "@/lib/types";
@@ -37,7 +37,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const syllabiRef = useMemoFirebase(() => collection(db, 'schemes', schemeId, 'syllabi'), [db, schemeId]);
   const { data: localSyllabi, loading: syllabiLoading } = useCollection<Syllabus>(syllabiRef);
 
-  // Program-wide Common Pool Lookup
   const commonSchemeQuery = useMemoFirebase(() => {
     if (!scheme?.programId) return null;
     return query(
@@ -65,8 +64,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
   const syllabi = useMemo(() => {
     const combined = [...localSyllabi];
-    
-    // Merge common pool syllabi (VAC, AEC, MDC only)
     if (commonSyllabi && commonSyllabi.length > 0) {
       commonSyllabi.forEach(cs => {
         const isInstitutionalCategory = ['VAC', 'AEC', 'MDC'].includes(cs.creditCategory);
@@ -135,7 +132,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const sId = data.id || doc(collection(db, 'temp')).id;
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', sId);
     
-    // Syllabi developed by Common BOS are institutional, except SEC which is branch-specific
     const isInstitutionalCategory = ['VAC', 'AEC', 'MDC'].includes(data.creditCategory || '');
     const finalData = {
       ...data,
@@ -168,12 +164,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const handleExportFullPDF = () => {
     if (!scheme || !program) return;
     exportFullSchemeToPDF(scheme, program, syllabi);
-    toast({ title: "Scheme Exported", description: "Complete course structure PDF generated." });
+    toast({ title: "Scheme Exported" });
   };
 
   const handleExportSyllabusPDF = (syllabus: Syllabus) => {
     exportSyllabusToPDF(syllabus, program?.name, scheme?.branch, scheme?.batchYear);
-    toast({ title: "Syllabus Exported", description: `${syllabus.subjectCode} PDF generated.` });
+    toast({ title: "Syllabus Exported" });
   };
 
   if (schemeLoading || syllabiLoading) {
@@ -192,12 +188,16 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         <div className="space-y-1">
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-headline font-bold">{program?.name || 'Academic Layout'}</h1>
-            {scheme.isCommonPoolScheme && <Badge className="bg-emerald-100 text-emerald-700 border-none font-bold">INSTITUTIONAL COMMON POOL</Badge>}
+            {scheme.isCommonPoolScheme && <Badge className="bg-emerald-100 text-emerald-700 border-none font-bold">INSTITUTIONAL</Badge>}
             <Badge variant="outline" className="bg-primary/10 text-primary border-none font-medium">
               {scheme.version}
             </Badge>
           </div>
-          <div className="flex items-center gap-3 text-muted-foreground text-sm">
+          <div className="flex flex-wrap items-center gap-3 text-muted-foreground text-sm">
+            <div className="flex items-center gap-1.5 font-mono text-primary font-bold">
+              <Hash className="w-3.5 h-3.5" /> {scheme.schemeCode || 'N/A'}
+            </div>
+            <span className="w-1 h-1 rounded-full bg-border"></span>
             <span>Branch: <span className={scheme.isCommonPoolScheme ? 'font-bold text-emerald-700' : 'font-bold text-foreground'}>{scheme.branch || 'General'}</span></span>
             <span className="w-1 h-1 rounded-full bg-border"></span>
             <span>Batch: {scheme.batchYear}</span>
@@ -208,7 +208,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" className="gap-2 border-primary/20 text-primary" onClick={handleExportFullPDF}>
-            <FileText className="w-4 h-4" /> Download Full Structure
+            <FileText className="w-4 h-4" /> Download Structure
           </Button>
           
           {canModifySchemeLayout && scheme.status === 'Draft' && (
@@ -230,7 +230,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                     <div className="flex gap-2 items-start text-destructive">
                       <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
                       <p className="text-xs">
-                        Cannot submit: Credit framework requirements not met. Total credits must be exactly {program?.rules?.totalRequired}. Current: {creditDistribution.total}.
+                        Cannot submit: Credit framework requirements not met. Current total: {creditDistribution.total}.
                       </p>
                     </div>
                   </TooltipContent>
@@ -246,9 +246,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           <AlertTriangle className="w-5 h-5 shrink-0 text-amber-600" />
           <p className="flex-1">
             <span className="font-bold">Compliance Warning:</span> Credit framework not satisfied. Current: {creditDistribution.total} / Required: {program?.rules?.totalRequired}.
-            {!scheme.isCommonPoolScheme && commonScheme && (
-              <span className="block mt-1 font-normal opacity-80 italic">Integrated with institutional VAC, AEC, and MDC courses. SEC courses are defined by your branch BOS.</span>
-            )}
           </p>
         </div>
       )}
@@ -268,7 +265,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
         <div className="xl:col-span-3 space-y-6">
           <Tabs defaultValue="syllabi" className="w-full">
-            <TabsList className="bg-white border p-1 h-12 w-full justify-start gap-2 overflow-x-auto">
+            <TabsList className="bg-white border p-1 h-12 w-full justify-start gap-2">
               <TabsTrigger value="syllabi" className="h-10 px-6 data-[state=active]:bg-primary data-[state=active]:text-white">
                 Course Structure
               </TabsTrigger>
@@ -353,13 +350,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                               </TableRow>
                             );
                           })}
-                          {semSubjects.length === 0 && (
-                            <TableRow>
-                              <TableCell colSpan={5} className="text-center py-10 text-muted-foreground text-sm italic">
-                                No subjects added for this semester.
-                              </TableCell>
-                            </TableRow>
-                          )}
                         </TableBody>
                       </Table>
                     </CardContent>
@@ -371,7 +361,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             <TabsContent value="nep" className="mt-6">
               <Card className="border-none shadow-sm">
                 <CardHeader>
-                  <CardTitle className="font-headline">NEP 2020 Configurations</CardTitle>
+                  <CardTitle className="font-headline">NEP 2020 Configuration</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/10">

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo } from 'react';
@@ -6,7 +7,7 @@ import { collection, doc } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, Clock, CheckCircle2, ArrowRight, Layers, ShieldCheck, GraduationCap, Loader2, FileCheck, Plus, UserCircle } from "lucide-react";
+import { FileText, Clock, CheckCircle2, ArrowRight, Layers, ShieldCheck, GraduationCap, Loader2, FileCheck, Plus, UserCircle, Hash } from "lucide-react";
 import Link from "next/link";
 import { Scheme, Program, UserProfile } from '@/lib/types';
 
@@ -22,7 +23,6 @@ export default function DashboardPage() {
   const filteredSchemes = useMemo(() => {
     if (!profile || !programs.length) return [];
     
-    // Admins, Dean Academic, and University-wide Common BOS see everything
     if (
       profile.role === 'admin' || 
       profile.role === 'dean_academic' || 
@@ -38,7 +38,6 @@ export default function DashboardPage() {
       });
     }
 
-    // Filter for BoS
     const managed = profile.managedBranches || [];
     return schemes.filter(s => 
       managed.some(m => m.programId === s.programId && m.branch === s.branch)
@@ -72,10 +71,10 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatsCard title="Active Schemes" value={stats.activeSchemes} trend="In your jurisdiction" icon={<FileText className="text-primary" />} />
+        <StatsCard title="Active Schemes" value={stats.activeSchemes} trend="In jurisdiction" icon={<FileText className="text-primary" />} />
         <StatsCard title="Pending Review" value={stats.pendingApproval} trend="Awaiting action" icon={<Clock className="text-accent" />} variant="warning" />
-        <StatsCard title="Approved" value={stats.approved} trend="Finalized layouts" icon={<CheckCircle2 className="text-green-500" />} />
-        <StatsCard title="Faculty Programs" value={stats.programs} trend="Defined disciplines" icon={<GraduationCap className="text-muted-foreground" />} />
+        <StatsCard title="Approved" value={stats.approved} trend="Finalized" icon={<CheckCircle2 className="text-green-500" />} />
+        <StatsCard title="Programs" value={stats.programs} trend="Total defined" icon={<GraduationCap className="text-muted-foreground" />} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -92,7 +91,14 @@ export default function DashboardPage() {
               {filteredSchemes.slice(0, 5).map(scheme => {
                 const program = programs.find(p => p.id === scheme.programId);
                 return (
-                  <SchemeRow key={scheme.id} id={scheme.id} name={program?.name || 'Loading...'} batch={scheme.batchYear} status={scheme.status} updated="Recently" />
+                  <SchemeRow 
+                    key={scheme.id} 
+                    id={scheme.id} 
+                    name={program?.name || 'Loading...'} 
+                    batch={scheme.batchYear} 
+                    status={scheme.status} 
+                    code={scheme.schemeCode}
+                  />
                 );
               })}
             </div>
@@ -129,13 +135,17 @@ function StatsCard({ title, value, trend, icon, variant = 'default' }: any) {
   );
 }
 
-function SchemeRow({ id, name, batch, status, updated }: any) {
+function SchemeRow({ id, name, batch, status, code }: any) {
   const statusColors: any = { 'Draft': 'bg-slate-100 text-slate-700', 'Pending Dean': 'bg-amber-100 text-amber-700', 'Pending Academics': 'bg-blue-100 text-blue-700', 'Approved': 'bg-emerald-100 text-emerald-700' };
   return (
     <Link href={`/dashboard/schemes/${id}`} className="flex items-center justify-between p-4 rounded-lg border border-border/50 hover:bg-muted/20 transition-colors">
       <div className="space-y-1">
         <p className="font-medium text-sm">{name}</p>
-        <p className="text-[10px] text-muted-foreground uppercase font-bold">Batch: {batch} • {updated}</p>
+        <div className="flex items-center gap-2">
+           <p className="text-[10px] text-muted-foreground uppercase font-bold">Batch: {batch}</p>
+           <span className="w-1 h-1 rounded-full bg-border"></span>
+           <p className="text-[10px] text-primary font-mono font-bold flex items-center gap-1"><Hash className="w-2.5 h-2.5" /> {code || 'N/A'}</p>
+        </div>
       </div>
       <Badge variant="secondary" className={`${statusColors[status] || ''} border-none font-bold text-[9px]`}>{status}</Badge>
     </Link>

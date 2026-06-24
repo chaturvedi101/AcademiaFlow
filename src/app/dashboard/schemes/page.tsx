@@ -8,7 +8,7 @@ import { Scheme, Program, UserProfile } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, BookOpen, Loader2, Calendar, FileText, ArrowRight, ShieldCheck, Info } from 'lucide-react';
+import { Plus, BookOpen, Loader2, Calendar, FileText, ArrowRight, ShieldCheck, Info, Hash } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -50,7 +50,6 @@ export default function SchemesPage() {
   const filteredSchemes = useMemo(() => {
     if (!profile) return [];
     
-    // Admins, Dean Academic, and Common BOS can see all schemes
     if (
       profile.role === 'admin' || 
       profile.role === 'dean_academic' || 
@@ -59,7 +58,6 @@ export default function SchemesPage() {
       return schemes;
     }
 
-    // Dean Faculty see schemes within their faculty
     if (profile.role === 'dean_faculty') {
       return schemes.filter(s => {
         const prog = programs.find(p => p.id === s.programId);
@@ -76,7 +74,6 @@ export default function SchemesPage() {
   const availablePrograms = useMemo(() => {
     if (!profile) return [];
     
-    // Common BOS, Admins, Dean Academic see all
     if (
       profile.role === 'admin' || 
       profile.role === 'dean_academic' || 
@@ -85,7 +82,6 @@ export default function SchemesPage() {
       return programs;
     }
 
-    // Dean Faculty see their programs
     if (profile.role === 'dean_faculty') {
       return programs.filter(p => p.faculty === profile.faculty);
     }
@@ -102,10 +98,21 @@ export default function SchemesPage() {
       return;
     }
 
-    // Common Pool schemes don't have a specific branch, they are Program-wide
+    if (!selectedProgram) return;
+
+    // Generate Composite Scheme Code
+    const branchName = isCommonBos ? 'Institutional Common Pool' : newScheme.branch;
+    const branchPrefix = isCommonBos 
+      ? 'POOL' 
+      : (selectedProgram.branchPrefixes?.[branchName] || branchName.substring(0, 3).toUpperCase());
+    
+    const creationYear = new Date().getFullYear();
+    const generatedCode = `${selectedProgram.code}-${branchPrefix}-${creationYear}`;
+
     const schemeData: Partial<Scheme> = {
       ...newScheme,
-      branch: isCommonBos ? 'Institutional Common Pool' : newScheme.branch,
+      branch: branchName,
+      schemeCode: generatedCode,
       status: 'Draft' as const,
       createdBy: user?.uid || '',
       hasMultipleExits: false,
@@ -148,13 +155,13 @@ export default function SchemesPage() {
           <h1 className="text-3xl font-headline font-bold">Academic Schemes</h1>
           <p className="text-muted-foreground">
             {isCommonBos 
-              ? 'Developing common course schemes (VAC, AEC, MDC) once per Program for university-wide rollout. SEC courses remain Faculty-specific.'
+              ? 'Developing common course schemes (VAC, AEC, MDC) once per Program for university-wide rollout.'
               : 'Draft, build, and manage branch-specific academic layouts.'}
           </p>
         </div>
         {canCreateScheme && (
           <Button onClick={() => setIsDialogOpen(true)} className="gap-2 shadow-lg">
-            <Plus className="w-4 h-4" /> {isCommonBos ? 'Define Common Pool Scheme' : 'New Scheme'}
+            <Plus className="w-4 h-4" /> {isCommonBos ? 'Define Common Pool' : 'New Scheme'}
           </Button>
         )}
       </div>
@@ -167,7 +174,7 @@ export default function SchemesPage() {
               {scheme.isCommonPoolScheme && (
                 <div className="absolute top-0 right-0 p-2 flex items-center gap-1">
                   <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 text-[8px] uppercase font-bold">Institutional Pool</Badge>
-                  <ShieldCheck className="w-4 h-4 text-emerald-600" title="Common BOS Defined" />
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
                 </div>
               )}
               <CardHeader className="pb-4">
@@ -177,10 +184,13 @@ export default function SchemesPage() {
                   </Badge>
                   <StatusBadge status={scheme.status} />
                 </div>
-                <CardTitle className="font-headline text-lg group-hover:text-primary transition-colors">
-                  {program?.name || 'Loading program...'}
+                <CardTitle className="font-headline text-lg group-hover:text-primary transition-colors flex items-center gap-2">
+                  {program?.name || 'Loading...'}
                 </CardTitle>
                 <CardDescription className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2 font-mono text-[10px] text-primary font-bold">
+                    <Hash className="w-3 h-3" /> {scheme.schemeCode || 'GENERATING...'}
+                  </div>
                   <div className="flex items-center gap-2">
                     <FileText className="w-3.5 h-3.5" />
                     <span className={scheme.isCommonPoolScheme ? 'font-bold text-emerald-700' : ''}>
@@ -196,7 +206,7 @@ export default function SchemesPage() {
               <CardContent>
                 <Button variant="ghost" className="w-full justify-between group-hover:bg-primary group-hover:text-white" asChild>
                   <Link href={`/dashboard/schemes/${scheme.id}`}>
-                    Manage {scheme.isCommonPoolScheme ? 'Pool' : 'Scheme'} <ArrowRight className="w-4 h-4" />
+                    Manage Layout <ArrowRight className="w-4 h-4" />
                   </Link>
                 </Button>
               </CardContent>
@@ -260,7 +270,7 @@ export default function SchemesPage() {
             {isCommonBos && (
               <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-lg flex gap-3 text-xs text-emerald-800">
                 <Info className="w-4 h-4 shrink-0 text-emerald-600" />
-                <p>This pool will be automatically shared across all branches of <strong>{selectedProgram?.name || 'the selected program'}</strong>. It will include common VAC, AEC, and MDC courses.</p>
+                <p>This pool will be shared across all branches of <strong>{selectedProgram?.name || 'the program'}</strong>. It will include common VAC, AEC, and MDC courses.</p>
               </div>
             )}
 

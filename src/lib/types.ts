@@ -68,6 +68,7 @@ export interface Program {
 
 export interface Scheme {
   id: string;
+  schemeCode: string; // Composite code: PROGRAM-BRANCH-YEAR
   programId: string;
   branch?: string;
   batchYear: string;

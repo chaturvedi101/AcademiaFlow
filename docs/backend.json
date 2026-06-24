@@ -22,7 +22,8 @@
             "Faculty of Energy and Environment Engineering",
             "Faculty of Management Studies",
             "Faculty of Arts",
-            "Faculty of Sciences"
+            "Faculty of Sciences",
+            "University-wide (Common BOS)"
           ]
         },
         "managedBranches": {
@@ -46,23 +47,12 @@
       "properties": {
         "name": { "type": "string" },
         "code": { "type": "string" },
-        "faculty": {
-          "type": "string",
-          "enum": [
-            "Faculty of Built Environment",
-            "Faculty of Materials Science and Engineering",
-            "Faculty of Mechanical and Applied Engineering",
-            "Faculty of Computer Science and Communication Engineering",
-            "Faculty of Energy and Environment Engineering",
-            "Faculty of Management Studies",
-            "Faculty of Arts",
-            "Faculty of Sciences"
-          ]
-        },
+        "faculty": { "type": "string" },
         "description": { "type": "string" },
         "totalSemesters": { "type": "number" },
         "level": { "type": "string", "enum": ["UG", "PG", "Diploma", "Certificate"] },
         "branches": { "type": "array", "items": { "type": "string" } },
+        "branchPrefixes": { "type": "object" },
         "rules": {
           "type": "object",
           "properties": {
@@ -73,6 +63,21 @@
         }
       },
       "required": ["name", "code", "faculty", "level"]
+    },
+    "Scheme": {
+      "title": "Scheme",
+      "description": "Composite definition of a branch-specific or common course scheme.",
+      "type": "object",
+      "properties": {
+        "schemeCode": { "type": "string" },
+        "programId": { "type": "string" },
+        "branch": { "type": "string" },
+        "batchYear": { "type": "string" },
+        "status": { "type": "string" },
+        "version": { "type": "string" },
+        "isCommonPoolScheme": { "type": "boolean" }
+      },
+      "required": ["schemeCode", "programId", "batchYear", "status"]
     }
   },
   "auth": {
