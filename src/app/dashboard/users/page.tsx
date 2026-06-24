@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -127,6 +126,7 @@ export default function UserManagementPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="pl-6">Personnel Details</TableHead>
+                <TableHead>User ID</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Jurisdiction</TableHead>
               </TableRow>
@@ -139,6 +139,9 @@ export default function UserManagementPage() {
                       <p className="font-bold">{user.displayName}</p>
                       <p className="text-xs text-muted-foreground">{user.email}</p>
                     </div>
+                  </TableCell>
+                  <TableCell className="font-mono text-[10px] text-muted-foreground">
+                    {user.id}
                   </TableCell>
                   <TableCell>
                     <Badge variant="secondary" className="uppercase text-[10px]">

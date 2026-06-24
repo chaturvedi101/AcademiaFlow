@@ -1,4 +1,3 @@
-
 import { Program, UserProfile } from "./types";
 
 export const MOCK_USER: UserProfile = {
@@ -13,6 +12,13 @@ export const MOCK_ADMIN: UserProfile = {
   email: 'admin@university.edu',
   displayName: 'System Admin',
   role: 'admin'
+};
+
+export const MOCK_DEAN_ACADEMICS: UserProfile = {
+  id: 'dean_acad_1',
+  email: 'dean.academics@university.edu',
+  displayName: 'Dean of Academics',
+  role: 'dean_academics'
 };
 
 export const MOCK_PROGRAMS: Program[] = [
