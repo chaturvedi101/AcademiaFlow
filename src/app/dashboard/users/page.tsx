@@ -44,9 +44,8 @@ export default function UserManagementPage() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Filter to show academic staff. 
-  // Admin sees everyone. Dean Academic sees staff but maybe not other admins.
   const academicStaff = useMemo(() => {
-    return users.filter(u => ['bos_convenor', 'dean_faculty', 'dean_academic'].includes(u.role));
+    return users.filter(u => ['bos_convenor', 'dean_faculty', 'dean_academic', 'admin'].includes(u.role));
   }, [users]);
 
   const handleOpenDialog = (userToEdit?: UserProfile) => {
@@ -78,19 +77,28 @@ export default function UserManagementPage() {
     if (editingUser) {
       // Update existing user
       const userRef = doc(db, 'users', editingUser.id);
-      const updates: Partial<UserProfile> = {
+      
+      // Conditionally build updates to avoid 'undefined' field errors in Firestore
+      const updates: any = {
         displayName: form.displayName,
         role: form.role,
-        faculty: (form.role === 'dean_faculty' || form.faculty === 'University-wide (Common BOS)') ? (form.faculty as FacultyName) : undefined,
       };
 
+      // Handle Faculty
+      if (form.role === 'dean_faculty' || form.faculty === 'University-wide (Common BOS)') {
+        if (form.faculty) {
+          updates.faculty = form.faculty;
+        }
+      }
+
+      // Handle Managed Branches
       if (form.role === 'bos_convenor' && form.programId && form.branch) {
         updates.managedBranches = [{ programId: form.programId, branch: form.branch }];
-      } else if (form.role !== 'bos_convenor') {
+      } else if (form.role !== 'bos_convenor' && form.role !== 'bos_member') {
         updates.managedBranches = [];
       }
 
-      updateDoc(userRef, updates as any)
+      updateDoc(userRef, updates)
         .then(() => {
           toast({ title: "Success", description: "Staff permissions updated." });
           setIsDialogOpen(false);
@@ -117,15 +125,17 @@ export default function UserManagementPage() {
 
         const userRef = doc(db, 'users', newUid);
         
-        const userData: Partial<UserProfile> = {
+        const userData: any = {
           displayName: form.displayName,
           email: form.email,
           role: form.role,
-          createdAt: serverTimestamp() as any,
+          createdAt: serverTimestamp(),
         };
 
         if (form.role === 'dean_faculty' || form.faculty === 'University-wide (Common BOS)') {
-          userData.faculty = form.faculty as FacultyName;
+          if (form.faculty) {
+            userData.faculty = form.faculty;
+          }
         }
 
         if (form.role === 'bos_convenor' && form.programId && form.branch) {
@@ -281,6 +291,7 @@ export default function UserManagementPage() {
                   <SelectItem value="dean_faculty">Dean of Faculty</SelectItem>
                   <SelectItem value="bos_convenor">BoS Convenor</SelectItem>
                   <SelectItem value="dean_academic">Dean Academic</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>
             </div>
