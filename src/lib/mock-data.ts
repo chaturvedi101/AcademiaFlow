@@ -20,7 +20,7 @@ export const MOCK_ADMIN: UserProfile = {
  */
 export const MOCK_DEAN_ACADEMICS: UserProfile = {
   id: 'dean_acad_1',
-  email: 'dean.academics@university.edu',
+  email: 'dean.academic@rtu.ac.in',
   displayName: 'Dean of Academics',
   role: 'dean_academics'
 };

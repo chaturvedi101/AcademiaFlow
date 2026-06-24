@@ -165,11 +165,7 @@ export default function Home() {
               title="Equivalence Engine"
               desc="Manage transition mappings"
             />
-            <FeatureCard 
-              icon={<ShieldCheck className="text-accent" />}
-              title="RBAC & Audit"
-              desc="Secure hierarchy & logs"
-            />
+            <FeatureCheck icon={<ShieldCheck className="text-accent" />} title="RBAC & Audit" desc="Secure hierarchy & logs" />
           </div>
 
           <Card className="bg-primary/5 border-primary/10">
@@ -180,7 +176,7 @@ export default function Home() {
               </CardTitle>
             </CardHeader>
             <CardContent className="py-2 px-4 space-y-1">
-              <p className="text-[10px] text-muted-foreground"><span className="font-bold">Dean Academics:</span> dean.academics@university.edu</p>
+              <p className="text-[10px] text-muted-foreground"><span className="font-bold">Dean Academics:</span> dean.academic@rtu.ac.in</p>
               <p className="text-[10px] text-muted-foreground"><span className="font-bold">BoS Convenor:</span> convenor@university.edu</p>
               <p className="text-[10px] text-muted-foreground"><span className="font-bold">System Admin:</span> admin@university.edu</p>
             </CardContent>
@@ -325,6 +321,16 @@ export default function Home() {
 }
 
 function FeatureCard({ icon, title, desc }: { icon: React.ReactNode, title: string, desc: string }) {
+  return (
+    <div className="p-4 rounded-xl border border-border bg-white shadow-sm hover:shadow-md transition-shadow">
+      <div className="mb-2">{icon}</div>
+      <h3 className="font-semibold text-sm">{title}</h3>
+      <p className="text-xs text-muted-foreground">{desc}</p>
+    </div>
+  );
+}
+
+function FeatureCheck({ icon, title, desc }: { icon: React.ReactNode, title: string, desc: string }) {
   return (
     <div className="p-4 rounded-xl border border-border bg-white shadow-sm hover:shadow-md transition-shadow">
       <div className="mb-2">{icon}</div>
