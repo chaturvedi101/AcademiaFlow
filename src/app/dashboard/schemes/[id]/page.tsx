@@ -3,7 +3,7 @@
 
 import React, { useState, useMemo } from "react";
 import { useFirestore, useDoc, useCollection, useUser, useMemoFirebase } from "@/firebase";
-import { doc, collection, setDoc, deleteDoc, serverTimestamp, updateDoc, query, where, getDoc } from "firebase/firestore";
+import { doc, collection, setDoc, deleteDoc, serverTimestamp, updateDoc, query, where } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Save, Send, History, Trash2, Edit3, Download, GraduationCap, Layers, Loader2, ShieldAlert, FileDown, FileText, AlertTriangle, CheckCircle2, ShieldCheck, Library, Hash } from "lucide-react";
+import { Plus, Send, Trash2, Edit3, GraduationCap, Layers, Loader2, FileText, AlertTriangle, ShieldCheck, Library, Hash, FileDown } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile } from "@/lib/types";
@@ -125,7 +125,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
   const isSchemeValid = useMemo(() => {
     if (!program?.rules) return false;
-    const { DSC, DSE, OFE, total } = creditDistribution;
+    const { DSC, total } = creditDistribution;
     const { dscMin, dscMax, totalRequired } = program.rules;
     return DSC >= dscMin && DSC <= dscMax && total === totalRequired;
   }, [creditDistribution, program?.rules]);
@@ -151,27 +151,29 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       return;
     }
 
+    // Use Subject Code as the unique document identifier
     const syllabusId = data.subjectCode;
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', syllabusId);
 
+    // If the code was changed (edit), clean up the old document to avoid duplicates
     if (data.id && data.id !== syllabusId) {
       const oldDocRef = doc(db, 'schemes', schemeId, 'syllabi', data.id);
-      try {
-        await deleteDoc(oldDocRef);
-      } catch (err) {
-        console.error("Failed to delete old course code entry", err);
-      }
+      deleteDoc(oldDocRef).catch(err => {
+        console.error("Failed to migrate legacy subject code entry:", err);
+      });
     }
 
     const isInstitutionalCategory = ['VAC', 'AEC', 'MDC'].includes(data.creditCategory || '');
     const finalData = {
       ...data,
-      id: syllabusId,
+      id: syllabusId, // Ensure internal ID matches subjectCode for consistency
+      schemeId: schemeId,
       isCommonCourse: (profile?.faculty === 'University-wide (Common BOS)' && isInstitutionalCategory) || data.isCommonCourse,
+      updatedAt: serverTimestamp(),
     };
 
     setDoc(docRef, finalData, { merge: true })
-      .then(() => toast({ title: "Syllabus Saved", description: `Subject ${syllabusId} updated.` }))
+      .then(() => toast({ title: "Syllabus Saved", description: `Subject ${syllabusId} synchronized.` }))
       .catch(err => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: docRef.path,
