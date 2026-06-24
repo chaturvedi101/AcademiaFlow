@@ -102,7 +102,6 @@ export default function SchemesPage() {
 
     setIsCreating(true);
 
-    // Generate Composite Scheme Code
     const branchName = isCommonBos ? 'Institutional Common Pool' : newScheme.branch;
     const branchPrefix = isCommonBos 
       ? 'POOL' 
@@ -114,12 +113,11 @@ export default function SchemesPage() {
     const schemeDocRef = doc(db, 'schemes', generatedCode);
     
     try {
-      // Check if document already exists
       const existingDoc = await getDoc(schemeDocRef);
       if (existingDoc.exists()) {
         toast({ 
           title: "Conflict", 
-          description: `A scheme with code ${generatedCode} already exists. Please update the version or check your parameters.`, 
+          description: `A scheme with code ${generatedCode} already exists. Please update parameters or version.`, 
           variant: "destructive" 
         });
         setIsCreating(false);
@@ -170,7 +168,9 @@ export default function SchemesPage() {
     );
   }
 
-  const canCreateScheme = profile?.role === 'admin' || profile?.role === 'bos_convenor' || profile?.role === 'dean_faculty';
+  // Restrict creation: Standard BoS Convenors cannot create new schemes
+  // Only Admin, Dean Faculty, and Common BoS Convenors have creation rights
+  const canCreateScheme = profile?.role === 'admin' || profile?.role === 'dean_faculty' || (profile?.role === 'bos_convenor' && isCommonBos);
 
   return (
     <div className="space-y-6">
