@@ -10,7 +10,7 @@
         "email": { "type": "string", "format": "email" },
         "role": {
           "type": "string",
-          "enum": ["bos_convenor", "bos_member", "dean_faculty", "dean_academics", "admin"]
+          "enum": ["bos_convenor", "bos_member", "dean_faculty", "dean_academic", "admin"]
         },
         "faculty": {
           "type": "string",

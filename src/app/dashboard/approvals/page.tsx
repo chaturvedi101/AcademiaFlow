@@ -34,7 +34,7 @@ export default function ApprovalsPage() {
 
   const filteredSchemes = useMemo(() => {
     if (!profile || !programs.length) return [];
-    if (profile.role === 'dean_academics' || profile.role === 'admin') return schemes;
+    if (profile.role === 'dean_academic' || profile.role === 'admin') return schemes;
     
     // Dean Faculty only sees schemes from their faculty
     return schemes.filter(s => {

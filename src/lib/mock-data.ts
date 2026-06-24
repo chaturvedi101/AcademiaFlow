@@ -1,3 +1,4 @@
+
 import { Program, UserProfile } from "./types";
 
 export const MOCK_USER: UserProfile = {
@@ -15,14 +16,14 @@ export const MOCK_ADMIN: UserProfile = {
 };
 
 /**
- * Dean Academics: The university-level authority responsible for 
+ * Dean Academic: The university-level authority responsible for 
  * final scheme approvals and institutional oversight.
  */
-export const MOCK_DEAN_ACADEMICS: UserProfile = {
+export const MOCK_DEAN_ACADEMIC: UserProfile = {
   id: 'dean_acad_1',
   email: 'dean.academic@rtu.ac.in',
-  displayName: 'Dean of Academics',
-  role: 'dean_academics'
+  displayName: 'Dean Academic',
+  role: 'dean_academic'
 };
 
 export const MOCK_PROGRAMS: Program[] = [

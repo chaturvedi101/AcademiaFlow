@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo } from 'react';
@@ -7,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FileText, Clock, CheckCircle2, ArrowRight, Layers, ShieldCheck, GraduationCap, Loader2, FileCheck, Plus, UserCircle } from "lucide-react";
-import Link from "next/link";
+import Link from "link";
 import { Scheme, Program, UserProfile } from '@/lib/types';
 
 export default function DashboardPage() {
@@ -22,10 +23,10 @@ export default function DashboardPage() {
   const filteredSchemes = useMemo(() => {
     if (!profile || !programs.length) return [];
     
-    // Admins, Dean Academics, and University-wide Common BOS see everything
+    // Admins, Dean Academic, and University-wide Common BOS see everything
     if (
       profile.role === 'admin' || 
-      profile.role === 'dean_academics' || 
+      profile.role === 'dean_academic' || 
       profile.faculty === 'University-wide (Common BOS)'
     ) {
       return schemes;
@@ -105,7 +106,7 @@ export default function DashboardPage() {
             {profile?.role === 'admin' && <ActionLink href="/dashboard/schemes" label="Draft New Scheme" icon={<Plus className="w-4 h-4" />} />}
             {profile?.role === 'bos_convenor' && profile?.faculty !== 'University-wide (Common BOS)' && <ActionLink href="/dashboard/team" label="Manage BoS Team" icon={<UserCircle className="w-4 h-4" />} />}
             {(['bos_convenor', 'admin'].includes(profile?.role || '')) && <ActionLink href="/dashboard/equivalence" label="Map Equivalence" icon={<Layers className="w-4 h-4" />} />}
-            {(['dean_faculty', 'dean_academics', 'admin'].includes(profile?.role || '')) && <ActionLink href="/dashboard/approvals" label="Review Pending" icon={<FileCheck className="w-4 h-4" />} />}
+            {(['dean_faculty', 'dean_academic', 'admin'].includes(profile?.role || '')) && <ActionLink href="/dashboard/approvals" label="Review Pending" icon={<FileCheck className="w-4 h-4" />} />}
           </CardContent>
         </Card>
       </div>

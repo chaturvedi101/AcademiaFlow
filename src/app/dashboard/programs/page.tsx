@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -32,10 +33,10 @@ export default function ProgramsPage() {
 
   const filteredPrograms = useMemo(() => {
     if (!profile) return [];
-    // Admins, Dean Academics, and University-wide Common BOS see all programs
+    // Admins, Dean Academic, and University-wide Common BOS see all programs
     if (
       profile.role === 'admin' || 
-      profile.role === 'dean_academics' || 
+      profile.role === 'dean_academic' || 
       isCommonBos
     ) {
       return programs;

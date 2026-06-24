@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -49,10 +50,10 @@ export default function SchemesPage() {
   const filteredSchemes = useMemo(() => {
     if (!profile) return [];
     
-    // Admins, Dean Academics, and Common BOS can see all schemes
+    // Admins, Dean Academic, and Common BOS can see all schemes
     if (
       profile.role === 'admin' || 
-      profile.role === 'dean_academics' || 
+      profile.role === 'dean_academic' || 
       isCommonBos
     ) {
       return schemes;
@@ -75,10 +76,10 @@ export default function SchemesPage() {
   const availablePrograms = useMemo(() => {
     if (!profile) return [];
     
-    // Common BOS, Admins, Dean Academics see all
+    // Common BOS, Admins, Dean Academic see all
     if (
       profile.role === 'admin' || 
-      profile.role === 'dean_academics' || 
+      profile.role === 'dean_academic' || 
       isCommonBos
     ) {
       return programs;

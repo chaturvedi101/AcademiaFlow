@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo } from "react";
@@ -79,7 +80,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
   const hasEditPermission = useMemo(() => {
     if (!profile || !scheme) return false;
-    if (profile.role === 'admin' || profile.role === 'dean_faculty' || profile.role === 'dean_academics') return true;
+    if (profile.role === 'admin' || profile.role === 'dean_faculty' || profile.role === 'dean_academic') return true;
     
     return profile.managedBranches?.some(
       m => m.programId === scheme.programId && m.branch === scheme.branch

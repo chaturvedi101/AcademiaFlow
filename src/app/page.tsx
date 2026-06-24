@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from "react";
@@ -176,7 +177,7 @@ export default function Home() {
               </CardTitle>
             </CardHeader>
             <CardContent className="py-2 px-4 space-y-1">
-              <p className="text-[10px] text-muted-foreground"><span className="font-bold">Dean Academics:</span> dean.academic@rtu.ac.in</p>
+              <p className="text-[10px] text-muted-foreground"><span className="font-bold">Dean Academic:</span> dean.academic@rtu.ac.in</p>
               <p className="text-[10px] text-muted-foreground"><span className="font-bold">BoS Convenor:</span> convenor@university.edu</p>
               <p className="text-[10px] text-muted-foreground"><span className="font-bold">System Admin:</span> admin@university.edu</p>
             </CardContent>
@@ -294,7 +295,7 @@ export default function Home() {
                         <SelectContent>
                           <SelectItem value="bos_convenor">BoS Convenor</SelectItem>
                           <SelectItem value="dean_faculty">Dean of Faculty</SelectItem>
-                          <SelectItem value="dean_academics">Dean Academics</SelectItem>
+                          <SelectItem value="dean_academic">Dean Academic</SelectItem>
                           <SelectItem value="admin">System Administrator</SelectItem>
                         </SelectContent>
                       </Select>

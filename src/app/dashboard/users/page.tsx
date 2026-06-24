@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -41,7 +42,7 @@ export default function UserManagementPage() {
   });
   const [isRegistering, setIsRegistering] = useState(false);
 
-  const academicStaff = users.filter(u => ['bos_convenor', 'dean_faculty', 'dean_academics'].includes(u.role));
+  const academicStaff = users.filter(u => ['bos_convenor', 'dean_faculty', 'dean_academic'].includes(u.role));
 
   const handleRegisterUser = async () => {
     if (!registerForm.email || !registerForm.displayName) {
