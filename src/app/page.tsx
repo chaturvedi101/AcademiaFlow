@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ShieldCheck, GraduationCap, FileCheck, Layers, Loader2, Github } from "lucide-react";
+import { ShieldCheck, GraduationCap, FileCheck, Layers, Loader2, Github, Info } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore, useUser } from "@/firebase";
 import { 
@@ -171,6 +171,20 @@ export default function Home() {
               desc="Secure hierarchy & logs"
             />
           </div>
+
+          <Card className="bg-primary/5 border-primary/10">
+            <CardHeader className="py-3 px-4">
+              <CardTitle className="text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+                <Info className="w-3 h-3 text-primary" />
+                Prototype Reference Roles
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="py-2 px-4 space-y-1">
+              <p className="text-[10px] text-muted-foreground"><span className="font-bold">Dean Academics:</span> dean.academics@university.edu</p>
+              <p className="text-[10px] text-muted-foreground"><span className="font-bold">BoS Convenor:</span> convenor@university.edu</p>
+              <p className="text-[10px] text-muted-foreground"><span className="font-bold">System Admin:</span> admin@university.edu</p>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="flex justify-center">
