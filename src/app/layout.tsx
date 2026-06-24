@@ -1,8 +1,8 @@
-
 import type {Metadata} from 'next';
 import './globals.css';
 import {Toaster} from '@/components/ui/toaster';
 import {FirebaseClientProvider} from '@/firebase/client-provider';
+import {SessionTimeout} from '@/components/SessionTimeout';
 
 export const metadata: Metadata = {
   title: 'Academia Flow | Academic Management System',
@@ -23,6 +23,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased bg-background text-foreground">
         <FirebaseClientProvider>
+          <SessionTimeout />
           {children}
           <Toaster />
         </FirebaseClientProvider>
