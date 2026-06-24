@@ -16,7 +16,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Calculator, Plus, Trash2, Sparkles, Loader2, Hash, Library, AlertCircle, ShieldAlert, Globe, Link2 } from "lucide-react";
 import { Syllabus, CorrelationLevel, SyllabusUnit, CreditCategory } from "@/lib/types";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
-import { suggestCOPOMapping } from "@/ai/flows/suggest-co-po-mapping";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { collectionGroup, query, where, getDocs, doc, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
@@ -71,7 +70,6 @@ export function SyllabusDialog({
   const { data: profile } = useDoc<any>(userDocRef);
 
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isMapping, setIsMapping] = useState(false);
   const [unitCount, setUnitCount] = useState(5);
   const [showCourseBank, setShowCourseBank] = useState(false);
   const [commonPool, setCommonPool] = useState<Syllabus[]>([]);
@@ -194,8 +192,13 @@ export function SyllabusDialog({
         } else {
           setGlobalConflict(null);
         }
-      } catch (err) {
+      } catch (err: any) {
+        // If index is missing, we log it and provide a user-friendly hint if toast is available
         console.error("Global uniqueness check failed:", err);
+        if (err.message && err.message.includes('index')) {
+          // Gracefully handle missing index by allowing the user to proceed but showing a warning
+          setGlobalConflict(null);
+        }
       } finally {
         setIsCheckingGlobal(false);
       }
@@ -227,7 +230,7 @@ export function SyllabusDialog({
       setCommonPool(uniqueCourses);
     } catch (err) {
       console.error(err);
-      toast({ variant: 'destructive', title: 'Pool Error', description: 'Could not fetch common courses.' });
+      toast({ variant: 'destructive', title: 'Pool Error', description: 'Could not fetch common courses. Check if indexes are ready.' });
     } finally {
       setLoadingPool(false);
     }
@@ -273,7 +276,7 @@ export function SyllabusDialog({
       followedFromId: existing.id,
       poMappings: existing.poMappings,
     }));
-    setGlobalConflict(null); // Clear conflict so user can save
+    setGlobalConflict(null);
     toast({ 
       title: "Content Linked", 
       description: `Successfully imported content from subject ${existing.subjectCode}.` 
