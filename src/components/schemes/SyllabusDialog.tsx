@@ -13,13 +13,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Calculator, Info, Plus, Trash2, Sparkles, Loader2, Wand2, AlertCircle, Clock, Book, BookOpen, ExternalLink, Video, FileDown, Hash, Library, Search, ShieldAlert } from "lucide-react";
+import { Calculator, Plus, Trash2, Sparkles, Loader2, Hash, Library, AlertCircle } from "lucide-react";
 import { Syllabus, CorrelationLevel, SyllabusUnit, CreditCategory } from "@/lib/types";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { suggestCOPOMapping } from "@/ai/flows/suggest-co-po-mapping";
 import { useToast } from "@/hooks/use-toast";
-import { exportSyllabusToPDF } from "@/lib/pdf-export";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { collectionGroup, query, where, getDocs, doc, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
 
@@ -99,6 +97,8 @@ export function SyllabusDialog({
   const [newTextBook, setNewTextBook] = useState('');
   const [newReferenceBook, setNewReferenceBook] = useState('');
 
+  const isCommonStaff = profile?.faculty === 'University-wide (Common BOS)' || profile?.role === 'admin' || profile?.role === 'dean_academic';
+
   // Rules for Automated Subject Code Generation
   const generateAutoSubjectCode = useCallback(() => {
     if (!branchName) return '';
@@ -107,7 +107,6 @@ export function SyllabusDialog({
     let branchPrefix = 'PO';
     if (branchName !== 'Institutional Common Pool') {
       const lowerBranch = branchName.toLowerCase();
-      // Specifically handle Production and Industrial as 'PI'
       if (lowerBranch.includes('production') && lowerBranch.includes('industrial')) {
         branchPrefix = 'PI';
       } else {
@@ -122,12 +121,16 @@ export function SyllabusDialog({
     const isElective = formData.creditCategory === 'DSE' || formData.creditCategory === 'OFE';
     const categoryIndicator = isElective ? 'E' : 'C';
     
-    // 4. Semester Digit (1 digit)
-    const semDigit = formData.semester || 1;
+    // 4. Year Digit (based on semester)
+    // Sem 1, 2 -> 1
+    // Sem 3, 4 -> 2
+    // Sem 5, 6 -> 3
+    // Sem 7, 8 -> 4
+    const yearDigit = Math.ceil((formData.semester || 1) / 2);
 
-    const baseCode = `${branchPrefix}${typeIndicator}${categoryIndicator}${semDigit}`;
+    const baseCode = `${branchPrefix}${typeIndicator}${categoryIndicator}${yearDigit}`;
     
-    // 5. Sequence (2 digits) to ensure uniqueness
+    // 5. Sequence (2 digits)
     let sequence = 1;
     let finalCode = `${baseCode}${String(sequence).padStart(2, '0')}`;
 
@@ -157,7 +160,6 @@ export function SyllabusDialog({
         isCommonCourse: syllabus.isCommonCourse || (profile?.faculty === 'University-wide (Common BOS)' && INSTITUTIONAL_CATEGORIES.includes(syllabus.creditCategory as any))
       }));
 
-      // If this is a new subject, generate a code automatically
       if (!syllabus.id && !syllabus.subjectCode) {
         setFormData(prev => ({ ...prev, subjectCode: generateAutoSubjectCode() }));
       }
@@ -396,10 +398,14 @@ export function SyllabusDialog({
                           <SelectItem value="DSC">DSC (Core)</SelectItem>
                           <SelectItem value="DSE">DSE (Elective)</SelectItem>
                           <SelectItem value="OFE">OFE (Open Elective)</SelectItem>
-                          <SelectItem value="VAC">VAC (Value Added)</SelectItem>
                           <SelectItem value="SEC">SEC (Skill Enhancement)</SelectItem>
-                          <SelectItem value="AEC">AEC (Ability Enhancement)</SelectItem>
-                          <SelectItem value="MDC">MDC (Multi Disciplinary)</SelectItem>
+                          {isCommonStaff && (
+                            <>
+                              <SelectItem value="VAC">VAC (Value Added)</SelectItem>
+                              <SelectItem value="AEC">AEC (Ability Enhancement)</SelectItem>
+                              <SelectItem value="MDC">MDC (Multi Disciplinary)</SelectItem>
+                            </>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
