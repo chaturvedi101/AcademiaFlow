@@ -1,5 +1,4 @@
-
-'use client';
+"use client";
 
 import React, { useState, useMemo } from "react";
 import { useFirestore, useDoc, useCollection, useUser, useMemoFirebase } from "@/firebase";
@@ -8,10 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Send, Trash2, Edit3, GraduationCap, Layers, Loader2, FileText, AlertTriangle, ShieldCheck, Library, Hash, FileDown, ChevronRight, ChevronDown } from "lucide-react";
+import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile } from "@/lib/types";
@@ -19,8 +16,6 @@ import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { exportSyllabusToPDF, exportFullSchemeToPDF } from "@/lib/pdf-export";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import Link from "next/link";
 
 export default function SchemeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: schemeId } = React.use(params);
@@ -37,25 +32,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const syllabiRef = useMemoFirebase(() => collection(db, 'schemes', schemeId, 'syllabi'), [db, schemeId]);
   const { data: localSyllabi, loading: syllabiLoading } = useCollection<Syllabus>(syllabiRef);
 
-  const commonSchemeQuery = useMemoFirebase(() => {
-    if (!scheme?.programId) return null;
-    return query(
-      collection(db, 'schemes'), 
-      where('programId', '==', scheme.programId), 
-      where('isCommonPoolScheme', '==', true)
-    );
-  }, [db, scheme?.programId]);
-
-  const { data: commonPoolSchemes } = useCollection<Scheme>(commonSchemeQuery);
-  const commonScheme = commonPoolSchemes && commonPoolSchemes.length > 0 ? commonPoolSchemes[0] : null;
-
-  const commonSyllabiRef = useMemoFirebase(() => {
-    if (!commonScheme?.id || commonScheme.id === schemeId) return null;
-    return collection(db, 'schemes', commonScheme.id, 'syllabi');
-  }, [db, commonScheme?.id, schemeId]);
-
-  const { data: commonSyllabi } = useCollection<Syllabus>(commonSyllabiRef);
-
   const programRef = useMemoFirebase(() => (scheme?.programId ? doc(db, 'programs', scheme.programId) : null), [db, scheme?.programId]);
   const { data: program } = useDoc<Program>(programRef);
 
@@ -64,18 +40,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
   const syllabi = useMemo(() => {
-    const combined = [...localSyllabi];
-    if (commonSyllabi && commonSyllabi.length > 0) {
-      commonSyllabi.forEach(cs => {
-        const isInstitutionalCategory = ['VAC', 'AEC', 'MDC'].includes(cs.creditCategory);
-        const alreadyExists = combined.some(ls => ls.subjectCode === cs.subjectCode || ls.id === cs.id);
-        if (isInstitutionalCategory && !alreadyExists) {
-          combined.push({ ...cs, isFromCommonPool: true } as any);
-        }
-      });
-    }
-    return combined.sort((a, b) => (a.semester || 1) - (b.semester || 1));
-  }, [localSyllabi, commonSyllabi]);
+    // Ensure uniqueness across local syllabi to avoid React key errors
+    const uniqueMap = new Map<string, Syllabus>();
+    localSyllabi.forEach(s => {
+      uniqueMap.set(s.subjectCode, s);
+    });
+    return Array.from(uniqueMap.values()).sort((a, b) => (a.semester || 1) - (b.semester || 1));
+  }, [localSyllabi]);
 
   const toggleGroup = (groupId: string) => {
     setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
@@ -101,14 +72,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     const canEditSyllabus = (s: Syllabus) => {
       if (isGlobalAdmin) return true;
-      const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(s.creditCategory);
-      if (isCommonCategory || s.isCommonCourse || scheme.isCommonPoolScheme) {
+      const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(s?.creditCategory || '');
+      if (isCommonCategory || s?.isCommonCourse || scheme.isCommonPoolScheme) {
         return isCommonBOS || isProgramDean;
       }
-      const isBranchManager = profile.managedBranches?.some(
-        m => m.programId === scheme.programId && m.branch === scheme.branch
-      );
-      return isProgramDean || isBranchManager;
+      return canEditScheme;
     };
 
     return { canEditScheme, canEditSyllabus };
@@ -116,13 +84,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
   const creditDistribution = useMemo(() => {
     const dist = { DSC: 0, DSE: 0, OFE: 0, CPF: 0, VAC: 0, AEC: 0, SEC: 0, MDC: 0, total: 0 };
-    
-    // For credit distribution, only count ONE subject from an elective group (MVP: we assume they take one)
     const countedGroups = new Set<string>();
 
     syllabi.forEach(sub => {
       const cat = sub.creditCategory as keyof typeof dist;
-      
       if (sub.electiveGroupId) {
         if (!countedGroups.has(sub.electiveGroupId)) {
           dist[cat] = (dist[cat] || 0) + (sub.credits || 0);
@@ -130,9 +95,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           countedGroups.add(sub.electiveGroupId);
         }
       } else {
-        if (cat in dist) {
-          dist[cat] = (dist[cat] || 0) + (sub.credits || 0);
-        }
+        if (cat in dist) dist[cat] = (dist[cat] || 0) + (sub.credits || 0);
         dist.total += (sub.credits || 0);
       }
     });
@@ -148,38 +111,16 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
   const handleUpdateScheme = (updates: Partial<Scheme>) => {
     if (!permissions.canEditScheme) return;
-    updateDoc(schemeRef, { ...updates, updatedAt: serverTimestamp() })
-      .catch(err => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: schemeRef.path,
-          operation: 'update',
-          requestResourceData: updates
-        }));
-      });
+    updateDoc(schemeRef, { ...updates, updatedAt: serverTimestamp() });
   };
 
   const handleSaveSyllabus = async (data: Partial<Syllabus>) => {
     if (!data.subjectCode) return;
-    const isNew = !data.id;
-    if (isNew && !permissions.canEditScheme) {
-      toast({ title: "Denied", description: "You cannot add new subjects.", variant: "destructive" });
-      return;
-    }
-
-    const syllabusId = data.subjectCode;
-    const docRef = doc(db, 'schemes', schemeId, 'syllabi', syllabusId);
-
-    const isInstitutionalCategory = ['VAC', 'AEC', 'MDC'].includes(data.creditCategory || '');
-    const finalData = {
-      ...data,
-      id: syllabusId,
-      schemeId: schemeId,
-      isCommonCourse: (profile?.faculty === 'University-wide (Common BOS)' && isInstitutionalCategory) || data.isCommonCourse,
-      updatedAt: serverTimestamp(),
-    };
-
+    const docRef = doc(db, 'schemes', schemeId, 'syllabi', data.subjectCode);
+    const finalData = { ...data, id: data.subjectCode, schemeId, updatedAt: serverTimestamp() };
+    
     setDoc(docRef, finalData, { merge: true })
-      .then(() => toast({ title: "Syllabus Saved", description: `Subject ${syllabusId} synchronized.` }))
+      .then(() => toast({ title: "Course Saved", description: `${data.subjectCode} synchronized.` }))
       .catch(err => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: docRef.path,
@@ -192,12 +133,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const handleDeleteSyllabus = (id: string) => {
     if (!permissions.canEditScheme) return;
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', id);
-    deleteDoc(docRef).catch(err => {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: docRef.path,
-        operation: 'delete'
-      }));
-    });
+    deleteDoc(docRef);
   };
 
   if (schemeLoading || syllabiLoading) {
@@ -218,11 +154,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           <div className="flex flex-wrap items-center gap-3 text-muted-foreground text-sm">
             <div className="flex items-center gap-1.5 font-mono text-primary font-bold"><Hash className="w-3.5 h-3.5" /> {scheme.schemeCode || 'N/A'}</div>
             <span className="w-1 h-1 rounded-full bg-border"></span>
-            <span>Branch: <span className={scheme.isCommonPoolScheme ? 'font-bold text-emerald-700' : 'font-bold text-foreground'}>{scheme.branch || 'General'}</span></span>
+            <span>Branch: <span className="font-bold text-foreground">{scheme.branch || 'General'}</span></span>
             <span className="w-1 h-1 rounded-full bg-border"></span>
             <span>Batch: {scheme.batchYear}</span>
             <span className="w-1 h-1 rounded-full bg-border"></span>
-            <span>Status: </span>
             <Badge variant="secondary" className="bg-amber-100 text-amber-700">{scheme.status}</Badge>
           </div>
         </div>
@@ -249,8 +184,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             <TabsContent value="syllabi" className="mt-6 space-y-6">
               {Array.from({ length: program?.totalSemesters || 8 }, (_, i) => i + 1).map(sem => {
                 const semSyllabi = syllabi.filter(s => s.semester === sem);
-                
-                // Grouping logic for Electives
                 const groups: Record<string, Syllabus[]> = {};
                 const nonGrouped: Syllabus[] = [];
 
@@ -290,35 +223,33 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {/* Non-grouped subjects first */}
-                          {nonGrouped.map(sub => <SubjectRow key={sub.id} sub={sub} permissions={permissions} onEdit={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }} onDelete={() => handleDeleteSyllabus(sub.id)} />)}
-                          
-                          {/* Elective Groups */}
+                          {nonGrouped.map(sub => (
+                            <SubjectRow key={sub.subjectCode} sub={sub} permissions={permissions} onEdit={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }} onDelete={() => handleDeleteSyllabus(sub.id)} />
+                          ))}
                           {Object.entries(groups).map(([groupId, members]) => {
                             const isExpanded = expandedGroups[groupId];
-                            const baseCode = members[0].subjectCode.split('.')[0];
                             return (
                               <React.Fragment key={groupId}>
                                 <TableRow className="bg-accent/5 hover:bg-accent/10 cursor-pointer" onClick={() => toggleGroup(groupId)}>
-                                  <TableCell className="pl-6 font-mono font-bold text-accent">{baseCode}</TableCell>
+                                  <TableCell className="pl-6 font-mono font-bold text-accent">{groupId}</TableCell>
                                   <TableCell className="font-bold">
                                     <div className="flex items-center gap-2 text-accent">
                                       {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                                      {members[0].electiveGroupName || groupId} (Pool of {members.length} Subjects)
+                                      {groupId} Pool ({members.length} Subjects)
                                     </div>
                                   </TableCell>
                                   <TableCell><Badge className="bg-accent text-white border-none text-[9px]">{members[0].creditCategory}</Badge></TableCell>
                                   <TableCell className="text-right font-bold text-sm">{members[0].credits}</TableCell>
                                   <TableCell className="text-right pr-6">
                                     {permissions.canEditScheme && (
-                                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setActiveSubject({ semester: sem, electiveGroupId: groupId, electiveGroupName: members[0].electiveGroupName, creditCategory: members[0].creditCategory }); setIsSyllabusDialogOpen(true); }}>
+                                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setActiveSubject({ semester: sem, electiveGroupId: groupId, creditCategory: members[0].creditCategory }); setIsSyllabusDialogOpen(true); }}>
                                         <Plus className="w-3.5 h-3.5 mr-1" /> Add Option
                                       </Button>
                                     )}
                                   </TableCell>
                                 </TableRow>
                                 {isExpanded && members.map(sub => (
-                                  <SubjectRow key={sub.id} sub={sub} permissions={permissions} isOption onEdit={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }} onDelete={() => handleDeleteSyllabus(sub.id)} />
+                                  <SubjectRow key={sub.subjectCode} sub={sub} permissions={permissions} isOption onEdit={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }} onDelete={() => handleDeleteSyllabus(sub.id)} />
                                 ))}
                               </React.Fragment>
                             );
@@ -332,7 +263,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             </TabsContent>
           </Tabs>
         </div>
-
         <div className="space-y-6">
           <CreditValidator currentCredits={creditDistribution} rules={program?.rules} />
         </div>
@@ -346,8 +276,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         onSave={handleSaveSyllabus}
         programName={program?.name}
         branchName={scheme?.branch}
-        batchYear={scheme?.batchYear}
-        canEdit={permissions.canEditSyllabus(activeSubject as Syllabus || { creditCategory: 'DSC' })}
+        canEdit={permissions.canEditSyllabus(activeSubject as Syllabus)}
         currentSchemeId={schemeId}
       />
     </div>
@@ -355,18 +284,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 }
 
 function SubjectRow({ sub, permissions, isOption, onEdit, onDelete }: any) {
-  const isFromCommon = sub.isFromCommonPool;
   const canEdit = permissions.canEditSyllabus(sub);
-  
   return (
-    <TableRow className={`group transition-colors ${isFromCommon ? 'bg-emerald-50/40' : ''} ${isOption ? 'bg-muted/30' : ''}`}>
+    <TableRow className={`group transition-colors ${isOption ? 'bg-muted/30' : ''}`}>
       <TableCell className={`font-mono text-xs font-bold text-primary ${isOption ? 'pl-10' : 'pl-6'}`}>{sub.subjectCode}</TableCell>
       <TableCell className="font-medium">
         <div className="flex flex-col">
-          <span className="flex items-center gap-2">
-            {sub.title}
-            {isFromCommon && <Badge variant="outline" className="bg-emerald-100 text-emerald-700 border-none text-[8px] h-4 font-bold">INSTITUTIONAL</Badge>}
-          </span>
+          <span>{sub.title}</span>
           <span className="text-[10px] text-muted-foreground uppercase">{sub.type}</span>
         </div>
       </TableCell>
@@ -378,9 +302,9 @@ function SubjectRow({ sub, permissions, isOption, onEdit, onDelete }: any) {
             <FileDown className="w-3.5 h-3.5" />
           </Button>
           <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={onEdit}>
-            {canEdit ? <Edit3 className="w-3.5 h-3.5" /> : <Layers className="w-3.5 h-3.5" />}
+            <Edit3 className="w-3.5 h-3.5" />
           </Button>
-          {permissions.canEditScheme && !isFromCommon && (
+          {permissions.canEditScheme && (
             <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={onDelete}>
               <Trash2 className="w-3.5 h-3.5" />
             </Button>

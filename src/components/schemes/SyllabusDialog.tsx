@@ -12,13 +12,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Calculator, Plus, Trash2, Sparkles, Loader2, Hash, Library, AlertCircle, ShieldAlert, Globe, Link2, Layers, BookOpen } from "lucide-react";
-import { Syllabus, CorrelationLevel, SyllabusUnit, CreditCategory } from "@/lib/types";
-import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
+import { BookOpen, Globe, Link2, Loader2, Plus, ShieldAlert, Trash2, Hash } from "lucide-react";
+import { Syllabus, CorrelationLevel, CorrelationLevel as CorrelationLevelType } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
-import { collectionGroup, query, where, getDocs, doc, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
+import { collectionGroup, query, where, getDocs, doc } from "firebase/firestore";
 
 const PO_DEFINITIONS = [
   { code: 'PO1', title: 'Engineering Knowledge', desc: 'Apply mathematics, science, and engineering fundamentals.' },
@@ -35,18 +33,13 @@ const PO_DEFINITIONS = [
   { code: 'PO12', title: 'Life-long Learning', desc: 'Engage in independent and life-long learning.' },
 ];
 
-const DEFAULT_ELECTIVE_GROUPS = [
-  "Elective-I",
-  "Elective-II",
-  "Elective-III",
-  "Elective-IV",
-  "Elective-V",
-  "Elective-VI",
-  "Elective-VII",
-  "Elective-VIII"
+const DEFAULT_DSE_GROUPS = [
+  "Elective-I", "Elective-II", "Elective-III", "Elective-IV", "Elective-V", "Elective-VI"
 ];
 
-const CORRELATION_LEVELS: CorrelationLevel[] = ['1', '2', '3', '-'];
+const DEFAULT_OFE_GROUPS = [
+  "Open Elective-I", "Open Elective-II", "Open Elective-III", "Open Elective-IV"
+];
 
 interface SyllabusDialogProps {
   open: boolean;
@@ -103,14 +96,11 @@ export function SyllabusDialog({
 
   const isCommonStaff = profile?.faculty === 'University-wide (Common BOS)' || profile?.role === 'admin' || profile?.role === 'dean_academic';
 
-  // Extract all existing elective groups from current syllabi
-  const existingElectiveGroups = useMemo(() => {
-    const groups = new Set(DEFAULT_ELECTIVE_GROUPS);
-    existingSyllabi.forEach(s => {
-      if (s.electiveGroupId) groups.add(s.electiveGroupId);
-    });
-    return Array.from(groups).sort();
-  }, [existingSyllabi]);
+  const availableElectiveGroups = useMemo(() => {
+    if (formData.creditCategory === 'DSE') return DEFAULT_DSE_GROUPS;
+    if (formData.creditCategory === 'OFE') return DEFAULT_OFE_GROUPS;
+    return [];
+  }, [formData.creditCategory]);
 
   const generateAutoSubjectCode = useCallback(() => {
     if (!branchName) return '';
@@ -136,13 +126,11 @@ export function SyllabusDialog({
     let finalCode = `${baseCode}${String(sequence).padStart(2, '0')}`;
 
     if (formData.electiveGroupId) {
-      // Find suffix based on existing members in this specific group
       const peers = existingSyllabi.filter(s => s.electiveGroupId === formData.electiveGroupId);
-      const isAlreadyInGroup = peers.some(p => p.id === formData.id);
+      const isAlreadyInGroup = peers.some(p => p.id === formData.id || p.subjectCode === formData.subjectCode);
       
       let suffix = peers.length + (isAlreadyInGroup ? 0 : 1);
       
-      // If we are editing, we should probably stick to the existing suffix if possible
       if (isAlreadyInGroup && formData.subjectCode?.includes('.')) {
         const parts = formData.subjectCode.split('.');
         suffix = parseInt(parts[parts.length - 1]) || suffix;
@@ -150,7 +138,7 @@ export function SyllabusDialog({
       
       finalCode = `${finalCode}.${suffix}`;
     } else {
-      const existingCodes = existingSyllabi.filter(s => s.id !== formData.id).map(s => s.subjectCode);
+      const existingCodes = existingSyllabi.filter(s => s.id !== formData.id && s.subjectCode !== formData.subjectCode).map(s => s.subjectCode);
       while (existingCodes.includes(finalCode)) {
         sequence++;
         finalCode = `${baseCode}${String(sequence).padStart(2, '0')}`;
@@ -172,14 +160,12 @@ export function SyllabusDialog({
         referenceBooks: syllabus.referenceBooks || [],
       }));
 
-      // Only auto-generate if it's a new subject
       if (!syllabus.id && !syllabus.subjectCode) {
         setFormData(prev => ({ ...prev, subjectCode: generateAutoSubjectCode() }));
       }
     }
   }, [syllabus, open, generateAutoSubjectCode]);
 
-  // Recalculate credits when component values change
   useEffect(() => {
     const l = Number(formData.lectureCredits) || 0;
     const t = Number(formData.tutorialCredits) || 0;
@@ -187,11 +173,9 @@ export function SyllabusDialog({
     setFormData(prev => ({ ...prev, credits: l + t + (p * 0.5) }));
   }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits]);
 
-  // Global uniqueness check
   useEffect(() => {
     if (!open || !formData.subjectCode) return;
     const checkGlobalUniqueness = async (code: string) => {
-      // Don't check if we haven't changed the code from the original
       if (syllabus?.subjectCode === code) { setGlobalConflict(null); return; }
       
       setIsCheckingGlobal(true);
@@ -210,10 +194,8 @@ export function SyllabusDialog({
           setGlobalConflict(null);
         }
       } catch (err: any) { 
-        console.warn("Global uniqueness check failed (possibly missing index):", err.message);
         setGlobalConflict(null); 
-      }
-      finally { setIsCheckingGlobal(false); }
+      } finally { setIsCheckingGlobal(false); }
     };
     
     const timer = setTimeout(() => checkGlobalUniqueness(formData.subjectCode!), 600);
@@ -221,6 +203,22 @@ export function SyllabusDialog({
   }, [formData.subjectCode, open, db, currentSchemeId, syllabus?.subjectCode]);
 
   const handleSave = () => {
+    // Credit consistency check for elective groups
+    if (formData.electiveGroupId) {
+      const groupMembers = existingSyllabi.filter(s => s.electiveGroupId === formData.electiveGroupId && (s.id !== formData.id && s.subjectCode !== formData.subjectCode));
+      if (groupMembers.length > 0) {
+        const standardCredit = groupMembers[0].credits;
+        if (formData.credits !== standardCredit) {
+          toast({
+            title: "Credit Mismatch",
+            description: `All subjects in ${formData.electiveGroupId} must have ${standardCredit} credits.`,
+            variant: "destructive"
+          });
+          return;
+        }
+      }
+    }
+
     onSave(formData);
     onOpenChange(false);
   };
@@ -248,7 +246,7 @@ export function SyllabusDialog({
                 <Globe className="w-6 h-6 text-amber-600 shrink-0" />
                 <div className="flex-1">
                   <p className="font-bold">Institutional Code Conflict: {globalConflict.subjectCode}</p>
-                  <p className="text-xs mb-3">This code is already assigned in scheme <strong>{globalConflict.schemeId}</strong>. Would you like to link this existing content?</p>
+                  <p className="text-xs mb-3">This code is already assigned in scheme <strong>{globalConflict.schemeId}</strong>. Use the existing content to ensure consistency.</p>
                   <Button size="sm" variant="outline" className="h-8 border-amber-300 hover:bg-amber-100" onClick={() => { 
                     setFormData({...formData, ...globalConflict.data, id: undefined, subjectCode: globalConflict.subjectCode}); 
                     setGlobalConflict(null); 
@@ -317,7 +315,7 @@ export function SyllabusDialog({
 
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Credit Category</Label>
-                    <Select disabled={isReadOnly} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v, electiveGroupId: v === 'DSE' || v === 'OFE' ? prev => prev || 'Elective-I' : ''})}>
+                    <Select disabled={isReadOnly} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v, electiveGroupId: ''})}>
                       <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="DSC">DSC (Discipline Core)</SelectItem>
@@ -337,29 +335,20 @@ export function SyllabusDialog({
 
                   {isElective && (
                     <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
-                      <Label className="text-sm font-semibold text-accent">Elective Group</Label>
+                      <Label className="text-sm font-semibold text-accent">Elective Group Slot</Label>
                       <Select disabled={isReadOnly} value={formData.electiveGroupId} onValueChange={v => setFormData({...formData, electiveGroupId: v})}>
-                        <SelectTrigger className="h-11 border-accent/30 focus:ring-accent/20"><SelectValue placeholder="Select group..." /></SelectTrigger>
+                        <SelectTrigger className="h-11 border-accent/30 focus:ring-accent/20">
+                          <SelectValue placeholder="Select group slot..." />
+                        </SelectTrigger>
                         <SelectContent>
-                          {existingElectiveGroups.map(group => (
+                          {availableElectiveGroups.map(group => (
                             <SelectItem key={group} value={group}>{group}</SelectItem>
                           ))}
-                          <SelectItem value="CUSTOM">+ Add New Group</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                   )}
                 </div>
-
-                {formData.electiveGroupId === 'CUSTOM' && (
-                  <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
-                    <Label className="text-sm font-semibold">New Elective Group ID</Label>
-                    <Input 
-                      placeholder="e.g. Elective-IX" 
-                      onChange={e => setFormData({...formData, electiveGroupId: e.target.value})} 
-                    />
-                  </div>
-                )}
 
                 <div className="p-5 bg-primary/5 rounded-2xl border border-primary/10 grid grid-cols-4 gap-4 items-end">
                    <div className="space-y-2">
@@ -423,12 +412,6 @@ export function SyllabusDialog({
                        </CardContent>
                      </Card>
                    ))}
-                   {(!formData.units || formData.units.length === 0) && (
-                     <div className="text-center py-12 border-2 border-dashed rounded-2xl bg-muted/20">
-                       <Plus className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-20" />
-                       <p className="text-sm text-muted-foreground">No units defined. Use the Add Unit button or AI generation.</p>
-                     </div>
-                   )}
                  </div>
               </TabsContent>
 
@@ -445,14 +428,7 @@ export function SyllabusDialog({
                         <TableRow>
                           <TableHead className="w-24 bg-muted/50 sticky left-0 z-10">Outcome</TableHead>
                           {PO_DEFINITIONS.map(po => (
-                            <TableHead key={po.code} className="text-center w-16">
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger className="font-bold cursor-help">{po.code}</TooltipTrigger>
-                                  <TooltipContent className="max-w-xs">{po.title}: {po.desc}</TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            </TableHead>
+                            <TableHead key={po.code} className="text-center w-16 font-bold">{po.code}</TableHead>
                           ))}
                         </TableRow>
                       </TableHeader>
@@ -468,7 +444,7 @@ export function SyllabusDialog({
                                   onValueChange={val => {
                                     const m = { ...(formData.poMappings || {}) };
                                     if (!m[unit.id]) m[unit.id] = {};
-                                    m[unit.id][po.code] = val as CorrelationLevel;
+                                    m[unit.id][po.code] = val as CorrelationLevelType;
                                     setFormData({ ...formData, poMappings: m });
                                   }}
                                 >
@@ -506,27 +482,5 @@ export function SyllabusDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-// Sub-components for better organization
-function TooltipProvider({ children }: { children: React.ReactNode }) {
-  return <div className="inline-block">{children}</div>;
-}
-
-function Tooltip({ children }: { children: React.ReactNode }) {
-  return <div className="relative group">{children}</div>;
-}
-
-function TooltipTrigger({ children, className }: { children: React.ReactNode, className?: string }) {
-  return <div className={className}>{children}</div>;
-}
-
-function TooltipContent({ children, className }: { children: React.ReactNode, className?: string }) {
-  return (
-    <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 p-2 bg-black text-white text-[10px] rounded shadow-xl whitespace-nowrap ${className}`}>
-      {children}
-      <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-black"></div>
-    </div>
   );
 }
