@@ -67,7 +67,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     if (commonSyllabi && commonSyllabi.length > 0) {
       commonSyllabi.forEach(cs => {
         const isInstitutionalCategory = ['VAC', 'AEC', 'MDC'].includes(cs.creditCategory);
-        if (isInstitutionalCategory && !combined.some(ls => ls.subjectCode === cs.subjectCode)) {
+        const alreadyExists = combined.some(ls => 
+          ls.subjectCode === cs.subjectCode || ls.id === cs.id
+        );
+        if (isInstitutionalCategory && !alreadyExists) {
           combined.push({ ...cs, isFromCommonPool: true } as any);
         }
       });
@@ -148,11 +151,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       return;
     }
 
-    // Use Subject Code as the document ID
     const syllabusId = data.subjectCode;
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', syllabusId);
 
-    // If it's a rename (subjectCode changed for an existing course), handle it
     if (data.id && data.id !== syllabusId) {
       const oldDocRef = doc(db, 'schemes', schemeId, 'syllabi', data.id);
       try {
@@ -342,7 +343,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                             const canEditThisSyllabus = permissions.canEditSyllabus(sub);
                             
                             return (
-                              <TableRow key={sub.id} className={`group transition-colors ${isFromCommon ? 'bg-emerald-50/40 hover:bg-emerald-50/60' : ''}`}>
+                              <TableRow key={`${sub.id}-${isFromCommon ? 'common' : 'local'}`} className={`group transition-colors ${isFromCommon ? 'bg-emerald-50/40 hover:bg-emerald-50/60' : ''}`}>
                                 <TableCell className="font-mono text-xs font-bold pl-6 text-primary">{sub.subjectCode}</TableCell>
                                 <TableCell className="font-medium">
                                   <div className="flex flex-col">
