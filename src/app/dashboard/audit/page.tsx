@@ -78,8 +78,9 @@ export default function AuditPage() {
                   <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
                     <ShieldCheck className="w-12 h-12 mx-auto mb-4 opacity-10" />
                     <p>No audit records found in the current period.</p>
-                  </TableRow>
-                )}
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
