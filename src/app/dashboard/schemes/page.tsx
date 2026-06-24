@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -103,9 +104,19 @@ export default function SchemesPage() {
     setIsCreating(true);
 
     const branchName = isCommonBos ? 'Institutional Common Pool' : newScheme.branch;
-    const branchPrefix = isCommonBos 
-      ? 'POOL' 
-      : (selectedProgram.branchPrefixes?.[branchName] || branchName.substring(0, 3).toUpperCase());
+    
+    // Determine branch prefix
+    let branchPrefix = isCommonBos ? 'POOL' : (selectedProgram.branchPrefixes?.[branchName]);
+    
+    if (!branchPrefix && !isCommonBos) {
+      const lowerBranch = branchName.toLowerCase();
+      // Handle Production and Industrial specifically for the Scheme Code as well
+      if (lowerBranch.includes('production') && lowerBranch.includes('industrial')) {
+        branchPrefix = 'PI';
+      } else {
+        branchPrefix = branchName.substring(0, 3).toUpperCase();
+      }
+    }
     
     const creationYear = new Date().getFullYear();
     const generatedCode = `${selectedProgram.code}-${branchPrefix}-${creationYear}`;

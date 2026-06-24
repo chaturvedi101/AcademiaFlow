@@ -106,7 +106,13 @@ export function SyllabusDialog({
     // 1. Branch Prefix (2 chars)
     let branchPrefix = 'PO';
     if (branchName !== 'Institutional Common Pool') {
-      branchPrefix = branchName.substring(0, 2).toUpperCase();
+      const lowerBranch = branchName.toLowerCase();
+      // Specifically handle Production and Industrial as 'PI'
+      if (lowerBranch.includes('production') && lowerBranch.includes('industrial')) {
+        branchPrefix = 'PI';
+      } else {
+        branchPrefix = branchName.substring(0, 2).toUpperCase();
+      }
     }
 
     // 2. Type Indicator (1 char): L for Theory/Tutorial, P for Practical
