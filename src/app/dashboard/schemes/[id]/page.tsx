@@ -75,20 +75,46 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     return combined.sort((a, b) => (a.semester || 1) - (b.semester || 1));
   }, [localSyllabi, commonSyllabi]);
 
-  const hasEditPermission = useMemo(() => {
-    if (!profile || !scheme) return false;
-    if (profile.role === 'admin' || profile.role === 'dean_faculty' || profile.role === 'dean_academic') return true;
-    
-    return profile.managedBranches?.some(
-      m => m.programId === scheme.programId && m.branch === scheme.branch
-    ) || (profile.faculty === 'University-wide (Common BOS)' && scheme.isCommonPoolScheme) || false;
-  }, [profile, scheme]);
+  // Comprehensive permission logic
+  const permissions = useMemo(() => {
+    if (!profile || !scheme || !program) return { canEditScheme: false, canEditSyllabus: (s: Syllabus) => false };
 
-  const canModifySchemeLayout = useMemo(() => {
-    if (!profile) return false;
-    if (profile.role === 'bos_member') return false;
-    return hasEditPermission;
-  }, [profile, hasEditPermission]);
+    const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile.role);
+    const isProgramDean = profile.role === 'dean_faculty' && profile.faculty === program.faculty;
+    const isCommonBOS = profile.faculty === 'University-wide (Common BOS)';
+
+    // Scheme Structure Permission (Adding/Removing Subjects, submitting status)
+    let canEditScheme = false;
+    if (isGlobalAdmin || isProgramDean) {
+      canEditScheme = true;
+    } else if (scheme.isCommonPoolScheme && isCommonBOS) {
+      canEditScheme = true;
+    } else if (!scheme.isCommonPoolScheme) {
+      canEditScheme = profile.managedBranches?.some(
+        m => m.programId === scheme.programId && m.branch === scheme.branch
+      ) || false;
+    }
+
+    // Syllabus Detail Permission (Editing internal content of a subject)
+    const canEditSyllabus = (s: Syllabus) => {
+      if (isGlobalAdmin) return true;
+
+      const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(s.creditCategory);
+      
+      // Institutional courses: Only Common BOS or the Program Dean can edit
+      if (isCommonCategory || s.isCommonCourse || scheme.isCommonPoolScheme) {
+        return isCommonBOS || isProgramDean;
+      }
+
+      // Branch courses (DSC, DSE, SEC, etc.): Branch managers or Program Dean
+      const isBranchManager = profile.managedBranches?.some(
+        m => m.programId === scheme.programId && m.branch === scheme.branch
+      );
+      return isProgramDean || isBranchManager;
+    };
+
+    return { canEditScheme, canEditSyllabus };
+  }, [profile, scheme, program]);
 
   const creditDistribution = useMemo(() => {
     const dist = { DSC: 0, DSE: 0, OFE: 0, CPF: 0, VAC: 0, AEC: 0, SEC: 0, MDC: 0, total: 0 };
@@ -116,7 +142,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   }, [creditDistribution, program?.rules]);
 
   const handleUpdateScheme = (updates: Partial<Scheme>) => {
-    if (!canModifySchemeLayout) return;
+    if (!permissions.canEditScheme) return;
     updateDoc(schemeRef, { ...updates, updatedAt: serverTimestamp() })
       .catch(err => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -128,7 +154,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const handleSaveSyllabus = (data: Partial<Syllabus>) => {
-    if (!hasEditPermission) return;
+    // Permission check for existing vs new syllabus
+    const isNew = !data.id;
+    if (isNew && !permissions.canEditScheme) {
+      toast({ title: "Denied", description: "You cannot add new subjects to this scheme.", variant: "destructive" });
+      return;
+    }
+    
     const sId = data.id || doc(collection(db, 'temp')).id;
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', sId);
     
@@ -151,7 +183,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const handleDeleteSyllabus = (id: string) => {
-    if (!canModifySchemeLayout) return;
+    if (!permissions.canEditScheme) return;
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', id);
     deleteDoc(docRef).catch(err => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -211,7 +243,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             <FileText className="w-4 h-4" /> Download Structure
           </Button>
           
-          {canModifySchemeLayout && scheme.status === 'Draft' && (
+          {permissions.canEditScheme && scheme.status === 'Draft' && (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -241,7 +273,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         </div>
       </div>
 
-      {!isSchemeValid && canModifySchemeLayout && scheme.status === 'Draft' && (
+      {!isSchemeValid && permissions.canEditScheme && scheme.status === 'Draft' && (
         <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-amber-800 text-sm">
           <AlertTriangle className="w-5 h-5 shrink-0 text-amber-600" />
           <p className="flex-1">
@@ -286,7 +318,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                         <CardTitle className="text-lg font-headline">Semester {sem}</CardTitle>
                         <CardDescription className="text-xs font-medium">Credits: <span className="text-primary font-bold">{semTotal}</span></CardDescription>
                       </div>
-                      {canModifySchemeLayout && (
+                      {permissions.canEditScheme && (
                         <Button size="sm" variant="outline" className="gap-2 h-9 rounded-lg" onClick={() => {
                           setActiveSubject({ semester: sem });
                           setIsSyllabusDialogOpen(true);
@@ -309,6 +341,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                         <TableBody>
                           {semSubjects.map(sub => {
                             const isFromCommon = (sub as any).isFromCommonPool;
+                            const canEditThisSyllabus = permissions.canEditSyllabus(sub);
+                            
                             return (
                               <TableRow key={sub.id} className={`group transition-colors ${isFromCommon ? 'bg-emerald-50/40 hover:bg-emerald-50/60' : ''}`}>
                                 <TableCell className="font-mono text-xs font-bold pl-6 text-primary">{sub.subjectCode}</TableCell>
@@ -334,13 +368,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                                     <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500 hover:bg-blue-50" title="Export PDF" onClick={() => handleExportSyllabusPDF(sub)}>
                                       <FileDown className="w-3.5 h-3.5" />
                                     </Button>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => {
+                                    <Button variant="ghost" size="icon" className={`h-8 w-8 ${canEditThisSyllabus ? 'text-primary' : 'text-muted-foreground'}`} onClick={() => {
                                       setActiveSubject(sub);
                                       setIsSyllabusDialogOpen(true);
                                     }}>
-                                      <Edit3 className="w-3.5 h-3.5" />
+                                      {canEditThisSyllabus ? <Edit3 className="w-3.5 h-3.5" /> : <Layers className="w-3.5 h-3.5" />}
                                     </Button>
-                                    {canModifySchemeLayout && !isFromCommon && (
+                                    {permissions.canEditScheme && !isFromCommon && (
                                       <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:bg-red-50" onClick={() => handleDeleteSyllabus(sub.id)}>
                                         <Trash2 className="w-3.5 h-3.5" />
                                       </Button>
@@ -370,7 +404,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                       <p className="text-sm text-muted-foreground">Allow students to exit with Cert/Diploma.</p>
                     </div>
                     <Switch 
-                      disabled={!canModifySchemeLayout}
+                      disabled={!permissions.canEditScheme}
                       checked={scheme.hasMultipleExits}
                       onCheckedChange={checked => handleUpdateScheme({ hasMultipleExits: checked })}
                     />
@@ -395,6 +429,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         programName={program?.name}
         branchName={scheme?.branch}
         batchYear={scheme?.batchYear}
+        canEdit={permissions.canEditSyllabus(activeSubject as Syllabus || { creditCategory: 'DSC' })}
       />
     </div>
   );

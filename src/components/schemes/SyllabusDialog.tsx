@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -13,7 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Calculator, Info, Plus, Trash2, Sparkles, Loader2, Wand2, AlertCircle, Clock, Book, BookOpen, ExternalLink, Video, FileDown, Hash, Library, Search } from "lucide-react";
+import { Calculator, Info, Plus, Trash2, Sparkles, Loader2, Wand2, AlertCircle, Clock, Book, BookOpen, ExternalLink, Video, FileDown, Hash, Library, Search, ShieldAlert } from "lucide-react";
 import { Syllabus, CorrelationLevel, SyllabusUnit, CreditCategory } from "@/lib/types";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { suggestCOPOMapping } from "@/ai/flows/suggest-co-po-mapping";
@@ -39,7 +40,7 @@ const PO_DEFINITIONS = [
 
 const CORRELATION_LEVELS: CorrelationLevel[] = ['1', '2', '3', '-'];
 
-// Institutional common categories (SEC is now Faculty specific)
+// Institutional common categories
 const INSTITUTIONAL_CATEGORIES: CreditCategory[] = ['VAC', 'AEC', 'MDC'];
 
 interface SyllabusDialogProps {
@@ -51,6 +52,7 @@ interface SyllabusDialogProps {
   programName?: string;
   branchName?: string;
   batchYear?: string;
+  canEdit?: boolean;
 }
 
 export function SyllabusDialog({ 
@@ -61,7 +63,8 @@ export function SyllabusDialog({
   onSave,
   programName,
   branchName,
-  batchYear
+  batchYear,
+  canEdit = true
 }: SyllabusDialogProps) {
   const { toast } = useToast();
   const db = useFirestore();
@@ -339,6 +342,7 @@ export function SyllabusDialog({
   };
 
   const isFollowedCourse = !!formData.followedFromId || (formData as any).isFromCommonPool;
+  const isReadOnly = !canEdit;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -347,15 +351,16 @@ export function SyllabusDialog({
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <DialogTitle className="font-headline text-2xl flex items-center gap-2">
-                {syllabus?.id ? 'Edit Subject Details' : 'Add New Subject Definition'}
+                {isReadOnly ? 'View Subject Details' : (syllabus?.id ? 'Edit Subject Details' : 'Add New Subject Definition')}
                 {isFollowedCourse && <Badge className="bg-emerald-100 text-emerald-700 border-none">Common Course Content</Badge>}
+                {isReadOnly && <Badge variant="outline" className="text-muted-foreground border-muted">Read Only</Badge>}
               </DialogTitle>
               <DialogDescription>
-                Configure credits, semester, unit content, and CO-PO mapping matrix.
+                {isReadOnly ? 'You are viewing course content managed by institutional leadership.' : 'Configure credits, semester, unit content, and CO-PO mapping matrix.'}
               </DialogDescription>
             </div>
             <div className="flex gap-2">
-              {INSTITUTIONAL_CATEGORIES.includes(formData.creditCategory as any) && !syllabus?.id && (
+              {INSTITUTIONAL_CATEGORIES.includes(formData.creditCategory as any) && !syllabus?.id && canEdit && (
                 <Button variant="outline" size="sm" className="gap-2 border-primary/20 text-primary" onClick={() => { setShowCourseBank(true); fetchCommonPool(); }}>
                   <Library className="w-4 h-4" /> University Course Bank
                 </Button>
@@ -371,20 +376,18 @@ export function SyllabusDialog({
         
         <ScrollArea className="flex-1 w-full min-h-0">
           <div className="p-6 space-y-8 pb-12">
+            {isReadOnly && (
+              <div className="p-4 bg-muted/20 border border-muted-foreground/20 rounded-xl flex items-center gap-3 text-muted-foreground text-sm">
+                <ShieldAlert className="w-5 h-5 shrink-0" />
+                <p>Course content for VAC, AEC, and MDC is managed university-wide by the Common BOS. Branch members have read-only access.</p>
+              </div>
+            )}
+
             {apiKeyError && (
               <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3 text-red-800 text-sm">
                   <AlertCircle className="w-5 h-5 shrink-0" />
                   <div><p className="font-bold">Google AI API Key Required</p></div>
-                </div>
-              </div>
-            )}
-
-            {quotaError && (
-              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                  <div className="text-amber-800 text-sm"><p className="font-bold">AI Quota Limit Reached</p></div>
                 </div>
               </div>
             )}
@@ -404,6 +407,7 @@ export function SyllabusDialog({
                     <div className="relative">
                       <Hash className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                       <Input 
+                        disabled={isReadOnly}
                         placeholder="e.g., COLC301" 
                         className="pl-9 font-mono"
                         value={formData.subjectCode || ''} 
@@ -417,7 +421,7 @@ export function SyllabusDialog({
                       placeholder="e.g., Analysis of Algorithms" 
                       value={formData.title || ''}
                       onChange={e => setFormData({ ...formData, title: e.target.value })}
-                      disabled={isFollowedCourse}
+                      disabled={isFollowedCourse || isReadOnly}
                     />
                   </div>
                 </div>
@@ -431,15 +435,15 @@ export function SyllabusDialog({
                     <div className="grid grid-cols-4 gap-6">
                       <div className="space-y-2">
                         <Label className="text-xs font-bold uppercase">L</Label>
-                        <Input type="number" disabled={isFollowedCourse} value={formData.lectureCredits ?? 0} onChange={e => setFormData({...formData, lectureCredits: Number(e.target.value)})} />
+                        <Input type="number" disabled={isFollowedCourse || isReadOnly} value={formData.lectureCredits ?? 0} onChange={e => setFormData({...formData, lectureCredits: Number(e.target.value)})} />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs font-bold uppercase">T</Label>
-                        <Input type="number" disabled={isFollowedCourse} value={formData.tutorialCredits ?? 0} onChange={e => setFormData({...formData, tutorialCredits: Number(e.target.value)})} />
+                        <Input type="number" disabled={isFollowedCourse || isReadOnly} value={formData.tutorialCredits ?? 0} onChange={e => setFormData({...formData, tutorialCredits: Number(e.target.value)})} />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs font-bold uppercase">P</Label>
-                        <Input type="number" disabled={isFollowedCourse} value={formData.practicalCredits ?? 0} onChange={e => setFormData({...formData, practicalCredits: Number(e.target.value)})} />
+                        <Input type="number" disabled={isFollowedCourse || isReadOnly} value={formData.practicalCredits ?? 0} onChange={e => setFormData({...formData, practicalCredits: Number(e.target.value)})} />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs font-bold text-primary uppercase">Total</Label>
@@ -451,11 +455,11 @@ export function SyllabusDialog({
                   <div className="p-5 bg-accent/5 rounded-2xl border space-y-4">
                     <Label className="text-sm font-semibold">Semester & Category</Label>
                     <div className="space-y-4">
-                      <Select value={String(formData.semester)} onValueChange={val => setFormData({ ...formData, semester: Number(val) })}>
+                      <Select disabled={isReadOnly} value={String(formData.semester)} onValueChange={val => setFormData({ ...formData, semester: Number(val) })}>
                         <SelectTrigger className="bg-white"><SelectValue placeholder="Semester" /></SelectTrigger>
                         <SelectContent>{[1,2,3,4,5,6,7,8].map(s => <SelectItem key={s} value={String(s)}>Semester {s}</SelectItem>)}</SelectContent>
                       </Select>
-                      <Select value={formData.creditCategory || 'DSC'} onValueChange={(val: any) => setFormData({ ...formData, creditCategory: val })}>
+                      <Select disabled={isReadOnly} value={formData.creditCategory || 'DSC'} onValueChange={(val: any) => setFormData({ ...formData, creditCategory: val })}>
                         <SelectTrigger className="bg-white"><SelectValue placeholder="Category" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="DSC">DSC (Core)</SelectItem>
@@ -475,7 +479,7 @@ export function SyllabusDialog({
                           className="w-4 h-4 accent-primary" 
                           checked={formData.isCommonCourse} 
                           onChange={e => setFormData({...formData, isCommonCourse: e.target.checked})}
-                          disabled={!INSTITUTIONAL_CATEGORIES.includes(formData.creditCategory as any) && profile?.role !== 'admin'}
+                          disabled={isReadOnly || (!INSTITUTIONAL_CATEGORIES.includes(formData.creditCategory as any) && profile?.role !== 'admin')}
                         />
                       </div>
                     </div>
@@ -489,7 +493,7 @@ export function SyllabusDialog({
                     <h3 className="font-headline font-bold text-primary">Unit Configuration</h3>
                     <p className="text-xs text-muted-foreground">Draft syllabus using AI or add units manually.</p>
                   </div>
-                  {!isFollowedCourse && (
+                  {!isFollowedCourse && !isReadOnly && (
                     <div className="flex flex-wrap items-center gap-3">
                       <Button variant="outline" size="sm" onClick={handleAIGenerate} disabled={isGenerating} className="gap-2 bg-primary text-white hover:bg-primary/90 hover:text-white">
                         {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
@@ -500,7 +504,7 @@ export function SyllabusDialog({
                       </Button>
                     </div>
                   )}
-                  {isFollowedCourse && <p className="text-xs font-bold text-emerald-600">Locked to Institutional Content</p>}
+                  {(isFollowedCourse || isReadOnly) && <p className="text-xs font-bold text-emerald-600">Locked to Institutional Content</p>}
                 </div>
 
                 <div className="space-y-6">
@@ -508,7 +512,7 @@ export function SyllabusDialog({
                     <Card key={unit.id} className="border-none shadow-sm bg-muted/10">
                       <div className="bg-primary/5 px-4 py-2 border-b flex items-center justify-between">
                         <Badge variant="outline" className="bg-primary/10 text-primary border-none text-[10px] font-bold uppercase">UNIT {index + 1}</Badge>
-                        {!isFollowedCourse && (
+                        {!isFollowedCourse && !isReadOnly && (
                           <Button variant="ghost" size="icon" className="h-6 w-6 text-red-400 hover:bg-red-50" onClick={() => removeUnit(unit.id)}>
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
@@ -518,16 +522,16 @@ export function SyllabusDialog({
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">Unit Title</Label>
-                            <Input disabled={isFollowedCourse} value={unit.title} onChange={e => updateUnit(index, 'title', e.target.value)} className="bg-white" />
+                            <Input disabled={isFollowedCourse || isReadOnly} value={unit.title} onChange={e => updateUnit(index, 'title', e.target.value)} className="bg-white" />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-[10px] uppercase font-bold text-primary">Course Outcome (CO)</Label>
-                            <Input disabled={isFollowedCourse} value={unit.courseOutcome} onChange={e => updateUnit(index, 'courseOutcome', e.target.value)} className="bg-primary/5 border-primary/20 focus:bg-white" />
+                            <Input disabled={isFollowedCourse || isReadOnly} value={unit.courseOutcome} onChange={e => updateUnit(index, 'courseOutcome', e.target.value)} className="bg-primary/5 border-primary/20 focus:bg-white" />
                           </div>
                         </div>
                         <div className="space-y-1">
                           <Label className="text-[10px] uppercase font-bold text-muted-foreground">Syllabus Content</Label>
-                          <Textarea disabled={isFollowedCourse} value={unit.content} onChange={e => updateUnit(index, 'content', e.target.value)} className="min-h-[100px] bg-white" />
+                          <Textarea disabled={isFollowedCourse || isReadOnly} value={unit.content} onChange={e => updateUnit(index, 'content', e.target.value)} className="min-h-[100px] bg-white" />
                         </div>
                       </CardContent>
                     </Card>
@@ -540,35 +544,35 @@ export function SyllabusDialog({
                   <div className="space-y-6">
                     <div className="space-y-4">
                       <Label className="text-sm font-bold uppercase tracking-wider text-primary">Text Books</Label>
-                      {!isFollowedCourse && (
+                      {!isFollowedCourse && !isReadOnly && (
                         <div className="flex gap-2">
                           <Input placeholder="Citation format..." value={newTextBook} onChange={e => setNewTextBook(e.target.value)} onKeyDown={e => e.key === 'Enter' && addResource('text')} />
                           <Button onClick={() => addResource('text')} size="icon" variant="secondary"><Plus className="w-4 h-4" /></Button>
                         </div>
                       )}
-                      <ResourceList items={formData.textBooks} onRemove={i => removeItem('text', i)} readOnly={isFollowedCourse} />
+                      <ResourceList items={formData.textBooks} onRemove={i => removeItem('text', i)} readOnly={isFollowedCourse || isReadOnly} />
                     </div>
                     <div className="space-y-4">
                       <Label className="text-sm font-bold uppercase tracking-wider text-primary">Reference Books</Label>
-                      {!isFollowedCourse && (
+                      {!isFollowedCourse && !isReadOnly && (
                         <div className="flex gap-2">
                           <Input placeholder="Citation format..." value={newReferenceBook} onChange={e => setNewReferenceBook(e.target.value)} onKeyDown={e => e.key === 'Enter' && addResource('reference')} />
                           <Button onClick={() => addResource('reference')} size="icon" variant="secondary"><Plus className="w-4 h-4" /></Button>
                         </div>
                       )}
-                      <ResourceList items={formData.referenceBooks} onRemove={i => removeItem('reference', i)} readOnly={isFollowedCourse} />
+                      <ResourceList items={formData.referenceBooks} onRemove={i => removeItem('reference', i)} readOnly={isFollowedCourse || isReadOnly} />
                     </div>
                   </div>
                   <div className="space-y-6">
                     <div className="space-y-4">
                       <Label className="text-sm font-bold uppercase tracking-wider text-primary">Digital Courses (NPTEL)</Label>
-                      {!isFollowedCourse && (
+                      {!isFollowedCourse && !isReadOnly && (
                         <div className="flex gap-2">
                           <Input placeholder="URL..." value={newNptelLink} onChange={e => setNewNptelLink(e.target.value)} />
                           <Button onClick={() => addResource('nptel')} size="icon" variant="secondary"><Plus className="w-4 h-4" /></Button>
                         </div>
                       )}
-                      <ResourceList items={formData.nptelLinks} onRemove={i => removeItem('nptel', i)} isLink readOnly={isFollowedCourse} />
+                      <ResourceList items={formData.nptelLinks} onRemove={i => removeItem('nptel', i)} isLink readOnly={isFollowedCourse || isReadOnly} />
                     </div>
                   </div>
                 </div>
@@ -580,7 +584,7 @@ export function SyllabusDialog({
                     <Info className="w-5 h-5 shrink-0" />
                     <p>Map unit outcomes against Program Outcomes.</p>
                   </div>
-                  {!isFollowedCourse && (
+                  {!isFollowedCourse && !isReadOnly && (
                     <Button size="sm" variant="outline" onClick={handleAIMap} disabled={isMapping || !formData.units?.length}>
                       {isMapping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />} Smart Suggestions
                     </Button>
@@ -603,7 +607,7 @@ export function SyllabusDialog({
                           {PO_DEFINITIONS.map(po => (
                             <TableCell key={po.code} className="p-1 text-center border-l">
                               <Select 
-                                disabled={isFollowedCourse}
+                                disabled={isFollowedCourse || isReadOnly}
                                 value={formData.poMappings?.[unit.id]?.[po.code] || '-'} 
                                 onValueChange={(val: CorrelationLevel) => updatePOMapping(unit.id, po.code, val)}
                               >
@@ -628,7 +632,7 @@ export function SyllabusDialog({
 
         <DialogFooter className="p-6 bg-muted/20 border-t shrink-0 z-10">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="px-6 h-11">Cancel</Button>
-          <Button onClick={() => { onSave(formData); onOpenChange(false); }} className="px-8 h-11 shadow-lg">Save Configuration</Button>
+          {!isReadOnly && <Button onClick={() => { onSave(formData); onOpenChange(false); }} className="px-8 h-11 shadow-lg">Save Configuration</Button>}
         </DialogFooter>
       </DialogContent>
 
