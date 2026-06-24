@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useMemo } from "react";
@@ -65,11 +64,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
   const syllabi = useMemo(() => {
     const combined = [...localSyllabi];
-    // Merge common pool syllabi into the view automatically
+    
+    // Merge common pool syllabi (VAC, AEC, MDC only)
     if (commonSyllabi && commonSyllabi.length > 0) {
       commonSyllabi.forEach(cs => {
-        // Only include common pool course if it's not already overridden locally (unlikely but safe)
-        if (!combined.some(ls => ls.subjectCode === cs.subjectCode)) {
+        const isInstitutionalCategory = ['VAC', 'AEC', 'MDC'].includes(cs.creditCategory);
+        if (isInstitutionalCategory && !combined.some(ls => ls.subjectCode === cs.subjectCode)) {
           combined.push({ ...cs, isFromCommonPool: true } as any);
         }
       });
@@ -134,11 +134,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const sId = data.id || doc(collection(db, 'temp')).id;
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', sId);
     
-    // Automatically flag as common course if developed by Common BOS
+    // Syllabi developed by Common BOS are institutional, except SEC which is branch-specific
+    const isInstitutionalCategory = ['VAC', 'AEC', 'MDC'].includes(data.creditCategory || '');
     const finalData = {
       ...data,
       id: sId,
-      isCommonCourse: profile?.faculty === 'University-wide (Common BOS)' || data.isCommonCourse,
+      isCommonCourse: (profile?.faculty === 'University-wide (Common BOS)' && isInstitutionalCategory) || data.isCommonCourse,
     };
 
     setDoc(docRef, finalData, { merge: true })
@@ -245,7 +246,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           <p className="flex-1">
             <span className="font-bold">Compliance Warning:</span> Credit framework not satisfied. Current: {creditDistribution.total} / Required: {program?.rules?.totalRequired}.
             {!scheme.isCommonPoolScheme && commonScheme && (
-              <span className="block mt-1 font-normal opacity-80 italic">Includes credits from the Institutional Common Pool defined by university BOS.</span>
+              <span className="block mt-1 font-normal opacity-80 italic">Integrated with institutional VAC, AEC, and MDC courses. SEC courses are defined by your branch BOS.</span>
             )}
           </p>
         </div>
@@ -255,7 +256,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-between gap-3 text-emerald-800 text-sm">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-emerald-600" />
-            <span>Integrated with Institutional Common Pool (VAC, AEC, SEC, MDC)</span>
+            <span>Integrated with Institutional Pool (VAC, AEC, MDC)</span>
           </div>
           <Button variant="ghost" size="sm" className="text-emerald-700 hover:bg-emerald-100 gap-2" asChild>
             <Link href={`/dashboard/schemes/${commonScheme.id}`}><Library className="w-3.5 h-3.5" /> View Pool</Link>

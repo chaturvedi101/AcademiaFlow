@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -148,7 +147,7 @@ export default function SchemesPage() {
           <h1 className="text-3xl font-headline font-bold">Academic Schemes</h1>
           <p className="text-muted-foreground">
             {isCommonBos 
-              ? 'Developing common course schemes (VAC, AEC, SEC, MDC) once per Program for university-wide rollout.'
+              ? 'Developing common course schemes (VAC, AEC, MDC) once per Program for university-wide rollout. SEC courses remain Faculty-specific.'
               : 'Draft, build, and manage branch-specific academic layouts.'}
           </p>
         </div>
@@ -217,7 +216,7 @@ export default function SchemesPage() {
             <DialogTitle>{isCommonBos ? 'Define Common Pool Scheme' : 'Create New Academic Scheme'}</DialogTitle>
             <DialogDescription>
               {isCommonBos 
-                ? 'This scheme defines VAC, AEC, SEC, and MDC courses for ALL branches of the selected program.'
+                ? 'This scheme defines VAC, AEC, and MDC courses for ALL branches of the selected program.'
                 : 'Select the program, branch, and batch to initialize your branch-specific core curriculum.'}
             </DialogDescription>
           </DialogHeader>
@@ -260,7 +259,7 @@ export default function SchemesPage() {
             {isCommonBos && (
               <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-lg flex gap-3 text-xs text-emerald-800">
                 <Info className="w-4 h-4 shrink-0 text-emerald-600" />
-                <p>This pool will be automatically shared across all branches of <strong>{selectedProgram?.name || 'the selected program'}</strong>.</p>
+                <p>This pool will be automatically shared across all branches of <strong>{selectedProgram?.name || 'the selected program'}</strong>. It will include common VAC, AEC, and MDC courses.</p>
               </div>
             )}
 

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -40,7 +39,8 @@ const PO_DEFINITIONS = [
 
 const CORRELATION_LEVELS: CorrelationLevel[] = ['1', '2', '3', '-'];
 
-const COMMON_CATEGORIES: CreditCategory[] = ['VAC', 'AEC', 'SEC', 'MDC'];
+// Institutional common categories (SEC is now Faculty specific)
+const INSTITUTIONAL_CATEGORIES: CreditCategory[] = ['VAC', 'AEC', 'MDC'];
 
 interface SyllabusDialogProps {
   open: boolean;
@@ -140,7 +140,7 @@ export function SyllabusDialog({
         referenceBooks: syllabus.referenceBooks || [],
         nptelLinks: syllabus.nptelLinks || [],
         youtubeLinks: syllabus.youtubeLinks || [],
-        isCommonCourse: syllabus.isCommonCourse || profile?.faculty === 'University-wide (Common BOS)'
+        isCommonCourse: syllabus.isCommonCourse || (profile?.faculty === 'University-wide (Common BOS)' && INSTITUTIONAL_CATEGORIES.includes(syllabus.creditCategory as any))
       }));
 
       if (!syllabus.id && !syllabus.subjectCode) {
@@ -170,7 +170,6 @@ export function SyllabusDialog({
       );
       const snap = await getDocs(q);
       const courses = snap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus));
-      // Remove duplicates by code
       const uniqueCourses = Array.from(new Map(courses.map(c => [c.subjectCode, c])).values());
       setCommonPool(uniqueCourses);
     } catch (err) {
@@ -356,7 +355,7 @@ export function SyllabusDialog({
               </DialogDescription>
             </div>
             <div className="flex gap-2">
-              {COMMON_CATEGORIES.includes(formData.creditCategory as any) && !syllabus?.id && (
+              {INSTITUTIONAL_CATEGORIES.includes(formData.creditCategory as any) && !syllabus?.id && (
                 <Button variant="outline" size="sm" className="gap-2 border-primary/20 text-primary" onClick={() => { setShowCourseBank(true); fetchCommonPool(); }}>
                   <Library className="w-4 h-4" /> University Course Bank
                 </Button>
@@ -463,7 +462,7 @@ export function SyllabusDialog({
                           <SelectItem value="DSE">DSE (Elective)</SelectItem>
                           <SelectItem value="OFE">OFE (Open Elective)</SelectItem>
                           <SelectItem value="VAC">VAC (Value Added)</SelectItem>
-                          <SelectItem value="SEC">SEC (Skill)</SelectItem>
+                          <SelectItem value="SEC">SEC (Skill Enhancement)</SelectItem>
                           <SelectItem value="AEC">AEC (Ability Enhancement)</SelectItem>
                           <SelectItem value="MDC">MDC (Multi Disciplinary)</SelectItem>
                           <SelectItem value="CPF">CPF (Community Project)</SelectItem>
@@ -476,6 +475,7 @@ export function SyllabusDialog({
                           className="w-4 h-4 accent-primary" 
                           checked={formData.isCommonCourse} 
                           onChange={e => setFormData({...formData, isCommonCourse: e.target.checked})}
+                          disabled={!INSTITUTIONAL_CATEGORIES.includes(formData.creditCategory as any) && profile?.role !== 'admin'}
                         />
                       </div>
                     </div>
@@ -639,7 +639,7 @@ export function SyllabusDialog({
               <Library className="w-5 h-5 text-primary" />
               University Course Bank: {formData.creditCategory}
             </DialogTitle>
-            <DialogDescription>Developed by University Level Common BOS</DialogDescription>
+            <DialogDescription>Developed by University Level Common BOS (VAC, AEC, MDC)</DialogDescription>
           </DialogHeader>
           <ScrollArea className="flex-1 p-6">
             {loadingPool ? (
@@ -658,7 +658,7 @@ export function SyllabusDialog({
                   </Card>
                 ))}
                 {commonPool.length === 0 && (
-                  <div className="text-center py-12 text-muted-foreground italic">No common courses found for this category.</div>
+                  <div className="text-center py-12 text-muted-foreground italic">No institutional courses found for this category.</div>
                 )}
               </div>
             )}
