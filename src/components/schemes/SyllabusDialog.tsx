@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -14,7 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Calculator, Plus, Trash2, Sparkles, Loader2, Hash, Library, AlertCircle, ShieldAlert, Globe, Link2, Layers } from "lucide-react";
+import { Calculator, Plus, Trash2, Sparkles, Loader2, Hash, Library, AlertCircle, ShieldAlert, Globe, Link2, Layers, BookOpen } from "lucide-react";
 import { Syllabus, CorrelationLevel, SyllabusUnit, CreditCategory } from "@/lib/types";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { useToast } from "@/hooks/use-toast";
@@ -36,8 +35,18 @@ const PO_DEFINITIONS = [
   { code: 'PO12', title: 'Life-long Learning', desc: 'Engage in independent and life-long learning.' },
 ];
 
+const DEFAULT_ELECTIVE_GROUPS = [
+  "Elective-I",
+  "Elective-II",
+  "Elective-III",
+  "Elective-IV",
+  "Elective-V",
+  "Elective-VI",
+  "Elective-VII",
+  "Elective-VIII"
+];
+
 const CORRELATION_LEVELS: CorrelationLevel[] = ['1', '2', '3', '-'];
-const INSTITUTIONAL_CATEGORIES: CreditCategory[] = ['VAC', 'AEC', 'MDC'];
 
 interface SyllabusDialogProps {
   open: boolean;
@@ -70,14 +79,8 @@ export function SyllabusDialog({
   const userDocRef = useMemoFirebase(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
   const { data: profile } = useDoc<any>(userDocRef);
 
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [unitCount, setUnitCount] = useState(5);
-  const [showCourseBank, setShowCourseBank] = useState(false);
-  const [commonPool, setCommonPool] = useState<Syllabus[]>([]);
-  const [loadingPool, setLoadingPool] = useState(false);
-  
-  const [globalConflict, setGlobalConflict] = useState<{ schemeId: string; subjectCode: string; data: Syllabus } | null>(null);
   const [isCheckingGlobal, setIsCheckingGlobal] = useState(false);
+  const [globalConflict, setGlobalConflict] = useState<{ schemeId: string; subjectCode: string; data: Syllabus } | null>(null);
 
   const [formData, setFormData] = useState<Partial<Syllabus>>({
     subjectCode: '',
@@ -98,10 +101,16 @@ export function SyllabusDialog({
     isCommonCourse: false
   });
 
-  const [newTextBook, setNewTextBook] = useState('');
-  const [newReferenceBook, setNewReferenceBook] = useState('');
-
   const isCommonStaff = profile?.faculty === 'University-wide (Common BOS)' || profile?.role === 'admin' || profile?.role === 'dean_academic';
+
+  // Extract all existing elective groups from current syllabi
+  const existingElectiveGroups = useMemo(() => {
+    const groups = new Set(DEFAULT_ELECTIVE_GROUPS);
+    existingSyllabi.forEach(s => {
+      if (s.electiveGroupId) groups.add(s.electiveGroupId);
+    });
+    return Array.from(groups).sort();
+  }, [existingSyllabi]);
 
   const generateAutoSubjectCode = useCallback(() => {
     if (!branchName) return '';
@@ -127,9 +136,18 @@ export function SyllabusDialog({
     let finalCode = `${baseCode}${String(sequence).padStart(2, '0')}`;
 
     if (formData.electiveGroupId) {
-      // Find suffix
+      // Find suffix based on existing members in this specific group
       const peers = existingSyllabi.filter(s => s.electiveGroupId === formData.electiveGroupId);
-      const suffix = peers.length + (formData.id ? 0 : 1);
+      const isAlreadyInGroup = peers.some(p => p.id === formData.id);
+      
+      let suffix = peers.length + (isAlreadyInGroup ? 0 : 1);
+      
+      // If we are editing, we should probably stick to the existing suffix if possible
+      if (isAlreadyInGroup && formData.subjectCode?.includes('.')) {
+        const parts = formData.subjectCode.split('.');
+        suffix = parseInt(parts[parts.length - 1]) || suffix;
+      }
+      
       finalCode = `${finalCode}.${suffix}`;
     } else {
       const existingCodes = existingSyllabi.filter(s => s.id !== formData.id).map(s => s.subjectCode);
@@ -141,7 +159,7 @@ export function SyllabusDialog({
     }
 
     return finalCode;
-  }, [branchName, formData.lectureCredits, formData.tutorialCredits, formData.semester, formData.creditCategory, formData.electiveGroupId, existingSyllabi, formData.id]);
+  }, [branchName, formData.lectureCredits, formData.tutorialCredits, formData.semester, formData.creditCategory, formData.electiveGroupId, existingSyllabi, formData.id, formData.subjectCode]);
 
   useEffect(() => {
     if (syllabus && open) {
@@ -154,12 +172,14 @@ export function SyllabusDialog({
         referenceBooks: syllabus.referenceBooks || [],
       }));
 
+      // Only auto-generate if it's a new subject
       if (!syllabus.id && !syllabus.subjectCode) {
         setFormData(prev => ({ ...prev, subjectCode: generateAutoSubjectCode() }));
       }
     }
   }, [syllabus, open, generateAutoSubjectCode]);
 
+  // Recalculate credits when component values change
   useEffect(() => {
     const l = Number(formData.lectureCredits) || 0;
     const t = Number(formData.tutorialCredits) || 0;
@@ -167,23 +187,35 @@ export function SyllabusDialog({
     setFormData(prev => ({ ...prev, credits: l + t + (p * 0.5) }));
   }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits]);
 
+  // Global uniqueness check
   useEffect(() => {
     if (!open || !formData.subjectCode) return;
     const checkGlobalUniqueness = async (code: string) => {
+      // Don't check if we haven't changed the code from the original
       if (syllabus?.subjectCode === code) { setGlobalConflict(null); return; }
+      
       setIsCheckingGlobal(true);
       try {
         const q = query(collectionGroup(db, 'syllabi'), where('subjectCode', '==', code));
         const snap = await getDocs(q);
         const conflict = snap.docs.find(d => d.data().schemeId !== currentSchemeId);
+        
         if (conflict) {
-          setGlobalConflict({ schemeId: conflict.data().schemeId, subjectCode: conflict.data().subjectCode, data: conflict.data() as Syllabus });
+          setGlobalConflict({ 
+            schemeId: conflict.data().schemeId, 
+            subjectCode: conflict.data().subjectCode, 
+            data: conflict.data() as Syllabus 
+          });
         } else {
           setGlobalConflict(null);
         }
-      } catch (err: any) { setGlobalConflict(null); }
+      } catch (err: any) { 
+        console.warn("Global uniqueness check failed (possibly missing index):", err.message);
+        setGlobalConflict(null); 
+      }
       finally { setIsCheckingGlobal(false); }
     };
+    
     const timer = setTimeout(() => checkGlobalUniqueness(formData.subjectCode!), 600);
     return () => clearTimeout(timer);
   }, [formData.subjectCode, open, db, currentSchemeId, syllabus?.subjectCode]);
@@ -198,23 +230,29 @@ export function SyllabusDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl h-[95vh] flex flex-col p-0 overflow-hidden border-none">
+      <DialogContent className="max-w-6xl h-[95vh] flex flex-col p-0 overflow-hidden border-none shadow-2xl">
         <DialogHeader className="p-6 border-b shrink-0 bg-background z-10">
-          <DialogTitle className="font-headline text-2xl flex items-center gap-2">
-            {isReadOnly ? 'Subject Content' : 'Subject Configuration'}
+          <DialogTitle className="font-headline text-2xl flex items-center gap-3">
+            <BookOpen className="w-6 h-6 text-primary" />
+            {isReadOnly ? 'Course View' : formData.id ? 'Edit Course Configuration' : 'New Course Configuration'}
           </DialogTitle>
-          <DialogDescription>Manage academic details and elective grouping.</DialogDescription>
+          <DialogDescription>
+            {isReadOnly ? 'Viewing course specifications. Content is locked by faculty policy.' : 'Manage course identity, elective grouping, and academic content.'}
+          </DialogDescription>
         </DialogHeader>
         
         <ScrollArea className="flex-1 w-full min-h-0">
           <div className="p-6 space-y-8 pb-12">
             {globalConflict && (
-              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-4 text-amber-800 text-sm">
-                <Globe className="w-6 h-6 text-amber-600" />
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-4 text-amber-800 text-sm animate-in fade-in slide-in-from-top-2">
+                <Globe className="w-6 h-6 text-amber-600 shrink-0" />
                 <div className="flex-1">
-                  <p className="font-bold">Institutional Conflict: {globalConflict.subjectCode}</p>
-                  <p className="text-xs mb-3">Available in scheme {globalConflict.schemeId}. Link this data?</p>
-                  <Button size="sm" variant="outline" onClick={() => { setFormData({...formData, ...globalConflict.data, id: undefined, subjectCode: globalConflict.subjectCode}); setGlobalConflict(null); }}>
+                  <p className="font-bold">Institutional Code Conflict: {globalConflict.subjectCode}</p>
+                  <p className="text-xs mb-3">This code is already assigned in scheme <strong>{globalConflict.schemeId}</strong>. Would you like to link this existing content?</p>
+                  <Button size="sm" variant="outline" className="h-8 border-amber-300 hover:bg-amber-100" onClick={() => { 
+                    setFormData({...formData, ...globalConflict.data, id: undefined, subjectCode: globalConflict.subjectCode}); 
+                    setGlobalConflict(null); 
+                  }}>
                     <Link2 className="w-3.5 h-3.5 mr-2" /> Link Existing Content
                   </Button>
                 </div>
@@ -222,119 +260,273 @@ export function SyllabusDialog({
             )}
 
             <Tabs defaultValue="basic" className="w-full">
-              <TabsList className="grid w-full grid-cols-4 mb-8">
-                <TabsTrigger value="basic">Identity</TabsTrigger>
-                <TabsTrigger value="syllabus">Syllabus</TabsTrigger>
-                <TabsTrigger value="resources">Resources</TabsTrigger>
-                <TabsTrigger value="mapping">PO Matrix</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-3 mb-8">
+                <TabsTrigger value="basic">Course Identity</TabsTrigger>
+                <TabsTrigger value="syllabus">Syllabus & Units</TabsTrigger>
+                <TabsTrigger value="mapping">PO Correlation</TabsTrigger>
               </TabsList>
 
               <TabsContent value="basic" className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold">Subject Code</Label>
-                    <Input disabled={isReadOnly} className="font-mono" value={formData.subjectCode || ''} onChange={e => setFormData({ ...formData, subjectCode: e.target.value.toUpperCase() })} />
+                    <Label className="text-sm font-semibold flex items-center gap-2">
+                      Subject Code 
+                      {isCheckingGlobal && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
+                    </Label>
+                    <Input 
+                      disabled={isReadOnly} 
+                      className="font-mono h-11 border-primary/20 focus:ring-primary/20" 
+                      value={formData.subjectCode || ''} 
+                      onChange={e => setFormData({ ...formData, subjectCode: e.target.value.toUpperCase() })} 
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Subject Title</Label>
-                    <Input disabled={isReadOnly} value={formData.title || ''} onChange={e => setFormData({ ...formData, title: e.target.value })} />
+                    <Input 
+                      disabled={isReadOnly} 
+                      className="h-11 border-primary/20 focus:ring-primary/20"
+                      value={formData.title || ''} 
+                      onChange={e => setFormData({ ...formData, title: e.target.value })} 
+                    />
                   </div>
                 </div>
 
-                {isElective && (
-                  <Card className="border-accent/20 bg-accent/5">
-                    <CardContent className="p-4 space-y-4">
-                      <div className="flex items-center gap-2 text-accent font-bold text-sm">
-                        <Layers className="w-4 h-4" /> Elective Group Settings
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label className="text-xs">Group Identifier (e.g. Elective-I)</Label>
-                          <Input disabled={isReadOnly} placeholder="Elective-I" value={formData.electiveGroupId || ''} onChange={e => setFormData({...formData, electiveGroupId: e.target.value})} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-xs">Group Descriptive Name</Label>
-                          <Input disabled={isReadOnly} placeholder="Advanced Computing Pool" value={formData.electiveGroupName || ''} onChange={e => setFormData({...formData, electiveGroupName: e.target.value})} />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Academic Level</Label>
+                    <Select disabled={isReadOnly} value={formData.type} onValueChange={(v: any) => setFormData({...formData, type: v})}>
+                      <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Theory">Theory</SelectItem>
+                        <SelectItem value="Practical/Lab">Practical/Lab</SelectItem>
+                        <SelectItem value="Sessional">Sessional</SelectItem>
+                        <SelectItem value="Skill/IKS/Experiential">Skill / IKS</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <div className="p-5 bg-muted/30 rounded-2xl border grid grid-cols-4 gap-4">
-                   <div className="space-y-2">
-                     <Label className="text-xs">L</Label>
-                     <Input type="number" disabled={isReadOnly} value={formData.lectureCredits ?? 0} onChange={e => setFormData({...formData, lectureCredits: Number(e.target.value)})} />
-                   </div>
-                   <div className="space-y-2">
-                     <Label className="text-xs">T</Label>
-                     <Input type="number" disabled={isReadOnly} value={formData.tutorialCredits ?? 0} onChange={e => setFormData({...formData, tutorialCredits: Number(e.target.value)})} />
-                   </div>
-                   <div className="space-y-2">
-                     <Label className="text-xs">P</Label>
-                     <Input type="number" disabled={isReadOnly} value={formData.practicalCredits ?? 0} onChange={e => setFormData({...formData, practicalCredits: Number(e.target.value)})} />
-                   </div>
-                   <div className="space-y-2">
-                     <Label className="text-xs font-bold text-primary">Total Credits</Label>
-                     <Input value={formData.credits ?? 0} className="font-bold bg-primary/5" readOnly />
-                   </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Semester</Label>
+                    <Select disabled={isReadOnly} value={String(formData.semester)} onValueChange={v => setFormData({ ...formData, semester: Number(v) })}>
+                      <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {[1,2,3,4,5,6,7,8].map(s => <SelectItem key={s} value={String(s)}>Semester {s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Credit Category</Label>
+                    <Select disabled={isReadOnly} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v, electiveGroupId: v === 'DSE' || v === 'OFE' ? prev => prev || 'Elective-I' : ''})}>
+                      <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="DSC">DSC (Discipline Core)</SelectItem>
+                        <SelectItem value="DSE">DSE (Discipline Elective)</SelectItem>
+                        <SelectItem value="OFE">OFE (Open Elective)</SelectItem>
+                        <SelectItem value="SEC">SEC (Skill Enhancement)</SelectItem>
+                        {isCommonStaff && (
+                          <>
+                            <SelectItem value="VAC">VAC (Value Added)</SelectItem>
+                            <SelectItem value="AEC">AEC (Ability Enhancement)</SelectItem>
+                            <SelectItem value="MDC">MDC (Multi Disciplinary)</SelectItem>
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {isElective && (
+                    <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+                      <Label className="text-sm font-semibold text-accent">Elective Group</Label>
+                      <Select disabled={isReadOnly} value={formData.electiveGroupId} onValueChange={v => setFormData({...formData, electiveGroupId: v})}>
+                        <SelectTrigger className="h-11 border-accent/30 focus:ring-accent/20"><SelectValue placeholder="Select group..." /></SelectTrigger>
+                        <SelectContent>
+                          {existingElectiveGroups.map(group => (
+                            <SelectItem key={group} value={group}>{group}</SelectItem>
+                          ))}
+                          <SelectItem value="CUSTOM">+ Add New Group</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <Select disabled={isReadOnly} value={String(formData.semester)} onValueChange={v => setFormData({ ...formData, semester: Number(v) })}>
-                    <SelectTrigger><SelectValue placeholder="Semester" /></SelectTrigger>
-                    <SelectContent>{[1,2,3,4,5,6,7,8].map(s => <SelectItem key={s} value={String(s)}>Semester {s}</SelectItem>)}</SelectContent>
-                  </Select>
-                  <Select disabled={isReadOnly} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v})}>
-                    <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="DSC">DSC (Core)</SelectItem>
-                      <SelectItem value="DSE">DSE (Elective)</SelectItem>
-                      <SelectItem value="OFE">OFE (Open Elective)</SelectItem>
-                      <SelectItem value="SEC">SEC (Skill Enhancement)</SelectItem>
-                      {isCommonStaff && (
-                        <>
-                          <SelectItem value="VAC">VAC (Value Added)</SelectItem>
-                          <SelectItem value="AEC">AEC (Ability Enhancement)</SelectItem>
-                          <SelectItem value="MDC">MDC (Multi Disciplinary)</SelectItem>
-                        </>
-                      )}
-                    </SelectContent>
-                  </Select>
+                {formData.electiveGroupId === 'CUSTOM' && (
+                  <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+                    <Label className="text-sm font-semibold">New Elective Group ID</Label>
+                    <Input 
+                      placeholder="e.g. Elective-IX" 
+                      onChange={e => setFormData({...formData, electiveGroupId: e.target.value})} 
+                    />
+                  </div>
+                )}
+
+                <div className="p-5 bg-primary/5 rounded-2xl border border-primary/10 grid grid-cols-4 gap-4 items-end">
+                   <div className="space-y-2">
+                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Lecture (L)</Label>
+                     <Input type="number" disabled={isReadOnly} value={formData.lectureCredits ?? 0} onChange={e => setFormData({...formData, lectureCredits: Number(e.target.value)})} className="h-10" />
+                   </div>
+                   <div className="space-y-2">
+                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Tutorial (T)</Label>
+                     <Input type="number" disabled={isReadOnly} value={formData.tutorialCredits ?? 0} onChange={e => setFormData({...formData, tutorialCredits: Number(e.target.value)})} className="h-10" />
+                   </div>
+                   <div className="space-y-2">
+                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Practical (P)</Label>
+                     <Input type="number" disabled={isReadOnly} value={formData.practicalCredits ?? 0} onChange={e => setFormData({...formData, practicalCredits: Number(e.target.value)})} className="h-10" />
+                   </div>
+                   <div className="space-y-2">
+                     <Label className="text-[10px] uppercase font-bold text-primary">Weightage (Cr)</Label>
+                     <Input value={formData.credits ?? 0} className="h-10 font-bold bg-white text-primary border-primary/20" readOnly />
+                   </div>
                 </div>
               </TabsContent>
               
-              <TabsContent value="syllabus" className="space-y-4">
-                 <div className="flex justify-between items-center mb-4">
-                   <h3 className="font-bold">Course Units</h3>
-                   {!isReadOnly && <Button size="sm" onClick={() => setFormData(prev => ({...prev, units: [...(prev.units || []), {id: Math.random().toString(36).substr(2, 9), title: '', content: '', courseOutcome: ''}]}))}><Plus className="w-4 h-4" /> Add Unit</Button>}
+              <TabsContent value="syllabus" className="space-y-6">
+                 <div className="flex justify-between items-center">
+                   <h3 className="text-lg font-headline font-bold">Course Units</h3>
+                   {!isReadOnly && (
+                     <Button size="sm" onClick={() => setFormData(prev => ({...prev, units: [...(prev.units || []), {id: Math.random().toString(36).substr(2, 9), title: '', content: '', courseOutcome: ''}]}))}>
+                       <Plus className="w-4 h-4 mr-2" /> Add Unit
+                     </Button>
+                   )}
                  </div>
-                 {formData.units?.map((unit, idx) => (
-                   <Card key={unit.id} className="bg-muted/10">
-                     <CardContent className="p-4 space-y-3">
-                        <div className="flex justify-between font-bold text-xs uppercase text-muted-foreground">Unit {idx+1} <Button variant="ghost" size="icon" onClick={() => setFormData(prev => ({...prev, units: prev.units?.filter(u => u.id !== unit.id)}))}><Trash2 className="w-3 h-3"/></Button></div>
-                        <Input disabled={isReadOnly} placeholder="Title" value={unit.title} onChange={e => {
-                          const u = [...(formData.units || [])]; u[idx].title = e.target.value; setFormData({...formData, units: u});
-                        }} />
-                        <Textarea disabled={isReadOnly} placeholder="Topics" value={unit.content} onChange={e => {
-                          const u = [...(formData.units || [])]; u[idx].content = e.target.value; setFormData({...formData, units: u});
-                        }} />
-                        <Input disabled={isReadOnly} placeholder="Course Outcome" value={unit.courseOutcome} onChange={e => {
-                          const u = [...(formData.units || [])]; u[idx].courseOutcome = e.target.value; setFormData({...formData, units: u});
-                        }} />
-                     </CardContent>
-                   </Card>
-                 ))}
+                 <div className="space-y-4">
+                   {formData.units?.map((unit, idx) => (
+                     <Card key={unit.id} className="border-muted bg-muted/5">
+                       <CardContent className="p-4 space-y-4">
+                          <div className="flex justify-between items-center">
+                            <Badge variant="secondary" className="font-bold">UNIT {idx + 1}</Badge>
+                            {!isReadOnly && (
+                              <Button variant="ghost" size="sm" className="h-8 w-8 text-red-400" onClick={() => setFormData(prev => ({...prev, units: prev.units?.filter(u => u.id !== unit.id)}))}>
+                                <Trash2 className="w-4 h-4"/>
+                              </Button>
+                            )}
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Unit Title</Label>
+                            <Input disabled={isReadOnly} placeholder="Enter descriptive unit title..." value={unit.title} onChange={e => {
+                              const u = [...(formData.units || [])]; u[idx].title = e.target.value; setFormData({...formData, units: u});
+                            }} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Topics & Sub-topics</Label>
+                            <Textarea disabled={isReadOnly} placeholder="Separated by semicolons..." value={unit.content} onChange={e => {
+                              const u = [...(formData.units || [])]; u[idx].content = e.target.value; setFormData({...formData, units: u});
+                            }} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Learning Outcome (CO)</Label>
+                            <Input disabled={isReadOnly} placeholder="Students will be able to..." value={unit.courseOutcome} onChange={e => {
+                              const u = [...(formData.units || [])]; u[idx].courseOutcome = e.target.value; setFormData({...formData, units: u});
+                            }} />
+                          </div>
+                       </CardContent>
+                     </Card>
+                   ))}
+                   {(!formData.units || formData.units.length === 0) && (
+                     <div className="text-center py-12 border-2 border-dashed rounded-2xl bg-muted/20">
+                       <Plus className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-20" />
+                       <p className="text-sm text-muted-foreground">No units defined. Use the Add Unit button or AI generation.</p>
+                     </div>
+                   )}
+                 </div>
+              </TabsContent>
+
+              <TabsContent value="mapping" className="space-y-6">
+                <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex gap-4 text-xs text-primary mb-6">
+                  <ShieldAlert className="w-5 h-5 shrink-0" />
+                  <p>Map unit-wise Course Outcomes (COs) to standard Program Outcomes (POs). Level 3: High, Level 2: Medium, Level 1: Low, '-': No correlation.</p>
+                </div>
+                
+                <div className="border rounded-xl overflow-hidden bg-white shadow-sm">
+                  <ScrollArea className="w-full">
+                    <Table>
+                      <TableHeader className="bg-muted/50">
+                        <TableRow>
+                          <TableHead className="w-24 bg-muted/50 sticky left-0 z-10">Outcome</TableHead>
+                          {PO_DEFINITIONS.map(po => (
+                            <TableHead key={po.code} className="text-center w-16">
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger className="font-bold cursor-help">{po.code}</TooltipTrigger>
+                                  <TooltipContent className="max-w-xs">{po.title}: {po.desc}</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </TableHead>
+                          ))}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {formData.units?.map((unit, uIdx) => (
+                          <TableRow key={unit.id}>
+                            <TableCell className="font-bold text-xs bg-white sticky left-0 z-10">CO{uIdx+1}</TableCell>
+                            {PO_DEFINITIONS.map(po => (
+                              <TableCell key={po.code} className="p-1">
+                                <Select 
+                                  disabled={isReadOnly}
+                                  value={formData.poMappings?.[unit.id]?.[po.code] || '-'} 
+                                  onValueChange={val => {
+                                    const m = { ...(formData.poMappings || {}) };
+                                    if (!m[unit.id]) m[unit.id] = {};
+                                    m[unit.id][po.code] = val as CorrelationLevel;
+                                    setFormData({ ...formData, poMappings: m });
+                                  }}
+                                >
+                                  <SelectTrigger className="h-8 w-12 mx-auto border-none bg-transparent hover:bg-muted font-mono text-[10px]">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent className="min-w-[4rem]">
+                                    {['1', '2', '3', '-'].map(lvl => (
+                                      <SelectItem key={lvl} value={lvl} className="font-mono text-center">{lvl}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                </div>
               </TabsContent>
             </Tabs>
           </div>
         </ScrollArea>
 
-        <DialogFooter className="p-6 border-t">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          {!isReadOnly && <Button disabled={isCheckingGlobal || !!globalConflict} onClick={handleSave}>Save Subject</Button>}
+        <DialogFooter className="p-6 border-t bg-background shrink-0 z-10">
+          <Button variant="outline" className="h-11 px-8" onClick={() => onOpenChange(false)}>
+            {isReadOnly ? 'Close' : 'Cancel'}
+          </Button>
+          {!isReadOnly && (
+            <Button disabled={isCheckingGlobal || !!globalConflict} className="h-11 px-8 shadow-lg" onClick={handleSave}>
+              Save Configuration
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Sub-components for better organization
+function TooltipProvider({ children }: { children: React.ReactNode }) {
+  return <div className="inline-block">{children}</div>;
+}
+
+function Tooltip({ children }: { children: React.ReactNode }) {
+  return <div className="relative group">{children}</div>;
+}
+
+function TooltipTrigger({ children, className }: { children: React.ReactNode, className?: string }) {
+  return <div className={className}>{children}</div>;
+}
+
+function TooltipContent({ children, className }: { children: React.ReactNode, className?: string }) {
+  return (
+    <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 p-2 bg-black text-white text-[10px] rounded shadow-xl whitespace-nowrap ${className}`}>
+      {children}
+      <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-black"></div>
+    </div>
   );
 }
