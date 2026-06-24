@@ -1,9 +1,8 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
-import { collection, addDoc, serverTimestamp, query, orderBy, doc } from 'firebase/firestore';
+import { collection, setDoc, doc, serverTimestamp, query, orderBy, getDoc } from 'firebase/firestore';
 import { Scheme, Program, UserProfile } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,6 +37,7 @@ export default function SchemesPage() {
   const { data: programs } = useCollection<Program>(programsRef);
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
   const [newScheme, setNewScheme] = useState({
     programId: '',
     branch: '',
@@ -92,13 +92,15 @@ export default function SchemesPage() {
 
   const selectedProgram = programs.find(p => p.id === newScheme.programId);
 
-  const handleCreateScheme = () => {
+  const handleCreateScheme = async () => {
     if (!newScheme.programId || !newScheme.batchYear) {
       toast({ title: "Validation Error", description: "Program and Batch are required.", variant: "destructive" });
       return;
     }
 
     if (!selectedProgram) return;
+
+    setIsCreating(true);
 
     // Generate Composite Scheme Code
     const branchName = isCommonBos ? 'Institutional Common Pool' : newScheme.branch;
@@ -109,33 +111,55 @@ export default function SchemesPage() {
     const creationYear = new Date().getFullYear();
     const generatedCode = `${selectedProgram.code}-${branchPrefix}-${creationYear}`;
 
-    const schemeData: Partial<Scheme> = {
-      ...newScheme,
-      branch: branchName,
-      schemeCode: generatedCode,
-      status: 'Draft' as const,
-      createdBy: user?.uid || '',
-      hasMultipleExits: false,
-      abcEnabled: true,
-      exitOptions: [],
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      isCommonPoolScheme: isCommonBos,
-    };
-
-    addDoc(collection(db, 'schemes'), schemeData)
-      .then((docRef) => {
-        toast({ title: "Success", description: isCommonBos ? "Common Pool Scheme initialized." : "Branch Scheme created successfully." });
-        router.push(`/dashboard/schemes/${docRef.id}`);
-      })
-      .catch((err) => {
-        const permissionError = new FirestorePermissionError({
-          path: 'schemes',
-          operation: 'create',
-          requestResourceData: schemeData,
+    const schemeDocRef = doc(db, 'schemes', generatedCode);
+    
+    try {
+      // Check if document already exists
+      const existingDoc = await getDoc(schemeDocRef);
+      if (existingDoc.exists()) {
+        toast({ 
+          title: "Conflict", 
+          description: `A scheme with code ${generatedCode} already exists. Please update the version or check your parameters.`, 
+          variant: "destructive" 
         });
-        errorEmitter.emit('permission-error', permissionError);
-      });
+        setIsCreating(false);
+        return;
+      }
+
+      const schemeData: Partial<Scheme> = {
+        ...newScheme,
+        id: generatedCode,
+        branch: branchName,
+        schemeCode: generatedCode,
+        status: 'Draft' as const,
+        createdBy: user?.uid || '',
+        hasMultipleExits: false,
+        abcEnabled: true,
+        exitOptions: [],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        isCommonPoolScheme: isCommonBos,
+      };
+
+      setDoc(schemeDocRef, schemeData)
+        .then(() => {
+          toast({ title: "Success", description: isCommonBos ? "Common Pool Scheme initialized." : "Branch Scheme created successfully." });
+          router.push(`/dashboard/schemes/${generatedCode}`);
+        })
+        .catch((err) => {
+          const permissionError = new FirestorePermissionError({
+            path: `schemes/${generatedCode}`,
+            operation: 'write',
+            requestResourceData: schemeData,
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        });
+    } catch (error) {
+      console.error("Error creating scheme:", error);
+      toast({ title: "Error", description: "Failed to initialize scheme. Please try again.", variant: "destructive" });
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   if (schemesLoading) {
@@ -291,8 +315,11 @@ export default function SchemesPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreateScheme}>Initialize Scheme</Button>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isCreating}>Cancel</Button>
+            <Button onClick={handleCreateScheme} disabled={isCreating}>
+              {isCreating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Initialize Scheme
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
