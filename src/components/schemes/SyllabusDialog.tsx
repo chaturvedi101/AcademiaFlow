@@ -187,12 +187,14 @@ export function SyllabusDialog({
   useEffect(() => {
     if (!open || !formData.subjectCode || formData.isOFESlot) return;
     const checkGlobalUniqueness = async (code: string) => {
+      // If we are editing the existing course and the code hasn't changed, ignore
       if (syllabus?.subjectCode === code) { setGlobalConflict(null); return; }
       
       setIsCheckingGlobal(true);
       try {
         const q = query(collectionGroup(db, 'syllabi'), where('subjectCode', '==', code));
         const snap = await getDocs(q);
+        // Find conflict that is not part of the current scheme
         const conflict = snap.docs.find(d => d.data().schemeId !== currentSchemeId);
         
         if (conflict) {
@@ -215,6 +217,16 @@ export function SyllabusDialog({
   }, [formData.subjectCode, open, db, currentSchemeId, syllabus?.subjectCode, formData.isOFESlot]);
 
   const handleSave = () => {
+    // Final check for global uniqueness before saving
+    if (globalConflict && !formData.isOFESlot) {
+      toast({
+        title: "Subject Code Conflict",
+        description: `Subject code ${formData.subjectCode} is already used in scheme ${globalConflict.schemeId}.`,
+        variant: "destructive"
+      });
+      return;
+    }
+
     if (formData.electiveGroupId) {
       const groupMembers = existingSyllabi.filter(s => s.electiveGroupId === formData.electiveGroupId && (s.id !== formData.id && s.subjectCode !== formData.subjectCode));
       if (groupMembers.length > 0) {
@@ -532,7 +544,12 @@ export function SyllabusDialog({
             {isReadOnly ? 'Close' : 'Cancel'}
           </Button>
           {!isReadOnly && (
-            <Button disabled={isCheckingGlobal || (!!globalConflict && !formData.isOFESlot)} className="h-11 px-8 shadow-lg" onClick={handleSave}>
+            <Button 
+              disabled={isCheckingGlobal || (!!globalConflict && !formData.isOFESlot)} 
+              className="h-11 px-8 shadow-lg" 
+              onClick={handleSave}
+            >
+              {isCheckingGlobal ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               Save Configuration
             </Button>
           )}
