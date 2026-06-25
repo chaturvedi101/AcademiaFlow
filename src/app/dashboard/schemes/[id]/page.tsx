@@ -336,6 +336,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         branchName={scheme?.branch}
         canEdit={permissions.canEditSyllabus(activeSubject as Syllabus)}
         currentSchemeId={schemeId}
+        programRules={program?.rules}
       />
     </div>
   );

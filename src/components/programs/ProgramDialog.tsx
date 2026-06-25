@@ -66,7 +66,8 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
       setFormData({
         ...program,
         branches: program.branches || [],
-        branchPrefixes: program.branchPrefixes || {}
+        branchPrefixes: program.branchPrefixes || {},
+        rules: { ...DEFAULT_RULES, ...(program.rules || {}) }
       });
     } else {
       setFormData({

@@ -14,8 +14,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { BookOpen, Globe, Link2, Loader2, Plus, ShieldAlert, Trash2, Hash, Info } from "lucide-react";
-import { Syllabus, CorrelationLevel, CorrelationLevel as CorrelationLevelType } from "@/lib/types";
+import { BookOpen, Globe, Link2, Loader2, Plus, ShieldAlert, Trash2, Hash, Info, AlertTriangle } from "lucide-react";
+import { Syllabus, CorrelationLevel, CorrelationLevel as CorrelationLevelType, CreditRules } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { collectionGroup, query, where, getDocs, doc } from "firebase/firestore";
@@ -54,6 +54,7 @@ interface SyllabusDialogProps {
   batchYear?: string;
   canEdit?: boolean;
   currentSchemeId?: string;
+  programRules?: CreditRules;
 }
 
 export function SyllabusDialog({ 
@@ -64,9 +65,9 @@ export function SyllabusDialog({
   onSave,
   programName,
   branchName,
-  batchYear,
   canEdit = true,
-  currentSchemeId
+  currentSchemeId,
+  programRules
 }: SyllabusDialogProps) {
   const { toast } = useToast();
   const db = useFirestore();
@@ -155,7 +156,6 @@ export function SyllabusDialog({
     return finalCode;
   }, [branchName, formData.lectureCredits, formData.tutorialCredits, formData.semester, formData.creditCategory, formData.electiveGroupId, existingSyllabi, formData.id, formData.subjectCode]);
 
-  // Sync subject code when key inputs change (only for new subjects)
   useEffect(() => {
     if (!syllabus?.id && !syllabus?.subjectCode && open) {
       setFormData(prev => ({ ...prev, subjectCode: generateAutoSubjectCode() }));
@@ -216,6 +216,12 @@ export function SyllabusDialog({
     return () => clearTimeout(timer);
   }, [formData.subjectCode, open, db, currentSchemeId, syllabus?.subjectCode, formData.isOFESlot]);
 
+  const isProjectValid = useMemo(() => {
+    if (formData.creditCategory !== 'PRJ' || !programRules) return true;
+    const { projectMin = 16, projectMax = 32 } = programRules;
+    return (formData.credits || 0) >= projectMin && (formData.credits || 0) <= projectMax;
+  }, [formData.creditCategory, formData.credits, programRules]);
+
   const handleSave = () => {
     if (formData.electiveGroupId) {
       const groupMembers = existingSyllabi.filter(s => s.electiveGroupId === formData.electiveGroupId && (s.id !== formData.id && s.subjectCode !== formData.subjectCode));
@@ -230,6 +236,15 @@ export function SyllabusDialog({
           return;
         }
       }
+    }
+
+    if (!isProjectValid) {
+      toast({
+        title: "Compliance Error",
+        description: `Project credits must be between ${programRules?.projectMin} and ${programRules?.projectMax}.`,
+        variant: "destructive"
+      });
+      return;
     }
 
     onSave(formData);
@@ -266,6 +281,13 @@ export function SyllabusDialog({
                     <Link2 className="w-3.5 h-3.5 mr-2" /> Link Existing Content
                   </Button>
                 </div>
+              </div>
+            )}
+
+            {formData.creditCategory === 'PRJ' && !isProjectValid && (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 text-red-800 text-xs animate-in zoom-in-95">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                <p>Project credits ({formData.credits}) are outside the allowed range of <strong>{programRules?.projectMin} to {programRules?.projectMax}</strong> for this program.</p>
               </div>
             )}
 
@@ -380,7 +402,7 @@ export function SyllabusDialog({
                     </Select>
                   </div>
 
-                  {isElective && (
+                  {availableElectiveGroups.length > 0 && (
                     <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
                       <Label className="text-sm font-semibold text-accent">Grouping Identifier</Label>
                       <Select disabled={isReadOnly} value={formData.electiveGroupId} onValueChange={v => setFormData({...formData, electiveGroupId: v, title: formData.isOFESlot ? v : formData.title})}>

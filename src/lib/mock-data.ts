@@ -46,6 +46,8 @@ export const MOCK_PROGRAMS: Program[] = [
       dseMax: 16,
       ofeMin: 12,
       ofeMax: 16,
+      projectMin: 16,
+      projectMax: 32,
       totalRequired: 160
     },
     createdAt: null,
