@@ -99,7 +99,9 @@ export function SyllabusDialog({
     isOFEContribution: false
   });
 
-  const isCommonStaff = profile?.faculty === 'University-wide (Common BOS)' || profile?.role === 'admin' || profile?.role === 'dean_academic';
+  const isStrictlyCommonBOS = profile?.faculty === 'University-wide (Common BOS)';
+  const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile?.role || '');
+  const isCommonStaff = isStrictlyCommonBOS || isGlobalAdmin;
 
   const availableElectiveGroups = useMemo(() => {
     if (formData.creditCategory === 'DSE') return DEFAULT_DSE_GROUPS;
@@ -187,14 +189,12 @@ export function SyllabusDialog({
   useEffect(() => {
     if (!open || !formData.subjectCode || formData.isOFESlot) return;
     const checkGlobalUniqueness = async (code: string) => {
-      // If we are editing the existing course and the code hasn't changed, ignore
       if (syllabus?.subjectCode === code) { setGlobalConflict(null); return; }
       
       setIsCheckingGlobal(true);
       try {
         const q = query(collectionGroup(db, 'syllabi'), where('subjectCode', '==', code));
         const snap = await getDocs(q);
-        // Find conflict that is not part of the current scheme
         const conflict = snap.docs.find(d => d.data().schemeId !== currentSchemeId);
         
         if (conflict) {
@@ -217,7 +217,6 @@ export function SyllabusDialog({
   }, [formData.subjectCode, open, db, currentSchemeId, syllabus?.subjectCode, formData.isOFESlot]);
 
   const handleSave = () => {
-    // Final check for global uniqueness before saving
     if (globalConflict && !formData.isOFESlot) {
       toast({
         title: "Subject Code Conflict",
@@ -296,11 +295,15 @@ export function SyllabusDialog({
                     }}>
                       <SelectTrigger className="h-11 border-primary/20"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="DSC">DSC (Discipline Core)</SelectItem>
-                        <SelectItem value="DSE">DSE (Discipline Elective)</SelectItem>
+                        {(!isStrictlyCommonBOS || isGlobalAdmin) && (
+                          <>
+                            <SelectItem value="DSC">DSC (Discipline Core)</SelectItem>
+                            <SelectItem value="DSE">DSE (Discipline Elective)</SelectItem>
+                            <SelectItem value="PRJ">Project/Internship</SelectItem>
+                          </>
+                        )}
                         <SelectItem value="OFE">OFE (Open Elective Slot / Contribution)</SelectItem>
                         <SelectItem value="SEC">SEC (Skill Enhancement)</SelectItem>
-                        <SelectItem value="PRJ">Project/Internship</SelectItem>
                         {isCommonStaff && (
                           <>
                             <SelectItem value="VAC">VAC (Value Added)</SelectItem>

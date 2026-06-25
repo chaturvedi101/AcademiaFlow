@@ -114,18 +114,24 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const canEditSyllabus = (s: Syllabus) => {
       if (isGlobalAdmin) return true;
       
-      // Syllabi from common pool scheme are locked for branch users
+      const isInstitutional = ['VAC', 'AEC', 'MDC', 'SEC'].includes(s?.creditCategory || '');
+
+      if (isCommonBOS) {
+        // Common BOS manages ONLY institutional categories and OFE slots
+        return isInstitutional || s?.creditCategory === 'OFE';
+      }
+
+      // Branch staff can only edit non-institutional categories
+      if (isInstitutional) return false;
+
+      // Special case: syllabi from common pool scheme are locked for branch users
       if (s?.schemeId && s.schemeId !== schemeId) {
         const poolSchemeId = poolSyllabi.length > 0 ? poolSyllabi[0].schemeId : null;
         if (s.schemeId === poolSchemeId) {
-          return isCommonBOS || isGlobalAdmin;
+          return false; // Immutable common pool course for branch staff
         }
       }
 
-      const isCommonCategory = ['VAC', 'AEC', 'MDC', 'SEC'].includes(s?.creditCategory || '');
-      if (isCommonCategory || s?.isCommonCourse || scheme.isCommonPoolScheme || s?.creditCategory === 'OFE') {
-        return isCommonBOS || isProgramDean;
-      }
       return canEditScheme;
     };
 
