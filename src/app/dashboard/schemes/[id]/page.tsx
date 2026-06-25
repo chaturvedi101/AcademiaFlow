@@ -81,7 +81,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     
     all.forEach(s => {
       const key = s.isOFESlot ? `SLOT-${s.electiveGroupId}-${s.semester}` : s.subjectCode;
-      // If code collision, prioritize local version (allows branch override if permitted)
       if (!uniqueMap.has(key) || s.schemeId === schemeId) {
         uniqueMap.set(key, s);
       }
@@ -113,24 +112,14 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     const canEditSyllabus = (s: Syllabus) => {
       if (isGlobalAdmin) return true;
-
-      // Rule: You can ONLY edit syllabi that belong to the current scheme you are managing
-      if (s?.schemeId && s.schemeId !== schemeId) {
-        return false;
-      }
+      if (s?.schemeId && s.schemeId !== schemeId) return false;
       
       const category = s?.creditCategory || '';
       const isStrictlyInstitutional = ['VAC', 'AEC', 'MDC'].includes(category);
       const isSharedSEC = category === 'SEC';
 
-      if (isCommonBOS) {
-        // Common BOS manages strictly institutional categories, SEC, and OFE slots in their scheme
-        return isStrictlyInstitutional || isSharedSEC || category === 'OFE';
-      }
-
-      // Branch staff can edit SEC, DSC, DSE, PRJ, and OFE contributions IF they own the scheme
+      if (isCommonBOS) return isStrictlyInstitutional || isSharedSEC || category === 'OFE';
       if (isStrictlyInstitutional) return false;
-
       return canEditScheme;
     };
 
@@ -163,11 +152,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     if (!program?.rules) return false;
     const { DSC, DSE, OFE, total, PRJ, VAC, AEC, SEC, MDC } = creditDistribution;
     
-    // Aggregate checks
+    // Combined checks
     const electiveTotal = DSE + OFE;
+    const dscProjectTotal = DSC + PRJ;
     
     const { 
-      dscMin, dscMax, 
+      dscMin = 96, dscMax = 104, 
       dseMin = 8, dseMax = 16,
       totalRequired, 
       projectMin = 16, projectMax = 32,
@@ -177,7 +167,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     } = program.rules;
     
     return (
-      DSC >= dscMin && DSC <= dscMax && 
+      dscProjectTotal >= dscMin && dscProjectTotal <= dscMax && 
       DSE >= dseMin && DSE <= dseMax &&
       total === totalRequired && 
       PRJ >= projectMin && PRJ <= projectMax &&

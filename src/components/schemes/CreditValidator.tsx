@@ -27,12 +27,16 @@ export function CreditValidator({ currentCredits, rules }: CreditValidatorProps)
   if (!rules) return null;
 
   const electiveTotal = currentCredits.DSE + currentCredits.OFE;
+  const dscProjectTotal = currentCredits.DSC + currentCredits.PRJ;
   
-  const isDscValid = currentCredits.DSC >= rules.dscMin && currentCredits.DSC <= rules.dscMax;
+  // Specific Institutional Checks
+  const isDscProjectValid = dscProjectTotal >= (rules.dscMin || 96) && dscProjectTotal <= (rules.dscMax || 104);
   const isDseValid = currentCredits.DSE >= (rules.dseMin || 8) && currentCredits.DSE <= (rules.dseMax || 16);
   const isOfeValid = currentCredits.OFE >= (rules.ofeMin || 12) && currentCredits.OFE <= (rules.ofeMax || 24);
   const isElectiveValid = electiveTotal >= (rules.electiveMin || 24) && electiveTotal <= (rules.electiveMax || 32);
   const isProjectValid = currentCredits.PRJ >= (rules.projectMin || 16) && currentCredits.PRJ <= (rules.projectMax || 32);
+  
+  // Fixed institutional checks
   const isVacValid = currentCredits.VAC === (rules.vacTotal || 8);
   const isAecValid = currentCredits.AEC === (rules.aecTotal || 8);
   const isSecValid = currentCredits.SEC === (rules.secTotal || 8);
@@ -51,11 +55,11 @@ export function CreditValidator({ currentCredits, rules }: CreditValidatorProps)
       </CardHeader>
       <CardContent className="space-y-6 pt-2">
         <CreditSection 
-          label="DSC (Core)" 
-          current={currentCredits.DSC} 
-          min={rules.dscMin} 
-          max={rules.dscMax} 
-          isValid={isDscValid} 
+          label="Core + Project (DSC+PRJ)" 
+          current={dscProjectTotal} 
+          min={rules.dscMin || 96} 
+          max={rules.dscMax || 104} 
+          isValid={isDscProjectValid} 
         />
 
         <div className="grid grid-cols-2 gap-4">
@@ -84,7 +88,7 @@ export function CreditValidator({ currentCredits, rules }: CreditValidatorProps)
         />
 
         <CreditSection 
-          label="Project / Internship" 
+          label="Project (Individual Parts)" 
           current={currentCredits.PRJ} 
           min={rules.projectMin || 16} 
           max={rules.projectMax || 32} 
@@ -101,7 +105,7 @@ export function CreditValidator({ currentCredits, rules }: CreditValidatorProps)
         {!isTotalValid && (
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex gap-3 text-amber-800 text-[11px] leading-tight">
             <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-            <p>Total credits must be exactly {rules.totalRequired}. Ensure all mandatory SEC, AEC, VAC, and MDC courses (8 credits each) are added.</p>
+            <p>Total credits must be exactly {rules.totalRequired}. Ensure DSC+Project is 96-104 and all institutional targets (8 credits each) are met.</p>
           </div>
         )}
       </CardContent>
