@@ -26,6 +26,8 @@ interface SlotConfig {
   category: CreditCategory;
   credits: number;
   isInherited?: boolean;
+  subjectCode?: string;
+  title?: string;
 }
 
 export default function SchemesPage() {
@@ -123,7 +125,9 @@ export default function SchemesPage() {
       semester,
       category: isCommonBos ? 'VAC' : 'DSE',
       credits: 4,
-      isInherited: false
+      isInherited: false,
+      subjectCode: '',
+      title: ''
     };
     setSemesterSlots([...semesterSlots, newSlot]);
   };
@@ -201,15 +205,15 @@ export default function SchemesPage() {
         
         const isElective = slot.category === 'DSE' || slot.category === 'OFE';
 
-        // Initialize object with mandatory fields and avoid literal 'undefined'
+        // Initialize object with mandatory fields
         const slotData: any = {
           id: slotId,
           schemeId: generatedCode,
-          subjectCode: '', // Mandatory field in Syllabus interface
+          subjectCode: slot.subjectCode || '', // Use inherited code if available
           semester: slot.semester,
           creditCategory: slot.category,
           credits: slot.credits,
-          title: `${slot.category} Slot`,
+          title: slot.title || `${slot.category} Slot`, // Use inherited title if available
           isSlot: true,
           isOFESlot: slot.category === 'OFE',
           type: 'Theory',
@@ -224,7 +228,6 @@ export default function SchemesPage() {
           referenceBooks: []
         };
 
-        // Conditionally add electiveGroupId only if it's an elective category
         if (isElective) {
           slotData.electiveGroupId = `Group-${slot.id.substring(0, 4)}`;
         }
@@ -257,7 +260,7 @@ export default function SchemesPage() {
 
   const slotCategories: CreditCategory[] = isCommonBos 
     ? ['VAC', 'AEC', 'MDC', 'SEC', 'OFE'] 
-    : ['DSE', 'PRJ', 'SEC', 'OFE'];
+    : ['DSE', 'PRJ', 'SEC', 'OFE', 'DSC'];
 
   return (
     <div className="space-y-6">
@@ -327,7 +330,7 @@ export default function SchemesPage() {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className={step === 2 ? "max-w-4xl" : "max-w-md"}>
+        <DialogContent className={step === 2 ? "max-w-5xl" : "max-w-md"}>
           <DialogHeader>
             <DialogTitle>{step === 1 ? (isCommonBos ? 'Define Common Pool' : 'Create New Scheme') : 'Institutional Slot Architect'}</DialogTitle>
             <DialogDescription>
@@ -392,10 +395,10 @@ export default function SchemesPage() {
                         <Plus className="w-3.5 h-3.5" /> Add Branch Slot
                       </Button>
                     </div>
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                       {semesterSlots.filter(s => s.semester === sem).map(slot => (
-                        <div key={slot.id} className="grid grid-cols-12 gap-3 items-end animate-in fade-in slide-in-from-top-1">
-                          <div className="col-span-5 space-y-1">
+                        <div key={slot.id} className="grid grid-cols-12 gap-3 items-end border-b pb-4 last:border-0 last:pb-0">
+                          <div className="col-span-3 space-y-1">
                             <Label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
                               Category {slot.isInherited && <Badge className="text-[8px] h-3 px-1 bg-emerald-100 text-emerald-700 border-none">Standard</Badge>}
                             </Label>
@@ -406,11 +409,19 @@ export default function SchemesPage() {
                               </SelectContent>
                             </Select>
                           </div>
-                          <div className="col-span-4 space-y-1">
+                          <div className="col-span-2 space-y-1">
                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">Credits</Label>
                             <Input disabled={slot.isInherited} type="number" value={slot.credits} onChange={e => updateSlot(slot.id, { credits: Number(e.target.value) })} className="h-9" />
                           </div>
-                          <div className="col-span-3 pb-0.5">
+                          <div className="col-span-3 space-y-1">
+                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Subject Code</Label>
+                            <Input disabled={slot.isInherited} value={slot.subjectCode || ''} onChange={e => updateSlot(slot.id, { subjectCode: e.target.value.toUpperCase() })} className="h-9" />
+                          </div>
+                          <div className="col-span-3 space-y-1">
+                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Title</Label>
+                            <Input disabled={slot.isInherited} value={slot.title || ''} onChange={e => updateSlot(slot.id, { title: e.target.value })} className="h-9" />
+                          </div>
+                          <div className="col-span-1 pb-0.5">
                             {!slot.isInherited && (
                               <Button variant="ghost" size="icon" className="h-9 w-9 text-red-400" onClick={() => removeSlot(slot.id)}>
                                 <Trash2 className="w-4 h-4" />

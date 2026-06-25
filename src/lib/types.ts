@@ -63,6 +63,8 @@ export interface ProgramSlotTemplate {
   semester: number;
   category: CreditCategory;
   credits: number;
+  subjectCode?: string;
+  title?: string;
 }
 
 export interface Program {
