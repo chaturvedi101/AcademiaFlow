@@ -302,8 +302,8 @@ export function SyllabusDialog({
                             <SelectItem value="PRJ">Project/Internship</SelectItem>
                           </>
                         )}
-                        <SelectItem value="OFE">OFE (Open Elective Slot / Contribution)</SelectItem>
                         <SelectItem value="SEC">SEC (Skill Enhancement)</SelectItem>
+                        <SelectItem value="OFE">OFE (Open Elective Slot / Contribution)</SelectItem>
                         {isCommonStaff && (
                           <>
                             <SelectItem value="VAC">VAC (Value Added)</SelectItem>

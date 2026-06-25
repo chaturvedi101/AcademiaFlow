@@ -113,30 +113,29 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     const canEditSyllabus = (s: Syllabus) => {
       if (isGlobalAdmin) return true;
+
+      // Rule: You can ONLY edit syllabi that belong to the current scheme you are managing
+      if (s?.schemeId && s.schemeId !== schemeId) {
+        return false;
+      }
       
-      const isInstitutional = ['VAC', 'AEC', 'MDC', 'SEC'].includes(s?.creditCategory || '');
+      const category = s?.creditCategory || '';
+      const isStrictlyInstitutional = ['VAC', 'AEC', 'MDC'].includes(category);
+      const isSharedSEC = category === 'SEC';
 
       if (isCommonBOS) {
-        // Common BOS manages ONLY institutional categories and OFE slots
-        return isInstitutional || s?.creditCategory === 'OFE';
+        // Common BOS manages strictly institutional categories, SEC, and OFE slots in their scheme
+        return isStrictlyInstitutional || isSharedSEC || category === 'OFE';
       }
 
-      // Branch staff can only edit non-institutional categories
-      if (isInstitutional) return false;
-
-      // Special case: syllabi from common pool scheme are locked for branch users
-      if (s?.schemeId && s.schemeId !== schemeId) {
-        const poolSchemeId = poolSyllabi.length > 0 ? poolSyllabi[0].schemeId : null;
-        if (s.schemeId === poolSchemeId) {
-          return false; // Immutable common pool course for branch staff
-        }
-      }
+      // Branch staff can edit SEC, DSC, DSE, PRJ, and OFE contributions IF they own the scheme
+      if (isStrictlyInstitutional) return false;
 
       return canEditScheme;
     };
 
     return { canEditScheme, canEditSyllabus };
-  }, [profile, scheme, program, poolSyllabi, schemeId]);
+  }, [profile, scheme, program, schemeId]);
 
   const creditDistribution = useMemo(() => {
     const dist = { DSC: 0, DSE: 0, OFE: 0, CPF: 0, VAC: 0, AEC: 0, SEC: 0, MDC: 0, PRJ: 0, total: 0 };
@@ -163,6 +162,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const isSchemeValid = useMemo(() => {
     if (!program?.rules) return false;
     const { DSC, DSE, OFE, total, PRJ, VAC, AEC, SEC, MDC } = creditDistribution;
+    
+    // Aggregate checks
+    const electiveTotal = DSE + OFE;
+    
     const { 
       dscMin, dscMax, 
       dseMin = 8, dseMax = 16,
@@ -172,8 +175,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       ofeMin = 12, ofeMax = 24,
       vacTotal = 8, aecTotal = 8, secTotal = 8, mdcTotal = 8
     } = program.rules;
-    
-    const electiveTotal = DSE + OFE;
     
     return (
       DSC >= dscMin && DSC <= dscMax && 
