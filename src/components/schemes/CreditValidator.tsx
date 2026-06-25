@@ -30,11 +30,13 @@ export function CreditValidator({ currentCredits, rules }: CreditValidatorProps)
   const dscProjectTotal = currentCredits.DSC + currentCredits.PRJ;
   
   // Specific Institutional Checks
-  const isDscProjectValid = dscProjectTotal >= (rules.dscMin || 96) && dscProjectTotal <= (rules.dscMax || 104);
+  const isDscIndividualValid = currentCredits.DSC >= (rules.dscMin || 0) && currentCredits.DSC <= (rules.dscMax || 200);
+  const isProjectValid = currentCredits.PRJ >= (rules.projectMin || 16) && currentCredits.PRJ <= (rules.projectMax || 32);
+  const isDscProjectAggregateValid = dscProjectTotal >= 96 && dscProjectTotal <= 104;
+
   const isDseValid = currentCredits.DSE >= (rules.dseMin || 8) && currentCredits.DSE <= (rules.dseMax || 16);
   const isOfeValid = currentCredits.OFE >= (rules.ofeMin || 12) && currentCredits.OFE <= (rules.ofeMax || 24);
   const isElectiveValid = electiveTotal >= (rules.electiveMin || 24) && electiveTotal <= (rules.electiveMax || 32);
-  const isProjectValid = currentCredits.PRJ >= (rules.projectMin || 16) && currentCredits.PRJ <= (rules.projectMax || 32);
   
   // Fixed institutional checks
   const isVacValid = currentCredits.VAC === (rules.vacTotal || 8);
@@ -54,58 +56,73 @@ export function CreditValidator({ currentCredits, rules }: CreditValidatorProps)
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6 pt-2">
-        <CreditSection 
-          label="Core + Project (DSC+PRJ)" 
-          current={dscProjectTotal} 
-          min={rules.dscMin || 96} 
-          max={rules.dscMax || 104} 
-          isValid={isDscProjectValid} 
-        />
-
-        <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-4 p-3 bg-primary/5 rounded-xl border border-primary/10">
+          <p className="text-[10px] font-bold uppercase text-primary tracking-widest">Core Requirements</p>
           <CreditSection 
-            label="DSE (Elective)" 
-            current={currentCredits.DSE} 
-            min={rules.dseMin || 8} 
-            max={rules.dseMax || 16} 
-            isValid={isDseValid} 
+            label="Individual DSC (Core)" 
+            current={currentCredits.DSC} 
+            min={rules.dscMin} 
+            max={rules.dscMax} 
+            isValid={isDscIndividualValid} 
           />
           <CreditSection 
-            label="OFE (Open)" 
-            current={currentCredits.OFE} 
-            min={rules.ofeMin || 12} 
-            max={rules.ofeMax || 24} 
-            isValid={isOfeValid} 
+            label="Individual Project (PRJ)" 
+            current={currentCredits.PRJ} 
+            min={rules.projectMin || 16} 
+            max={rules.projectMax || 32} 
+            isValid={isProjectValid} 
+          />
+          <CreditSection 
+            label="Aggregate (DSC + PRJ)" 
+            current={dscProjectTotal} 
+            min={96} 
+            max={104} 
+            isValid={isDscProjectAggregateValid} 
           />
         </div>
 
-        <CreditSection 
-          label="Combined Electives (DSE+OFE)" 
-          current={electiveTotal} 
-          min={rules.electiveMin || 24} 
-          max={rules.electiveMax || 32} 
-          isValid={isElectiveValid} 
-        />
+        <div className="space-y-4">
+          <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Elective Pools</p>
+          <div className="grid grid-cols-2 gap-4">
+            <CreditSection 
+              label="DSE (Elective)" 
+              current={currentCredits.DSE} 
+              min={rules.dseMin || 8} 
+              max={rules.dseMax || 16} 
+              isValid={isDseValid} 
+            />
+            <CreditSection 
+              label="OFE (Open)" 
+              current={currentCredits.OFE} 
+              min={rules.ofeMin || 12} 
+              max={rules.ofeMax || 24} 
+              isValid={isOfeValid} 
+            />
+          </div>
 
-        <CreditSection 
-          label="Project (Individual Parts)" 
-          current={currentCredits.PRJ} 
-          min={rules.projectMin || 16} 
-          max={rules.projectMax || 32} 
-          isValid={isProjectValid} 
-        />
+          <CreditSection 
+            label="Combined Electives (DSE+OFE)" 
+            current={electiveTotal} 
+            min={rules.electiveMin || 24} 
+            max={rules.electiveMax || 32} 
+            isValid={isElectiveValid} 
+          />
+        </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <CompactCheck label="VAC" current={currentCredits.VAC} target={rules.vacTotal || 8} isValid={isVacValid} />
-          <CompactCheck label="AEC" current={currentCredits.AEC} target={rules.aecTotal || 8} isValid={isAecValid} />
-          <CompactCheck label="SEC" current={currentCredits.SEC} target={rules.secTotal || 8} isValid={isSecValid} />
-          <CompactCheck label="MDC" current={currentCredits.MDC} target={rules.mdcTotal || 8} isValid={isMdcValid} />
+        <div className="space-y-3">
+          <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Institutional Targets (Fixed 8 Cr)</p>
+          <div className="grid grid-cols-2 gap-3">
+            <CompactCheck label="VAC" current={currentCredits.VAC} target={rules.vacTotal || 8} isValid={isVacValid} />
+            <CompactCheck label="AEC" current={currentCredits.AEC} target={rules.aecTotal || 8} isValid={isAecValid} />
+            <CompactCheck label="SEC" current={currentCredits.SEC} target={rules.secTotal || 8} isValid={isSecValid} />
+            <CompactCheck label="MDC" current={currentCredits.MDC} target={rules.mdcTotal || 8} isValid={isMdcValid} />
+          </div>
         </div>
 
         {!isTotalValid && (
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex gap-3 text-amber-800 text-[11px] leading-tight">
             <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-            <p>Total credits must be exactly {rules.totalRequired}. Ensure DSC+Project is 96-104 and all institutional targets (8 credits each) are met.</p>
+            <p>Total credits must be exactly {rules.totalRequired}. Ensure DSC+PRJ aggregate is 96-104 and all institutional targets are met.</p>
           </div>
         )}
       </CardContent>
@@ -114,7 +131,7 @@ export function CreditValidator({ currentCredits, rules }: CreditValidatorProps)
 }
 
 function CreditSection({ label, current, min, max, isValid }: any) {
-  const percentage = Math.min((current / max) * 100, 100);
+  const percentage = Math.min((current / (max || 1)) * 100, 100);
   return (
     <div className="space-y-1.5">
       <div className="flex justify-between text-[11px] mb-0.5">

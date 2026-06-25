@@ -123,7 +123,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
       if (isCommonBOS) {
         // Common BOS can edit institutional categories and OFE slots within their pool schemes
-        // If category is empty (new subject), allow edit if they can edit the scheme
         if (!category) return canEditScheme;
         return isStrictlyInstitutional || isSharedSEC || category === 'OFE';
       }
@@ -162,12 +161,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     if (!program?.rules) return false;
     const { DSC, DSE, OFE, total, PRJ, VAC, AEC, SEC, MDC } = creditDistribution;
     
-    // Combined checks
+    // Aggregates
     const electiveTotal = DSE + OFE;
     const dscProjectTotal = DSC + PRJ;
     
     const { 
-      dscMin = 96, dscMax = 104, 
+      dscMin, dscMax,
       dseMin = 8, dseMax = 16,
       totalRequired, 
       projectMin = 16, projectMax = 32,
@@ -176,17 +175,25 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       vacTotal = 8, aecTotal = 8, secTotal = 8, mdcTotal = 8
     } = program.rules;
     
+    // 1. Individual DSC within its program limits
+    const isDscIndividualValid = DSC >= (dscMin || 0) && DSC <= (dscMax || 200);
+    // 2. Individual PRJ within its institutional limits
+    const isPrjIndividualValid = PRJ >= projectMin && PRJ <= projectMax;
+    // 3. Combined DSC + PRJ aggregate (Strictly 96-104)
+    const isCoreProjectAggregateValid = dscProjectTotal >= 96 && dscProjectTotal <= 104;
+
     return (
-      dscProjectTotal >= dscMin && dscProjectTotal <= dscMax && 
+      isDscIndividualValid &&
+      isPrjIndividualValid &&
+      isCoreProjectAggregateValid &&
       DSE >= dseMin && DSE <= dseMax &&
-      total === totalRequired && 
-      PRJ >= projectMin && PRJ <= projectMax &&
-      electiveTotal >= electiveMin && electiveTotal <= electiveMax &&
       OFE >= ofeMin && OFE <= ofeMax &&
+      electiveTotal >= electiveMin && electiveTotal <= electiveMax &&
       VAC === vacTotal &&
       AEC === aecTotal &&
       SEC === secTotal &&
-      MDC === mdcTotal
+      MDC === mdcTotal &&
+      total === totalRequired
     );
   }, [creditDistribution, program?.rules]);
 
