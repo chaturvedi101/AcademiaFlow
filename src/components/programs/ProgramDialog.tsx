@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -27,8 +26,8 @@ interface ProgramDialogProps {
 }
 
 const DEFAULT_RULES: CreditRules = {
-  dscMin: 96,
-  dscMax: 104,
+  dscMin: 64,
+  dscMax: 88,
   experientialMin: 8,
   experientialMax: 12,
   dseMin: 8,

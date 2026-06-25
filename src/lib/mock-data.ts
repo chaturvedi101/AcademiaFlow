@@ -38,8 +38,8 @@ export const MOCK_PROGRAMS: Program[] = [
     faculty: "Faculty of Computer Science and Communication Engineering",
     branches: ["Computer Science", "Information Technology", "AI & ML"],
     rules: {
-      dscMin: 96,
-      dscMax: 104,
+      dscMin: 64,
+      dscMax: 88,
       experientialMin: 8,
       experientialMax: 12,
       dseMin: 8,
@@ -50,7 +50,11 @@ export const MOCK_PROGRAMS: Program[] = [
       electiveMax: 32,
       projectMin: 16,
       projectMax: 32,
-      totalRequired: 160
+      totalRequired: 160,
+      vacTotal: 8,
+      aecTotal: 8,
+      secTotal: 8,
+      mdcTotal: 8
     },
     createdAt: null,
     updatedAt: null
