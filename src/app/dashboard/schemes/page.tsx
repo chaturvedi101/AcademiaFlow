@@ -199,6 +199,8 @@ export default function SchemesPage() {
         const slotId = `SLOT-${slot.category}-${slot.semester}-${slot.id}`;
         const slotRef = doc(db, 'schemes', generatedCode, 'syllabi', slotId);
         
+        const isElective = slot.category === 'DSE' || slot.category === 'OFE';
+
         const slotData: Partial<Syllabus> = {
           id: slotId,
           schemeId: generatedCode,
@@ -208,6 +210,7 @@ export default function SchemesPage() {
           title: `${slot.category} Slot`,
           isSlot: true,
           isOFESlot: slot.category === 'OFE',
+          electiveGroupId: isElective ? `Group-${slot.id.substring(0, 4)}` : undefined,
           type: 'Theory',
           lectureCredits: slot.credits,
           tutorialCredits: 0,

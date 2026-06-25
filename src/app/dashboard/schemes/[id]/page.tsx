@@ -80,7 +80,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const all = [...localSyllabi, ...poolSyllabi];
     
     all.forEach(s => {
-      const key = s.isOFESlot ? `SLOT-${s.electiveGroupId}-${s.semester}` : s.subjectCode;
+      // Use id for slots to avoid collisions on empty subjectCodes
+      const key = (s.isSlot || s.isOFESlot) ? s.id : (s.subjectCode || s.id);
       if (!uniqueMap.has(key) || s.schemeId === schemeId) {
         uniqueMap.set(key, s);
       }
@@ -192,7 +193,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const handleSaveSyllabus = async (data: Partial<Syllabus>) => {
-    const code = data.isOFESlot ? `SLOT-${data.electiveGroupId}-${data.semester}` : data.subjectCode;
+    const code = (data.isSlot || data.isOFESlot) ? data.id : data.subjectCode;
     if (!code) return;
 
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', code);
@@ -424,13 +425,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
 function SubjectRow({ sub, currentSchemeId, schemeStatus, permissions, isOption, onEdit, onDelete }: any) {
   const canEdit = permissions.canEditSyllabus(sub);
-  const isSlot = sub.isOFESlot;
+  const isSlot = sub.isSlot || sub.isOFESlot;
   const isFromPool = sub.schemeId !== currentSchemeId;
   
   return (
     <TableRow className={`group transition-colors ${isOption ? 'bg-muted/30' : ''} ${isFromPool ? 'bg-emerald-50/20' : ''}`}>
       <TableCell className={`font-mono text-xs font-bold ${isSlot ? 'text-blue-600' : isFromPool ? 'text-emerald-700' : 'text-primary'} ${isOption ? 'pl-10' : 'pl-6'}`}>
-        {isSlot ? 'SLOT' : sub.subjectCode}
+        {(isSlot && !sub.subjectCode) ? 'SLOT' : sub.subjectCode}
       </TableCell>
       <TableCell className="font-medium">
         <div className="flex flex-col">
