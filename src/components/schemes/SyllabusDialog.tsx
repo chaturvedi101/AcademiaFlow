@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { BookOpen, Globe, Link2, Loader2, Plus, ShieldAlert, Trash2, Hash, Info, AlertTriangle, GraduationCap, ClipboardCheck } from "lucide-react";
-import { Syllabus, CorrelationLevel, CorrelationLevel as CorrelationLevelType, CreditRules } from "@/lib/types";
+import { Syllabus, CorrelationLevel, CorrelationLevel as CorrelationLevelType, CreditRules, SubjectType } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { collectionGroup, query, where, getDocs, doc } from "firebase/firestore";
@@ -122,7 +122,7 @@ export function SyllabusDialog({
       }
     }
 
-    const typeIndicator = (formData.type === 'Theory') ? 'L' : (formData.type === 'Sessional' ? 'S' : 'P');
+    const typeIndicator = (formData.type === 'Theory') ? 'L' : (formData.type === 'Lab/Sessional' ? 'P' : 'S');
     const isElective = formData.creditCategory === 'DSE' || formData.creditCategory === 'OFE';
     const categoryIndicator = isElective ? 'E' : 'C';
     
@@ -221,6 +221,26 @@ export function SyllabusDialog({
     return () => clearTimeout(timer);
   }, [formData.subjectCode, open, db, currentSchemeId, syllabus?.subjectCode, formData.isOFESlot]);
 
+  const handleTypeChange = (newType: SubjectType) => {
+    if (newType === 'Theory') {
+      setFormData({
+        ...formData,
+        type: newType,
+        practicalCredits: 0, // Reset practical for theory
+        lectureCredits: (formData.lectureCredits && formData.lectureCredits > 0) ? formData.lectureCredits : 1
+      });
+    } else {
+      // For Lab/Sessional, Project/Internship, Non Graded
+      setFormData({
+        ...formData,
+        type: newType,
+        lectureCredits: 0,
+        tutorialCredits: 0,
+        practicalCredits: (formData.practicalCredits && formData.practicalCredits > 0) ? formData.practicalCredits : 2
+      });
+    }
+  };
+
   const handleSave = () => {
     if (globalConflict && !formData.isOFESlot) {
       toast({
@@ -251,6 +271,10 @@ export function SyllabusDialog({
   };
 
   const isReadOnly = !canEdit;
+
+  // Conditional flags for inputs
+  const isTheory = formData.type === 'Theory';
+  const isNonTheory = formData.type === 'Lab/Sessional' || formData.type === 'Project/Internship' || formData.type === 'Non Graded';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -377,13 +401,13 @@ export function SyllabusDialog({
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Course Type</Label>
-                    <Select disabled={isReadOnly} value={formData.type} onValueChange={(v: any) => setFormData({...formData, type: v})}>
+                    <Select disabled={isReadOnly} value={formData.type} onValueChange={(v: SubjectType) => handleTypeChange(v)}>
                       <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Theory">Theory (ETE + CIE)</SelectItem>
-                        <SelectItem value="Practical/Lab">Practical/Lab (Ext + Int)</SelectItem>
-                        <SelectItem value="Sessional">Sessional (Internal CIE Only)</SelectItem>
-                        <SelectItem value="Skill/IKS/Experiential">Skill / IKS / Field</SelectItem>
+                        <SelectItem value="Theory">Theory (L > 0, P = 0)</SelectItem>
+                        <SelectItem value="Lab/Sessional">Lab/Sessional (P > 0, L=0, T=0)</SelectItem>
+                        <SelectItem value="Project/Internship">Project/Internship (P > 0, L=0, T=0)</SelectItem>
+                        <SelectItem value="Non Graded">Non Graded (P > 0, L=0, T=0)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -418,15 +442,33 @@ export function SyllabusDialog({
                 <div className="p-5 bg-primary/5 rounded-2xl border border-primary/10 grid grid-cols-4 gap-4 items-end">
                    <div className="space-y-2">
                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Lecture (L)</Label>
-                     <Input type="number" disabled={isReadOnly} value={formData.lectureCredits ?? 0} onChange={e => setFormData({...formData, lectureCredits: Number(e.target.value)})} className="h-10" />
+                     <Input 
+                      type="number" 
+                      disabled={isReadOnly || !isTheory} 
+                      value={formData.lectureCredits ?? 0} 
+                      onChange={e => setFormData({...formData, lectureCredits: Number(e.target.value)})} 
+                      className={`h-10 ${!isTheory ? 'bg-muted/50 cursor-not-allowed' : ''}`} 
+                    />
                    </div>
                    <div className="space-y-2">
                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Tutorial (T)</Label>
-                     <Input type="number" disabled={isReadOnly} value={formData.tutorialCredits ?? 0} onChange={e => setFormData({...formData, tutorialCredits: Number(e.target.value)})} className="h-10" />
+                     <Input 
+                      type="number" 
+                      disabled={isReadOnly || !isTheory} 
+                      value={formData.tutorialCredits ?? 0} 
+                      onChange={e => setFormData({...formData, tutorialCredits: Number(e.target.value)})} 
+                      className={`h-10 ${!isTheory ? 'bg-muted/50 cursor-not-allowed' : ''}`} 
+                    />
                    </div>
                    <div className="space-y-2">
                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Practical (P)</Label>
-                     <Input type="number" disabled={isReadOnly} value={formData.practicalCredits ?? 0} onChange={e => setFormData({...formData, practicalCredits: Number(e.target.value)})} className="h-10" />
+                     <Input 
+                      type="number" 
+                      disabled={isReadOnly || isTheory} 
+                      value={formData.practicalCredits ?? 0} 
+                      onChange={e => setFormData({...formData, practicalCredits: Number(e.target.value)})} 
+                      className={`h-10 ${isTheory ? 'bg-muted/50 cursor-not-allowed' : ''}`} 
+                    />
                    </div>
                    <div className="space-y-2">
                      <Label className="text-[10px] uppercase font-bold text-primary">Weightage (Cr)</Label>
@@ -443,19 +485,13 @@ export function SyllabusDialog({
                    {formData.type === 'Theory' && (
                      <div className="flex items-start gap-3 text-[11px] text-muted-foreground leading-relaxed animate-in slide-in-from-left-2">
                         <Info className="w-4 h-4 shrink-0 text-primary mt-0.5" />
-                        <p><strong>Theory (ETE):</strong> Requires a summative university-level End-Term Examination. Typical weightage is 70% ETE and 30% CIE (Internals).</p>
+                        <p><strong>Theory:</strong> Evaluated through End-Term University Exam (ETE) and Continuous Internal Evaluation (CIE).</p>
                      </div>
                    )}
-                   {formData.type === 'Sessional' && (
+                   {(formData.type === 'Lab/Sessional' || formData.type === 'Project/Internship') && (
                      <div className="flex items-start gap-3 text-[11px] text-amber-800 leading-relaxed animate-in slide-in-from-left-2">
                         <GraduationCap className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
-                        <p><strong>Sessional:</strong> 100% Continuous Internal Evaluation. Ideal for seminars, field work, or professional skills where no external written exam is needed.</p>
-                     </div>
-                   )}
-                   {formData.type === 'Practical/Lab' && (
-                     <div className="flex items-start gap-3 text-[11px] text-muted-foreground leading-relaxed animate-in slide-in-from-left-2">
-                        <Info className="w-4 h-4 shrink-0 text-accent mt-0.5" />
-                        <p><strong>Practical:</strong> Evaluated through internal lab assessments and a final practical exam (often with an external examiner).</p>
+                        <p><strong>{formData.type}:</strong> Primarily focused on internal assessment, reports, and final viva-voce.</p>
                      </div>
                    )}
                 </div>

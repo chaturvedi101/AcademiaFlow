@@ -32,7 +32,7 @@ export interface UserProfile {
 
 export type SchemeStatus = 'Draft' | 'Pending Dean' | 'Pending Academics' | 'Approved';
 
-export type SubjectType = 'Theory' | 'Tutorial' | 'Practical/Lab' | 'Sessional' | 'Skill/IKS/Experiential';
+export type SubjectType = 'Theory' | 'Lab/Sessional' | 'Project/Internship' | 'Non Graded';
 
 export type CreditCategory = 'DSC' | 'DSE' | 'OFE' | 'CPF' | 'VAC' | 'AEC' | 'SEC' | 'MDC' | 'PRJ';
 
