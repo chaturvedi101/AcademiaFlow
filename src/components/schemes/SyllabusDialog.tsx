@@ -165,6 +165,7 @@ export function SyllabusDialog({
   useEffect(() => {
     if (syllabus && open) {
       const isNew = !syllabus.id;
+      // Pre-select a valid category for Common BOS if it's a new subject
       const initialCategory = isNew && isStrictlyCommonBOS ? 'AEC' : syllabus.creditCategory || 'DSC';
 
       setFormData(prev => ({

@@ -25,7 +25,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const { toast } = useToast();
 
   const userDocRef = useMemoFirebase(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
-  const { data: profile } = useDoc<UserProfile>(userDocRef);
+  const { data: profile, loading: profileLoading } = useDoc<UserProfile>(userDocRef);
 
   const schemeRef = useMemoFirebase(() => doc(db, 'schemes', schemeId), [db, schemeId]);
   const { data: scheme, loading: schemeLoading } = useDoc<Scheme>(schemeRef);
@@ -93,7 +93,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const permissions = useMemo(() => {
-    if (!profile || !scheme || !program) return { canEditScheme: false, canEditSyllabus: (s: Syllabus) => false };
+    if (!profile || !scheme || !program) return { canEditScheme: false, canEditSyllabus: (s: Partial<Syllabus>) => false };
 
     const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile.role);
     const isProgramDean = profile.role === 'dean_faculty' && profile.faculty === program.faculty;
@@ -105,6 +105,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     } else if (scheme.isCommonPoolScheme && isCommonBOS) {
       canEditScheme = true;
     } else if (!scheme.isCommonPoolScheme) {
+      // Branch BOS can edit their own scheme
       canEditScheme = profile.managedBranches?.some(
         m => m.programId === scheme.programId && m.branch === scheme.branch
       ) || false;
@@ -112,6 +113,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     const canEditSyllabus = (s: Partial<Syllabus>) => {
       if (isGlobalAdmin) return true;
+      
+      // Cannot edit courses that belong to a different scheme (e.g. synced pool courses)
       if (s?.schemeId && s.schemeId !== schemeId) return false;
       
       const category = s?.creditCategory || '';
@@ -119,12 +122,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       const isSharedSEC = category === 'SEC';
 
       if (isCommonBOS) {
-        // Common BOS can edit their own categories, or a new syllabus to set them
+        // Common BOS can edit institutional categories and OFE slots within their pool schemes
+        // If category is empty (new subject), allow edit if they can edit the scheme
         if (!category) return canEditScheme;
         return isStrictlyInstitutional || isSharedSEC || category === 'OFE';
       }
       
-      // Branch BOS
+      // Branch BOS cannot edit strictly institutional categories (VAC/AEC/MDC)
       if (isStrictlyInstitutional) return false;
       return canEditScheme;
     };
@@ -215,7 +219,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     deleteDoc(docRef);
   };
 
-  if (schemeLoading || syllabiLoading || poolLoading) {
+  if (profileLoading || schemeLoading || syllabiLoading || poolLoading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   }
 
