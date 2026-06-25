@@ -164,9 +164,13 @@ export function SyllabusDialog({
 
   useEffect(() => {
     if (syllabus && open) {
+      const isNew = !syllabus.id;
+      const initialCategory = isNew && isStrictlyCommonBOS ? 'AEC' : syllabus.creditCategory || 'DSC';
+
       setFormData(prev => ({
         ...prev,
         ...syllabus,
+        creditCategory: initialCategory,
         units: syllabus.units || [],
         poMappings: syllabus.poMappings || {},
         textBooks: syllabus.textBooks || [],
@@ -177,7 +181,7 @@ export function SyllabusDialog({
         setFormData(prev => ({ ...prev, subjectCode: generateAutoSubjectCode() }));
       }
     }
-  }, [syllabus, open, generateAutoSubjectCode]);
+  }, [syllabus, open, generateAutoSubjectCode, isStrictlyCommonBOS]);
 
   useEffect(() => {
     const l = Number(formData.lectureCredits) || 0;

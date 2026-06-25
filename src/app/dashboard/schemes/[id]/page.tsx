@@ -110,7 +110,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       ) || false;
     }
 
-    const canEditSyllabus = (s: Syllabus) => {
+    const canEditSyllabus = (s: Partial<Syllabus>) => {
       if (isGlobalAdmin) return true;
       if (s?.schemeId && s.schemeId !== schemeId) return false;
       
@@ -118,7 +118,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       const isStrictlyInstitutional = ['VAC', 'AEC', 'MDC'].includes(category);
       const isSharedSEC = category === 'SEC';
 
-      if (isCommonBOS) return isStrictlyInstitutional || isSharedSEC || category === 'OFE';
+      if (isCommonBOS) {
+        // Common BOS can edit their own categories, or a new syllabus to set them
+        if (!category) return canEditScheme;
+        return isStrictlyInstitutional || isSharedSEC || category === 'OFE';
+      }
+      
+      // Branch BOS
       if (isStrictlyInstitutional) return false;
       return canEditScheme;
     };
