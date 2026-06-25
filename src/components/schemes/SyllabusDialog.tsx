@@ -14,11 +14,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { BookOpen, Globe, Link2, Loader2, Plus, ShieldAlert, Trash2, Hash, Info, GraduationCap, ClipboardCheck, Search, Layers } from "lucide-react";
+import { BookOpen, Globe, Link2, Loader2, Plus, ShieldAlert, Trash2, Hash, Info, GraduationCap, ClipboardCheck, Search, Layers, AlertTriangle } from "lucide-react";
 import { Syllabus, CorrelationLevel as CorrelationLevelType, CreditRules, SubjectType, CreditCategory } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
-import { collection, query, where, getDocs, doc } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, collectionGroup } from "firebase/firestore";
 
 const PO_DEFINITIONS = [
   { code: 'PO1', title: 'Engineering Knowledge', desc: 'Apply mathematics, science, and engineering fundamentals.' },
@@ -78,6 +78,10 @@ export function SyllabusDialog({
   const [poolResults, setPoolResults] = useState<Syllabus[]>([]);
   const [showPoolPicker, setShowPoolPicker] = useState(false);
   const [isManuallyEditedCode, setIsManuallyEditedCode] = useState(false);
+  
+  // Cross-University Uniqueness Check
+  const [codeConflict, setCodeConflict] = useState<string | null>(null);
+  const [isCheckingUniqueness, setIsCheckingUniqueness] = useState(false);
 
   const [formData, setFormData] = useState<Partial<Syllabus>>({
     subjectCode: '',
@@ -110,11 +114,21 @@ export function SyllabusDialog({
     return [];
   }, [formData.creditCategory]);
 
+  /**
+   * RTU COMPLIANT CODE GENERATION RULES:
+   * [Branch Prefix][Pedagogy][Pillar][Year][Sequence]
+   * Institutional (AEC, MDC, VAC): RT
+   * Pedagogy: L (Theory), P (Practical), I (Project)
+   * Ranges: DSC(1-30), SEC(40-49), DSE(50-94), PRJ(95-99)
+   */
   const generateAutoSubjectCode = useCallback(() => {
     if (!branchName) return '';
     
-    let branchPrefix = 'PO';
-    if (branchName !== 'Institutional Common Pool') {
+    // 1. Determine Branch Prefix
+    const isInstitutional = ['AEC', 'MDC', 'VAC', 'OFE'].includes(formData.creditCategory || '');
+    let branchPrefix = 'RT';
+    
+    if (!isInstitutional && branchName !== 'Institutional Common Pool') {
       const lowerBranch = branchName.toLowerCase();
       if (lowerBranch.includes('production') && lowerBranch.includes('industrial')) {
         branchPrefix = 'PI';
@@ -123,27 +137,37 @@ export function SyllabusDialog({
       }
     }
 
-    const typeIndicator = (formData.type === 'Theory') ? 'L' : 'P';
-    const isElective = formData.creditCategory === 'DSE' || formData.creditCategory === 'OFE';
-    const categoryIndicator = isElective ? 'E' : 'C';
+    // 2. Pedagogy Indicator
+    let pedagogy = 'L';
+    if (formData.creditCategory === 'PRJ') {
+      pedagogy = 'I';
+    } else if (formData.type === 'Lab/Sessional') {
+      pedagogy = 'P';
+    }
+
+    // 3. Curriculum Pillar
+    const isElective = ['DSE', 'OFE'].includes(formData.creditCategory || '');
+    const pillar = isElective ? 'E' : 'C';
     
+    // 4. Academic Year Digit
     const yearDigit = Math.ceil((formData.semester || 1) / 2);
-    const baseCode = `${branchPrefix}${typeIndicator}${categoryIndicator}${yearDigit}`;
     
-    let sequence = 1;
+    // 5. Sequence Determination based on Category Rules
+    let seqStart = 1;
+    if (formData.creditCategory === 'SEC') seqStart = 40;
+    if (formData.creditCategory === 'DSE') seqStart = 50;
+    if (formData.creditCategory === 'PRJ') seqStart = 95;
+
+    const baseCode = `${branchPrefix}${pedagogy}${pillar}${yearDigit}`;
+    
+    let sequence = seqStart;
     let finalCode = `${baseCode}${String(sequence).padStart(2, '0')}`;
 
+    // Handle Elective Group indexing (e.g., MELC250.1)
     if (formData.electiveGroupId) {
       const peers = existingSyllabi.filter(s => s.electiveGroupId === formData.electiveGroupId);
       const isAlreadyInGroup = peers.some(p => p.id === formData.id || p.subjectCode === formData.subjectCode);
-      
       let suffix = peers.length + (isAlreadyInGroup ? 0 : 1);
-      
-      if (isAlreadyInGroup && formData.subjectCode?.includes('.')) {
-        const parts = formData.subjectCode.split('.');
-        suffix = parseInt(parts[parts.length - 1]) || suffix;
-      }
-      
       finalCode = `${finalCode}.${suffix}`;
     } else {
       const existingCodes = existingSyllabi.filter(s => s.id !== formData.id && s.subjectCode !== formData.subjectCode).map(s => s.subjectCode);
@@ -173,6 +197,7 @@ export function SyllabusDialog({
       }));
       
       setIsManuallyEditedCode(false);
+      setCodeConflict(null);
       setPoolResults([]);
       setShowPoolPicker(false);
     }
@@ -181,11 +206,47 @@ export function SyllabusDialog({
   useEffect(() => {
     if (open && !syllabus?.id && !isManuallyEditedCode && !formData.isOFESlot) {
       const newCode = generateAutoSubjectCode();
-      if (newCode !== formData.subjectCode) {
+      if (newCode && newCode !== formData.subjectCode) {
         setFormData(prev => ({ ...prev, subjectCode: newCode }));
       }
     }
   }, [formData.type, formData.semester, formData.creditCategory, formData.electiveGroupId, open, syllabus?.id, isManuallyEditedCode, formData.isOFESlot, generateAutoSubjectCode, formData.subjectCode]);
+
+  // Global Uniqueness Check
+  useEffect(() => {
+    const code = formData.subjectCode;
+    if (!open || !code || code === 'POOL-ELECTIVE' || code === 'SLOT' || code.length < 5) {
+      setCodeConflict(null);
+      return;
+    }
+
+    const checkGlobalUniqueness = async () => {
+      setIsCheckingUniqueness(true);
+      try {
+        const syllabiGroupQuery = query(
+          collectionGroup(db, 'syllabi'),
+          where('subjectCode', '==', code)
+        );
+        const snap = await getDocs(syllabiGroupQuery);
+        
+        // Find if this code exists in a DIFFERENT scheme
+        const conflict = snap.docs.find(d => d.data().schemeId !== currentSchemeId);
+        
+        if (conflict) {
+          setCodeConflict(`Warning: Code ${code} is already registered in another University scheme.`);
+        } else {
+          setCodeConflict(null);
+        }
+      } catch (err) {
+        console.error("Global uniqueness check failed:", err);
+      } finally {
+        setIsCheckingUniqueness(false);
+      }
+    };
+
+    const timer = setTimeout(checkGlobalUniqueness, 800);
+    return () => clearTimeout(timer);
+  }, [formData.subjectCode, currentSchemeId, db, open]);
 
   useEffect(() => {
     const l = Number(formData.lectureCredits) || 0;
@@ -294,6 +355,13 @@ export function SyllabusDialog({
         
         <ScrollArea className="flex-1 w-full min-h-0">
           <div className="p-6 space-y-8 pb-12">
+            {codeConflict && (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-red-700 text-sm animate-in shake-in-1">
+                <AlertTriangle className="w-5 h-5 shrink-0" />
+                <p className="font-bold">{codeConflict}</p>
+              </div>
+            )}
+
             {(isInstitutionalCategory && !isReadOnly && !formData.isOFESlot) && (
               <div className="p-5 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center justify-between gap-6 animate-in slide-in-from-top-4 duration-500">
                 <div className="flex items-center gap-4">
@@ -435,15 +503,22 @@ export function SyllabusDialog({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Subject Code</Label>
-                    <Input 
-                      disabled={isReadOnly || formData.isOFESlot} 
-                      className="font-mono h-11 border-primary/20" 
-                      value={formData.isOFESlot ? 'POOL-ELECTIVE' : (formData.subjectCode || '')} 
-                      onChange={e => {
-                        setIsManuallyEditedCode(true);
-                        setFormData({ ...formData, subjectCode: e.target.value.toUpperCase() });
-                      }} 
-                    />
+                    <div className="relative">
+                      <Input 
+                        disabled={isReadOnly || formData.isOFESlot} 
+                        className={`font-mono h-11 border-primary/20 pr-10 ${codeConflict ? 'border-red-500 bg-red-50/20' : ''}`} 
+                        value={formData.isOFESlot ? 'POOL-ELECTIVE' : (formData.subjectCode || '')} 
+                        onChange={e => {
+                          setIsManuallyEditedCode(true);
+                          setFormData({ ...formData, subjectCode: e.target.value.toUpperCase() });
+                        }} 
+                      />
+                      {isCheckingUniqueness && (
+                        <div className="absolute right-3 top-3.5">
+                          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Subject Title</Label>
@@ -639,7 +714,7 @@ export function SyllabusDialog({
             {isReadOnly ? 'Close' : 'Cancel'}
           </Button>
           {!isReadOnly && (
-            <Button className="h-11 px-8 shadow-lg" onClick={handleSave}>
+            <Button className="h-11 px-8 shadow-lg" onClick={handleSave} disabled={!!codeConflict}>
               Save Specification
             </Button>
           )}
