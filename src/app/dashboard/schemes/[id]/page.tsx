@@ -194,7 +194,15 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     if (!code) return;
 
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', code);
-    const finalData = { ...data, id: code, schemeId, updatedAt: serverTimestamp() };
+    // When saving a real syllabus, it is no longer a placeholder slot
+    const finalData = { 
+      ...data, 
+      id: code, 
+      schemeId, 
+      updatedAt: serverTimestamp(),
+      isSlot: false,
+      isOFESlot: data.creditCategory === 'OFE' ? (data.isOFESlot || false) : false 
+    };
     
     setDoc(docRef, finalData, { merge: true })
       .then(() => toast({ title: "Course Synchronized", description: `${code} registered.` }))
@@ -218,20 +226,22 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     
     setIsSyncing(true);
     try {
+      const bYear = scheme.batchYear.trim();
       const poolQuery = query(
         collection(db, 'schemes'),
-        where('batchYear', '==', scheme.batchYear),
+        where('batchYear', '==', bYear),
         where('isCommonPoolScheme', '==', true)
       );
+      
       const poolSnap = await getDocs(poolQuery);
       if (poolSnap.empty) {
-        toast({ title: "Sync Failed", description: "No Common Pool scheme found for this batch.", variant: "destructive" });
+        toast({ title: "Pool Not Found", description: `No Common Pool defined for batch "${bYear}".`, variant: "destructive" });
         return;
       }
       
       const poolSchemeId = poolSnap.docs[0].id;
       const poolSyllabiSnap = await getDocs(collection(db, 'schemes', poolSchemeId, 'syllabi'));
-      const poolCourses = poolSyllabiSnap.docs.map(d => d.data() as Syllabus);
+      const poolCourses = poolSyllabiSnap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus));
 
       const batch = writeBatch(db);
       let syncCount = 0;
@@ -240,21 +250,27 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         const isInst = ['VAC', 'AEC', 'MDC', 'SEC', 'OFE'].includes(localSub.creditCategory);
         if (!isInst) continue;
 
-        // Try to find a matching course in the pool
-        // 1. Match by code if exists
-        // 2. Match by category and semester for slots
-        let match = poolCourses.find(p => p.subjectCode === localSub.subjectCode && p.subjectCode !== '');
+        let match: Syllabus | undefined;
+
+        // Try exact code match first
+        if (localSub.subjectCode) {
+          match = poolCourses.find(p => p.subjectCode === localSub.subjectCode);
+        }
         
+        // If it's a slot, look for a category match in the pool
         if (!match && (localSub.isSlot || localSub.isOFESlot)) {
            const categoryCourses = poolCourses.filter(p => p.creditCategory === localSub.creditCategory && !p.isSlot);
-           // Simple heuristic: match the first approved course of that category in the same semester
            match = categoryCourses.find(p => p.semester === localSub.semester) || categoryCourses[0];
         }
 
         if (match) {
           const docRef = doc(db, 'schemes', schemeId, 'syllabi', localSub.id);
-          const update = {
-            ...match,
+          
+          // Clean match object of any undefined values for Firestore
+          const cleanMatch = JSON.parse(JSON.stringify(match));
+          
+          const updateData = {
+            ...cleanMatch,
             id: localSub.id,
             schemeId: schemeId,
             semester: localSub.semester,
@@ -262,21 +278,22 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             isOFESlot: false,
             updatedAt: serverTimestamp()
           };
-          batch.update(docRef, update);
+          
+          batch.set(docRef, updateData, { merge: true });
           syncCount++;
         }
       }
 
       if (syncCount > 0) {
         await batch.commit();
-        toast({ title: "Sync Complete", description: `Updated ${syncCount} institutional courses from the common pool.` });
+        toast({ title: "Sync Complete", description: `Successfully synchronized ${syncCount} courses from the pool.` });
       } else {
-        toast({ title: "Sync Complete", description: "No updates found for institutional slots." });
+        toast({ title: "No Matching Courses", description: "No approved courses found in pool for your slots." });
       }
 
-    } catch (err) {
+    } catch (err: any) {
       console.error("Bulk sync failed:", err);
-      toast({ title: "Error", description: "Failed to synchronize pool.", variant: "destructive" });
+      toast({ title: "Sync Failed", description: err.message || "Failed to synchronize.", variant: "destructive" });
     } finally {
       setIsSyncing(false);
     }
