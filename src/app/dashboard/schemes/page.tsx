@@ -110,11 +110,10 @@ export default function SchemesPage() {
     
     if (!branchPrefix && !isCommonBos) {
       const lowerBranch = branchName.toLowerCase();
-      // Handle Production and Industrial specifically for the Scheme Code as well
       if (lowerBranch.includes('production') && lowerBranch.includes('industrial')) {
         branchPrefix = 'PI';
       } else {
-        branchPrefix = branchName.substring(0, 3).toUpperCase();
+        branchPrefix = branchName.substring(0, 2).toUpperCase();
       }
     }
     
@@ -179,8 +178,6 @@ export default function SchemesPage() {
     );
   }
 
-  // Restrict creation: Standard BoS Convenors cannot create new schemes
-  // Only Admin, Dean Faculty, and Common BoS Convenors have creation rights
   const canCreateScheme = profile?.role === 'admin' || profile?.role === 'dean_faculty' || (profile?.role === 'bos_convenor' && isCommonBos);
 
   return (

@@ -123,7 +123,7 @@ export function SyllabusDialog({
     const isElective = formData.creditCategory === 'DSE' || formData.creditCategory === 'OFE';
     const categoryIndicator = isElective ? 'E' : 'C';
     
-    // Use Year Digit instead of Semester Digit
+    // Year Digit: 1 for Sems 1-2, 2 for 3-4, etc.
     const yearDigit = Math.ceil((formData.semester || 1) / 2);
 
     const baseCode = `${branchPrefix}${typeIndicator}${categoryIndicator}${yearDigit}`;
@@ -154,6 +154,13 @@ export function SyllabusDialog({
 
     return finalCode;
   }, [branchName, formData.lectureCredits, formData.tutorialCredits, formData.semester, formData.creditCategory, formData.electiveGroupId, existingSyllabi, formData.id, formData.subjectCode]);
+
+  // Sync subject code when key inputs change (only for new subjects)
+  useEffect(() => {
+    if (!syllabus?.id && !syllabus?.subjectCode && open) {
+      setFormData(prev => ({ ...prev, subjectCode: generateAutoSubjectCode() }));
+    }
+  }, [formData.semester, formData.creditCategory, formData.lectureCredits, formData.tutorialCredits, formData.electiveGroupId, generateAutoSubjectCode, open, syllabus?.id, syllabus?.subjectCode]);
 
   useEffect(() => {
     if (syllabus && open) {
@@ -200,6 +207,7 @@ export function SyllabusDialog({
           setGlobalConflict(null);
         }
       } catch (err: any) { 
+        console.warn("Global uniqueness check failed or index missing:", err.message);
         setGlobalConflict(null); 
       } finally { setIsCheckingGlobal(false); }
     };
@@ -209,7 +217,6 @@ export function SyllabusDialog({
   }, [formData.subjectCode, open, db, currentSchemeId, syllabus?.subjectCode, formData.isOFESlot]);
 
   const handleSave = () => {
-    // Credit consistency check for elective groups
     if (formData.electiveGroupId) {
       const groupMembers = existingSyllabi.filter(s => s.electiveGroupId === formData.electiveGroupId && (s.id !== formData.id && s.subjectCode !== formData.subjectCode));
       if (groupMembers.length > 0) {
@@ -229,7 +236,6 @@ export function SyllabusDialog({
     onOpenChange(false);
   };
 
-  const isElective = formData.creditCategory === 'DSE' || formData.creditCategory === 'OFE';
   const isReadOnly = !canEdit;
 
   return (
@@ -337,7 +343,6 @@ export function SyllabusDialog({
                       value={formData.isOFESlot ? 'SLOT-AUTO' : (formData.subjectCode || '')} 
                       onChange={e => setFormData({ ...formData, subjectCode: e.target.value.toUpperCase() })} 
                     />
-                    {formData.isOFESlot && <p className="text-[10px] text-muted-foreground">Slots are defined by grouping ID, not unique codes.</p>}
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Subject Title / Slot Label</Label>
