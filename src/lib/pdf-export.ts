@@ -1,4 +1,3 @@
-
 'use client';
 
 import jsPDF from 'jspdf';
@@ -15,10 +14,12 @@ export const exportSyllabusToPDF = (
   syllabus: Partial<Syllabus>, 
   programName: string = 'N/A', 
   branch: string = 'General', 
-  batchYear: string = 'N/A'
+  batchYear: string = 'N/A',
+  status: string = 'Approved'
 ) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
+  const isDraft = status !== 'Approved';
 
   // RTU Logo Placement
   doc.setFontSize(16);
@@ -32,43 +33,50 @@ export const exportSyllabusToPDF = (
   doc.setFont('helvetica', 'bold');
   doc.text('Academia Flow | Syllabus Specification', pageWidth / 2, 25, { align: 'center' });
   
+  // Header - Status Badge in PDF
+  if (isDraft) {
+    doc.setFontSize(10);
+    doc.setTextColor(150, 0, 0);
+    doc.text('DRAFT COPY - FOR REVIEW ONLY', pageWidth / 2, 30, { align: 'center' });
+  }
+
   // Scheme Info Header
   doc.setFontSize(10);
   doc.setTextColor(100);
   doc.setFont('helvetica', 'normal');
-  doc.text(`${programName} (${branch})`, pageWidth / 2, 32, { align: 'center' });
-  doc.text(`Batch: ${batchYear} | RTU-NEP Framework Compliance`, pageWidth / 2, 37, { align: 'center' });
+  doc.text(`${programName} (${branch})`, pageWidth / 2, 35, { align: 'center' });
+  doc.text(`Batch: ${batchYear} | RTU-NEP Framework Compliance`, pageWidth / 2, 40, { align: 'center' });
 
   // Subject Branding Strip
   doc.setFillColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
-  doc.rect(15, 42, pageWidth - 30, 10, 'F');
+  doc.rect(15, 45, pageWidth - 30, 10, 'F');
   doc.setTextColor(255);
   doc.setFontSize(11);
-  doc.text(`COURSE CODE: ${syllabus.subjectCode || 'CODE'} - ${syllabus.title?.toUpperCase() || 'TITLE'}`, 20, 48.5);
+  doc.text(`COURSE CODE: ${syllabus.subjectCode || 'CODE'} - ${syllabus.title?.toUpperCase() || 'TITLE'}`, 20, 51.5);
 
   // Basic Info Grid
   doc.setTextColor(0);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.text('Credit Distribution:', 15, 62);
+  doc.text('Credit Distribution:', 15, 65);
   doc.setFont('helvetica', 'normal');
-  doc.text(`L-T-P: ${syllabus.lectureCredits || 0}-${syllabus.tutorialCredits || 0}-${syllabus.practicalCredits || 0}`, 15, 67);
-  doc.text(`Total Credits: ${syllabus.credits || 0}`, 15, 72);
+  doc.text(`L-T-P: ${syllabus.lectureCredits || 0}-${syllabus.tutorialCredits || 0}-${syllabus.practicalCredits || 0}`, 15, 70);
+  doc.text(`Total Credits: ${syllabus.credits || 0}`, 15, 75);
   
   doc.setFont('helvetica', 'bold');
-  doc.text('Academic Details:', pageWidth / 2, 62);
+  doc.text('Academic Details:', pageWidth / 2, 65);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Category: ${syllabus.creditCategory || 'N/A'}`, pageWidth / 2, 67);
-  doc.text(`Semester: ${syllabus.semester || 'N/A'}`, pageWidth / 2, 72);
+  doc.text(`Category: ${syllabus.creditCategory || 'N/A'}`, pageWidth / 2, 70);
+  doc.text(`Semester: ${syllabus.semester || 'N/A'}`, pageWidth / 2, 75);
 
   doc.setDrawColor(230);
-  doc.line(15, 77, pageWidth - 15, 77);
+  doc.line(15, 80, pageWidth - 15, 80);
 
   // Units Section
   doc.setFontSize(13);
   doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
   doc.setFont('helvetica', 'bold');
-  doc.text('Course Content & Outcomes', 15, 85);
+  doc.text('Course Content & Outcomes', 15, 88);
 
   const unitRows = (syllabus.units || []).map((unit, idx) => [
     `Unit ${idx + 1}\n${unit.title || 'Untitled'}`,
@@ -77,7 +85,7 @@ export const exportSyllabusToPDF = (
   ]);
 
   autoTable(doc, {
-    startY: 90,
+    startY: 93,
     head: [['Unit & Title', 'Topics', 'Course Outcome (CO)']],
     body: unitRows,
     theme: 'grid',
@@ -138,7 +146,7 @@ export const exportSyllabusToPDF = (
   drawResourceSection('Digital Courses (NPTEL/SWAYAM)', syllabus.nptelLinks);
   drawResourceSection('Video Resources (YouTube)', syllabus.youtubeLinks);
 
-  addFooter(doc);
+  addFooter(doc, isDraft);
   doc.save(`${syllabus.subjectCode || 'Subject'}_Detailed_Syllabus.pdf`);
 };
 
@@ -152,6 +160,7 @@ export const exportFullSchemeToPDF = (
 ) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
+  const isDraft = scheme.status !== 'Approved';
 
   // Institution Title
   doc.setFontSize(16);
@@ -252,15 +261,29 @@ export const exportFullSchemeToPDF = (
     currentY = (doc as any).lastAutoTable.finalY + 12;
   }
 
-  addFooter(doc);
+  addFooter(doc, isDraft);
   doc.save(`${program.code}_${scheme.branch}_Structure.pdf`);
 };
 
-function addFooter(doc: jsPDF) {
+function addFooter(doc: jsPDF, isDraft: boolean = false) {
   const pageCount = doc.internal.getNumberOfPages();
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
+    
+    // Add Draft Watermark
+    if (isDraft) {
+      doc.setFontSize(50);
+      doc.setTextColor(230, 230, 230);
+      doc.setFont('helvetica', 'bold');
+      doc.text('DRAFT - FOR INTERNAL REVIEW', pageWidth / 2, pageHeight / 2, {
+        align: 'center',
+        angle: 45
+      });
+    }
+    
     doc.setFontSize(8);
     doc.setTextColor(150);
     doc.setDrawColor(200);

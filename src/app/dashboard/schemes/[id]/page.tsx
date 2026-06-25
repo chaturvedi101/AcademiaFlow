@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
@@ -325,7 +324,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                         </TableHeader>
                         <TableBody>
                           {nonGrouped.map(sub => (
-                            <SubjectRow key={sub.id} sub={sub} currentSchemeId={schemeId} permissions={permissions} onEdit={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }} onDelete={() => handleDeleteSyllabus(sub.id)} />
+                            <SubjectRow key={sub.id} sub={sub} currentSchemeId={schemeId} schemeStatus={scheme.status} permissions={permissions} onEdit={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }} onDelete={() => handleDeleteSyllabus(sub.id)} />
                           ))}
                           {Object.entries(groups).map(([groupId, members]) => {
                             const isExpanded = expandedGroups[groupId];
@@ -351,7 +350,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                                   </TableCell>
                                 </TableRow>
                                 {isExpanded && !isOfePool && members.map(sub => (
-                                  <SubjectRow key={sub.id} sub={sub} currentSchemeId={schemeId} permissions={permissions} isOption onEdit={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }} onDelete={() => handleDeleteSyllabus(sub.id)} />
+                                  <SubjectRow key={sub.id} sub={sub} currentSchemeId={schemeId} schemeStatus={scheme.status} permissions={permissions} isOption onEdit={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }} onDelete={() => handleDeleteSyllabus(sub.id)} />
                                 ))}
                               </React.Fragment>
                             );
@@ -433,7 +432,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   );
 }
 
-function SubjectRow({ sub, currentSchemeId, permissions, isOption, onEdit, onDelete }: any) {
+function SubjectRow({ sub, currentSchemeId, schemeStatus, permissions, isOption, onEdit, onDelete }: any) {
   const canEdit = permissions.canEditSyllabus(sub);
   const isSlot = sub.isOFESlot;
   const isFromPool = sub.schemeId !== currentSchemeId;
@@ -459,7 +458,7 @@ function SubjectRow({ sub, currentSchemeId, permissions, isOption, onEdit, onDel
       <TableCell className="text-right pr-6">
         <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           {!isSlot && (
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500" onClick={() => exportSyllabusToPDF(sub)}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500" onClick={() => exportSyllabusToPDF(sub, 'Program', 'Branch', 'Year', schemeStatus)}>
               <FileDown className="w-3.5 h-3.5" />
             </Button>
           )}
