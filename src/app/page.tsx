@@ -20,6 +20,7 @@ import {
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { UserRole } from "@/lib/types";
+import Image from "next/image";
 
 export default function Home() {
   const { user, loading: userLoading } = useUser();
@@ -134,26 +135,35 @@ export default function Home() {
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
       <div className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
         <div className="space-y-8">
-          <div className="flex items-center gap-3">
-            <div className="bg-primary p-2 rounded-xl">
-              <ShieldCheck className="w-8 h-8 text-white" />
+          <div className="flex items-center gap-4">
+            <div className="relative w-20 h-20 bg-white rounded-2xl shadow-sm p-1 border border-border/50">
+              <Image 
+                src="https://upload.wikimedia.org/wikipedia/en/2/2e/Rajasthan_Technical_University_logo.png"
+                alt="RTU Logo"
+                fill
+                className="object-contain p-2"
+                data-ai-hint="Rajasthan Technical University Logo"
+              />
             </div>
-            <h1 className="text-4xl font-headline font-bold text-primary tracking-tight">Academia Flow</h1>
+            <div>
+              <h1 className="text-3xl font-headline font-bold text-primary tracking-tight">Academia Flow</h1>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-[0.2em]">Rajasthan Technical University</p>
+            </div>
           </div>
           <div className="space-y-4">
             <h2 className="text-5xl font-headline font-bold leading-tight">
-              Enterprise Academic Management for <span className="text-accent">NEP 2020</span>.
+              Institutional Academic Management for <span className="text-accent">NEP 2020</span>.
             </h2>
             <p className="text-muted-foreground text-lg max-w-lg">
-              A robust platform for technical universities to manage schemes, syllabi, 
-              and AICTE compliance with advanced RBAC and audit tracking.
+              Authorized platform for Rajasthan Technical University to manage schemes, syllabi, 
+              and AICTE compliance with centralized BoS coordination.
             </p>
           </div>
           
           <div className="grid grid-cols-2 gap-4">
             <FeatureCard 
               icon={<GraduationCap className="text-accent" />}
-              title="Scheme Lifecycle"
+              title="RTU Schemes"
               desc="Draft to Approval workflow"
             />
             <FeatureCard 
@@ -166,20 +176,20 @@ export default function Home() {
               title="Equivalence Engine"
               desc="Manage transition mappings"
             />
-            <FeatureCheck icon={<ShieldCheck className="text-accent" />} title="RBAC & Audit" desc="Secure hierarchy & logs" />
+            <FeatureCheck icon={<ShieldCheck className="text-accent" />} title="Secure RBAC" desc="Hierarchy & Audit Logs" />
           </div>
 
           <Card className="bg-primary/5 border-primary/10">
             <CardHeader className="py-3 px-4">
               <CardTitle className="text-xs font-bold uppercase tracking-wider flex items-center gap-2">
                 <Info className="w-3 h-3 text-primary" />
-                Prototype Reference Roles
+                RTU Portal Reference Roles
               </CardTitle>
             </CardHeader>
             <CardContent className="py-2 px-4 space-y-1">
               <p className="text-[10px] text-muted-foreground"><span className="font-bold">Dean Academic:</span> dean.academic@rtu.ac.in</p>
-              <p className="text-[10px] text-muted-foreground"><span className="font-bold">BoS Convenor:</span> convenor@university.edu</p>
-              <p className="text-[10px] text-muted-foreground"><span className="font-bold">System Admin:</span> admin@university.edu</p>
+              <p className="text-[10px] text-muted-foreground"><span className="font-bold">BoS Convenor:</span> convenor@rtu.ac.in</p>
+              <p className="text-[10px] text-muted-foreground"><span className="font-bold">System Admin:</span> admin@rtu.ac.in</p>
             </CardContent>
           </Card>
         </div>
@@ -189,7 +199,7 @@ export default function Home() {
             <CardHeader className="space-y-1">
               <CardTitle className="text-2xl text-center font-headline">Secure Access</CardTitle>
               <CardDescription className="text-center">
-                Manage your academic credentials
+                Authorized Faculty & Staff Only
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -207,7 +217,7 @@ export default function Home() {
                         <Input 
                           id="email" 
                           type="email" 
-                          placeholder="name@university.edu" 
+                          placeholder="name@rtu.ac.in" 
                           required 
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
@@ -228,7 +238,7 @@ export default function Home() {
                         className="w-full h-11" 
                         disabled={isLoading}
                       >
-                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Sign In"}
+                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Sign In to Portal"}
                       </Button>
                     </form>
 
@@ -248,7 +258,7 @@ export default function Home() {
                       disabled={isLoading}
                     >
                       <Github className="w-4 h-4" />
-                      GitHub
+                      GitHub Auth
                     </Button>
                   </div>
                 </TabsContent>
@@ -266,11 +276,11 @@ export default function Home() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="reg-email">University Email</Label>
+                      <Label htmlFor="reg-email">RTU Email</Label>
                       <Input 
                         id="reg-email" 
                         type="email" 
-                        placeholder="name@university.edu" 
+                        placeholder="name@rtu.ac.in" 
                         required 
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
@@ -305,13 +315,13 @@ export default function Home() {
                       className="w-full h-11" 
                       disabled={isLoading}
                     >
-                      {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Create Account"}
+                      {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Request Access"}
                     </Button>
                   </form>
                 </TabsContent>
               </Tabs>
               <div className="text-center text-sm text-muted-foreground pt-6">
-                Access is restricted to authorized academic personnel.
+                Institutional access restricted to authorized personnel.
               </div>
             </CardContent>
           </Card>

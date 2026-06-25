@@ -33,6 +33,7 @@ import Link from "next/link";
 import { useAuth, useUser, useDoc, useFirestore } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { UserProfile, UserRole } from "@/lib/types";
+import Image from "next/image";
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['bos_convenor', 'bos_member', 'dean_faculty', 'dean_academic', 'admin'] },
@@ -61,7 +62,6 @@ export function AppSidebar() {
 
   const filteredNav = navigation.filter(item => {
     if (isCommonBos && item.name === 'Programs') return true;
-    // Common BOS should not see "My BoS Team" as they manage university-wide pool, not a faculty team
     if (isCommonBos && item.name === 'My BoS Team') return false;
     
     return item.roles.includes(role) || (isCommonBos && item.roles.includes('common_bos'));
@@ -74,13 +74,22 @@ export function AppSidebar() {
 
   return (
     <Sidebar variant="inset" collapsible="icon">
-      <SidebarHeader className="p-4 border-b border-sidebar-border/50 flex flex-row items-center gap-2">
-        <div className="bg-accent p-1.5 rounded-lg">
-          <ShieldCheck className="text-white w-6 h-6" />
+      <SidebarHeader className="p-4 border-b border-sidebar-border/50 flex flex-row items-center gap-3">
+        <div className="relative w-10 h-10 bg-white rounded-lg p-1 shrink-0">
+          <Image 
+            src="https://upload.wikimedia.org/wikipedia/en/2/2e/Rajasthan_Technical_University_logo.png"
+            alt="RTU"
+            fill
+            className="object-contain"
+            data-ai-hint="RTU Emblem"
+          />
         </div>
-        <span className="font-headline font-bold text-xl text-white tracking-tight group-data-[collapsible=icon]:hidden">
-          Academia Flow
-        </span>
+        <div className="flex flex-col group-data-[collapsible=icon]:hidden">
+          <span className="font-headline font-bold text-lg text-white leading-tight">
+            Academia Flow
+          </span>
+          <span className="text-[9px] font-bold text-white/50 uppercase tracking-wider">RTU Kota</span>
+        </div>
       </SidebarHeader>
       <SidebarContent>
         {profileLoading ? (

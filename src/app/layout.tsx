@@ -1,3 +1,4 @@
+
 import type {Metadata} from 'next';
 import './globals.css';
 import {Toaster} from '@/components/ui/toaster';
@@ -5,8 +6,8 @@ import {FirebaseClientProvider} from '@/firebase/client-provider';
 import {SessionTimeout} from '@/components/SessionTimeout';
 
 export const metadata: Metadata = {
-  title: 'Academia Flow | Academic Management System',
-  description: 'Enterprise Academic Management System for Technical Universities',
+  title: 'RTU | Academia Flow - Academic Management System',
+  description: 'Official Academic Management System for Rajasthan Technical University, Kota',
 };
 
 export default function RootLayout({

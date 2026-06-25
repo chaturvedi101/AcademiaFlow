@@ -20,49 +20,55 @@ export const exportSyllabusToPDF = (
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
 
+  // RTU Logo Placement (Simulated with text branding if remote fetch is restricted in PDF context)
+  doc.setFontSize(16);
+  doc.setTextColor(0);
+  doc.setFont('helvetica', 'bold');
+  doc.text('RAJASTHAN TECHNICAL UNIVERSITY, KOTA', pageWidth / 2, 15, { align: 'center' });
+  
   // Header - Institution Title
   doc.setFontSize(18);
   doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
   doc.setFont('helvetica', 'bold');
-  doc.text('Academia Flow | Academic Management', pageWidth / 2, 15, { align: 'center' });
+  doc.text('Academia Flow | Syllabus Specification', pageWidth / 2, 25, { align: 'center' });
   
   // Scheme Info Header
   doc.setFontSize(10);
   doc.setTextColor(100);
   doc.setFont('helvetica', 'normal');
-  doc.text(`${programName} (${branch})`, pageWidth / 2, 22, { align: 'center' });
-  doc.text(`Batch: ${batchYear} | Version: Draft`, pageWidth / 2, 27, { align: 'center' });
+  doc.text(`${programName} (${branch})`, pageWidth / 2, 32, { align: 'center' });
+  doc.text(`Batch: ${batchYear} | RTU-NEP Framework Compliance`, pageWidth / 2, 37, { align: 'center' });
 
   // Subject Branding Strip
   doc.setFillColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
-  doc.rect(15, 32, pageWidth - 30, 10, 'F');
+  doc.rect(15, 42, pageWidth - 30, 10, 'F');
   doc.setTextColor(255);
   doc.setFontSize(11);
-  doc.text(`SUBJECT SYLLABUS: ${syllabus.subjectCode || 'CODE'} - ${syllabus.title?.toUpperCase() || 'TITLE'}`, 20, 38.5);
+  doc.text(`COURSE CODE: ${syllabus.subjectCode || 'CODE'} - ${syllabus.title?.toUpperCase() || 'TITLE'}`, 20, 48.5);
 
   // Basic Info Grid
   doc.setTextColor(0);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.text('Credit Distribution:', 15, 52);
+  doc.text('Credit Distribution:', 15, 62);
   doc.setFont('helvetica', 'normal');
-  doc.text(`L-T-P: ${syllabus.lectureCredits || 0}-${syllabus.tutorialCredits || 0}-${syllabus.practicalCredits || 0}`, 15, 57);
-  doc.text(`Total Credits: ${syllabus.credits || 0}`, 15, 62);
+  doc.text(`L-T-P: ${syllabus.lectureCredits || 0}-${syllabus.tutorialCredits || 0}-${syllabus.practicalCredits || 0}`, 15, 67);
+  doc.text(`Total Credits: ${syllabus.credits || 0}`, 15, 72);
   
   doc.setFont('helvetica', 'bold');
-  doc.text('Academic Details:', pageWidth / 2, 52);
+  doc.text('Academic Details:', pageWidth / 2, 62);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Category: ${syllabus.creditCategory || 'N/A'}`, pageWidth / 2, 57);
-  doc.text(`Semester: ${syllabus.semester || 'N/A'}`, pageWidth / 2, 62);
+  doc.text(`Category: ${syllabus.creditCategory || 'N/A'}`, pageWidth / 2, 67);
+  doc.text(`Semester: ${syllabus.semester || 'N/A'}`, pageWidth / 2, 72);
 
   doc.setDrawColor(230);
-  doc.line(15, 67, pageWidth - 15, 67);
+  doc.line(15, 77, pageWidth - 15, 77);
 
   // Units Section
   doc.setFontSize(13);
   doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
   doc.setFont('helvetica', 'bold');
-  doc.text('Course Content & Outcomes', 15, 75);
+  doc.text('Course Content & Outcomes', 15, 85);
 
   const unitRows = (syllabus.units || []).map((unit, idx) => [
     `Unit ${idx + 1}\n${unit.title || 'Untitled'}`,
@@ -71,7 +77,7 @@ export const exportSyllabusToPDF = (
   ]);
 
   autoTable(doc, {
-    startY: 80,
+    startY: 90,
     head: [['Unit & Title', 'Topics', 'Course Outcome (CO)']],
     body: unitRows,
     theme: 'grid',
@@ -148,29 +154,34 @@ export const exportFullSchemeToPDF = (
   const pageWidth = doc.internal.pageSize.getWidth();
 
   // Institution Title
-  doc.setFontSize(20);
+  doc.setFontSize(16);
+  doc.setTextColor(0);
+  doc.setFont('helvetica', 'bold');
+  doc.text('RAJASTHAN TECHNICAL UNIVERSITY, KOTA', pageWidth / 2, 15, { align: 'center' });
+
+  doc.setFontSize(18);
   doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
   doc.setFont('helvetica', 'bold');
-  doc.text('Academia Flow | Course Structure', pageWidth / 2, 20, { align: 'center' });
+  doc.text('Academia Flow | Course Structure', pageWidth / 2, 25, { align: 'center' });
 
   // Program & Branch Info
   doc.setFontSize(12);
   doc.setTextColor(50);
   doc.setFont('helvetica', 'bold');
-  doc.text(`${program.name?.toUpperCase()}`, pageWidth / 2, 30, { align: 'center' });
+  doc.text(`${program.name?.toUpperCase()}`, pageWidth / 2, 35, { align: 'center' });
   doc.setFont('helvetica', 'normal');
-  doc.text(`Branch: ${scheme.branch || 'General'} | Batch: ${scheme.batchYear}`, pageWidth / 2, 36, { align: 'center' });
-  doc.text(`Scheme Status: ${scheme.status} | Version: ${scheme.version}`, pageWidth / 2, 42, { align: 'center' });
+  doc.text(`Branch: ${scheme.branch || 'General'} | Batch: ${scheme.batchYear}`, pageWidth / 2, 41, { align: 'center' });
+  doc.text(`Scheme Status: ${scheme.status} | Version: ${scheme.version}`, pageWidth / 2, 47, { align: 'center' });
 
   doc.setDrawColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
   doc.setLineWidth(0.5);
-  doc.line(20, 48, pageWidth - 20, 48);
+  doc.line(20, 53, pageWidth - 20, 53);
 
   // Credit Summary Section
   doc.setFontSize(14);
   doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
   doc.setFont('helvetica', 'bold');
-  doc.text('NEP 2020 Credit Distribution Summary', 20, 58);
+  doc.text('RTU-NEP 2020 Credit Distribution Summary', 20, 63);
 
   const categories = ['DSC', 'DSE', 'OFE', 'CPF', 'VAC', 'AEC', 'SEC', 'MDC'];
   const distribution = categories.map(cat => {
@@ -182,7 +193,7 @@ export const exportFullSchemeToPDF = (
   distribution.push(['GRAND TOTAL', grandTotal]);
 
   autoTable(doc, {
-    startY: 63,
+    startY: 68,
     head: [['Category', 'Credits Acquired']],
     body: distribution,
     theme: 'striped',
@@ -255,6 +266,6 @@ function addFooter(doc: jsPDF) {
     doc.setDrawColor(200);
     doc.line(15, doc.internal.pageSize.getHeight() - 15, pageWidth - 15, doc.internal.pageSize.getHeight() - 15);
     doc.text(`Page ${i} of ${pageCount}`, pageWidth - 35, doc.internal.pageSize.getHeight() - 10);
-    doc.text(`Academia Flow Academic System | Official Document | ${new Date().toLocaleString()}`, 15, doc.internal.pageSize.getHeight() - 10);
+    doc.text(`Rajasthan Technical University | Academia Flow System | Official | ${new Date().toLocaleString()}`, 15, doc.internal.pageSize.getHeight() - 10);
   }
 }
