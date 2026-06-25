@@ -1,15 +1,15 @@
 
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useFirestore, useDoc, useCollection, useUser, useMemoFirebase } from "@/firebase";
-import { doc, collection, setDoc, deleteDoc, serverTimestamp, updateDoc, query, where } from "firebase/firestore";
+import { doc, collection, setDoc, deleteDoc, serverTimestamp, updateDoc, query, where, getDocs } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown, Globe, BookOpen } from "lucide-react";
+import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown, Globe, BookOpen, Layers, Info } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile } from "@/lib/types";
@@ -36,18 +36,58 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const programRef = useMemoFirebase(() => (scheme?.programId ? doc(db, 'programs', scheme.programId) : null), [db, scheme?.programId]);
   const { data: program } = useDoc<Program>(programRef);
 
+  // FETCH COMMON POOL SYLLABI
+  const [poolSyllabi, setPoolSyllabi] = useState<Syllabus[]>([]);
+  const [poolLoading, setPoolLoading] = useState(false);
+
+  useEffect(() => {
+    if (!scheme || scheme.isCommonPoolScheme) return;
+
+    const fetchPool = async () => {
+      setPoolLoading(true);
+      try {
+        const poolQuery = query(
+          collection(db, 'schemes'),
+          where('programId', '==', scheme.programId),
+          where('batchYear', '==', scheme.batchYear),
+          where('isCommonPoolScheme', '==', true)
+        );
+        const poolSnap = await getDocs(poolQuery);
+        const poolScheme = poolSnap.docs[0];
+
+        if (poolScheme) {
+          const poolSyllabiSnap = await getDocs(collection(db, 'schemes', poolScheme.id, 'syllabi'));
+          setPoolSyllabi(poolSyllabiSnap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus)));
+        }
+      } catch (err) {
+        console.error("Failed to fetch common pool:", err);
+      } finally {
+        setPoolLoading(false);
+      }
+    };
+
+    fetchPool();
+  }, [db, scheme]);
+
   const [isSyllabusDialogOpen, setIsSyllabusDialogOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Partial<Syllabus> | undefined>(undefined);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
   const syllabi = useMemo(() => {
     const uniqueMap = new Map<string, Syllabus>();
-    localSyllabi.forEach(s => {
+    
+    // Combine local and pool syllabi
+    const all = [...localSyllabi, ...poolSyllabi];
+    
+    all.forEach(s => {
       const key = s.isOFESlot ? `SLOT-${s.electiveGroupId}-${s.semester}` : s.subjectCode;
-      uniqueMap.set(key, s);
+      // If code collision, prioritize local version (allows branch override if permitted)
+      if (!uniqueMap.has(key) || s.schemeId === schemeId) {
+        uniqueMap.set(key, s);
+      }
     });
     return Array.from(uniqueMap.values()).sort((a, b) => (a.semester || 1) - (b.semester || 1));
-  }, [localSyllabi]);
+  }, [localSyllabi, poolSyllabi, schemeId]);
 
   const toggleGroup = (groupId: string) => {
     setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
@@ -73,6 +113,15 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     const canEditSyllabus = (s: Syllabus) => {
       if (isGlobalAdmin) return true;
+      
+      // Syllabi from common pool scheme are locked for branch users
+      if (s?.schemeId && s.schemeId !== schemeId) {
+        const poolSchemeId = poolSyllabi.length > 0 ? poolSyllabi[0].schemeId : null;
+        if (s.schemeId === poolSchemeId) {
+          return isCommonBOS || isGlobalAdmin;
+        }
+      }
+
       const isCommonCategory = ['VAC', 'AEC', 'MDC', 'SEC'].includes(s?.creditCategory || '');
       if (isCommonCategory || s?.isCommonCourse || scheme.isCommonPoolScheme || s?.creditCategory === 'OFE') {
         return isCommonBOS || isProgramDean;
@@ -81,7 +130,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     };
 
     return { canEditScheme, canEditSyllabus };
-  }, [profile, scheme, program]);
+  }, [profile, scheme, program, poolSyllabi, schemeId]);
 
   const creditDistribution = useMemo(() => {
     const dist = { DSC: 0, DSE: 0, OFE: 0, CPF: 0, VAC: 0, AEC: 0, SEC: 0, MDC: 0, PRJ: 0, total: 0 };
@@ -163,7 +212,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     deleteDoc(docRef);
   };
 
-  if (schemeLoading || syllabiLoading) {
+  if (schemeLoading || syllabiLoading || poolLoading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   }
 
@@ -209,6 +258,17 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             </TabsList>
 
             <TabsContent value="syllabi" className="mt-6 space-y-6">
+              {!scheme.isCommonPoolScheme && poolSyllabi.length > 0 && (
+                <Card className="bg-emerald-50 border-emerald-100 border-dashed">
+                  <CardContent className="p-4 flex items-center gap-3 text-xs text-emerald-800">
+                    <Layers className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <div className="flex-1">
+                      <span className="font-bold">Common Pool Active:</span> {poolSyllabi.length} institutional courses are currently synchronized from the University BOS.
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {Array.from({ length: program?.totalSemesters || 8 }, (_, i) => i + 1).map(sem => {
                 const semSyllabi = syllabi.filter(s => s.semester === sem && !s.isOFEContribution);
                 const groups: Record<string, Syllabus[]> = {};
@@ -251,7 +311,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                         </TableHeader>
                         <TableBody>
                           {nonGrouped.map(sub => (
-                            <SubjectRow key={sub.id} sub={sub} permissions={permissions} onEdit={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }} onDelete={() => handleDeleteSyllabus(sub.id)} />
+                            <SubjectRow key={sub.id} sub={sub} currentSchemeId={schemeId} permissions={permissions} onEdit={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }} onDelete={() => handleDeleteSyllabus(sub.id)} />
                           ))}
                           {Object.entries(groups).map(([groupId, members]) => {
                             const isExpanded = expandedGroups[groupId];
@@ -277,7 +337,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                                   </TableCell>
                                 </TableRow>
                                 {isExpanded && !isOfePool && members.map(sub => (
-                                  <SubjectRow key={sub.id} sub={sub} permissions={permissions} isOption onEdit={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }} onDelete={() => handleDeleteSyllabus(sub.id)} />
+                                  <SubjectRow key={sub.id} sub={sub} currentSchemeId={schemeId} permissions={permissions} isOption onEdit={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }} onDelete={() => handleDeleteSyllabus(sub.id)} />
                                 ))}
                               </React.Fragment>
                             );
@@ -359,20 +419,23 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   );
 }
 
-function SubjectRow({ sub, permissions, isOption, onEdit, onDelete }: any) {
+function SubjectRow({ sub, currentSchemeId, permissions, isOption, onEdit, onDelete }: any) {
   const canEdit = permissions.canEditSyllabus(sub);
   const isSlot = sub.isOFESlot;
+  const isFromPool = sub.schemeId !== currentSchemeId;
   
   return (
-    <TableRow className={`group transition-colors ${isOption ? 'bg-muted/30' : ''}`}>
-      <TableCell className={`font-mono text-xs font-bold ${isSlot ? 'text-blue-600' : 'text-primary'} ${isOption ? 'pl-10' : 'pl-6'}`}>
+    <TableRow className={`group transition-colors ${isOption ? 'bg-muted/30' : ''} ${isFromPool ? 'bg-emerald-50/20' : ''}`}>
+      <TableCell className={`font-mono text-xs font-bold ${isSlot ? 'text-blue-600' : isFromPool ? 'text-emerald-700' : 'text-primary'} ${isOption ? 'pl-10' : 'pl-6'}`}>
         {isSlot ? 'SLOT' : sub.subjectCode}
       </TableCell>
       <TableCell className="font-medium">
         <div className="flex flex-col">
           <span className="flex items-center gap-2">
             {isSlot && <Globe className="w-3 h-3 text-blue-500" />}
+            {isFromPool && <Layers className="w-3 h-3 text-emerald-500" />}
             {sub.title}
+            {isFromPool && <Badge variant="outline" className="text-[8px] bg-white border-emerald-200 text-emerald-600 font-bold ml-2">POOL</Badge>}
           </span>
           <span className="text-[10px] text-muted-foreground uppercase">{isSlot ? 'Institutional Pool Slot' : sub.type}</span>
         </div>
@@ -386,13 +449,20 @@ function SubjectRow({ sub, permissions, isOption, onEdit, onDelete }: any) {
               <FileDown className="w-3.5 h-3.5" />
             </Button>
           )}
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={onEdit}>
-            <Edit3 className="w-3.5 h-3.5" />
-          </Button>
-          {permissions.canEditScheme && (
+          {canEdit && (
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={onEdit}>
+              <Edit3 className="w-3.5 h-3.5" />
+            </Button>
+          )}
+          {permissions.canEditScheme && !isFromPool && (
             <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={onDelete}>
               <Trash2 className="w-3.5 h-3.5" />
             </Button>
+          )}
+          {isFromPool && (
+            <div className="flex items-center px-2 text-[10px] text-muted-foreground italic">
+              View Only
+            </div>
           )}
         </div>
       </TableCell>
