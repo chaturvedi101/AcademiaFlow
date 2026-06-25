@@ -1,14 +1,15 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
 import { useFirestore, useDoc, useCollection, useUser, useMemoFirebase } from "@/firebase";
-import { doc, collection, setDoc, deleteDoc, serverTimestamp, updateDoc, query, where, getDocs } from "firebase/firestore";
+import { doc, collection, setDoc, deleteDoc, serverTimestamp, updateDoc, query, where, getDocs, writeBatch } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown, Globe, BookOpen, Layers, Info } from "lucide-react";
+import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown, Globe, BookOpen, Layers, Info, RefreshCw } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile } from "@/lib/types";
@@ -38,6 +39,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   // FETCH COMMON POOL SYLLABI
   const [poolSyllabi, setPoolSyllabi] = useState<Syllabus[]>([]);
   const [poolLoading, setPoolLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
     if (!scheme || scheme.isCommonPoolScheme) return;
@@ -211,6 +213,75 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     deleteDoc(docRef);
   };
 
+  const handleBulkSyncPool = async () => {
+    if (!scheme || scheme.isCommonPoolScheme || !permissions.canEditScheme) return;
+    
+    setIsSyncing(true);
+    try {
+      const poolQuery = query(
+        collection(db, 'schemes'),
+        where('batchYear', '==', scheme.batchYear),
+        where('isCommonPoolScheme', '==', true)
+      );
+      const poolSnap = await getDocs(poolQuery);
+      if (poolSnap.empty) {
+        toast({ title: "Sync Failed", description: "No Common Pool scheme found for this batch.", variant: "destructive" });
+        return;
+      }
+      
+      const poolSchemeId = poolSnap.docs[0].id;
+      const poolSyllabiSnap = await getDocs(collection(db, 'schemes', poolSchemeId, 'syllabi'));
+      const poolCourses = poolSyllabiSnap.docs.map(d => d.data() as Syllabus);
+
+      const batch = writeBatch(db);
+      let syncCount = 0;
+
+      for (const localSub of localSyllabi) {
+        const isInst = ['VAC', 'AEC', 'MDC', 'SEC', 'OFE'].includes(localSub.creditCategory);
+        if (!isInst) continue;
+
+        // Try to find a matching course in the pool
+        // 1. Match by code if exists
+        // 2. Match by category and semester for slots
+        let match = poolCourses.find(p => p.subjectCode === localSub.subjectCode && p.subjectCode !== '');
+        
+        if (!match && (localSub.isSlot || localSub.isOFESlot)) {
+           const categoryCourses = poolCourses.filter(p => p.creditCategory === localSub.creditCategory && !p.isSlot);
+           // Simple heuristic: match the first approved course of that category in the same semester
+           match = categoryCourses.find(p => p.semester === localSub.semester) || categoryCourses[0];
+        }
+
+        if (match) {
+          const docRef = doc(db, 'schemes', schemeId, 'syllabi', localSub.id);
+          const update = {
+            ...match,
+            id: localSub.id,
+            schemeId: schemeId,
+            semester: localSub.semester,
+            isSlot: false,
+            isOFESlot: false,
+            updatedAt: serverTimestamp()
+          };
+          batch.update(docRef, update);
+          syncCount++;
+        }
+      }
+
+      if (syncCount > 0) {
+        await batch.commit();
+        toast({ title: "Sync Complete", description: `Updated ${syncCount} institutional courses from the common pool.` });
+      } else {
+        toast({ title: "Sync Complete", description: "No updates found for institutional slots." });
+      }
+
+    } catch (err) {
+      console.error("Bulk sync failed:", err);
+      toast({ title: "Error", description: "Failed to synchronize pool.", variant: "destructive" });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   if (profileLoading || schemeLoading || syllabiLoading || poolLoading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   }
@@ -236,7 +307,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             <Badge variant="secondary" className="bg-amber-100 text-amber-700">{scheme.status}</Badge>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {!scheme.isCommonPoolScheme && permissions.canEditScheme && (
+            <Button variant="outline" className="gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50" onClick={handleBulkSyncPool} disabled={isSyncing}>
+              {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              Sync Institutional Pool
+            </Button>
+          )}
           <Button variant="outline" className="gap-2 border-primary/20 text-primary" onClick={() => exportFullSchemeToPDF(scheme, program!, syllabi)}>
             <FileText className="w-4 h-4" /> Download Structure
           </Button>
