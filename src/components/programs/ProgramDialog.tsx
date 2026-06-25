@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -172,7 +171,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
     const newSlot: ProgramSlotTemplate = {
       id: Math.random().toString(36).substr(2, 9),
       semester,
-      category: 'VAC',
+      creditCategory: 'VAC',
       credits: 2,
       subjectCode: '',
       title: ''
@@ -458,8 +457,8 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                           {slots.map(slot => (
                             <div key={slot.id} className="grid grid-cols-12 gap-3 items-end border-b pb-4 last:border-0 last:pb-0">
                               <div className="col-span-3 space-y-1">
-                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Category</Label>
-                                <Select disabled={isReadOnly} value={slot.category} onValueChange={(v: CreditCategory) => updateTemplateSlot(slot.id, { category: v })}>
+                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Credit Category</Label>
+                                <Select disabled={isReadOnly} value={slot.creditCategory} onValueChange={(v: CreditCategory) => updateTemplateSlot(slot.id, { creditCategory: v })}>
                                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="VAC">VAC</SelectItem>

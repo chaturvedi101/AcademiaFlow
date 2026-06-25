@@ -1,4 +1,3 @@
-
 export type UserRole = 'bos_convenor' | 'bos_member' | 'dean_faculty' | 'dean_academic' | 'admin';
 
 export const FACULTIES = [
@@ -61,7 +60,7 @@ export interface CreditRules {
 export interface ProgramSlotTemplate {
   id: string;
   semester: number;
-  category: CreditCategory;
+  creditCategory: CreditCategory;
   credits: number;
   subjectCode?: string;
   title?: string;

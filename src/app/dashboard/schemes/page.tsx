@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -112,7 +111,12 @@ export default function SchemesPage() {
     if (selectedProgram && step === 2) {
       const template = selectedProgram.slotTemplate || [];
       const inheritedSlots: SlotConfig[] = template.map(t => ({
-        ...t,
+        id: t.id,
+        semester: t.semester,
+        category: t.creditCategory, // Map creditCategory into layout config
+        credits: t.credits,
+        subjectCode: t.subjectCode || '',
+        title: t.title || '',
         isInherited: true
       }));
       setSemesterSlots(inheritedSlots);
@@ -209,11 +213,11 @@ export default function SchemesPage() {
         const slotData: any = {
           id: slotId,
           schemeId: generatedCode,
-          subjectCode: slot.subjectCode || '', // Use inherited code if available
+          subjectCode: slot.subjectCode || '', 
           semester: slot.semester,
           creditCategory: slot.category,
           credits: slot.credits,
-          title: slot.title || `${slot.category} Slot`, // Use inherited title if available
+          title: slot.title || `${slot.category} Slot`, 
           isSlot: true,
           isOFESlot: slot.category === 'OFE',
           type: 'Theory',
