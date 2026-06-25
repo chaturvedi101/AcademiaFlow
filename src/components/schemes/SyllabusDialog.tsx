@@ -124,9 +124,7 @@ export function SyllabusDialog({
     const isElective = formData.creditCategory === 'DSE' || formData.creditCategory === 'OFE';
     const categoryIndicator = isElective ? 'E' : 'C';
     
-    // Year Digit: 1 for Sems 1-2, 2 for 3-4, etc.
     const yearDigit = Math.ceil((formData.semester || 1) / 2);
-
     const baseCode = `${branchPrefix}${typeIndicator}${categoryIndicator}${yearDigit}`;
     
     let sequence = 1;
@@ -216,12 +214,6 @@ export function SyllabusDialog({
     return () => clearTimeout(timer);
   }, [formData.subjectCode, open, db, currentSchemeId, syllabus?.subjectCode, formData.isOFESlot]);
 
-  const isProjectValid = useMemo(() => {
-    if (formData.creditCategory !== 'PRJ' || !programRules) return true;
-    const { projectMin = 16, projectMax = 32 } = programRules;
-    return (formData.credits || 0) >= projectMin && (formData.credits || 0) <= projectMax;
-  }, [formData.creditCategory, formData.credits, programRules]);
-
   const handleSave = () => {
     if (formData.electiveGroupId) {
       const groupMembers = existingSyllabi.filter(s => s.electiveGroupId === formData.electiveGroupId && (s.id !== formData.id && s.subjectCode !== formData.subjectCode));
@@ -236,15 +228,6 @@ export function SyllabusDialog({
           return;
         }
       }
-    }
-
-    if (!isProjectValid) {
-      toast({
-        title: "Compliance Error",
-        description: `Project credits must be between ${programRules?.projectMin} and ${programRules?.projectMax}.`,
-        variant: "destructive"
-      });
-      return;
     }
 
     onSave(formData);
@@ -281,13 +264,6 @@ export function SyllabusDialog({
                     <Link2 className="w-3.5 h-3.5 mr-2" /> Link Existing Content
                   </Button>
                 </div>
-              </div>
-            )}
-
-            {formData.creditCategory === 'PRJ' && !isProjectValid && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 text-red-800 text-xs animate-in zoom-in-95">
-                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-                <p>Project credits ({formData.credits}) are outside the allowed range of <strong>{programRules?.projectMin} to {programRules?.projectMax}</strong> for this program.</p>
               </div>
             )}
 

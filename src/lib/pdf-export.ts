@@ -20,7 +20,7 @@ export const exportSyllabusToPDF = (
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  // RTU Logo Placement (Simulated with text branding if remote fetch is restricted in PDF context)
+  // RTU Logo Placement
   doc.setFontSize(16);
   doc.setTextColor(0);
   doc.setFont('helvetica', 'bold');
@@ -183,7 +183,7 @@ export const exportFullSchemeToPDF = (
   doc.setFont('helvetica', 'bold');
   doc.text('RTU-NEP 2020 Credit Distribution Summary', 20, 63);
 
-  const categories = ['DSC', 'DSE', 'OFE', 'CPF', 'VAC', 'AEC', 'SEC', 'MDC'];
+  const categories = ['DSC', 'DSE', 'OFE', 'CPF', 'VAC', 'AEC', 'SEC', 'MDC', 'PRJ'];
   const distribution = categories.map(cat => {
     const total = syllabi.filter(s => s.creditCategory === cat).reduce((acc, curr) => acc + (curr.credits || 0), 0);
     return [cat, total];

@@ -43,7 +43,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const syllabi = useMemo(() => {
     const uniqueMap = new Map<string, Syllabus>();
     localSyllabi.forEach(s => {
-      // Use composite key to avoid conflicts between slots and courses
       const key = s.isOFESlot ? `SLOT-${s.electiveGroupId}-${s.semester}` : s.subjectCode;
       uniqueMap.set(key, s);
     });
@@ -76,7 +75,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       if (isGlobalAdmin) return true;
       const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(s?.creditCategory || '');
       if (isCommonCategory || s?.isCommonCourse || scheme.isCommonPoolScheme || s?.creditCategory === 'OFE') {
-        // Only Common BOS or Respective Dean can edit common pool courses
         return isCommonBOS || isProgramDean;
       }
       return canEditScheme;
@@ -91,9 +89,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     syllabi.forEach(sub => {
       const cat = sub.creditCategory as keyof typeof dist;
-      
-      // Contributed OFE courses don't count towards the current branch's credit total
-      // unless they are explicitly placed in a slot.
       if (sub.isOFEContribution) return;
 
       if (sub.electiveGroupId) {
@@ -112,9 +107,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
   const isSchemeValid = useMemo(() => {
     if (!program?.rules) return false;
-    const { DSC, total } = creditDistribution;
-    const { dscMin, dscMax, totalRequired } = program.rules;
-    return DSC >= dscMin && DSC <= dscMax && total === totalRequired;
+    const { DSC, total, PRJ } = creditDistribution;
+    const { dscMin, dscMax, totalRequired, projectMin = 16, projectMax = 32 } = program.rules;
+    return DSC >= dscMin && DSC <= dscMax && total === totalRequired && PRJ >= projectMin && PRJ <= projectMax;
   }, [creditDistribution, program?.rules]);
 
   const handleUpdateScheme = (updates: Partial<Scheme>) => {
