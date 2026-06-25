@@ -1,10 +1,10 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, setDoc, doc, serverTimestamp, query, orderBy, getDoc, writeBatch } from 'firebase/firestore';
-import { Scheme, Program, UserProfile, CreditCategory, Syllabus } from '@/lib/types';
+import { Scheme, Program, UserProfile, CreditCategory, Syllabus, ProgramSlotTemplate } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +25,7 @@ interface SlotConfig {
   semester: number;
   category: CreditCategory;
   credits: number;
+  isInherited?: boolean;
 }
 
 export default function SchemesPage() {
@@ -104,12 +105,25 @@ export default function SchemesPage() {
 
   const selectedProgram = programs.find(p => p.id === newScheme.programId);
 
+  // Inherit slots from Program template when program is selected
+  useEffect(() => {
+    if (selectedProgram && step === 2) {
+      const template = selectedProgram.slotTemplate || [];
+      const inheritedSlots: SlotConfig[] = template.map(t => ({
+        ...t,
+        isInherited: true
+      }));
+      setSemesterSlots(inheritedSlots);
+    }
+  }, [selectedProgram, step]);
+
   const handleAddSlot = (semester: number) => {
     const newSlot: SlotConfig = {
       id: Math.random().toString(36).substr(2, 9),
       semester,
       category: isCommonBos ? 'VAC' : 'DSE',
-      credits: 4
+      credits: 4,
+      isInherited: false
     };
     setSemesterSlots([...semesterSlots, newSlot]);
   };
@@ -243,7 +257,7 @@ export default function SchemesPage() {
           </p>
         </div>
         {canCreateScheme && (
-          <Button onClick={() => { setStep(1); setIsDialogOpen(true); setSemesterSlots([]); }} className="gap-2 shadow-lg">
+          <Button onClick={() => { setStep(1); setIsDialogOpen(true); setNewScheme({programId: '', branch: '', batchYear: '', version: 'v1.0'}); setSemesterSlots([]); }} className="gap-2 shadow-lg">
             <Plus className="w-4 h-4" /> {isCommonBos ? 'Define Common Pool' : 'New Scheme'}
           </Button>
         )}
@@ -305,7 +319,7 @@ export default function SchemesPage() {
             <DialogDescription>
               {step === 1 
                 ? 'Step 1: Define academic identity and scope.' 
-                : 'Step 2: Lock elective and institutional slots for each semester.'}
+                : 'Step 2: Inherit standard slots and add branch-specific electives.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -348,21 +362,30 @@ export default function SchemesPage() {
             </div>
           ) : (
             <div className="py-4 space-y-6">
+              {selectedProgram?.slotTemplate && selectedProgram.slotTemplate.length > 0 && (
+                <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-lg flex items-center gap-3 text-xs text-emerald-800">
+                  <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-600" />
+                  <p>Inherited {selectedProgram.slotTemplate.length} standard institutional slots from the Program Master Template.</p>
+                </div>
+              )}
+              
               <ScrollArea className="h-[400px] pr-4">
                 {Array.from({ length: selectedProgram?.totalSemesters || 8 }, (_, i) => i + 1).map(sem => (
                   <div key={sem} className="mb-6 border rounded-xl p-4 bg-muted/20">
                     <div className="flex items-center justify-between mb-4">
                       <h4 className="font-headline font-bold text-sm">Semester {sem}</h4>
                       <Button variant="outline" size="sm" onClick={() => handleAddSlot(sem)} className="h-8 gap-2">
-                        <Plus className="w-3.5 h-3.5" /> Add Slot
+                        <Plus className="w-3.5 h-3.5" /> Add Branch Slot
                       </Button>
                     </div>
                     <div className="space-y-3">
                       {semesterSlots.filter(s => s.semester === sem).map(slot => (
                         <div key={slot.id} className="grid grid-cols-12 gap-3 items-end animate-in fade-in slide-in-from-top-1">
                           <div className="col-span-5 space-y-1">
-                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Category</Label>
-                            <Select value={slot.category} onValueChange={(v: CreditCategory) => updateSlot(slot.id, { category: v })}>
+                            <Label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
+                              Category {slot.isInherited && <Badge className="text-[8px] h-3 px-1 bg-emerald-100 text-emerald-700 border-none">Standard</Badge>}
+                            </Label>
+                            <Select disabled={slot.isInherited} value={slot.category} onValueChange={(v: CreditCategory) => updateSlot(slot.id, { category: v })}>
                               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 {slotCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
@@ -371,12 +394,14 @@ export default function SchemesPage() {
                           </div>
                           <div className="col-span-4 space-y-1">
                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">Credits</Label>
-                            <Input type="number" value={slot.credits} onChange={e => updateSlot(slot.id, { credits: Number(e.target.value) })} className="h-9" />
+                            <Input disabled={slot.isInherited} type="number" value={slot.credits} onChange={e => updateSlot(slot.id, { credits: Number(e.target.value) })} className="h-9" />
                           </div>
                           <div className="col-span-3 pb-0.5">
-                            <Button variant="ghost" size="icon" className="h-9 w-9 text-red-400" onClick={() => removeSlot(slot.id)}>
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            {!slot.isInherited && (
+                              <Button variant="ghost" size="icon" className="h-9 w-9 text-red-400" onClick={() => removeSlot(slot.id)}>
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -389,7 +414,7 @@ export default function SchemesPage() {
               </ScrollArea>
               <div className="p-3 bg-primary/5 rounded-lg border border-primary/10 flex items-center gap-3 text-xs text-primary">
                 <Info className="w-4 h-4 shrink-0" />
-                <p>Locked slots ensure credit compliance. You can add actual courses to these slots later.</p>
+                <p>Inherited institutional slots ensure compliance. You can now add branch-specific DSE or Project slots.</p>
               </div>
             </div>
           )}

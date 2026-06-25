@@ -58,6 +58,13 @@ export interface CreditRules {
   mdcTotal: number;
 }
 
+export interface ProgramSlotTemplate {
+  id: string;
+  semester: number;
+  category: CreditCategory;
+  credits: number;
+}
+
 export interface Program {
   id: string;
   name: string;
@@ -70,6 +77,7 @@ export interface Program {
   branches: string[];
   branchPrefixes?: Record<string, string>;
   rules: CreditRules;
+  slotTemplate?: ProgramSlotTemplate[]; // Master slots inherited by all schemes
   createdAt: any;
   updatedAt: any;
 }
