@@ -116,7 +116,8 @@ export default function SchemesPage() {
       const inheritedSlots: SlotConfig[] = template.map(t => ({
         id: t.id,
         semester: t.semester,
-        creditCategory: t.creditCategory,
+        // Fallback for older 'category' field or correctly mapped 'creditCategory'
+        creditCategory: t.creditCategory || (t as any).category || 'DSC',
         credits: t.credits,
         subjectCode: t.subjectCode || '',
         title: t.title || '',

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -14,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { BookOpen, Globe, Link2, Loader2, Plus, ShieldAlert, Trash2, Hash, Info, GraduationCap, ClipboardCheck, Search, Layers } from "lucide-react";
-import { Syllabus, CorrelationLevel as CorrelationLevelType, CreditRules, SubjectType } from "@/lib/types";
+import { Syllabus, CorrelationLevel as CorrelationLevelType, CreditRules, SubjectType, CreditCategory } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { collection, query, where, getDocs, doc } from "firebase/firestore";
@@ -412,7 +413,11 @@ export function SyllabusDialog({
                         )}
                         <SelectItem value="SEC">SEC (Skill Enhancement)</SelectItem>
                         <SelectItem value="OFE">OFE (Open Elective Slot)</SelectItem>
-                        {isCommonStaff && (
+                        {/* 
+                          Relaxed restriction: Always show these categories if the course is already one of them, 
+                          even for branch BOS. This prevents the value from becoming blank in the UI.
+                        */}
+                        {(isCommonStaff || (formData.creditCategory && ['VAC', 'AEC', 'MDC'].includes(formData.creditCategory))) && (
                           <>
                             <SelectItem value="VAC">VAC (Value Added)</SelectItem>
                             <SelectItem value="AEC">AEC (Ability Enhancement)</SelectItem>
