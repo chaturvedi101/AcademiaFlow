@@ -22,7 +22,7 @@ import Link from 'next/link';
 interface SlotConfig {
   id: string;
   semester: number;
-  category: CreditCategory;
+  creditCategory: CreditCategory;
   credits: number;
   isInherited?: boolean;
   subjectCode?: string;
@@ -113,7 +113,7 @@ export default function SchemesPage() {
       const inheritedSlots: SlotConfig[] = template.map(t => ({
         id: t.id,
         semester: t.semester,
-        category: t.creditCategory, // Map creditCategory into layout config
+        creditCategory: t.creditCategory,
         credits: t.credits,
         subjectCode: t.subjectCode || '',
         title: t.title || '',
@@ -127,7 +127,7 @@ export default function SchemesPage() {
     const newSlot: SlotConfig = {
       id: Math.random().toString(36).substr(2, 9),
       semester,
-      category: isCommonBos ? 'VAC' : 'DSE',
+      creditCategory: isCommonBos ? 'VAC' : 'DSE',
       credits: 4,
       isInherited: false,
       subjectCode: '',
@@ -204,22 +204,21 @@ export default function SchemesPage() {
       // Create Slots
       const batch = writeBatch(db);
       semesterSlots.forEach(slot => {
-        const slotId = `SLOT-${slot.category}-${slot.semester}-${slot.id}`;
+        const slotId = `SLOT-${slot.creditCategory}-${slot.semester}-${slot.id}`;
         const slotRef = doc(db, 'schemes', generatedCode, 'syllabi', slotId);
         
-        const isElective = slot.category === 'DSE' || slot.category === 'OFE';
+        const isElective = slot.creditCategory === 'DSE' || slot.creditCategory === 'OFE';
 
-        // Initialize object with mandatory fields
         const slotData: any = {
           id: slotId,
           schemeId: generatedCode,
           subjectCode: slot.subjectCode || '', 
           semester: slot.semester,
-          creditCategory: slot.category,
+          creditCategory: slot.creditCategory,
           credits: slot.credits,
-          title: slot.title || `${slot.category} Slot`, 
+          title: slot.title || `${slot.creditCategory} Slot`, 
           isSlot: true,
-          isOFESlot: slot.category === 'OFE',
+          isOFESlot: slot.creditCategory === 'OFE',
           type: 'Theory',
           lectureCredits: slot.credits,
           tutorialCredits: 0,
@@ -262,9 +261,8 @@ export default function SchemesPage() {
 
   const canCreateScheme = profile?.role === 'admin' || profile?.role === 'dean_faculty' || (profile?.role === 'bos_convenor' && isCommonBos);
 
-  const slotCategories: CreditCategory[] = isCommonBos 
-    ? ['VAC', 'AEC', 'MDC', 'SEC', 'OFE'] 
-    : ['DSE', 'PRJ', 'SEC', 'OFE', 'DSC'];
+  // Full list of categories to ensure inherited slots are visible in UI
+  const ALL_CATEGORIES: CreditCategory[] = ['DSC', 'DSE', 'OFE', 'CPF', 'VAC', 'AEC', 'SEC', 'MDC', 'PRJ'];
 
   return (
     <div className="space-y-6">
@@ -406,10 +404,10 @@ export default function SchemesPage() {
                             <Label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
                               Category {slot.isInherited && <Badge className="text-[8px] h-3 px-1 bg-emerald-100 text-emerald-700 border-none">Standard</Badge>}
                             </Label>
-                            <Select disabled={slot.isInherited} value={slot.category} onValueChange={(v: CreditCategory) => updateSlot(slot.id, { category: v })}>
+                            <Select disabled={slot.isInherited} value={slot.creditCategory} onValueChange={(v: CreditCategory) => updateSlot(slot.id, { creditCategory: v })}>
                               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                {slotCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
+                                {ALL_CATEGORIES.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
                               </SelectContent>
                             </Select>
                           </div>
