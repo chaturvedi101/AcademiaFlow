@@ -122,7 +122,7 @@ export function SyllabusDialog({
       }
     }
 
-    const typeIndicator = (formData.type === 'Theory') ? 'L' : (formData.type === 'Lab/Sessional' ? 'P' : 'S');
+    const typeIndicator = (formData.type === 'Theory') ? 'L' : 'P';
     const isElective = formData.creditCategory === 'DSE' || formData.creditCategory === 'OFE';
     const categoryIndicator = isElective ? 'E' : 'C';
     
@@ -227,7 +227,8 @@ export function SyllabusDialog({
         ...formData,
         type: newType,
         practicalCredits: 0, 
-        lectureCredits: (formData.lectureCredits && formData.lectureCredits > 0) ? formData.lectureCredits : 1
+        lectureCredits: (formData.lectureCredits && formData.lectureCredits > 0) ? formData.lectureCredits : 1,
+        tutorialCredits: formData.tutorialCredits || 0
       });
     } else {
       setFormData({
@@ -402,8 +403,6 @@ export function SyllabusDialog({
                       <SelectContent>
                         <SelectItem value="Theory">Theory (L &gt; 0, P = 0)</SelectItem>
                         <SelectItem value="Lab/Sessional">Lab/Sessional (P &gt; 0, L=0, T=0)</SelectItem>
-                        <SelectItem value="Project/Internship">Project/Internship (P &gt; 0, L=0, T=0)</SelectItem>
-                        <SelectItem value="Non Graded">Non Graded (P &gt; 0, L=0, T=0)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -483,10 +482,10 @@ export function SyllabusDialog({
                         <p><strong>Theory:</strong> Evaluated through End-Term University Exam (ETE) and Continuous Internal Evaluation (CIE).</p>
                      </div>
                    )}
-                   {(formData.type === 'Lab/Sessional' || formData.type === 'Project/Internship') && (
+                   {formData.type === 'Lab/Sessional' && (
                      <div className="flex items-start gap-3 text-[11px] text-amber-800 leading-relaxed animate-in slide-in-from-left-2">
                         <GraduationCap className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
-                        <p><strong>{formData.type}:</strong> Primarily focused on internal assessment, reports, and final viva-voce.</p>
+                        <p><strong>Lab/Sessional:</strong> Primarily focused on internal assessment, reports, and final viva-voce.</p>
                      </div>
                    )}
                 </div>
