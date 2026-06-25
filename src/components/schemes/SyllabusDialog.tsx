@@ -188,7 +188,6 @@ export function SyllabusDialog({
     const t = Number(formData.tutorialCredits) || 0;
     const p = Number(formData.practicalCredits) || 0;
     
-    // In Sessional/Skill courses, credits often follow a direct mapping if not L-T-P
     setFormData(prev => ({ ...prev, credits: l + t + (p * 0.5) }));
   }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits, formData.type]);
 
@@ -253,6 +252,16 @@ export function SyllabusDialog({
 
   const isReadOnly = !canEdit;
 
+  // Helper to determine if a category is "Restricted" for the current user but should be shown as the current value
+  const isCategoryRestricted = (cat: string) => {
+    const isInstitutional = ['VAC', 'AEC', 'MDC'].includes(cat);
+    const isCore = ['DSC', 'DSE', 'PRJ'].includes(cat);
+    
+    if (isGlobalAdmin) return false;
+    if (isStrictlyCommonBOS) return isCore;
+    return isInstitutional;
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl h-[95vh] flex flex-col p-0 overflow-hidden border-none shadow-2xl">
@@ -316,6 +325,10 @@ export function SyllabusDialog({
                             <SelectItem value="AEC">AEC (Ability Enhancement)</SelectItem>
                             <SelectItem value="MDC">MDC (Multi Disciplinary)</SelectItem>
                           </>
+                        )}
+                        {/* Fallback for illegal values so the user can see them and change away from them */}
+                        {formData.creditCategory && isCategoryRestricted(formData.creditCategory) && (
+                          <SelectItem value={formData.creditCategory}>{formData.creditCategory} (Institutional)</SelectItem>
                         )}
                       </SelectContent>
                     </Select>
@@ -440,15 +453,8 @@ export function SyllabusDialog({
                     <GraduationCap className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
                     <div className="space-y-1">
                       <p className="font-bold">Sessional Guidance</p>
-                      <p>Sessional subjects are evaluated entirely via **Continuous Internal Evaluation (CIE)**. No End-Term Exam is conducted. This type is ideal for Seminars, Mini-Projects, and Training reports.</p>
+                      <p>Sessional subjects are evaluated entirely via **Continuous Internal Evaluation (CIE)**. No End-Term Exam is conducted.</p>
                     </div>
-                  </div>
-                )}
-
-                {formData.isOFESlot && (
-                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-3 text-blue-800 text-xs">
-                    <Info className="w-4 h-4 mt-0.5 shrink-0" />
-                    <p>You are defining an **Open Elective Slot**. This branch will reserve these credits in the scheme, but the content will be provided by other departments via the University Pool.</p>
                   </div>
                 )}
               </TabsContent>
@@ -495,11 +501,6 @@ export function SyllabusDialog({
                        </CardContent>
                      </Card>
                    ))}
-                   {(!formData.units || formData.units.length === 0) && (
-                     <div className="text-center py-12 border-2 border-dashed rounded-xl bg-muted/20">
-                       <p className="text-sm text-muted-foreground">No units defined. Click "Add Unit" to begin building the syllabus.</p>
-                     </div>
-                   )}
                  </div>
               </TabsContent>
 

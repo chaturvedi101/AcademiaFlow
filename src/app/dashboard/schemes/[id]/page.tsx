@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
@@ -104,7 +105,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     } else if (scheme.isCommonPoolScheme && isCommonBOS) {
       canEditScheme = true;
     } else if (!scheme.isCommonPoolScheme) {
-      // Branch BOS can edit their own scheme
+      // Branch BOS / Members can edit their own scheme
       canEditScheme = profile.managedBranches?.some(
         m => m.programId === scheme.programId && m.branch === scheme.branch
       ) || false;
@@ -113,21 +114,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const canEditSyllabus = (s: Partial<Syllabus>) => {
       if (isGlobalAdmin) return true;
       
-      // Cannot edit courses that belong to a different scheme (e.g. synced pool courses)
+      // Ownership check: Synced courses from other schemes are always read-only
       if (s?.schemeId && s.schemeId !== schemeId) return false;
       
-      const category = s?.creditCategory || '';
-      const isStrictlyInstitutional = ['VAC', 'AEC', 'MDC'].includes(category);
-      const isSharedSEC = category === 'SEC';
-
-      if (isCommonBOS) {
-        // Common BOS can edit institutional categories and OFE slots within their pool schemes
-        if (!category) return canEditScheme;
-        return isStrictlyInstitutional || isSharedSEC || category === 'OFE';
-      }
-      
-      // Branch BOS cannot edit strictly institutional categories (VAC/AEC/MDC)
-      if (isStrictlyInstitutional) return false;
+      // If the course belongs to the current scheme, check if the user has edit rights for this scheme
       return canEditScheme;
     };
 
@@ -212,7 +202,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       .then(() => toast({ title: "Course Synchronized", description: `${code} registered.` }))
       .catch(err => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: code ? `schemes/${schemeId}/syllabi/${code}` : `schemes/${schemeId}/syllabi`,
+          path: docRef.path,
           operation: 'write',
           requestResourceData: finalData
         }));
