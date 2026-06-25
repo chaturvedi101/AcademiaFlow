@@ -1,3 +1,4 @@
+
 export type UserRole = 'bos_convenor' | 'bos_member' | 'dean_faculty' | 'dean_academic' | 'admin';
 
 export const FACULTIES = [

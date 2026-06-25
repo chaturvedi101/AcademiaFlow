@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -28,6 +29,8 @@ interface SlotConfig {
   subjectCode?: string;
   title?: string;
 }
+
+const ALL_CATEGORIES: CreditCategory[] = ['DSC', 'DSE', 'OFE', 'CPF', 'VAC', 'AEC', 'SEC', 'MDC', 'PRJ'];
 
 export default function SchemesPage() {
   const db = useFirestore();
@@ -106,7 +109,7 @@ export default function SchemesPage() {
 
   const selectedProgram = programs.find(p => p.id === newScheme.programId);
 
-  // Inherit slots from Program template when program is selected
+  // Inherit slots from Program template when program is selected or wizard advanced
   useEffect(() => {
     if (selectedProgram && step === 2) {
       const template = selectedProgram.slotTemplate || [];
@@ -201,7 +204,6 @@ export default function SchemesPage() {
 
       await setDoc(schemeDocRef, schemeData);
 
-      // Create Slots
       const batch = writeBatch(db);
       semesterSlots.forEach(slot => {
         const slotId = `SLOT-${slot.creditCategory}-${slot.semester}-${slot.id}`;
@@ -240,12 +242,12 @@ export default function SchemesPage() {
 
       await batch.commit();
 
-      toast({ title: "Success", description: "Scheme and slots initialized successfully." });
+      toast({ title: "Success", description: "Scheme and institutional slots initialized." });
       setIsDialogOpen(false);
       router.push(`/dashboard/schemes/${generatedCode}`);
     } catch (error) {
       console.error("Error creating scheme:", error);
-      toast({ title: "Error", description: "Failed to initialize scheme.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to initialize scheme architecture.", variant: "destructive" });
     } finally {
       setIsCreating(false);
     }
@@ -260,9 +262,6 @@ export default function SchemesPage() {
   }
 
   const canCreateScheme = profile?.role === 'admin' || profile?.role === 'dean_faculty' || (profile?.role === 'bos_convenor' && isCommonBos);
-
-  // Full list of categories to ensure inherited slots are visible in UI
-  const ALL_CATEGORIES: CreditCategory[] = ['DSC', 'DSE', 'OFE', 'CPF', 'VAC', 'AEC', 'SEC', 'MDC', 'PRJ'];
 
   return (
     <div className="space-y-6">
@@ -432,38 +431,26 @@ export default function SchemesPage() {
                           </div>
                         </div>
                       ))}
-                      {semesterSlots.filter(s => s.semester === sem).length === 0 && (
-                        <p className="text-[10px] text-muted-foreground italic text-center py-2">No elective slots defined for this semester.</p>
-                      )}
                     </div>
                   </div>
                 ))}
               </ScrollArea>
-              <div className="p-3 bg-primary/5 rounded-lg border border-primary/10 flex items-center gap-3 text-xs text-primary">
-                <Info className="w-4 h-4 shrink-0" />
-                <p>Inherited institutional slots ensure compliance. You can now add branch-specific DSE or Project slots.</p>
-              </div>
             </div>
           )}
 
           <DialogFooter>
             {step === 1 ? (
-              <>
-                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-                <Button onClick={() => setStep(2)} disabled={!newScheme.programId || !newScheme.batchYear}>
-                  Configure Slots <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </>
+              <Button onClick={() => setStep(2)} disabled={!newScheme.programId || !newScheme.batchYear}>
+                Configure Slots <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
             ) : (
-              <>
-                <Button variant="ghost" onClick={() => setStep(1)} className="gap-2">
-                  <ChevronLeft className="w-4 h-4" /> Identity
-                </Button>
+              <div className="flex gap-2">
+                <Button variant="ghost" onClick={() => setStep(1)}><ChevronLeft className="w-4 h-4 mr-2" /> Back</Button>
                 <Button onClick={handleCreateScheme} disabled={isCreating}>
                   {isCreating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <GraduationCap className="w-4 h-4 mr-2" />}
                   Initialize Scheme
                 </Button>
-              </>
+              </div>
             )}
           </DialogFooter>
         </DialogContent>
