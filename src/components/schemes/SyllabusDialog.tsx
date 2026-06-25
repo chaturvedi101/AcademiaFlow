@@ -74,14 +74,10 @@ export function SyllabusDialog({
   const userDocRef = useMemoFirebase(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
   const { data: profile } = useDoc<any>(userDocRef);
 
-  const [isCheckingGlobal, setIsCheckingGlobal] = useState(false);
-  const [globalConflict, setGlobalConflict] = useState<{ schemeId: string; subjectCode: string; data: Syllabus } | null>(null);
-  const [isManuallyEditedCode, setIsManuallyEditedCode] = useState(false);
-
-  // University Pool Discovery States
   const [isPoolSearching, setIsPoolSearching] = useState(false);
   const [poolResults, setPoolResults] = useState<Syllabus[]>([]);
   const [showPoolPicker, setShowPoolPicker] = useState(false);
+  const [isManuallyEditedCode, setIsManuallyEditedCode] = useState(false);
 
   const [formData, setFormData] = useState<Partial<Syllabus>>({
     subjectCode: '',
@@ -164,7 +160,7 @@ export function SyllabusDialog({
   useEffect(() => {
     if (syllabus && open) {
       const isNew = !syllabus.id;
-      const initialCategory = isNew && isStrictlyCommonBOS ? 'AEC' : syllabus.creditCategory || 'DSC';
+      const initialCategory = syllabus.creditCategory || (isNew && isStrictlyCommonBOS ? 'AEC' : 'DSC');
 
       setFormData(prev => ({
         ...prev,
@@ -257,24 +253,6 @@ export function SyllabusDialog({
     });
     setShowPoolPicker(false);
     toast({ title: "Course Synchronized", description: `${poolCourse.subjectCode} has been applied to this slot.` });
-  };
-
-  const handleTypeChange = (newType: SubjectType) => {
-    if (isReadOnly) return;
-    
-    setFormData(prev => {
-      const updates: Partial<Syllabus> = { ...prev, type: newType };
-      if (newType === 'Theory') {
-        updates.practicalCredits = 0;
-        updates.lectureCredits = (prev.lectureCredits && prev.lectureCredits > 0) ? prev.lectureCredits : 3;
-        updates.tutorialCredits = prev.tutorialCredits || 0;
-      } else {
-        updates.lectureCredits = 0;
-        updates.tutorialCredits = 0;
-        updates.practicalCredits = (prev.practicalCredits && prev.practicalCredits > 0) ? prev.practicalCredits : 2;
-      }
-      return updates;
-    });
   };
 
   const handleSave = () => {
@@ -413,10 +391,6 @@ export function SyllabusDialog({
                         )}
                         <SelectItem value="SEC">SEC (Skill Enhancement)</SelectItem>
                         <SelectItem value="OFE">OFE (Open Elective Slot)</SelectItem>
-                        {/* 
-                          Relaxed restriction: Always show these categories if the course is already one of them, 
-                          even for branch BOS. This prevents the value from becoming blank in the UI.
-                        */}
                         {(isCommonStaff || (formData.creditCategory && ['VAC', 'AEC', 'MDC'].includes(formData.creditCategory))) && (
                           <>
                             <SelectItem value="VAC">VAC (Value Added)</SelectItem>
@@ -488,7 +462,22 @@ export function SyllabusDialog({
                     <Select 
                       disabled={isReadOnly} 
                       value={formData.type} 
-                      onValueChange={(v: SubjectType) => handleTypeChange(v)}
+                      onValueChange={(v: SubjectType) => {
+                        if (isReadOnly) return;
+                        setFormData(prev => {
+                          const updates: Partial<Syllabus> = { ...prev, type: v };
+                          if (v === 'Theory') {
+                            updates.practicalCredits = 0;
+                            updates.lectureCredits = (prev.lectureCredits && prev.lectureCredits > 0) ? prev.lectureCredits : 3;
+                            updates.tutorialCredits = prev.tutorialCredits || 0;
+                          } else {
+                            updates.lectureCredits = 0;
+                            updates.tutorialCredits = 0;
+                            updates.practicalCredits = (prev.practicalCredits && prev.practicalCredits > 0) ? prev.practicalCredits : 2;
+                          }
+                          return updates;
+                        });
+                      }}
                     >
                       <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                       <SelectContent>
