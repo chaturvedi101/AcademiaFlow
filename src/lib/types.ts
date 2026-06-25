@@ -128,6 +128,7 @@ export interface Syllabus {
   electiveGroupName?: string; // e.g. "Cloud Computing Pool"
   isOFESlot?: boolean; // True if this is just a placeholder slot in a scheme
   isOFEContribution?: boolean; // True if this is a course offered by this branch to the global pool
+  isSlot?: boolean; // Generic flag for a pre-defined locked slot
 }
 
 export interface AuditLog {

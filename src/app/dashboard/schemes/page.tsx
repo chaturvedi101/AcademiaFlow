@@ -3,21 +3,29 @@
 
 import { useState, useMemo } from 'react';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
-import { collection, setDoc, doc, serverTimestamp, query, orderBy, getDoc } from 'firebase/firestore';
-import { Scheme, Program, UserProfile } from '@/lib/types';
+import { collection, setDoc, doc, serverTimestamp, query, orderBy, getDoc, writeBatch } from 'firebase/firestore';
+import { Scheme, Program, UserProfile, CreditCategory, Syllabus } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, BookOpen, Loader2, Calendar, FileText, ArrowRight, ShieldCheck, Info, Hash } from 'lucide-react';
+import { Plus, BookOpen, Loader2, Calendar, FileText, ArrowRight, ShieldCheck, Info, Hash, Trash2, ChevronLeft, Layers, GraduationCap } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
+
+interface SlotConfig {
+  id: string;
+  semester: number;
+  category: CreditCategory;
+  credits: number;
+}
 
 export default function SchemesPage() {
   const db = useFirestore();
@@ -39,12 +47,15 @@ export default function SchemesPage() {
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [step, setStep] = useState(1);
   const [newScheme, setNewScheme] = useState({
     programId: '',
     branch: '',
     batchYear: '',
     version: 'v1.0'
   });
+
+  const [semesterSlots, setSemesterSlots] = useState<SlotConfig[]>([]);
 
   const isCommonBos = profile?.faculty === 'University-wide (Common BOS)';
 
@@ -93,6 +104,24 @@ export default function SchemesPage() {
 
   const selectedProgram = programs.find(p => p.id === newScheme.programId);
 
+  const handleAddSlot = (semester: number) => {
+    const newSlot: SlotConfig = {
+      id: Math.random().toString(36).substr(2, 9),
+      semester,
+      category: isCommonBos ? 'VAC' : 'DSE',
+      credits: 4
+    };
+    setSemesterSlots([...semesterSlots, newSlot]);
+  };
+
+  const removeSlot = (id: string) => {
+    setSemesterSlots(semesterSlots.filter(s => s.id !== id));
+  };
+
+  const updateSlot = (id: string, updates: Partial<SlotConfig>) => {
+    setSemesterSlots(semesterSlots.map(s => s.id === id ? { ...s, ...updates } : s));
+  };
+
   const handleCreateScheme = async () => {
     if (!newScheme.programId || !newScheme.batchYear) {
       toast({ title: "Validation Error", description: "Program and Batch are required.", variant: "destructive" });
@@ -105,7 +134,6 @@ export default function SchemesPage() {
 
     const branchName = isCommonBos ? 'Institutional Common Pool' : newScheme.branch;
     
-    // Determine branch prefix
     let branchPrefix = isCommonBos ? 'POOL' : (selectedProgram.branchPrefixes?.[branchName]);
     
     if (!branchPrefix && !isCommonBos) {
@@ -127,7 +155,7 @@ export default function SchemesPage() {
       if (existingDoc.exists()) {
         toast({ 
           title: "Conflict", 
-          description: `A scheme with code ${generatedCode} already exists. Please update parameters or version.`, 
+          description: `A scheme with code ${generatedCode} already exists.`, 
           variant: "destructive" 
         });
         setIsCreating(false);
@@ -149,22 +177,41 @@ export default function SchemesPage() {
         isCommonPoolScheme: isCommonBos,
       };
 
-      setDoc(schemeDocRef, schemeData)
-        .then(() => {
-          toast({ title: "Success", description: isCommonBos ? "Common Pool Scheme initialized." : "Branch Scheme created successfully." });
-          router.push(`/dashboard/schemes/${generatedCode}`);
-        })
-        .catch((err) => {
-          const permissionError = new FirestorePermissionError({
-            path: `schemes/${generatedCode}`,
-            operation: 'write',
-            requestResourceData: schemeData,
-          });
-          errorEmitter.emit('permission-error', permissionError);
-        });
+      await setDoc(schemeDocRef, schemeData);
+
+      // Create Slots
+      const batch = writeBatch(db);
+      semesterSlots.forEach(slot => {
+        const slotId = `SLOT-${slot.category}-${slot.semester}-${slot.id}`;
+        const slotRef = doc(db, 'schemes', generatedCode, 'syllabi', slotId);
+        
+        const slotData: Partial<Syllabus> = {
+          id: slotId,
+          schemeId: generatedCode,
+          semester: slot.semester,
+          creditCategory: slot.category,
+          credits: slot.credits,
+          title: `${slot.category} Slot`,
+          isSlot: true,
+          isOFESlot: slot.category === 'OFE',
+          type: 'Theory',
+          lectureCredits: slot.credits,
+          tutorialCredits: 0,
+          practicalCredits: 0,
+          units: [],
+          poMappings: {}
+        };
+        batch.set(slotRef, slotData);
+      });
+
+      await batch.commit();
+
+      toast({ title: "Success", description: "Scheme and slots initialized successfully." });
+      setIsDialogOpen(false);
+      router.push(`/dashboard/schemes/${generatedCode}`);
     } catch (error) {
       console.error("Error creating scheme:", error);
-      toast({ title: "Error", description: "Failed to initialize scheme. Please try again.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to initialize scheme.", variant: "destructive" });
     } finally {
       setIsCreating(false);
     }
@@ -180,6 +227,10 @@ export default function SchemesPage() {
 
   const canCreateScheme = profile?.role === 'admin' || profile?.role === 'dean_faculty' || (profile?.role === 'bos_convenor' && isCommonBos);
 
+  const slotCategories: CreditCategory[] = isCommonBos 
+    ? ['VAC', 'AEC', 'MDC', 'SEC', 'OFE'] 
+    : ['DSE', 'PRJ', 'SEC', 'OFE'];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -187,12 +238,12 @@ export default function SchemesPage() {
           <h1 className="text-3xl font-headline font-bold">Academic Schemes</h1>
           <p className="text-muted-foreground">
             {isCommonBos 
-              ? 'Developing common course schemes (VAC, AEC, MDC) once per Program for university-wide rollout.'
+              ? 'Developing common course schemes (VAC, AEC, MDC) for university-wide rollout.'
               : 'Draft, build, and manage branch-specific academic layouts.'}
           </p>
         </div>
         {canCreateScheme && (
-          <Button onClick={() => setIsDialogOpen(true)} className="gap-2 shadow-lg">
+          <Button onClick={() => { setStep(1); setIsDialogOpen(true); setSemesterSlots([]); }} className="gap-2 shadow-lg">
             <Plus className="w-4 h-4" /> {isCommonBos ? 'Define Common Pool' : 'New Scheme'}
           </Button>
         )}
@@ -245,89 +296,123 @@ export default function SchemesPage() {
             </Card>
           );
         })}
-        {filteredSchemes.length === 0 && (
-          <div className="col-span-full py-20 text-center border-2 border-dashed rounded-2xl bg-muted/20">
-            <BookOpen className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-20" />
-            <p className="text-muted-foreground">No schemes found for your authorized branches.</p>
-          </div>
-        )}
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
+        <DialogContent className={step === 2 ? "max-w-4xl" : "max-w-md"}>
           <DialogHeader>
-            <DialogTitle>{isCommonBos ? 'Define Common Pool Scheme' : 'Create New Academic Scheme'}</DialogTitle>
+            <DialogTitle>{step === 1 ? (isCommonBos ? 'Define Common Pool' : 'Create New Scheme') : 'Institutional Slot Architect'}</DialogTitle>
             <DialogDescription>
-              {isCommonBos 
-                ? 'This scheme defines VAC, AEC, and MDC courses for ALL branches of the selected program.'
-                : 'Select the program, branch, and batch to initialize your branch-specific core curriculum.'}
+              {step === 1 
+                ? 'Step 1: Define academic identity and scope.' 
+                : 'Step 2: Lock elective and institutional slots for each semester.'}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Academic Program</Label>
-              <Select onValueChange={(v) => setNewScheme({...newScheme, programId: v, branch: ''})}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select program..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {availablePrograms.map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name} ({p.code})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            {!isCommonBos && selectedProgram?.branches?.length ? (
+
+          {step === 1 ? (
+            <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label>Branch / Specialization</Label>
-                <Select value={newScheme.branch} onValueChange={(v) => setNewScheme({...newScheme, branch: v})}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select branch..." />
-                  </SelectTrigger>
+                <Label>Academic Program</Label>
+                <Select onValueChange={(v) => setNewScheme({...newScheme, programId: v, branch: ''})}>
+                  <SelectTrigger><SelectValue placeholder="Select program..." /></SelectTrigger>
                   <SelectContent>
-                    {(profile?.role === 'bos_convenor'
-                      ? selectedProgram.branches.filter(b => 
-                          profile.managedBranches?.some(m => m.programId === selectedProgram.id && m.branch === b)
-                        )
-                      : selectedProgram.branches
-                    ).map(b => (
-                      <SelectItem key={b} value={b}>{b}</SelectItem>
+                    {availablePrograms.map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name} ({p.code})</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-            ) : null}
+              
+              {!isCommonBos && selectedProgram?.branches?.length ? (
+                <div className="space-y-2">
+                  <Label>Branch / Specialization</Label>
+                  <Select value={newScheme.branch} onValueChange={(v) => setNewScheme({...newScheme, branch: v})}>
+                    <SelectTrigger><SelectValue placeholder="Select branch..." /></SelectTrigger>
+                    <SelectContent>
+                      {selectedProgram.branches.map(b => (
+                        <SelectItem key={b} value={b}>{b}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
 
-            {isCommonBos && (
-              <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-lg flex gap-3 text-xs text-emerald-800">
-                <Info className="w-4 h-4 shrink-0 text-emerald-600" />
-                <p>This pool will be shared across all branches of <strong>{selectedProgram?.name || 'the program'}</strong>. It will include common VAC, AEC, and MDC courses.</p>
+              <div className="space-y-2">
+                <Label>Batch Year</Label>
+                <Input placeholder="e.g., 2024-28" value={newScheme.batchYear} onChange={(e) => setNewScheme({...newScheme, batchYear: e.target.value})} />
               </div>
-            )}
+              <div className="space-y-2">
+                <Label>Initial Version</Label>
+                <Input value={newScheme.version} onChange={(e) => setNewScheme({...newScheme, version: e.target.value})} />
+              </div>
+            </div>
+          ) : (
+            <div className="py-4 space-y-6">
+              <ScrollArea className="h-[400px] pr-4">
+                {Array.from({ length: selectedProgram?.totalSemesters || 8 }, (_, i) => i + 1).map(sem => (
+                  <div key={sem} className="mb-6 border rounded-xl p-4 bg-muted/20">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="font-headline font-bold text-sm">Semester {sem}</h4>
+                      <Button variant="outline" size="sm" onClick={() => handleAddSlot(sem)} className="h-8 gap-2">
+                        <Plus className="w-3.5 h-3.5" /> Add Slot
+                      </Button>
+                    </div>
+                    <div className="space-y-3">
+                      {semesterSlots.filter(s => s.semester === sem).map(slot => (
+                        <div key={slot.id} className="grid grid-cols-12 gap-3 items-end animate-in fade-in slide-in-from-top-1">
+                          <div className="col-span-5 space-y-1">
+                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Category</Label>
+                            <Select value={slot.category} onValueChange={(v: CreditCategory) => updateSlot(slot.id, { category: v })}>
+                              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {slotCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="col-span-4 space-y-1">
+                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Credits</Label>
+                            <Input type="number" value={slot.credits} onChange={e => updateSlot(slot.id, { credits: Number(e.target.value) })} className="h-9" />
+                          </div>
+                          <div className="col-span-3 pb-0.5">
+                            <Button variant="ghost" size="icon" className="h-9 w-9 text-red-400" onClick={() => removeSlot(slot.id)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      {semesterSlots.filter(s => s.semester === sem).length === 0 && (
+                        <p className="text-[10px] text-muted-foreground italic text-center py-2">No elective slots defined for this semester.</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </ScrollArea>
+              <div className="p-3 bg-primary/5 rounded-lg border border-primary/10 flex items-center gap-3 text-xs text-primary">
+                <Info className="w-4 h-4 shrink-0" />
+                <p>Locked slots ensure credit compliance. You can add actual courses to these slots later.</p>
+              </div>
+            </div>
+          )}
 
-            <div className="space-y-2">
-              <Label>Batch Year</Label>
-              <Input 
-                placeholder="e.g., 2024-28" 
-                value={newScheme.batchYear} 
-                onChange={(e) => setNewScheme({...newScheme, batchYear: e.target.value})}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Initial Version</Label>
-              <Input 
-                value={newScheme.version} 
-                onChange={(e) => setNewScheme({...newScheme, version: e.target.value})}
-              />
-            </div>
-          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isCreating}>Cancel</Button>
-            <Button onClick={handleCreateScheme} disabled={isCreating}>
-              {isCreating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Initialize Scheme
-            </Button>
+            {step === 1 ? (
+              <>
+                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+                <Button onClick={() => setStep(2)} disabled={!newScheme.programId || !newScheme.batchYear}>
+                  Configure Slots <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" onClick={() => setStep(1)} className="gap-2">
+                  <ChevronLeft className="w-4 h-4" /> Identity
+                </Button>
+                <Button onClick={handleCreateScheme} disabled={isCreating}>
+                  {isCreating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <GraduationCap className="w-4 h-4 mr-2" />}
+                  Initialize Scheme
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
