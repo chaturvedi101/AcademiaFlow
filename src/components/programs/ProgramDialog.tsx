@@ -34,7 +34,7 @@ const DEFAULT_RULES: CreditRules = {
   dseMin: 12,
   dseMax: 16,
   ofeMin: 12,
-  ofeMax: 16,
+  ofeMax: 24,
   electiveMin: 24,
   electiveMax: 32,
   projectMin: 16,

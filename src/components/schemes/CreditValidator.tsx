@@ -29,6 +29,7 @@ export function CreditValidator({ currentCredits, rules }: CreditValidatorProps)
   const electiveTotal = currentCredits.DSE + currentCredits.OFE;
   
   const isDscValid = currentCredits.DSC >= rules.dscMin && currentCredits.DSC <= rules.dscMax;
+  const isOfeValid = currentCredits.OFE >= (rules.ofeMin || 12) && currentCredits.OFE <= (rules.ofeMax || 24);
   const isElectiveValid = electiveTotal >= (rules.electiveMin || 24) && electiveTotal <= (rules.electiveMax || 32);
   const isProjectValid = currentCredits.PRJ >= (rules.projectMin || 16) && currentCredits.PRJ <= (rules.projectMax || 32);
   const isTotalValid = currentCredits.total === rules.totalRequired;
@@ -50,6 +51,14 @@ export function CreditValidator({ currentCredits, rules }: CreditValidatorProps)
           min={rules.dscMin} 
           max={rules.dscMax} 
           isValid={isDscValid} 
+        />
+
+        <CreditSection 
+          label="Open Elective (OFE)" 
+          current={currentCredits.OFE} 
+          min={rules.ofeMin || 12} 
+          max={rules.ofeMax || 24} 
+          isValid={isOfeValid} 
         />
 
         <CreditSection 

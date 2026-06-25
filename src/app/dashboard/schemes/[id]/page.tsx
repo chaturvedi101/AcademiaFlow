@@ -112,7 +112,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       dscMin, dscMax, 
       totalRequired, 
       projectMin = 16, projectMax = 32,
-      electiveMin = 24, electiveMax = 32 
+      electiveMin = 24, electiveMax = 32,
+      ofeMin = 12, ofeMax = 24
     } = program.rules;
     
     const electiveTotal = DSE + OFE;
@@ -121,7 +122,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       DSC >= dscMin && DSC <= dscMax && 
       total === totalRequired && 
       PRJ >= projectMin && PRJ <= projectMax &&
-      electiveTotal >= electiveMin && electiveTotal <= electiveMax
+      electiveTotal >= electiveMin && electiveTotal <= electiveMax &&
+      OFE >= ofeMin && OFE <= ofeMax
     );
   }, [creditDistribution, program?.rules]);
 
