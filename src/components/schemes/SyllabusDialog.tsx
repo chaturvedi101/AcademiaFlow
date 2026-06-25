@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,8 +14,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { BookOpen, Globe, Link2, Loader2, Plus, ShieldAlert, Trash2, Hash, Info, AlertTriangle, GraduationCap, ClipboardCheck } from "lucide-react";
-import { Syllabus, CorrelationLevel, CorrelationLevel as CorrelationLevelType, CreditRules, SubjectType } from "@/lib/types";
+import { BookOpen, Globe, Link2, Loader2, Plus, ShieldAlert, Trash2, Hash, Info, GraduationCap, ClipboardCheck } from "lucide-react";
+import { Syllabus, CorrelationLevel as CorrelationLevelType, CreditRules, SubjectType } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { collectionGroup, query, where, getDocs, doc } from "firebase/firestore";
@@ -51,7 +51,6 @@ interface SyllabusDialogProps {
   onSave: (data: Partial<Syllabus>) => void;
   programName?: string;
   branchName?: string;
-  batchYear?: string;
   canEdit?: boolean;
   currentSchemeId?: string;
   programRules?: CreditRules;
@@ -63,11 +62,9 @@ export function SyllabusDialog({
   syllabus, 
   existingSyllabi = [],
   onSave,
-  programName,
   branchName,
   canEdit = true,
   currentSchemeId,
-  programRules
 }: SyllabusDialogProps) {
   const { toast } = useToast();
   const db = useFirestore();
@@ -77,6 +74,7 @@ export function SyllabusDialog({
 
   const [isCheckingGlobal, setIsCheckingGlobal] = useState(false);
   const [globalConflict, setGlobalConflict] = useState<{ schemeId: string; subjectCode: string; data: Syllabus } | null>(null);
+  const [isManuallyEditedCode, setIsManuallyEditedCode] = useState(false);
 
   const [formData, setFormData] = useState<Partial<Syllabus>>({
     subjectCode: '',
@@ -156,12 +154,7 @@ export function SyllabusDialog({
     return finalCode;
   }, [branchName, formData.type, formData.semester, formData.creditCategory, formData.electiveGroupId, existingSyllabi, formData.id, formData.subjectCode]);
 
-  useEffect(() => {
-    if (!syllabus?.id && !syllabus?.subjectCode && open) {
-      setFormData(prev => ({ ...prev, subjectCode: generateAutoSubjectCode() }));
-    }
-  }, [formData.semester, formData.creditCategory, formData.type, formData.electiveGroupId, generateAutoSubjectCode, open, syllabus?.id, syllabus?.subjectCode]);
-
+  // Initial population from props
   useEffect(() => {
     if (syllabus && open) {
       const isNew = !syllabus.id;
@@ -176,21 +169,31 @@ export function SyllabusDialog({
         textBooks: syllabus.textBooks || [],
         referenceBooks: syllabus.referenceBooks || [],
       }));
+      
+      setIsManuallyEditedCode(false);
+    }
+  }, [syllabus, open, isStrictlyCommonBOS]);
 
-      if (!syllabus.id && !syllabus.subjectCode) {
-        setFormData(prev => ({ ...prev, subjectCode: generateAutoSubjectCode() }));
+  // Auto-generate code for new subjects when influencing factors change
+  useEffect(() => {
+    if (open && !syllabus?.id && !isManuallyEditedCode && !formData.isOFESlot) {
+      const newCode = generateAutoSubjectCode();
+      if (newCode !== formData.subjectCode) {
+        setFormData(prev => ({ ...prev, subjectCode: newCode }));
       }
     }
-  }, [syllabus, open, generateAutoSubjectCode, isStrictlyCommonBOS]);
+  }, [formData.type, formData.semester, formData.creditCategory, formData.electiveGroupId, open, syllabus?.id, isManuallyEditedCode, formData.isOFESlot, generateAutoSubjectCode, formData.subjectCode]);
 
+  // Handle credit logic based on type
   useEffect(() => {
     const l = Number(formData.lectureCredits) || 0;
     const t = Number(formData.tutorialCredits) || 0;
     const p = Number(formData.practicalCredits) || 0;
     
     setFormData(prev => ({ ...prev, credits: l + t + (p * 0.5) }));
-  }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits, formData.type]);
+  }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits]);
 
+  // Global uniqueness check
   useEffect(() => {
     if (!open || !formData.subjectCode || formData.isOFESlot) return;
     const checkGlobalUniqueness = async (code: string) => {
@@ -222,23 +225,21 @@ export function SyllabusDialog({
   }, [formData.subjectCode, open, db, currentSchemeId, syllabus?.subjectCode, formData.isOFESlot]);
 
   const handleTypeChange = (newType: SubjectType) => {
-    if (newType === 'Theory') {
-      setFormData({
-        ...formData,
-        type: newType,
-        practicalCredits: 0, 
-        lectureCredits: (formData.lectureCredits && formData.lectureCredits > 0) ? formData.lectureCredits : 1,
-        tutorialCredits: formData.tutorialCredits || 0
-      });
-    } else {
-      setFormData({
-        ...formData,
-        type: newType,
-        lectureCredits: 0,
-        tutorialCredits: 0,
-        practicalCredits: (formData.practicalCredits && formData.practicalCredits > 0) ? formData.practicalCredits : 2
-      });
-    }
+    if (isReadOnly) return;
+    
+    setFormData(prev => {
+      const updates: Partial<Syllabus> = { ...prev, type: newType };
+      if (newType === 'Theory') {
+        updates.practicalCredits = 0;
+        updates.lectureCredits = (prev.lectureCredits && prev.lectureCredits > 0) ? prev.lectureCredits : 3;
+        updates.tutorialCredits = prev.tutorialCredits || 0;
+      } else {
+        updates.lectureCredits = 0;
+        updates.tutorialCredits = 0;
+        updates.practicalCredits = (prev.practicalCredits && prev.practicalCredits > 0) ? prev.practicalCredits : 2;
+      }
+      return updates;
+    });
   };
 
   const handleSave = () => {
@@ -381,7 +382,10 @@ export function SyllabusDialog({
                       disabled={isReadOnly || formData.isOFESlot} 
                       className="font-mono h-11 border-primary/20 focus:ring-primary/20" 
                       value={formData.isOFESlot ? 'SLOT-AUTO' : (formData.subjectCode || '')} 
-                      onChange={e => setFormData({ ...formData, subjectCode: e.target.value.toUpperCase() })} 
+                      onChange={e => {
+                        setIsManuallyEditedCode(true);
+                        setFormData({ ...formData, subjectCode: e.target.value.toUpperCase() });
+                      }} 
                     />
                   </div>
                   <div className="space-y-2">
@@ -398,7 +402,11 @@ export function SyllabusDialog({
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Course Type</Label>
-                    <Select disabled={isReadOnly} value={formData.type} onValueChange={(v: SubjectType) => handleTypeChange(v)}>
+                    <Select 
+                      disabled={isReadOnly} 
+                      value={formData.type} 
+                      onValueChange={(v: SubjectType) => handleTypeChange(v)}
+                    >
                       <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Theory">Theory (L &gt; 0, P = 0)</SelectItem>
