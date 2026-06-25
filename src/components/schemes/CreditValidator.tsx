@@ -29,6 +29,7 @@ export function CreditValidator({ currentCredits, rules }: CreditValidatorProps)
   const electiveTotal = currentCredits.DSE + currentCredits.OFE;
   
   const isDscValid = currentCredits.DSC >= rules.dscMin && currentCredits.DSC <= rules.dscMax;
+  const isDseValid = currentCredits.DSE >= (rules.dseMin || 8) && currentCredits.DSE <= (rules.dseMax || 16);
   const isOfeValid = currentCredits.OFE >= (rules.ofeMin || 12) && currentCredits.OFE <= (rules.ofeMax || 24);
   const isElectiveValid = electiveTotal >= (rules.electiveMin || 24) && electiveTotal <= (rules.electiveMax || 32);
   const isProjectValid = currentCredits.PRJ >= (rules.projectMin || 16) && currentCredits.PRJ <= (rules.projectMax || 32);
@@ -54,6 +55,14 @@ export function CreditValidator({ currentCredits, rules }: CreditValidatorProps)
         />
 
         <CreditSection 
+          label="DSE (Discipline Elective)" 
+          current={currentCredits.DSE} 
+          min={rules.dseMin || 8} 
+          max={rules.dseMax || 16} 
+          isValid={isDseValid} 
+        />
+
+        <CreditSection 
           label="Open Elective (OFE)" 
           current={currentCredits.OFE} 
           min={rules.ofeMin || 12} 
@@ -62,7 +71,7 @@ export function CreditValidator({ currentCredits, rules }: CreditValidatorProps)
         />
 
         <CreditSection 
-          label="Electives (DSE + OFE)" 
+          label="Total Electives (DSE + OFE)" 
           current={electiveTotal} 
           min={rules.electiveMin || 24} 
           max={rules.electiveMax || 32} 
@@ -80,7 +89,7 @@ export function CreditValidator({ currentCredits, rules }: CreditValidatorProps)
         <div className="space-y-2">
           <div className="flex justify-between text-xs font-medium">
             <span>Institutional & Experiential (VAC/AEC/MDC/SEC)</span>
-            <span>{currentCredits.total - (currentCredits.DSC + electiveTotal + currentCredits.PRJ)} Credits</span>
+            <span>{currentCredits.total - (currentCredits.DSC + currentCredits.DSE + currentCredits.OFE + currentCredits.PRJ)} Credits</span>
           </div>
         </div>
 

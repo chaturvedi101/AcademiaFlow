@@ -42,7 +42,7 @@ export const MOCK_PROGRAMS: Program[] = [
       dscMax: 104,
       experientialMin: 8,
       experientialMax: 12,
-      dseMin: 12,
+      dseMin: 8,
       dseMax: 16,
       ofeMin: 12,
       ofeMax: 24,
