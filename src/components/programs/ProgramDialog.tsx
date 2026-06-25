@@ -39,6 +39,10 @@ const DEFAULT_RULES: CreditRules = {
   electiveMax: 32,
   projectMin: 16,
   projectMax: 32,
+  vacTotal: 8,
+  aecTotal: 8,
+  secTotal: 8,
+  mdcTotal: 8,
   totalRequired: 160
 };
 
@@ -318,7 +322,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
             </div>
 
             <div className="space-y-4">
-              <Label className="text-sm font-semibold">Credit Framework (Min-Max)</Label>
+              <Label className="text-sm font-semibold">Credit Framework (Rules)</Label>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs">DSC Min</Label>
@@ -359,6 +363,22 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                 <div className="space-y-2">
                   <Label className="text-xs">Project Max</Label>
                   <Input disabled={isReadOnly} type="number" value={formData.rules?.projectMax ?? ''} onChange={e => updateRule('projectMax', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">VAC Required</Label>
+                  <Input disabled={isReadOnly} type="number" value={formData.rules?.vacTotal ?? ''} onChange={e => updateRule('vacTotal', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">AEC Required</Label>
+                  <Input disabled={isReadOnly} type="number" value={formData.rules?.aecTotal ?? ''} onChange={e => updateRule('aecTotal', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">SEC Required</Label>
+                  <Input disabled={isReadOnly} type="number" value={formData.rules?.secTotal ?? ''} onChange={e => updateRule('secTotal', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">MDC Required</Label>
+                  <Input disabled={isReadOnly} type="number" value={formData.rules?.mdcTotal ?? ''} onChange={e => updateRule('mdcTotal', e.target.value)} />
                 </div>
               </div>
             </div>

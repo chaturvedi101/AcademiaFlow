@@ -52,6 +52,10 @@ export interface CreditRules {
   projectMin: number;
   projectMax: number;
   totalRequired: number;
+  vacTotal: number;
+  aecTotal: number;
+  secTotal: number;
+  mdcTotal: number;
 }
 
 export interface Program {

@@ -73,7 +73,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     const canEditSyllabus = (s: Syllabus) => {
       if (isGlobalAdmin) return true;
-      const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(s?.creditCategory || '');
+      const isCommonCategory = ['VAC', 'AEC', 'MDC', 'SEC'].includes(s?.creditCategory || '');
       if (isCommonCategory || s?.isCommonCourse || scheme.isCommonPoolScheme || s?.creditCategory === 'OFE') {
         return isCommonBOS || isProgramDean;
       }
@@ -107,14 +107,15 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
   const isSchemeValid = useMemo(() => {
     if (!program?.rules) return false;
-    const { DSC, DSE, OFE, total, PRJ } = creditDistribution;
+    const { DSC, DSE, OFE, total, PRJ, VAC, AEC, SEC, MDC } = creditDistribution;
     const { 
       dscMin, dscMax, 
       dseMin = 8, dseMax = 16,
       totalRequired, 
       projectMin = 16, projectMax = 32,
       electiveMin = 24, electiveMax = 32,
-      ofeMin = 12, ofeMax = 24
+      ofeMin = 12, ofeMax = 24,
+      vacTotal = 8, aecTotal = 8, secTotal = 8, mdcTotal = 8
     } = program.rules;
     
     const electiveTotal = DSE + OFE;
@@ -125,7 +126,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       total === totalRequired && 
       PRJ >= projectMin && PRJ <= projectMax &&
       electiveTotal >= electiveMin && electiveTotal <= electiveMax &&
-      OFE >= ofeMin && OFE <= ofeMax
+      OFE >= ofeMin && OFE <= ofeMax &&
+      VAC === vacTotal &&
+      AEC === aecTotal &&
+      SEC === secTotal &&
+      MDC === mdcTotal
     );
   }, [creditDistribution, program?.rules]);
 

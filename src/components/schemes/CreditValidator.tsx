@@ -33,6 +33,10 @@ export function CreditValidator({ currentCredits, rules }: CreditValidatorProps)
   const isOfeValid = currentCredits.OFE >= (rules.ofeMin || 12) && currentCredits.OFE <= (rules.ofeMax || 24);
   const isElectiveValid = electiveTotal >= (rules.electiveMin || 24) && electiveTotal <= (rules.electiveMax || 32);
   const isProjectValid = currentCredits.PRJ >= (rules.projectMin || 16) && currentCredits.PRJ <= (rules.projectMax || 32);
+  const isVacValid = currentCredits.VAC === (rules.vacTotal || 8);
+  const isAecValid = currentCredits.AEC === (rules.aecTotal || 8);
+  const isSecValid = currentCredits.SEC === (rules.secTotal || 8);
+  const isMdcValid = currentCredits.MDC === (rules.mdcTotal || 8);
   const isTotalValid = currentCredits.total === rules.totalRequired;
 
   return (
@@ -86,11 +90,11 @@ export function CreditValidator({ currentCredits, rules }: CreditValidatorProps)
           isValid={isProjectValid} 
         />
 
-        <div className="space-y-2">
-          <div className="flex justify-between text-xs font-medium">
-            <span>Institutional & Experiential (VAC/AEC/MDC/SEC)</span>
-            <span>{currentCredits.total - (currentCredits.DSC + currentCredits.DSE + currentCredits.OFE + currentCredits.PRJ)} Credits</span>
-          </div>
+        <div className="grid grid-cols-2 gap-4">
+          <CompactCheck label="VAC" current={currentCredits.VAC} target={rules.vacTotal || 8} isValid={isVacValid} />
+          <CompactCheck label="AEC" current={currentCredits.AEC} target={rules.aecTotal || 8} isValid={isAecValid} />
+          <CompactCheck label="SEC" current={currentCredits.SEC} target={rules.secTotal || 8} isValid={isSecValid} />
+          <CompactCheck label="MDC" current={currentCredits.MDC} target={rules.mdcTotal || 8} isValid={isMdcValid} />
         </div>
 
         {!isTotalValid && (
@@ -116,6 +120,18 @@ function CreditSection({ label, current, min, max, isValid }: any) {
         <span className="text-muted-foreground">{current} / {min}-{max}</span>
       </div>
       <Progress value={percentage} className="h-2" />
+    </div>
+  );
+}
+
+function CompactCheck({ label, current, target, isValid }: any) {
+  return (
+    <div className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 ${isValid ? 'bg-green-50 border-green-100' : 'bg-muted/30 border-border'}`}>
+      <span className="text-[10px] font-bold uppercase text-muted-foreground">{label}</span>
+      <div className="flex items-center gap-1.5">
+        <span className={`text-sm font-bold ${isValid ? 'text-green-700' : 'text-foreground'}`}>{current}/{target}</span>
+        {isValid ? <CheckCircle2 className="w-3 h-3 text-green-600" /> : <div className="w-3 h-3 rounded-full border border-dashed border-muted-foreground/50" />}
+      </div>
     </div>
   );
 }
