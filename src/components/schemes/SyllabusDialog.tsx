@@ -14,7 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { BookOpen, Globe, Link2, Loader2, Plus, ShieldAlert, Trash2, Hash, Info, AlertTriangle, GraduationCap } from "lucide-react";
+import { BookOpen, Globe, Link2, Loader2, Plus, ShieldAlert, Trash2, Hash, Info, AlertTriangle, GraduationCap, ClipboardCheck } from "lucide-react";
 import { Syllabus, CorrelationLevel, CorrelationLevel as CorrelationLevelType, CreditRules } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
@@ -252,16 +252,6 @@ export function SyllabusDialog({
 
   const isReadOnly = !canEdit;
 
-  // Helper to determine if a category is "Restricted" for the current user but should be shown as the current value
-  const isCategoryRestricted = (cat: string) => {
-    const isInstitutional = ['VAC', 'AEC', 'MDC'].includes(cat);
-    const isCore = ['DSC', 'DSE', 'PRJ'].includes(cat);
-    
-    if (isGlobalAdmin) return false;
-    if (isStrictlyCommonBOS) return isCore;
-    return isInstitutional;
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl h-[95vh] flex flex-col p-0 overflow-hidden border-none shadow-2xl">
@@ -325,10 +315,6 @@ export function SyllabusDialog({
                             <SelectItem value="AEC">AEC (Ability Enhancement)</SelectItem>
                             <SelectItem value="MDC">MDC (Multi Disciplinary)</SelectItem>
                           </>
-                        )}
-                        {/* Fallback for illegal values so the user can see them and change away from them */}
-                        {formData.creditCategory && isCategoryRestricted(formData.creditCategory) && (
-                          <SelectItem value={formData.creditCategory}>{formData.creditCategory} (Institutional)</SelectItem>
                         )}
                       </SelectContent>
                     </Select>
@@ -394,10 +380,10 @@ export function SyllabusDialog({
                     <Select disabled={isReadOnly} value={formData.type} onValueChange={(v: any) => setFormData({...formData, type: v})}>
                       <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Theory">Theory (ETE)</SelectItem>
-                        <SelectItem value="Practical/Lab">Practical/Lab</SelectItem>
-                        <SelectItem value="Sessional">Sessional (CIE Only)</SelectItem>
-                        <SelectItem value="Skill/IKS/Experiential">Skill / IKS</SelectItem>
+                        <SelectItem value="Theory">Theory (ETE + CIE)</SelectItem>
+                        <SelectItem value="Practical/Lab">Practical/Lab (Ext + Int)</SelectItem>
+                        <SelectItem value="Sessional">Sessional (Internal CIE Only)</SelectItem>
+                        <SelectItem value="Skill/IKS/Experiential">Skill / IKS / Field</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -448,15 +434,31 @@ export function SyllabusDialog({
                    </div>
                 </div>
 
-                {formData.type === 'Sessional' && (
-                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3 text-amber-800 text-xs animate-in slide-in-from-bottom-1">
-                    <GraduationCap className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
-                    <div className="space-y-1">
-                      <p className="font-bold">Sessional Guidance</p>
-                      <p>Sessional subjects are evaluated entirely via **Continuous Internal Evaluation (CIE)**. No End-Term Exam is conducted.</p>
-                    </div>
-                  </div>
-                )}
+                {/* Evaluation Guidance Note */}
+                <div className="p-4 bg-muted/30 border border-dashed rounded-xl space-y-3">
+                   <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                     <ClipboardCheck className="w-4 h-4" />
+                     Evaluation Pattern Guidance
+                   </div>
+                   {formData.type === 'Theory' && (
+                     <div className="flex items-start gap-3 text-[11px] text-muted-foreground leading-relaxed animate-in slide-in-from-left-2">
+                        <Info className="w-4 h-4 shrink-0 text-primary mt-0.5" />
+                        <p><strong>Theory (ETE):</strong> Requires a summative university-level End-Term Examination. Typical weightage is 70% ETE and 30% CIE (Internals).</p>
+                     </div>
+                   )}
+                   {formData.type === 'Sessional' && (
+                     <div className="flex items-start gap-3 text-[11px] text-amber-800 leading-relaxed animate-in slide-in-from-left-2">
+                        <GraduationCap className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                        <p><strong>Sessional:</strong> 100% Continuous Internal Evaluation. Ideal for seminars, field work, or professional skills where no external written exam is needed.</p>
+                     </div>
+                   )}
+                   {formData.type === 'Practical/Lab' && (
+                     <div className="flex items-start gap-3 text-[11px] text-muted-foreground leading-relaxed animate-in slide-in-from-left-2">
+                        <Info className="w-4 h-4 shrink-0 text-accent mt-0.5" />
+                        <p><strong>Practical:</strong> Evaluated through internal lab assessments and a final practical exam (often with an external examiner).</p>
+                     </div>
+                   )}
+                </div>
               </TabsContent>
               
               <TabsContent value="syllabus" className="space-y-6">
