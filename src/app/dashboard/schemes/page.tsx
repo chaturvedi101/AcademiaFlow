@@ -201,23 +201,34 @@ export default function SchemesPage() {
         
         const isElective = slot.category === 'DSE' || slot.category === 'OFE';
 
-        const slotData: Partial<Syllabus> = {
+        // Initialize object with mandatory fields and avoid literal 'undefined'
+        const slotData: any = {
           id: slotId,
           schemeId: generatedCode,
+          subjectCode: '', // Mandatory field in Syllabus interface
           semester: slot.semester,
           creditCategory: slot.category,
           credits: slot.credits,
           title: `${slot.category} Slot`,
           isSlot: true,
           isOFESlot: slot.category === 'OFE',
-          electiveGroupId: isElective ? `Group-${slot.id.substring(0, 4)}` : undefined,
           type: 'Theory',
           lectureCredits: slot.credits,
           tutorialCredits: 0,
           practicalCredits: 0,
           units: [],
-          poMappings: {}
+          poMappings: {},
+          prerequisites: [],
+          courseOutcomes: [],
+          textBooks: [],
+          referenceBooks: []
         };
+
+        // Conditionally add electiveGroupId only if it's an elective category
+        if (isElective) {
+          slotData.electiveGroupId = `Group-${slot.id.substring(0, 4)}`;
+        }
+        
         batch.set(slotRef, slotData);
       });
 
