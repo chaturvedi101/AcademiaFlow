@@ -107,9 +107,22 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
   const isSchemeValid = useMemo(() => {
     if (!program?.rules) return false;
-    const { DSC, total, PRJ } = creditDistribution;
-    const { dscMin, dscMax, totalRequired, projectMin = 16, projectMax = 32 } = program.rules;
-    return DSC >= dscMin && DSC <= dscMax && total === totalRequired && PRJ >= projectMin && PRJ <= projectMax;
+    const { DSC, DSE, OFE, total, PRJ } = creditDistribution;
+    const { 
+      dscMin, dscMax, 
+      totalRequired, 
+      projectMin = 16, projectMax = 32,
+      electiveMin = 24, electiveMax = 32 
+    } = program.rules;
+    
+    const electiveTotal = DSE + OFE;
+    
+    return (
+      DSC >= dscMin && DSC <= dscMax && 
+      total === totalRequired && 
+      PRJ >= projectMin && PRJ <= projectMax &&
+      electiveTotal >= electiveMin && electiveTotal <= electiveMax
+    );
   }, [creditDistribution, program?.rules]);
 
   const handleUpdateScheme = (updates: Partial<Scheme>) => {

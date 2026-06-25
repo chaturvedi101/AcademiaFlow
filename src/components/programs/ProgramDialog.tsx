@@ -35,6 +35,8 @@ const DEFAULT_RULES: CreditRules = {
   dseMax: 16,
   ofeMin: 12,
   ofeMax: 16,
+  electiveMin: 24,
+  electiveMax: 32,
   projectMin: 16,
   projectMax: 32,
   totalRequired: 160
@@ -341,6 +343,14 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                 <div className="space-y-2">
                   <Label className="text-xs">OFE Max</Label>
                   <Input disabled={isReadOnly} type="number" value={formData.rules?.ofeMax ?? ''} onChange={e => updateRule('ofeMax', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Combined Elective Min</Label>
+                  <Input disabled={isReadOnly} type="number" value={formData.rules?.electiveMin ?? ''} onChange={e => updateRule('electiveMin', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Combined Elective Max</Label>
+                  <Input disabled={isReadOnly} type="number" value={formData.rules?.electiveMax ?? ''} onChange={e => updateRule('electiveMax', e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs">Project Min</Label>

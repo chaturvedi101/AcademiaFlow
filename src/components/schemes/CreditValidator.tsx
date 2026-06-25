@@ -26,9 +26,10 @@ interface CreditValidatorProps {
 export function CreditValidator({ currentCredits, rules }: CreditValidatorProps) {
   if (!rules) return null;
 
+  const electiveTotal = currentCredits.DSE + currentCredits.OFE;
+  
   const isDscValid = currentCredits.DSC >= rules.dscMin && currentCredits.DSC <= rules.dscMax;
-  const isDseValid = currentCredits.DSE >= rules.dseMin && currentCredits.DSE <= rules.dseMax;
-  const isOfeValid = currentCredits.OFE >= rules.ofeMin && currentCredits.OFE <= rules.ofeMax;
+  const isElectiveValid = electiveTotal >= (rules.electiveMin || 24) && electiveTotal <= (rules.electiveMax || 32);
   const isProjectValid = currentCredits.PRJ >= (rules.projectMin || 16) && currentCredits.PRJ <= (rules.projectMax || 32);
   const isTotalValid = currentCredits.total === rules.totalRequired;
 
@@ -52,19 +53,11 @@ export function CreditValidator({ currentCredits, rules }: CreditValidatorProps)
         />
 
         <CreditSection 
-          label="DSE (Electives)" 
-          current={currentCredits.DSE} 
-          min={rules.dseMin} 
-          max={rules.dseMax} 
-          isValid={isDseValid} 
-        />
-
-        <CreditSection 
-          label="OFE (Open Electives)" 
-          current={currentCredits.OFE} 
-          min={rules.ofeMin} 
-          max={rules.ofeMax} 
-          isValid={isOfeValid} 
+          label="Electives (DSE + OFE)" 
+          current={electiveTotal} 
+          min={rules.electiveMin || 24} 
+          max={rules.electiveMax || 32} 
+          isValid={isElectiveValid} 
         />
 
         <CreditSection 
@@ -77,8 +70,8 @@ export function CreditValidator({ currentCredits, rules }: CreditValidatorProps)
 
         <div className="space-y-2">
           <div className="flex justify-between text-xs font-medium">
-            <span>Institutional & Experiential</span>
-            <span>{currentCredits.total - (currentCredits.DSC + currentCredits.DSE + currentCredits.OFE + currentCredits.PRJ)} Credits</span>
+            <span>Institutional & Experiential (VAC/AEC/MDC/SEC)</span>
+            <span>{currentCredits.total - (currentCredits.DSC + electiveTotal + currentCredits.PRJ)} Credits</span>
           </div>
         </div>
 

@@ -47,6 +47,8 @@ export interface CreditRules {
   dseMax: number;
   ofeMin: number;
   ofeMax: number;
+  electiveMin: number; // Combined DSE + OFE
+  electiveMax: number; // Combined DSE + OFE
   projectMin: number;
   projectMax: number;
   totalRequired: number;
