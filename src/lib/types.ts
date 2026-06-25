@@ -34,7 +34,7 @@ export type SchemeStatus = 'Draft' | 'Pending Dean' | 'Pending Academics' | 'App
 
 export type SubjectType = 'Theory' | 'Tutorial' | 'Practical/Lab' | 'Sessional' | 'Skill/IKS/Experiential';
 
-export type CreditCategory = 'DSC' | 'DSE' | 'OFE' | 'CPF' | 'VAC' | 'AEC' | 'SEC' | 'MDC';
+export type CreditCategory = 'DSC' | 'DSE' | 'OFE' | 'CPF' | 'VAC' | 'AEC' | 'SEC' | 'MDC' | 'PRJ';
 
 export type CorrelationLevel = '1' | '2' | '3' | '-';
 
@@ -47,6 +47,8 @@ export interface CreditRules {
   dseMax: number;
   ofeMin: number;
   ofeMax: number;
+  projectMin: number;
+  projectMax: number;
   totalRequired: number;
 }
 

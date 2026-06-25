@@ -17,6 +17,7 @@ interface CreditValidatorProps {
     AEC: number;
     SEC: number;
     MDC: number;
+    PRJ: number;
     total: number;
   };
   rules?: CreditRules;
@@ -28,6 +29,7 @@ export function CreditValidator({ currentCredits, rules }: CreditValidatorProps)
   const isDscValid = currentCredits.DSC >= rules.dscMin && currentCredits.DSC <= rules.dscMax;
   const isDseValid = currentCredits.DSE >= rules.dseMin && currentCredits.DSE <= rules.dseMax;
   const isOfeValid = currentCredits.OFE >= rules.ofeMin && currentCredits.OFE <= rules.ofeMax;
+  const isProjectValid = currentCredits.PRJ >= (rules.projectMin || 16) && currentCredits.PRJ <= (rules.projectMax || 32);
   const isTotalValid = currentCredits.total === rules.totalRequired;
 
   return (
@@ -65,10 +67,18 @@ export function CreditValidator({ currentCredits, rules }: CreditValidatorProps)
           isValid={isOfeValid} 
         />
 
+        <CreditSection 
+          label="Project/Internship" 
+          current={currentCredits.PRJ} 
+          min={rules.projectMin || 16} 
+          max={rules.projectMax || 32} 
+          isValid={isProjectValid} 
+        />
+
         <div className="space-y-2">
           <div className="flex justify-between text-xs font-medium">
-            <span>Experiential & Others</span>
-            <span>{currentCredits.total - (currentCredits.DSC + currentCredits.DSE + currentCredits.OFE)} Credits</span>
+            <span>Institutional & Experiential</span>
+            <span>{currentCredits.total - (currentCredits.DSC + currentCredits.DSE + currentCredits.OFE + currentCredits.PRJ)} Credits</span>
           </div>
         </div>
 

@@ -86,7 +86,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   }, [profile, scheme, program]);
 
   const creditDistribution = useMemo(() => {
-    const dist = { DSC: 0, DSE: 0, OFE: 0, CPF: 0, VAC: 0, AEC: 0, SEC: 0, MDC: 0, total: 0 };
+    const dist = { DSC: 0, DSE: 0, OFE: 0, CPF: 0, VAC: 0, AEC: 0, SEC: 0, MDC: 0, PRJ: 0, total: 0 };
     const countedGroups = new Set<string>();
 
     syllabi.forEach(sub => {
@@ -133,7 +133,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       .then(() => toast({ title: "Course Synchronized", description: `${code} registered.` }))
       .catch(err => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: docRef.path,
+          path: code ? `schemes/${schemeId}/syllabi/${code}` : `schemes/${schemeId}/syllabi`,
           operation: 'write',
           requestResourceData: finalData
         }));
