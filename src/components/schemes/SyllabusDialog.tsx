@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -10,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -203,7 +202,6 @@ export function SyllabusDialog({
     setIsPoolSearching(true);
     setPoolResults([]);
     try {
-      // 1. Find the schemes that are marked as Institutional Common Pool for this batch
       const schemesQuery = query(
         collection(db, 'schemes'), 
         where('isCommonPoolScheme', '==', true),
@@ -218,7 +216,6 @@ export function SyllabusDialog({
         return;
       }
 
-      // 2. Fetch all syllabi from these schemes that match the current category
       const results: Syllabus[] = [];
       for (const schemeId of poolSchemeIds) {
         const syllabiQuery = query(
@@ -228,7 +225,6 @@ export function SyllabusDialog({
         const syllabiSnap = await getDocs(syllabiQuery);
         syllabiSnap.forEach(doc => {
           const data = doc.data() as Syllabus;
-          // Only include actual courses, not placeholder slots
           if (!data.isSlot && !data.isOFESlot && data.subjectCode) {
             results.push({ ...data, id: doc.id });
           }
@@ -252,9 +248,9 @@ export function SyllabusDialog({
     setFormData({
       ...formData,
       ...poolCourse,
-      id: formData.id, // Preserve the local slot identifier
-      schemeId: currentSchemeId, // Maintain association with current branch scheme
-      semester: formData.semester, // Keep branch-specific semester placement
+      id: formData.id,
+      schemeId: currentSchemeId,
+      semester: formData.semester,
       isSlot: false,
       isOFESlot: false
     });
@@ -492,7 +488,7 @@ export function SyllabusDialog({
                       <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Theory">Theory (L &gt; 0)</SelectItem>
-                        <SelectItem value="Lab/Sessional">Lab/Sessional (P &gt; 0)</SelectItem>
+                        <SelectItem value="Lab/Sessional">Lab/Sessional (P &gt; 0, L=0, T=0)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
