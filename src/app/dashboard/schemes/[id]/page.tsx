@@ -75,12 +75,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
   const syllabi = useMemo(() => {
     const uniqueMap = new Map<string, Syllabus>();
-    
-    // Combine local and pool syllabi
     const all = [...localSyllabi, ...poolSyllabi];
     
     all.forEach(s => {
-      // Use id for slots to avoid collisions on empty subjectCodes
       const key = (s.isSlot || s.isOFESlot) ? s.id : (s.subjectCode || s.id);
       if (!uniqueMap.has(key) || s.schemeId === schemeId) {
         uniqueMap.set(key, s);
@@ -94,7 +91,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const permissions = useMemo(() => {
-    if (!profile || !scheme || !program) return { canEditScheme: false, canEditSyllabus: (s: Partial<Syllabus>) => false };
+    if (profileLoading || !profile || !scheme || !program) return { canEditScheme: false, canEditSyllabus: (s: Partial<Syllabus>) => false };
 
     const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile.role);
     const isProgramDean = profile.role === 'dean_faculty' && profile.faculty === program.faculty;
@@ -106,7 +103,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     } else if (scheme.isCommonPoolScheme && isCommonBOS) {
       canEditScheme = true;
     } else if (!scheme.isCommonPoolScheme) {
-      // Branch BOS / Members can edit their own scheme
       canEditScheme = profile.managedBranches?.some(
         m => m.programId === scheme.programId && m.branch === scheme.branch
       ) || false;
@@ -115,15 +111,18 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const canEditSyllabus = (s: Partial<Syllabus>) => {
       if (isGlobalAdmin) return true;
       
-      // Ownership check: Synced courses from other schemes are always read-only
+      // Common BOS can edit Institutional Categories (VAC/AEC/MDC/SEC/OFE) across ANY scheme
+      const isInstitutionalCategory = ['VAC', 'AEC', 'MDC', 'SEC', 'OFE'].includes(s.creditCategory!);
+      if (isCommonBOS && isInstitutionalCategory) return true;
+
+      // Ownership check: Synced courses from other schemes are otherwise read-only
       if (s?.schemeId && s.schemeId !== schemeId) return false;
       
-      // If the course belongs to the current scheme, check if the user has edit rights for this scheme
       return canEditScheme;
     };
 
     return { canEditScheme, canEditSyllabus };
-  }, [profile, scheme, program, schemeId]);
+  }, [profile, profileLoading, scheme, program, schemeId]);
 
   const creditDistribution = useMemo(() => {
     const dist = { DSC: 0, DSE: 0, OFE: 0, CPF: 0, VAC: 0, AEC: 0, SEC: 0, MDC: 0, PRJ: 0, total: 0 };
@@ -151,9 +150,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     if (!program?.rules) return false;
     const { DSC, DSE, OFE, total, PRJ, VAC, AEC, SEC, MDC } = creditDistribution;
     
-    // Aggregates
-    const electiveTotal = DSE + OFE;
     const dscProjectTotal = DSC + PRJ;
+    const electiveTotal = DSE + OFE;
     
     const { 
       dscMin, dscMax,
@@ -165,11 +163,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       vacTotal = 8, aecTotal = 8, secTotal = 8, mdcTotal = 8
     } = program.rules;
     
-    // 1. Individual DSC within its program limits
     const isDscIndividualValid = DSC >= (dscMin || 0) && DSC <= (dscMax || 200);
-    // 2. Individual PRJ within its institutional limits
     const isPrjIndividualValid = PRJ >= projectMin && PRJ <= projectMax;
-    // 3. Combined DSC + PRJ aggregate (Strictly 96-104)
     const isCoreProjectAggregateValid = dscProjectTotal >= 96 && dscProjectTotal <= 104;
 
     return (
@@ -418,6 +413,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         canEdit={permissions.canEditSyllabus(activeSubject as Syllabus)}
         currentSchemeId={schemeId}
         programRules={program?.rules}
+        batchYear={scheme?.batchYear}
       />
     </div>
   );

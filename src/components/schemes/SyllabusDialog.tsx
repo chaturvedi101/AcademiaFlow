@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { BookOpen, Globe, Link2, Loader2, Plus, ShieldAlert, Trash2, Hash, Info, GraduationCap, ClipboardCheck } from "lucide-react";
+import { BookOpen, Globe, Link2, Loader2, Plus, ShieldAlert, Trash2, Hash, Info, GraduationCap, ClipboardCheck, Search, Layers } from "lucide-react";
 import { Syllabus, CorrelationLevel as CorrelationLevelType, CreditRules, SubjectType } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
@@ -54,6 +54,7 @@ interface SyllabusDialogProps {
   canEdit?: boolean;
   currentSchemeId?: string;
   programRules?: CreditRules;
+  batchYear?: string;
 }
 
 export function SyllabusDialog({ 
@@ -65,6 +66,7 @@ export function SyllabusDialog({
   branchName,
   canEdit = true,
   currentSchemeId,
+  batchYear,
 }: SyllabusDialogProps) {
   const { toast } = useToast();
   const db = useFirestore();
@@ -75,6 +77,11 @@ export function SyllabusDialog({
   const [isCheckingGlobal, setIsCheckingGlobal] = useState(false);
   const [globalConflict, setGlobalConflict] = useState<{ schemeId: string; subjectCode: string; data: Syllabus } | null>(null);
   const [isManuallyEditedCode, setIsManuallyEditedCode] = useState(false);
+
+  // University Pool Discovery States
+  const [isPoolSearching, setIsPoolSearching] = useState(false);
+  const [poolResults, setPoolResults] = useState<Syllabus[]>([]);
+  const [showPoolPicker, setShowPoolPicker] = useState(false);
 
   const [formData, setFormData] = useState<Partial<Syllabus>>({
     subjectCode: '',
@@ -154,7 +161,6 @@ export function SyllabusDialog({
     return finalCode;
   }, [branchName, formData.type, formData.semester, formData.creditCategory, formData.electiveGroupId, existingSyllabi, formData.id, formData.subjectCode]);
 
-  // Initial population from props
   useEffect(() => {
     if (syllabus && open) {
       const isNew = !syllabus.id;
@@ -171,10 +177,11 @@ export function SyllabusDialog({
       }));
       
       setIsManuallyEditedCode(false);
+      setPoolResults([]);
+      setShowPoolPicker(false);
     }
   }, [syllabus, open, isStrictlyCommonBOS]);
 
-  // Auto-generate code for new subjects when influencing factors change
   useEffect(() => {
     if (open && !syllabus?.id && !isManuallyEditedCode && !formData.isOFESlot) {
       const newCode = generateAutoSubjectCode();
@@ -184,7 +191,6 @@ export function SyllabusDialog({
     }
   }, [formData.type, formData.semester, formData.creditCategory, formData.electiveGroupId, open, syllabus?.id, isManuallyEditedCode, formData.isOFESlot, generateAutoSubjectCode, formData.subjectCode]);
 
-  // Handle credit logic based on type
   useEffect(() => {
     const l = Number(formData.lectureCredits) || 0;
     const t = Number(formData.tutorialCredits) || 0;
@@ -193,7 +199,6 @@ export function SyllabusDialog({
     setFormData(prev => ({ ...prev, credits: l + t + (p * 0.5) }));
   }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits]);
 
-  // Global uniqueness check
   useEffect(() => {
     if (!open || !formData.subjectCode || formData.isOFESlot) return;
     const checkGlobalUniqueness = async (code: string) => {
@@ -223,6 +228,58 @@ export function SyllabusDialog({
     const timer = setTimeout(() => checkGlobalUniqueness(formData.subjectCode!), 600);
     return () => clearTimeout(timer);
   }, [formData.subjectCode, open, db, currentSchemeId, syllabus?.subjectCode, formData.isOFESlot]);
+
+  const searchUniversityPool = async () => {
+    setIsPoolSearching(true);
+    try {
+      const schemesQuery = query(
+        collectionGroup(db, 'schemes'), 
+        where('isCommonPoolScheme', '==', true),
+        where('batchYear', '==', batchYear)
+      );
+      const schemesSnap = await getDocs(schemesQuery);
+      const poolSchemeIds = schemesSnap.docs.map(d => d.id);
+
+      if (poolSchemeIds.length === 0) {
+        toast({ title: "Pool Empty", description: "No institutional pool found for this batch year." });
+        setIsPoolSearching(false);
+        return;
+      }
+
+      const results: Syllabus[] = [];
+      for (const schemeId of poolSchemeIds) {
+        const syllabiQuery = query(
+          collectionGroup(db, 'syllabi'),
+          where('schemeId', '==', schemeId),
+          where('creditCategory', '==', formData.creditCategory)
+        );
+        const syllabiSnap = await getDocs(syllabiQuery);
+        syllabiSnap.forEach(doc => results.push({ ...doc.data(), id: doc.id } as Syllabus));
+      }
+
+      setPoolResults(results);
+      setShowPoolPicker(true);
+    } catch (err) {
+      console.error("Pool search failed:", err);
+      toast({ variant: "destructive", title: "Discovery Error", description: "Failed to fetch university pool data." });
+    } finally {
+      setIsPoolSearching(false);
+    }
+  };
+
+  const applyPoolCourse = (poolCourse: Syllabus) => {
+    setFormData({
+      ...formData,
+      ...poolCourse,
+      id: formData.id, // Preserve the local slot ID
+      schemeId: currentSchemeId, // Ensure it points to current scheme
+      semester: formData.semester, // Keep branch-specific semester placement
+      isSlot: false,
+      isOFESlot: false
+    });
+    setShowPoolPicker(false);
+    toast({ title: "Slot Synchronized", description: `${poolCourse.subjectCode} applied to institutional slot.` });
+  };
 
   const handleTypeChange = (newType: SubjectType) => {
     if (isReadOnly) return;
@@ -273,6 +330,7 @@ export function SyllabusDialog({
 
   const isReadOnly = !canEdit;
   const isTheory = formData.type === 'Theory';
+  const isInstitutionalCategory = ['VAC', 'AEC', 'MDC', 'SEC', 'OFE'].includes(formData.creditCategory || '');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -289,20 +347,68 @@ export function SyllabusDialog({
         
         <ScrollArea className="flex-1 w-full min-h-0">
           <div className="p-6 space-y-8 pb-12">
-            {globalConflict && (
-              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-4 text-amber-800 text-sm animate-in fade-in slide-in-from-top-2">
-                <Globe className="w-6 h-6 text-amber-600 shrink-0" />
-                <div className="flex-1">
-                  <p className="font-bold">Institutional Code Conflict: {globalConflict.subjectCode}</p>
-                  <p className="text-xs mb-3">This code is already assigned in scheme <strong>{globalConflict.schemeId}</strong>. Use the existing content to ensure consistency.</p>
-                  <Button size="sm" variant="outline" className="h-8 border-amber-300 hover:bg-amber-100" onClick={() => { 
-                    setFormData({...formData, ...globalConflict.data, id: undefined, subjectCode: globalConflict.subjectCode}); 
-                    setGlobalConflict(null); 
-                  }}>
-                    <Link2 className="w-3.5 h-3.5 mr-2" /> Link Existing Content
-                  </Button>
+            {(isInstitutionalCategory && !isReadOnly && !formData.isOFESlot) && (
+              <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-between gap-4 animate-in slide-in-from-top-2">
+                <div className="flex items-center gap-3">
+                  <Globe className="w-5 h-5 text-emerald-600" />
+                  <div>
+                    <p className="text-sm font-bold text-emerald-900">Institutional Pool Integration</p>
+                    <p className="text-[11px] text-emerald-700">Browse university-approved courses for {formData.creditCategory}.</p>
+                  </div>
                 </div>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                  onClick={searchUniversityPool}
+                  disabled={isPoolSearching}
+                >
+                  {isPoolSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : <Search className="w-3.5 h-3.5 mr-2" />}
+                  Search University Pool
+                </Button>
               </div>
+            )}
+
+            {showPoolPicker && (
+              <Card className="border-emerald-200 bg-emerald-50/10 animate-in zoom-in-95">
+                <CardHeader className="py-3 px-4 flex flex-row items-center justify-between border-b bg-emerald-50/30">
+                  <CardTitle className="text-sm font-headline">Available {formData.creditCategory} Courses</CardTitle>
+                  <Button variant="ghost" size="sm" onClick={() => setShowPoolPicker(false)}>Close</Button>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="pl-4">Code</TableHead>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Credits</TableHead>
+                        <TableHead className="text-right pr-4">Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {poolResults.map(course => (
+                        <TableRow key={course.id}>
+                          <TableCell className="pl-4 font-mono font-bold text-emerald-700">{course.subjectCode}</TableCell>
+                          <TableCell className="text-xs font-medium">{course.title}</TableCell>
+                          <TableCell className="text-xs">{course.credits} Cr</TableCell>
+                          <TableCell className="text-right pr-4">
+                            <Button size="sm" variant="ghost" className="h-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100" onClick={() => applyPoolCourse(course)}>
+                              <Plus className="w-3 h-3 mr-1" /> Use This
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {poolResults.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center py-6 text-muted-foreground text-xs italic">
+                            No matching courses found in the university pool.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
             )}
 
             <Tabs defaultValue="basic" className="w-full">
