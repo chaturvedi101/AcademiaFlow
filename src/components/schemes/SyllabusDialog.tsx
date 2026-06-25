@@ -226,11 +226,10 @@ export function SyllabusDialog({
       setFormData({
         ...formData,
         type: newType,
-        practicalCredits: 0, // Reset practical for theory
+        practicalCredits: 0, 
         lectureCredits: (formData.lectureCredits && formData.lectureCredits > 0) ? formData.lectureCredits : 1
       });
     } else {
-      // For Lab/Sessional, Project/Internship, Non Graded
       setFormData({
         ...formData,
         type: newType,
@@ -271,10 +270,7 @@ export function SyllabusDialog({
   };
 
   const isReadOnly = !canEdit;
-
-  // Conditional flags for inputs
   const isTheory = formData.type === 'Theory';
-  const isNonTheory = formData.type === 'Lab/Sessional' || formData.type === 'Project/Internship' || formData.type === 'Non Graded';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -404,10 +400,10 @@ export function SyllabusDialog({
                     <Select disabled={isReadOnly} value={formData.type} onValueChange={(v: SubjectType) => handleTypeChange(v)}>
                       <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Theory">Theory (L > 0, P = 0)</SelectItem>
-                        <SelectItem value="Lab/Sessional">Lab/Sessional (P > 0, L=0, T=0)</SelectItem>
-                        <SelectItem value="Project/Internship">Project/Internship (P > 0, L=0, T=0)</SelectItem>
-                        <SelectItem value="Non Graded">Non Graded (P > 0, L=0, T=0)</SelectItem>
+                        <SelectItem value="Theory">Theory (L &gt; 0, P = 0)</SelectItem>
+                        <SelectItem value="Lab/Sessional">Lab/Sessional (P &gt; 0, L=0, T=0)</SelectItem>
+                        <SelectItem value="Project/Internship">Project/Internship (P &gt; 0, L=0, T=0)</SelectItem>
+                        <SelectItem value="Non Graded">Non Graded (P &gt; 0, L=0, T=0)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -476,7 +472,6 @@ export function SyllabusDialog({
                    </div>
                 </div>
 
-                {/* Evaluation Guidance Note */}
                 <div className="p-4 bg-muted/30 border border-dashed rounded-xl space-y-3">
                    <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase tracking-widest">
                      <ClipboardCheck className="w-4 h-4" />
