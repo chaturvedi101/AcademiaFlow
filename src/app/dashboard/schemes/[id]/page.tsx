@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from "react";
@@ -8,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown } from "lucide-react";
+import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown, Globe, BookOpen } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile } from "@/lib/types";
@@ -40,10 +41,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
   const syllabi = useMemo(() => {
-    // Ensure uniqueness across local syllabi to avoid React key errors
     const uniqueMap = new Map<string, Syllabus>();
     localSyllabi.forEach(s => {
-      uniqueMap.set(s.subjectCode, s);
+      // Use composite key to avoid conflicts between slots and courses
+      const key = s.isOFESlot ? `SLOT-${s.electiveGroupId}-${s.semester}` : s.subjectCode;
+      uniqueMap.set(key, s);
     });
     return Array.from(uniqueMap.values()).sort((a, b) => (a.semester || 1) - (b.semester || 1));
   }, [localSyllabi]);
@@ -73,7 +75,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const canEditSyllabus = (s: Syllabus) => {
       if (isGlobalAdmin) return true;
       const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(s?.creditCategory || '');
-      if (isCommonCategory || s?.isCommonCourse || scheme.isCommonPoolScheme) {
+      if (isCommonCategory || s?.isCommonCourse || scheme.isCommonPoolScheme || s?.creditCategory === 'OFE') {
+        // Only Common BOS or Respective Dean can edit common pool courses
         return isCommonBOS || isProgramDean;
       }
       return canEditScheme;
@@ -88,6 +91,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     syllabi.forEach(sub => {
       const cat = sub.creditCategory as keyof typeof dist;
+      
+      // Contributed OFE courses don't count towards the current branch's credit total
+      // unless they are explicitly placed in a slot.
+      if (sub.isOFEContribution) return;
+
       if (sub.electiveGroupId) {
         if (!countedGroups.has(sub.electiveGroupId)) {
           dist[cat] = (dist[cat] || 0) + (sub.credits || 0);
@@ -115,12 +123,14 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const handleSaveSyllabus = async (data: Partial<Syllabus>) => {
-    if (!data.subjectCode) return;
-    const docRef = doc(db, 'schemes', schemeId, 'syllabi', data.subjectCode);
-    const finalData = { ...data, id: data.subjectCode, schemeId, updatedAt: serverTimestamp() };
+    const code = data.isOFESlot ? `SLOT-${data.electiveGroupId}-${data.semester}` : data.subjectCode;
+    if (!code) return;
+
+    const docRef = doc(db, 'schemes', schemeId, 'syllabi', code);
+    const finalData = { ...data, id: code, schemeId, updatedAt: serverTimestamp() };
     
     setDoc(docRef, finalData, { merge: true })
-      .then(() => toast({ title: "Course Saved", description: `${data.subjectCode} synchronized.` }))
+      .then(() => toast({ title: "Course Synchronized", description: `${code} registered.` }))
       .catch(err => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: docRef.path,
@@ -178,12 +188,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           <Tabs defaultValue="syllabi" className="w-full">
             <TabsList className="bg-white border p-1 h-12 w-full justify-start gap-2">
               <TabsTrigger value="syllabi" className="h-10 px-6 data-[state=active]:bg-primary data-[state=active]:text-white">Course Structure</TabsTrigger>
-              <TabsTrigger value="nep" className="h-10 px-6 data-[state=active]:bg-primary data-[state=active]:text-white">NEP 2020 Builder</TabsTrigger>
+              <TabsTrigger value="contributions" className="h-10 px-6 data-[state=active]:bg-primary data-[state=active]:text-white">Pool Contributions</TabsTrigger>
             </TabsList>
 
             <TabsContent value="syllabi" className="mt-6 space-y-6">
               {Array.from({ length: program?.totalSemesters || 8 }, (_, i) => i + 1).map(sem => {
-                const semSyllabi = syllabi.filter(s => s.semester === sem);
+                const semSyllabi = syllabi.filter(s => s.semester === sem && !s.isOFEContribution);
                 const groups: Record<string, Syllabus[]> = {};
                 const nonGrouped: Syllabus[] = [];
 
@@ -203,7 +213,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                     <CardHeader className="flex flex-row items-center justify-between bg-muted/20 py-4 px-6">
                       <div className="space-y-0.5">
                         <CardTitle className="text-lg font-headline">Semester {sem}</CardTitle>
-                        <CardDescription className="text-xs font-medium">Credits: <span className="text-primary font-bold">{semTotal}</span></CardDescription>
+                        <CardDescription className="text-xs font-medium">Internal Credits: <span className="text-primary font-bold">{semTotal}</span></CardDescription>
                       </div>
                       {permissions.canEditScheme && (
                         <Button size="sm" variant="outline" className="gap-2 h-9 rounded-lg" onClick={() => { setActiveSubject({ semester: sem }); setIsSyllabusDialogOpen(true); }}>
@@ -216,7 +226,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                         <TableHeader className="bg-muted/10">
                           <TableRow className="hover:bg-transparent">
                             <TableHead className="w-24 pl-6">Code</TableHead>
-                            <TableHead>Subject Title</TableHead>
+                            <TableHead>Subject Title / Slot</TableHead>
                             <TableHead>Category</TableHead>
                             <TableHead className="text-right">Credits</TableHead>
                             <TableHead className="text-right pr-6">Actions</TableHead>
@@ -224,32 +234,33 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                         </TableHeader>
                         <TableBody>
                           {nonGrouped.map(sub => (
-                            <SubjectRow key={sub.subjectCode} sub={sub} permissions={permissions} onEdit={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }} onDelete={() => handleDeleteSyllabus(sub.id)} />
+                            <SubjectRow key={sub.id} sub={sub} permissions={permissions} onEdit={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }} onDelete={() => handleDeleteSyllabus(sub.id)} />
                           ))}
                           {Object.entries(groups).map(([groupId, members]) => {
                             const isExpanded = expandedGroups[groupId];
+                            const isOfePool = members.some(m => m.creditCategory === 'OFE' && m.isOFESlot);
                             return (
                               <React.Fragment key={groupId}>
-                                <TableRow className="bg-accent/5 hover:bg-accent/10 cursor-pointer" onClick={() => toggleGroup(groupId)}>
-                                  <TableCell className="pl-6 font-mono font-bold text-accent">{groupId}</TableCell>
+                                <TableRow className={`hover:bg-muted/10 cursor-pointer ${isOfePool ? 'bg-blue-50/30' : 'bg-accent/5'}`} onClick={() => toggleGroup(groupId)}>
+                                  <TableCell className="pl-6 font-mono font-bold text-accent">{isOfePool ? 'POOL' : 'DSE'}</TableCell>
                                   <TableCell className="font-bold">
-                                    <div className="flex items-center gap-2 text-accent">
+                                    <div className={`flex items-center gap-2 ${isOfePool ? 'text-blue-600' : 'text-accent'}`}>
                                       {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                                      {groupId} Pool ({members.length} Subjects)
+                                      {groupId} {isOfePool ? '(Institutional Pool)' : `(${members.length} Branch Options)`}
                                     </div>
                                   </TableCell>
-                                  <TableCell><Badge className="bg-accent text-white border-none text-[9px]">{members[0].creditCategory}</Badge></TableCell>
+                                  <TableCell><Badge className={`${isOfePool ? 'bg-blue-500' : 'bg-accent'} text-white border-none text-[9px]`}>{members[0].creditCategory}</Badge></TableCell>
                                   <TableCell className="text-right font-bold text-sm">{members[0].credits}</TableCell>
                                   <TableCell className="text-right pr-6">
-                                    {permissions.canEditScheme && (
+                                    {permissions.canEditScheme && !isOfePool && (
                                       <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setActiveSubject({ semester: sem, electiveGroupId: groupId, creditCategory: members[0].creditCategory }); setIsSyllabusDialogOpen(true); }}>
                                         <Plus className="w-3.5 h-3.5 mr-1" /> Add Option
                                       </Button>
                                     )}
                                   </TableCell>
                                 </TableRow>
-                                {isExpanded && members.map(sub => (
-                                  <SubjectRow key={sub.subjectCode} sub={sub} permissions={permissions} isOption onEdit={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }} onDelete={() => handleDeleteSyllabus(sub.id)} />
+                                {isExpanded && !isOfePool && members.map(sub => (
+                                  <SubjectRow key={sub.id} sub={sub} permissions={permissions} isOption onEdit={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }} onDelete={() => handleDeleteSyllabus(sub.id)} />
                                 ))}
                               </React.Fragment>
                             );
@@ -260,6 +271,53 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                   </Card>
                 );
               })}
+            </TabsContent>
+
+            <TabsContent value="contributions" className="mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Offered to University Pool</CardTitle>
+                  <CardDescription>Courses from this branch available as Open Electives for other departments.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="pl-6">Code</TableHead>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Sem</TableHead>
+                        <TableHead className="text-right pr-6">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {syllabi.filter(s => s.isOFEContribution).map(sub => (
+                        <TableRow key={sub.id}>
+                          <TableCell className="pl-6 font-mono font-bold text-primary">{sub.subjectCode}</TableCell>
+                          <TableCell className="font-medium">{sub.title}</TableCell>
+                          <TableCell>{sub.semester}</TableCell>
+                          <TableCell className="text-right pr-6">
+                             <div className="flex justify-end gap-2">
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }}>
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={() => handleDeleteSyllabus(sub.id)}>
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                             </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {syllabi.filter(s => s.isOFEContribution).length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center py-12 text-muted-foreground italic">
+                             No courses currently offered to the university-wide pool.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         </div>
@@ -285,22 +343,31 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
 function SubjectRow({ sub, permissions, isOption, onEdit, onDelete }: any) {
   const canEdit = permissions.canEditSyllabus(sub);
+  const isSlot = sub.isOFESlot;
+  
   return (
     <TableRow className={`group transition-colors ${isOption ? 'bg-muted/30' : ''}`}>
-      <TableCell className={`font-mono text-xs font-bold text-primary ${isOption ? 'pl-10' : 'pl-6'}`}>{sub.subjectCode}</TableCell>
+      <TableCell className={`font-mono text-xs font-bold ${isSlot ? 'text-blue-600' : 'text-primary'} ${isOption ? 'pl-10' : 'pl-6'}`}>
+        {isSlot ? 'SLOT' : sub.subjectCode}
+      </TableCell>
       <TableCell className="font-medium">
         <div className="flex flex-col">
-          <span>{sub.title}</span>
-          <span className="text-[10px] text-muted-foreground uppercase">{sub.type}</span>
+          <span className="flex items-center gap-2">
+            {isSlot && <Globe className="w-3 h-3 text-blue-500" />}
+            {sub.title}
+          </span>
+          <span className="text-[10px] text-muted-foreground uppercase">{isSlot ? 'Institutional Pool Slot' : sub.type}</span>
         </div>
       </TableCell>
       <TableCell><Badge variant="secondary" className="text-[9px] font-bold">{sub.creditCategory}</Badge></TableCell>
       <TableCell className="text-right font-bold text-sm">{sub.credits}</TableCell>
       <TableCell className="text-right pr-6">
         <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500" onClick={() => exportSyllabusToPDF(sub)}>
-            <FileDown className="w-3.5 h-3.5" />
-          </Button>
+          {!isSlot && (
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500" onClick={() => exportSyllabusToPDF(sub)}>
+              <FileDown className="w-3.5 h-3.5" />
+            </Button>
+          )}
           <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={onEdit}>
             <Edit3 className="w-3.5 h-3.5" />
           </Button>

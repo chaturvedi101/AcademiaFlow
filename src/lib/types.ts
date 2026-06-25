@@ -118,6 +118,8 @@ export interface Syllabus {
   followedFromId?: string;
   electiveGroupId?: string; // e.g. "Elective-I"
   electiveGroupName?: string; // e.g. "Cloud Computing Pool"
+  isOFESlot?: boolean; // True if this is just a placeholder slot in a scheme
+  isOFEContribution?: boolean; // True if this is a course offered by this branch to the global pool
 }
 
 export interface AuditLog {

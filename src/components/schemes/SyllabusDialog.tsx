@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -12,7 +13,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BookOpen, Globe, Link2, Loader2, Plus, ShieldAlert, Trash2, Hash } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { BookOpen, Globe, Link2, Loader2, Plus, ShieldAlert, Trash2, Hash, Info } from "lucide-react";
 import { Syllabus, CorrelationLevel, CorrelationLevel as CorrelationLevelType } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
@@ -91,7 +93,9 @@ export function SyllabusDialog({
     referenceBooks: [],
     electiveGroupId: '',
     electiveGroupName: '',
-    isCommonCourse: false
+    isCommonCourse: false,
+    isOFESlot: false,
+    isOFEContribution: false
   });
 
   const isCommonStaff = profile?.faculty === 'University-wide (Common BOS)' || profile?.role === 'admin' || profile?.role === 'dean_academic';
@@ -118,6 +122,8 @@ export function SyllabusDialog({
     const typeIndicator = (formData.lectureCredits || 0) + (formData.tutorialCredits || 0) > 0 ? 'L' : 'P';
     const isElective = formData.creditCategory === 'DSE' || formData.creditCategory === 'OFE';
     const categoryIndicator = isElective ? 'E' : 'C';
+    
+    // Use Year Digit instead of Semester Digit
     const yearDigit = Math.ceil((formData.semester || 1) / 2);
 
     const baseCode = `${branchPrefix}${typeIndicator}${categoryIndicator}${yearDigit}`;
@@ -174,7 +180,7 @@ export function SyllabusDialog({
   }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits]);
 
   useEffect(() => {
-    if (!open || !formData.subjectCode) return;
+    if (!open || !formData.subjectCode || formData.isOFESlot) return;
     const checkGlobalUniqueness = async (code: string) => {
       if (syllabus?.subjectCode === code) { setGlobalConflict(null); return; }
       
@@ -200,7 +206,7 @@ export function SyllabusDialog({
     
     const timer = setTimeout(() => checkGlobalUniqueness(formData.subjectCode!), 600);
     return () => clearTimeout(timer);
-  }, [formData.subjectCode, open, db, currentSchemeId, syllabus?.subjectCode]);
+  }, [formData.subjectCode, open, db, currentSchemeId, syllabus?.subjectCode, formData.isOFESlot]);
 
   const handleSave = () => {
     // Credit consistency check for elective groups
@@ -260,11 +266,65 @@ export function SyllabusDialog({
             <Tabs defaultValue="basic" className="w-full">
               <TabsList className="grid w-full grid-cols-3 mb-8">
                 <TabsTrigger value="basic">Course Identity</TabsTrigger>
-                <TabsTrigger value="syllabus">Syllabus & Units</TabsTrigger>
-                <TabsTrigger value="mapping">PO Correlation</TabsTrigger>
+                <TabsTrigger value="syllabus" disabled={formData.isOFESlot}>Syllabus & Units</TabsTrigger>
+                <TabsTrigger value="mapping" disabled={formData.isOFESlot}>PO Correlation</TabsTrigger>
               </TabsList>
 
               <TabsContent value="basic" className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Credit Category</Label>
+                    <Select disabled={isReadOnly} value={formData.creditCategory} onValueChange={(v: any) => {
+                      const isOfe = v === 'OFE';
+                      setFormData({...formData, creditCategory: v, electiveGroupId: '', isOFESlot: isOfe, isOFEContribution: false});
+                    }}>
+                      <SelectTrigger className="h-11 border-primary/20"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="DSC">DSC (Discipline Core)</SelectItem>
+                        <SelectItem value="DSE">DSE (Discipline Elective)</SelectItem>
+                        <SelectItem value="OFE">OFE (Open Elective Slot / Contribution)</SelectItem>
+                        <SelectItem value="SEC">SEC (Skill Enhancement)</SelectItem>
+                        {isCommonStaff && (
+                          <>
+                            <SelectItem value="VAC">VAC (Value Added)</SelectItem>
+                            <SelectItem value="AEC">AEC (Ability Enhancement)</SelectItem>
+                            <SelectItem value="MDC">MDC (Multi Disciplinary)</SelectItem>
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {formData.creditCategory === 'OFE' && !isReadOnly && (
+                    <div className="p-4 bg-accent/5 rounded-xl border border-accent/10 space-y-3 animate-in zoom-in-95">
+                      <Label className="text-xs font-bold uppercase text-accent">OFE Intent</Label>
+                      <RadioGroup 
+                        value={formData.isOFESlot ? 'slot' : 'contribution'} 
+                        onValueChange={(val) => {
+                          const isSlot = val === 'slot';
+                          setFormData({
+                            ...formData, 
+                            isOFESlot: isSlot, 
+                            isOFEContribution: !isSlot,
+                            title: isSlot ? (formData.electiveGroupId || 'Open Elective') : '',
+                            units: isSlot ? [] : formData.units
+                          });
+                        }}
+                        className="flex gap-4"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="slot" id="slot" />
+                          <Label htmlFor="slot" className="text-sm font-medium cursor-pointer">Define Scheme Slot</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="contribution" id="cont" />
+                          <Label htmlFor="cont" className="text-sm font-medium cursor-pointer">Offer to University Pool</Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold flex items-center gap-2">
@@ -272,16 +332,17 @@ export function SyllabusDialog({
                       {isCheckingGlobal && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
                     </Label>
                     <Input 
-                      disabled={isReadOnly} 
+                      disabled={isReadOnly || formData.isOFESlot} 
                       className="font-mono h-11 border-primary/20 focus:ring-primary/20" 
-                      value={formData.subjectCode || ''} 
+                      value={formData.isOFESlot ? 'SLOT-AUTO' : (formData.subjectCode || '')} 
                       onChange={e => setFormData({ ...formData, subjectCode: e.target.value.toUpperCase() })} 
                     />
+                    {formData.isOFESlot && <p className="text-[10px] text-muted-foreground">Slots are defined by grouping ID, not unique codes.</p>}
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold">Subject Title</Label>
+                    <Label className="text-sm font-semibold">Subject Title / Slot Label</Label>
                     <Input 
-                      disabled={isReadOnly} 
+                      disabled={isReadOnly || formData.isOFESlot} 
                       className="h-11 border-primary/20 focus:ring-primary/20"
                       value={formData.title || ''} 
                       onChange={e => setFormData({ ...formData, title: e.target.value })} 
@@ -313,30 +374,10 @@ export function SyllabusDialog({
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-sm font-semibold">Credit Category</Label>
-                    <Select disabled={isReadOnly} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v, electiveGroupId: ''})}>
-                      <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="DSC">DSC (Discipline Core)</SelectItem>
-                        <SelectItem value="DSE">DSE (Discipline Elective)</SelectItem>
-                        <SelectItem value="OFE">OFE (Open Elective)</SelectItem>
-                        <SelectItem value="SEC">SEC (Skill Enhancement)</SelectItem>
-                        {isCommonStaff && (
-                          <>
-                            <SelectItem value="VAC">VAC (Value Added)</SelectItem>
-                            <SelectItem value="AEC">AEC (Ability Enhancement)</SelectItem>
-                            <SelectItem value="MDC">MDC (Multi Disciplinary)</SelectItem>
-                          </>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
                   {isElective && (
                     <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
-                      <Label className="text-sm font-semibold text-accent">Elective Group Slot</Label>
-                      <Select disabled={isReadOnly} value={formData.electiveGroupId} onValueChange={v => setFormData({...formData, electiveGroupId: v})}>
+                      <Label className="text-sm font-semibold text-accent">Grouping Identifier</Label>
+                      <Select disabled={isReadOnly} value={formData.electiveGroupId} onValueChange={v => setFormData({...formData, electiveGroupId: v, title: formData.isOFESlot ? v : formData.title})}>
                         <SelectTrigger className="h-11 border-accent/30 focus:ring-accent/20">
                           <SelectValue placeholder="Select group slot..." />
                         </SelectTrigger>
@@ -368,6 +409,13 @@ export function SyllabusDialog({
                      <Input value={formData.credits ?? 0} className="h-10 font-bold bg-white text-primary border-primary/20" readOnly />
                    </div>
                 </div>
+
+                {formData.isOFESlot && (
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-3 text-blue-800 text-xs">
+                    <Info className="w-4 h-4 mt-0.5 shrink-0" />
+                    <p>You are defining an **Open Elective Slot**. This branch will reserve these credits in the scheme, but the content will be provided by other departments via the University Pool.</p>
+                  </div>
+                )}
               </TabsContent>
               
               <TabsContent value="syllabus" className="space-y-6">
@@ -412,6 +460,11 @@ export function SyllabusDialog({
                        </CardContent>
                      </Card>
                    ))}
+                   {(!formData.units || formData.units.length === 0) && (
+                     <div className="text-center py-12 border-2 border-dashed rounded-xl bg-muted/20">
+                       <p className="text-sm text-muted-foreground">No units defined. Click "Add Unit" to begin building the syllabus.</p>
+                     </div>
+                   )}
                  </div>
               </TabsContent>
 
@@ -475,7 +528,7 @@ export function SyllabusDialog({
             {isReadOnly ? 'Close' : 'Cancel'}
           </Button>
           {!isReadOnly && (
-            <Button disabled={isCheckingGlobal || !!globalConflict} className="h-11 px-8 shadow-lg" onClick={handleSave}>
+            <Button disabled={isCheckingGlobal || (!!globalConflict && !formData.isOFESlot)} className="h-11 px-8 shadow-lg" onClick={handleSave}>
               Save Configuration
             </Button>
           )}
