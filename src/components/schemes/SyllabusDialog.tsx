@@ -14,7 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { BookOpen, Globe, Link2, Loader2, Plus, ShieldAlert, Trash2, Hash, Info, AlertTriangle } from "lucide-react";
+import { BookOpen, Globe, Link2, Loader2, Plus, ShieldAlert, Trash2, Hash, Info, AlertTriangle, GraduationCap } from "lucide-react";
 import { Syllabus, CorrelationLevel, CorrelationLevel as CorrelationLevelType, CreditRules } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
@@ -122,7 +122,7 @@ export function SyllabusDialog({
       }
     }
 
-    const typeIndicator = (formData.lectureCredits || 0) + (formData.tutorialCredits || 0) > 0 ? 'L' : 'P';
+    const typeIndicator = (formData.type === 'Theory') ? 'L' : (formData.type === 'Sessional' ? 'S' : 'P');
     const isElective = formData.creditCategory === 'DSE' || formData.creditCategory === 'OFE';
     const categoryIndicator = isElective ? 'E' : 'C';
     
@@ -154,18 +154,17 @@ export function SyllabusDialog({
     }
 
     return finalCode;
-  }, [branchName, formData.lectureCredits, formData.tutorialCredits, formData.semester, formData.creditCategory, formData.electiveGroupId, existingSyllabi, formData.id, formData.subjectCode]);
+  }, [branchName, formData.type, formData.semester, formData.creditCategory, formData.electiveGroupId, existingSyllabi, formData.id, formData.subjectCode]);
 
   useEffect(() => {
     if (!syllabus?.id && !syllabus?.subjectCode && open) {
       setFormData(prev => ({ ...prev, subjectCode: generateAutoSubjectCode() }));
     }
-  }, [formData.semester, formData.creditCategory, formData.lectureCredits, formData.tutorialCredits, formData.electiveGroupId, generateAutoSubjectCode, open, syllabus?.id, syllabus?.subjectCode]);
+  }, [formData.semester, formData.creditCategory, formData.type, formData.electiveGroupId, generateAutoSubjectCode, open, syllabus?.id, syllabus?.subjectCode]);
 
   useEffect(() => {
     if (syllabus && open) {
       const isNew = !syllabus.id;
-      // Pre-select a valid category for Common BOS if it's a new subject
       const initialCategory = isNew && isStrictlyCommonBOS ? 'AEC' : syllabus.creditCategory || 'DSC';
 
       setFormData(prev => ({
@@ -188,8 +187,10 @@ export function SyllabusDialog({
     const l = Number(formData.lectureCredits) || 0;
     const t = Number(formData.tutorialCredits) || 0;
     const p = Number(formData.practicalCredits) || 0;
+    
+    // In Sessional/Skill courses, credits often follow a direct mapping if not L-T-P
     setFormData(prev => ({ ...prev, credits: l + t + (p * 0.5) }));
-  }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits]);
+  }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits, formData.type]);
 
   useEffect(() => {
     if (!open || !formData.subjectCode || formData.isOFESlot) return;
@@ -212,7 +213,7 @@ export function SyllabusDialog({
           setGlobalConflict(null);
         }
       } catch (err: any) { 
-        console.warn("Global uniqueness check failed or index missing:", err.message);
+        console.warn("Global uniqueness check failed:", err.message);
         setGlobalConflict(null); 
       } finally { setIsCheckingGlobal(false); }
     };
@@ -376,13 +377,13 @@ export function SyllabusDialog({
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold">Academic Level</Label>
+                    <Label className="text-sm font-semibold">Course Type</Label>
                     <Select disabled={isReadOnly} value={formData.type} onValueChange={(v: any) => setFormData({...formData, type: v})}>
                       <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Theory">Theory</SelectItem>
+                        <SelectItem value="Theory">Theory (ETE)</SelectItem>
                         <SelectItem value="Practical/Lab">Practical/Lab</SelectItem>
-                        <SelectItem value="Sessional">Sessional</SelectItem>
+                        <SelectItem value="Sessional">Sessional (CIE Only)</SelectItem>
                         <SelectItem value="Skill/IKS/Experiential">Skill / IKS</SelectItem>
                       </SelectContent>
                     </Select>
@@ -433,6 +434,16 @@ export function SyllabusDialog({
                      <Input value={formData.credits ?? 0} className="h-10 font-bold bg-white text-primary border-primary/20" readOnly />
                    </div>
                 </div>
+
+                {formData.type === 'Sessional' && (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3 text-amber-800 text-xs animate-in slide-in-from-bottom-1">
+                    <GraduationCap className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
+                    <div className="space-y-1">
+                      <p className="font-bold">Sessional Guidance</p>
+                      <p>Sessional subjects are evaluated entirely via **Continuous Internal Evaluation (CIE)**. No End-Term Exam is conducted. This type is ideal for Seminars, Mini-Projects, and Training reports.</p>
+                    </div>
+                  </div>
+                )}
 
                 {formData.isOFESlot && (
                   <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-3 text-blue-800 text-xs">
