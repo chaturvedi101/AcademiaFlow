@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
@@ -91,7 +90,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const permissions = useMemo(() => {
-    if (profileLoading || !profile || !scheme || !program) return { canEditScheme: false, canEditSyllabus: (s: Partial<Syllabus>) => false };
+    if (profileLoading || !profile || !scheme || !program) return { canEditScheme: false, canEditSyllabus: (s: Partial<Syllabus> | undefined) => false };
 
     const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile.role);
     const isProgramDean = profile.role === 'dean_faculty' && profile.faculty === program.faculty;
@@ -108,11 +107,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       ) || false;
     }
 
-    const canEditSyllabus = (s: Partial<Syllabus>) => {
+    const canEditSyllabus = (s: Partial<Syllabus> | undefined) => {
       if (isGlobalAdmin) return true;
+      if (!s) return false;
       
       // Common BOS can edit Institutional Categories (VAC/AEC/MDC/SEC/OFE) across ANY scheme
-      const isInstitutionalCategory = ['VAC', 'AEC', 'MDC', 'SEC', 'OFE'].includes(s.creditCategory!);
+      const isInstitutionalCategory = s.creditCategory ? ['VAC', 'AEC', 'MDC', 'SEC', 'OFE'].includes(s.creditCategory) : false;
       if (isCommonBOS && isInstitutionalCategory) return true;
 
       // Ownership check: Synced courses from other schemes are otherwise read-only
@@ -248,7 +248,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
+      <div className="grid grid-cols-1 grid-cols-4 gap-8">
         <div className="xl:col-span-3 space-y-6">
           <Tabs defaultValue="syllabi" className="w-full">
             <TabsList className="bg-white border p-1 h-12 w-full justify-start gap-2">
@@ -410,7 +410,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         onSave={handleSaveSyllabus}
         programName={program?.name}
         branchName={scheme?.branch}
-        canEdit={permissions.canEditSyllabus(activeSubject as Syllabus)}
+        canEdit={permissions.canEditSyllabus(activeSubject)}
         currentSchemeId={schemeId}
         programRules={program?.rules}
         batchYear={scheme?.batchYear}
