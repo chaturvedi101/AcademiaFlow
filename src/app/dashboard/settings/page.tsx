@@ -6,7 +6,7 @@ import { UserProfile } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Github, Globe, ShieldCheck, User, Code, Info, Terminal, ExternalLink, AlertTriangle, Key, Zap, CheckCircle2, RefreshCw, Coins, HardDriveDownload, Activity } from 'lucide-react';
+import { Github, Globe, ShieldCheck, User, Code, Info, Terminal, ExternalLink, AlertTriangle, Key, Zap, CheckCircle2, RefreshCw, Coins, HardDriveDownload, Activity, CreditCard, ShieldAlert } from 'lucide-react';
 
 export default function SettingsPage() {
   const db = useFirestore();
@@ -62,9 +62,9 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-emerald-700">
               <Coins className="w-5 h-5" />
-              Hosting Cost Management
+              Institutional FinOps
             </CardTitle>
-            <CardDescription>Configurations to minimize Firebase Blaze costs.</CardDescription>
+            <CardDescription>Active measures to keep RTU hosting costs near zero.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
@@ -76,30 +76,33 @@ export default function SettingsPage() {
               <div className="p-3 bg-white border rounded-lg text-center">
                 <p className="text-[9px] font-bold text-muted-foreground uppercase">Max Instances</p>
                 <p className="text-lg font-bold text-red-600">1</p>
-                <p className="text-[8px] text-muted-foreground">Prevent scaling spikes</p>
+                <p className="text-[8px] text-muted-foreground">Anti-bill-shock cap</p>
               </div>
             </div>
             
-            <div className="p-4 bg-white border rounded-xl space-y-3">
-              <div className="flex items-center gap-2 text-[10px] font-bold text-primary">
-                <Activity className="w-3.5 h-3.5" />
-                USAGE-BASED BILLING (BLAZE)
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-[10px]">
-                  <span className="text-muted-foreground">Active Compute</span>
-                  <span className="font-bold">~$0.02 / active hour</span>
-                </div>
-                <div className="flex justify-between text-[10px]">
-                  <span className="text-muted-foreground">Firestore Reads</span>
-                  <span className="font-bold">50k Free / Day</span>
-                </div>
-                <div className="flex justify-between text-[10px]">
-                  <span className="text-muted-foreground">Auto-Timeout</span>
-                  <span className="text-emerald-600 font-bold">ACTIVE (5 Min)</span>
-                </div>
-              </div>
+            <div className="space-y-3">
+              <p className="text-[10px] font-bold uppercase text-primary tracking-widest">Cost Efficiency Checklist</p>
+              <ul className="space-y-2">
+                <li className="flex items-start gap-2 text-[10px] text-muted-foreground">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                  <span><b>Auto-Timeout:</b> Real-time database listeners stop after 5 mins of inactivity.</span>
+                </li>
+                <li className="flex items-start gap-2 text-[10px] text-muted-foreground">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                  <span><b>AI Quota:</b> Using Gemini Flash (15 req/min) on the Free tier.</span>
+                </li>
+                <li className="flex items-start gap-2 text-[10px] text-muted-foreground">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                  <span><b>Data Pruning:</b> Recommend setting 90-day TTL on Audit Logs.</span>
+                </li>
+              </ul>
             </div>
+
+            <Button variant="outline" size="sm" className="w-full gap-2 border-primary/20 text-primary" asChild>
+              <a href="https://console.firebase.google.com/project/_/usage/details" target="_blank" rel="noopener noreferrer">
+                <CreditCard className="w-3.5 h-3.5" /> Set Budget Alerts
+              </a>
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -109,27 +112,24 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-accent">
               <Github className="w-5 h-5" />
-              Repository Connectivity
+              Institutional Sync Guide
             </CardTitle>
-            <CardDescription>Academic source code synchronization status.</CardDescription>
+            <CardDescription>Resolve common terminal and authentication issues.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <p className="text-[10px] font-bold uppercase text-muted-foreground">Remote Origin</p>
-              <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg border font-mono text-[10px] break-all">
-                <Globe className="w-3.5 h-3.5 text-accent shrink-0" />
-                {repoUrl}
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex gap-3 text-xs text-amber-800">
+              <ShieldAlert className="w-5 h-5 shrink-0" />
+              <div>
+                <p className="font-bold">Socket Error (ECONNREFUSED)?</p>
+                <p>Run <b>git config --global --unset credential.helper</b> to reset broken terminal credentials.</p>
               </div>
             </div>
 
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Version Control</span>
-                <Badge className="bg-emerald-100 text-emerald-700 border-none">ACTIVE</Badge>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Branch Name</span>
-                <span className="font-bold text-accent">main</span>
+            <div className="space-y-2">
+              <p className="text-[10px] font-bold uppercase text-muted-foreground">Safe Remote URL (With Token)</p>
+              <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg border font-mono text-[9px] break-all">
+                <Globe className="w-3.5 h-3.5 text-accent shrink-0" />
+                https://TOKEN@github.com/chaturvedi101/AcademiaFlow.git
               </div>
             </div>
 
@@ -148,27 +148,27 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-blue-400">
               <Code className="w-5 h-5" />
-              Terminal Sync Guide
+              Sync Command Matrix
             </CardTitle>
-            <CardDescription className="text-slate-400">Commands for institutional synchronization.</CardDescription>
+            <CardDescription className="text-slate-400">Final commands for university deployment.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-4">
               <div className="space-y-2">
-                <p className="text-[10px] font-bold uppercase text-slate-500">1. Force Push (Overwriting Remote)</p>
+                <p className="text-[10px] font-bold uppercase text-slate-500">1. Handle Non-Fast-Forward (Rejection)</p>
                 <div className="bg-black/50 p-4 rounded-xl border border-slate-700 font-mono text-xs text-blue-300">
                   <p>git push origin HEAD:main --force</p>
                 </div>
               </div>
               <div className="space-y-2">
-                <p className="text-[10px] font-bold uppercase text-slate-500">2. Emergency Authentication Fix</p>
-                <div className="bg-black/50 p-4 rounded-xl border border-slate-700 font-mono text-xs text-amber-300">
-                  <p>git config --global --unset credential.helper</p>
+                <p className="text-[10px] font-bold uppercase text-slate-500">2. Link New PAT Token</p>
+                <div className="bg-black/50 p-4 rounded-xl border border-slate-700 font-mono text-[10px] text-amber-300 leading-tight">
+                  <p>git remote set-url origin https://[PAT]@github.com/chaturvedi101/AcademiaFlow.git</p>
                 </div>
               </div>
               <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl flex gap-3 text-xs text-blue-200">
                 <Info className="w-5 h-5 shrink-0" />
-                <p>Use your GitHub <b>Personal Access Token (PAT)</b> as the password when prompted in the terminal.</p>
+                <p>Ensure your GitHub PAT has the <b>"repo"</b> scope selected for full authorization.</p>
               </div>
             </div>
           </CardContent>

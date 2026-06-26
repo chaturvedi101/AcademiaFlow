@@ -15,10 +15,14 @@ Academia Flow is an enterprise-grade Academic Management System designed for **R
 To keep hosting costs near zero for the university, the following configurations are active:
 
 1.  **Compute Throttling**: The `apphosting.yaml` is configured with `minInstances: 0`. You are only billed for compute when a user is actively browsing.
-2.  **Resource Capping**: Memory is restricted to 512MB and CPU to 1. This prevents expensive "High-Performance" tier billing.
-3.  **Scaling Protection**: `maxInstances` is set to 1. This protects the university from viral traffic costs or bot attacks. Even with many users, the app will not scale to multiple costly servers.
-4.  **Auto-Session Timeout**: The app automatically logs out users after 5 minutes of inactivity to stop background data listeners and reduce "Read" costs.
-5.  **Gemini AI Quota**: AI generation uses your **Google AI Studio Key**. Stay on the "Free of charge" tier in AI Studio to avoid API billing.
+2.  **Resource Capping**: `maxInstances` is set to 1. This protects the university from viral traffic costs or bot attacks.
+3.  **Auto-Session Timeout**: The app automatically logs out users after 5 minutes of inactivity to stop background database listeners.
+4.  **Gemini AI Quota**: Uses your **Google AI Studio Key**. Stay on the "Free of charge" tier to avoid API billing.
+
+### 🛡️ Financial Safety Guide
+To guarantee zero unexpected costs:
+- **Set a Budget Alert**: Go to [Google Cloud Billing](https://console.cloud.google.com/billing) and set an alert for $1.00.
+- **Database Indexing**: Avoid adding large amounts of data to collections without proper indexes, as this increases "Read" costs.
 
 ## 🔑 AI Configuration
 
@@ -29,7 +33,6 @@ To activate the **AI Architect** features:
     ```bash
     GOOGLE_GENAI_API_KEY=your_actual_key_here
     ```
-3.  **Restart**: Run `npm run dev` again. Verify connectivity via the **AI Diagnostics** page in the dashboard.
 
 ## 📦 Git & Authentication Guide
 
