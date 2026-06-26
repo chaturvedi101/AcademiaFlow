@@ -431,7 +431,7 @@ export function SyllabusDialog({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Credit Category</Label>
-                    <Select disabled={isReadOnly} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v, isOFESlot: v === 'OFE'})}>
+                    <Select disabled={isReadOnly} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v})}>
                       <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {visibleCategories.map(cat => (
@@ -442,7 +442,7 @@ export function SyllabusDialog({
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Subject Title</Label>
-                    <Input disabled={isReadOnly || formData.isOFESlot} className="h-11" placeholder="e.g. Machine Learning" value={formData.title || ''} onChange={e => setFormData({ ...formData, title: e.target.value })} />
+                    <Input disabled={isReadOnly} className="h-11" placeholder="e.g. Machine Learning" value={formData.title || ''} onChange={e => setFormData({ ...formData, title: e.target.value })} />
                   </div>
                 </div>
 
@@ -453,7 +453,6 @@ export function SyllabusDialog({
                       <span className="text-xs font-bold uppercase">Elective Pool Context</span>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Hide the Group ID selection if it was provided from the structure row */}
                       {!hideGroupSelection && (
                         <div className="space-y-2">
                           <Label className="text-xs">Group Identifier (e.g. Elective-I)</Label>
@@ -484,7 +483,7 @@ export function SyllabusDialog({
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Code</Label>
-                    <Input disabled={isReadOnly || formData.isOFESlot} className="font-mono h-11" value={formData.isOFESlot ? 'POOL-ELECTIVE' : (formData.subjectCode || '')} onChange={e => {
+                    <Input disabled={isReadOnly} className="font-mono h-11" value={formData.subjectCode || ''} onChange={e => {
                       setIsManuallyEditedCode(true);
                       setFormData({ ...formData, subjectCode: e.target.value.toUpperCase() });
                     }} />
