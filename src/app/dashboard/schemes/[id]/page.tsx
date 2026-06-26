@@ -91,40 +91,37 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const permissions = useMemo(() => {
-    if (profileLoading || !profile || !scheme || !program) return { canEditScheme: false, canEditSyllabus: (s: Partial<Syllabus> | undefined) => false };
+    if (profileLoading || !profile || !scheme || !program) return { canEditScheme: false, canDelete: false, canEditSyllabus: (s: Partial<Syllabus> | undefined) => false };
 
     const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile.role);
     const isProgramDean = profile.role === 'dean_faculty' && profile.faculty === program.faculty;
     const isCommonBOS = profile.faculty === 'University-wide (Common BOS)';
+    const isBoS = ['bos_convenor', 'bos_member'].includes(profile.role);
 
     let canEditScheme = false;
     if (isGlobalAdmin || isProgramDean) {
       canEditScheme = true;
     } else if (scheme.isCommonPoolScheme) {
-      // Branch BOS cannot edit common pool schemes
       canEditScheme = isCommonBOS;
     } else {
-      // Branch BOS jurisdiction check
       canEditScheme = profile.managedBranches?.some(
         m => m.programId === scheme.programId && m.branch === scheme.branch
       ) || false;
     }
 
+    // BoS Members can add/edit but NEVER delete
+    const canDelete = !isBoS && (isGlobalAdmin || isProgramDean || (scheme.isCommonPoolScheme && isCommonBOS));
+
     const canEditSyllabus = (s: Partial<Syllabus> | undefined) => {
       if (isGlobalAdmin) return true;
       if (!s) return false;
-      
-      // Common BOS can edit Institutional Categories (VAC/AEC/MDC/SEC/OFE) across ANY scheme
       const isInstitutionalCategory = s.creditCategory ? ['VAC', 'AEC', 'MDC', 'SEC', 'OFE'].includes(s.creditCategory) : false;
       if (isCommonBOS && isInstitutionalCategory) return true;
-
-      // Ownership check: If it's a common pool course being viewed in a branch, it's read-only for branch BOS
       if (s?.schemeId && s.schemeId !== schemeId) return false;
-      
       return canEditScheme;
     };
 
-    return { canEditScheme, canEditSyllabus };
+    return { canEditScheme, canDelete, canEditSyllabus };
   }, [profile, profileLoading, scheme, program, schemeId]);
 
   const creditDistribution = useMemo(() => {
@@ -186,7 +183,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const handleDeleteSyllabus = (id: string) => {
-    if (!permissions.canEditScheme) return;
+    if (!permissions.canDelete) return;
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', id);
     deleteDoc(docRef);
   };
@@ -435,9 +432,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }}>
                                   <Edit3 className="w-3.5 h-3.5" />
                                 </Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={() => handleDeleteSyllabus(sub.id)}>
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </Button>
+                                {permissions.canDelete && (
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={() => handleDeleteSyllabus(sub.id)}>
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                )}
                              </div>
                           </TableCell>
                         </TableRow>
@@ -463,6 +462,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         programName={program?.name}
         branchName={scheme?.branch}
         canEdit={permissions.canEditSyllabus(activeSubject)}
+        canDelete={permissions.canDelete}
         currentSchemeId={schemeId}
         programRules={program?.rules}
         batchYear={scheme?.batchYear}
@@ -506,7 +506,7 @@ function SubjectRow({ sub, currentSchemeId, schemeStatus, permissions, isOption,
               <Edit3 className="w-3.5 h-3.5" />
             </Button>
           )}
-          {permissions.canEditScheme && !isFromPool && (
+          {permissions.canDelete && !isFromPool && (
             <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={onDelete}>
               <Trash2 className="w-3.5 h-3.5" />
             </Button>

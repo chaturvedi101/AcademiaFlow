@@ -52,6 +52,7 @@ interface SyllabusDialogProps {
   programName?: string;
   branchName?: string;
   canEdit?: boolean;
+  canDelete?: boolean;
   currentSchemeId?: string;
   programRules?: CreditRules;
   batchYear?: string;
@@ -65,6 +66,7 @@ export function SyllabusDialog({
   onSave,
   branchName,
   canEdit = true,
+  canDelete = true,
   currentSchemeId,
   batchYear,
 }: SyllabusDialogProps) {
@@ -79,7 +81,6 @@ export function SyllabusDialog({
   const [showPoolPicker, setShowPoolPicker] = useState(false);
   const [isManuallyEditedCode, setIsManuallyEditedCode] = useState(false);
   
-  // Cross-University Uniqueness Check
   const [codeConflict, setCodeConflict] = useState<string | null>(null);
   const [isCheckingUniqueness, setIsCheckingUniqueness] = useState(false);
 
@@ -114,17 +115,9 @@ export function SyllabusDialog({
     return [];
   }, [formData.creditCategory]);
 
-  /**
-   * RTU COMPLIANT CODE GENERATION RULES:
-   * [Prefix][Pedagogy][Pillar][Year][Sequence]
-   * Institutional Prefixes: AEC->AB, MDC->MD, VAC->VA, OFE->RT
-   * Pedagogy: L (Theory), P (Practical), I (Project)
-   * Ranges: DSC(1-30), SEC(40-49), DSE(50-94), PRJ(95-99)
-   */
   const generateAutoSubjectCode = useCallback(() => {
     if (!branchName) return '';
     
-    // 1. Determine Prefix
     let prefix = 'RT';
     const cat = formData.creditCategory || '';
     
@@ -133,7 +126,6 @@ export function SyllabusDialog({
     else if (cat === 'VAC') prefix = 'VA';
     else if (cat === 'OFE') prefix = 'RT';
     else {
-      // Branch derived prefix
       if (branchName === 'Institutional Common Pool') {
         prefix = 'RT';
       } else {
@@ -146,7 +138,6 @@ export function SyllabusDialog({
       }
     }
 
-    // 2. Pedagogy Indicator
     let pedagogy = 'L';
     if (cat === 'PRJ') {
       pedagogy = 'I';
@@ -154,25 +145,18 @@ export function SyllabusDialog({
       pedagogy = 'P';
     }
 
-    // 3. Curriculum Pillar
     const isElective = ['DSE', 'OFE'].includes(cat);
     const pillar = isElective ? 'E' : 'C';
-    
-    // 4. Academic Year Digit
     const yearDigit = Math.ceil((formData.semester || 1) / 2);
     
-    // 5. Sequence Determination
-    let seqStart = 1;
-    if (cat === 'SEC') seqStart = 40;
-    if (cat === 'DSE') seqStart = 50;
-    if (cat === 'PRJ') seqStart = 95;
+    let sequence = 1;
+    if (cat === 'SEC') sequence = 40;
+    if (cat === 'DSE') sequence = 50;
+    if (cat === 'PRJ') sequence = 95;
 
     const baseCode = `${prefix}${pedagogy}${pillar}${yearDigit}`;
-    
-    let sequence = seqStart;
     let finalCode = `${baseCode}${String(sequence).padStart(2, '0')}`;
 
-    // Handle Elective Group indexing (e.g., MELC250.1)
     if (formData.electiveGroupId) {
       const peers = existingSyllabi.filter(s => s.electiveGroupId === formData.electiveGroupId);
       const isAlreadyInGroup = peers.some(p => p.id === formData.id || p.subjectCode === formData.subjectCode);
@@ -221,7 +205,6 @@ export function SyllabusDialog({
     }
   }, [formData.type, formData.semester, formData.creditCategory, formData.electiveGroupId, open, syllabus?.id, isManuallyEditedCode, formData.isOFESlot, generateAutoSubjectCode, formData.subjectCode]);
 
-  // Global Uniqueness Check
   useEffect(() => {
     const code = formData.subjectCode;
     if (!open || !code || code === 'POOL-ELECTIVE' || code === 'SLOT' || code.length < 5) {
@@ -237,8 +220,6 @@ export function SyllabusDialog({
           where('subjectCode', '==', code)
         );
         const snap = await getDocs(syllabiGroupQuery);
-        
-        // Find if this code exists in a DIFFERENT scheme
         const conflict = snap.docs.find(d => d.data().schemeId !== currentSchemeId);
         
         if (conflict) {
@@ -261,7 +242,6 @@ export function SyllabusDialog({
     const l = Number(formData.lectureCredits) || 0;
     const t = Number(formData.tutorialCredits) || 0;
     const p = Number(formData.practicalCredits) || 0;
-    
     setFormData(prev => ({ ...prev, credits: l + t + (p * 0.5) }));
   }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits]);
 
@@ -300,9 +280,6 @@ export function SyllabusDialog({
 
       setPoolResults(results);
       setShowPoolPicker(true);
-      if (results.length === 0) {
-        toast({ title: "No Courses Found", description: `The university pool currently has no approved ${formData.creditCategory} courses.` });
-      }
     } catch (err) {
       console.error("Pool search failed:", err);
       toast({ variant: "destructive", title: "Discovery Error", description: "Failed to connect to the institutional pool." });
@@ -331,16 +308,11 @@ export function SyllabusDialog({
       if (groupMembers.length > 0) {
         const standardCredit = groupMembers[0].credits;
         if (formData.credits !== standardCredit) {
-          toast({
-            title: "Credit Mismatch",
-            description: `All subjects in ${formData.electiveGroupId} must have ${standardCredit} credits for compliance.`,
-            variant: "destructive"
-          });
+          toast({ title: "Credit Mismatch", description: `All subjects in ${formData.electiveGroupId} must have ${standardCredit} credits.`, variant: "destructive" });
           return;
         }
       }
     }
-
     onSave(formData);
     onOpenChange(false);
   };
@@ -358,39 +330,29 @@ export function SyllabusDialog({
             {isReadOnly ? 'Course Specification' : formData.id ? 'Configure Academic Course' : 'Create New Course'}
           </DialogTitle>
           <DialogDescription>
-            {isReadOnly ? 'Standardized specification. Content is managed by the Board of Studies.' : 'Define identity, content units, and learning resource mappings.'}
+            {isReadOnly ? 'Standardized specification. Managed by the Board of Studies.' : 'Define identity, content units, and learning resource mappings.'}
           </DialogDescription>
         </DialogHeader>
         
         <ScrollArea className="flex-1 w-full min-h-0">
           <div className="p-6 space-y-8 pb-12">
             {codeConflict && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-red-700 text-sm animate-in shake-in-1">
+              <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-red-700 text-sm">
                 <AlertTriangle className="w-5 h-5 shrink-0" />
                 <p className="font-bold">{codeConflict}</p>
               </div>
             )}
 
             {(isInstitutionalCategory && !isReadOnly && !formData.isOFESlot) && (
-              <div className="p-5 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center justify-between gap-6 animate-in slide-in-from-top-4 duration-500">
+              <div className="p-5 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center justify-between gap-6">
                 <div className="flex items-center gap-4">
-                  <div className="bg-emerald-100 p-2 rounded-lg">
-                    <Globe className="w-6 h-6 text-emerald-600" />
-                  </div>
+                  <div className="bg-emerald-100 p-2 rounded-lg"><Globe className="w-6 h-6 text-emerald-600" /></div>
                   <div>
                     <p className="text-sm font-bold text-emerald-900">Institutional Pool Discovery</p>
-                    <p className="text-[11px] text-emerald-700 leading-tight">
-                      Standardize this {formData.creditCategory} slot by pulling an approved syllabus from the University-wide Board of Studies.
-                    </p>
+                    <p className="text-[11px] text-emerald-700 leading-tight">Standardize this slot via the University-wide Board of Studies pool.</p>
                   </div>
                 </div>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  className="bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-100 shadow-sm"
-                  onClick={searchUniversityPool}
-                  disabled={isPoolSearching}
-                >
+                <Button size="sm" variant="outline" className="bg-white" onClick={searchUniversityPool} disabled={isPoolSearching}>
                   {isPoolSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : <Search className="w-3.5 h-3.5 mr-2" />}
                   Search University Pool
                 </Button>
@@ -398,44 +360,25 @@ export function SyllabusDialog({
             )}
 
             {showPoolPicker && (
-              <Card className="border-emerald-200 bg-emerald-50/10 animate-in zoom-in-95 duration-300">
+              <Card className="border-emerald-200 bg-emerald-50/10">
                 <CardHeader className="py-3 px-4 flex flex-row items-center justify-between border-b bg-emerald-50/30">
-                  <div className="flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-emerald-600" />
-                    <CardTitle className="text-sm font-headline">Approved {formData.creditCategory} Syllabi</CardTitle>
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={() => setShowPoolPicker(false)} className="h-8">Cancel</Button>
+                  <CardTitle className="text-sm font-headline">Approved {formData.creditCategory} Syllabi</CardTitle>
+                  <Button variant="ghost" size="sm" onClick={() => setShowPoolPicker(false)}>Cancel</Button>
                 </CardHeader>
                 <CardContent className="p-0">
                   <Table>
-                    <TableHeader>
-                      <TableRow className="bg-emerald-50/50">
-                        <TableHead className="pl-4">Code</TableHead>
-                        <TableHead>Course Title</TableHead>
-                        <TableHead className="text-center">Weightage</TableHead>
-                        <TableHead className="text-right pr-4">Action</TableHead>
-                      </TableRow>
-                    </TableHeader>
+                    <TableHeader><TableRow><TableHead className="pl-4">Code</TableHead><TableHead>Course Title</TableHead><TableHead className="text-center">Credits</TableHead><TableHead className="text-right pr-4">Action</TableHead></TableRow></TableHeader>
                     <TableBody>
                       {poolResults.map(course => (
-                        <TableRow key={course.id} className="hover:bg-emerald-50/50 transition-colors">
+                        <TableRow key={course.id}>
                           <TableCell className="pl-4 font-mono font-bold text-emerald-700">{course.subjectCode}</TableCell>
                           <TableCell className="text-xs font-medium">{course.title}</TableCell>
-                          <TableCell className="text-center text-xs font-bold text-primary">{course.credits} Cr</TableCell>
+                          <TableCell className="text-center text-xs font-bold">{course.credits} Cr</TableCell>
                           <TableCell className="text-right pr-4">
-                            <Button size="sm" variant="ghost" className="h-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100" onClick={() => applyPoolCourse(course)}>
-                              <Plus className="w-3.5 h-3.5 mr-1" /> Import Syllabus
-                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => applyPoolCourse(course)}>Import</Button>
                           </TableCell>
                         </TableRow>
                       ))}
-                      {poolResults.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={4} className="text-center py-8 text-muted-foreground text-xs italic">
-                            No approved courses available in the pool for this category.
-                          </TableCell>
-                        </TableRow>
-                      )}
                     </TableBody>
                   </Table>
                 </CardContent>
@@ -453,175 +396,32 @@ export function SyllabusDialog({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Credit Category</Label>
-                    <div className="flex gap-2">
-                      <Select disabled={isReadOnly} value={formData.creditCategory} onValueChange={(v: any) => {
-                        const isOfe = v === 'OFE';
-                        setFormData({...formData, creditCategory: v, electiveGroupId: '', isOFESlot: isOfe, isOFEContribution: false});
-                      }}>
-                        <SelectTrigger className="h-11 border-primary/20 flex-1"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {(!isStrictlyCommonBOS || isGlobalAdmin) && (
-                            <>
-                              <SelectItem value="DSC">DSC (Discipline Core)</SelectItem>
-                              <SelectItem value="DSE">DSE (Discipline Elective)</SelectItem>
-                              <SelectItem value="PRJ">Project/Internship</SelectItem>
-                            </>
-                          )}
-                          <SelectItem value="SEC">SEC (Skill Enhancement)</SelectItem>
-                          <SelectItem value="OFE">OFE (Open Elective Slot)</SelectItem>
-                          {(isCommonStaff || (formData.creditCategory && ['VAC', 'AEC', 'MDC'].includes(formData.creditCategory))) && (
-                            <>
-                              <SelectItem value="VAC">VAC (Value Added)</SelectItem>
-                              <SelectItem value="AEC">AEC (Ability Enhancement)</SelectItem>
-                              <SelectItem value="MDC">MDC (Multi Disciplinary)</SelectItem>
-                            </>
-                          )}
-                        </SelectContent>
-                      </Select>
-                      {formData.creditCategory && ['AEC', 'MDC', 'VAC'].includes(formData.creditCategory) && (
-                        <Badge variant="outline" className="h-11 px-3 bg-primary/5 text-primary border-primary/20 font-bold uppercase">
-                          {formData.creditCategory === 'AEC' ? 'AB' : formData.creditCategory === 'MDC' ? 'MD' : 'VA'} Prefix
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-
-                  {formData.creditCategory === 'OFE' && !isReadOnly && (
-                    <div className="p-4 bg-accent/5 rounded-xl border border-accent/10 space-y-3 animate-in zoom-in-95">
-                      <Label className="text-xs font-bold uppercase text-accent">Open Elective Intent</Label>
-                      <RadioGroup 
-                        value={formData.isOFESlot ? 'slot' : 'contribution'} 
-                        onValueChange={(val) => {
-                          const isSlot = val === 'slot';
-                          setFormData({
-                            ...formData, 
-                            isOFESlot: isSlot, 
-                            isOFEContribution: !isSlot,
-                            title: isSlot ? (formData.electiveGroupId || 'Open Elective Slot') : (formData.title || ''),
-                            units: isSlot ? [] : (formData.units || [])
-                          });
-                        }}
-                        className="flex gap-6"
-                      >
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="slot" id="slot" />
-                          <Label htmlFor="slot" className="text-sm font-medium cursor-pointer">Local Slot</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="contribution" id="cont" />
-                          <Label htmlFor="cont" className="text-sm font-medium cursor-pointer">Global Contribution</Label>
-                        </div>
-                      </RadioGroup>
-                    </div>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-semibold">Subject Code</Label>
-                    <div className="relative">
-                      <Input 
-                        disabled={isReadOnly || formData.isOFESlot} 
-                        className={`font-mono h-11 border-primary/20 pr-10 ${codeConflict ? 'border-red-500 bg-red-50/20' : ''}`} 
-                        value={formData.isOFESlot ? 'POOL-ELECTIVE' : (formData.subjectCode || '')} 
-                        onChange={e => {
-                          setIsManuallyEditedCode(true);
-                          setFormData({ ...formData, subjectCode: e.target.value.toUpperCase() });
-                        }} 
-                      />
-                      {isCheckingUniqueness && (
-                        <div className="absolute right-3 top-3.5">
-                          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                        </div>
-                      )}
-                    </div>
+                    <Select disabled={isReadOnly} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v, isOFESlot: v === 'OFE'})}>
+                      <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="DSC">DSC</SelectItem><SelectItem value="DSE">DSE</SelectItem><SelectItem value="AEC">AEC</SelectItem><SelectItem value="VAC">VAC</SelectItem><SelectItem value="SEC">SEC</SelectItem><SelectItem value="MDC">MDC</SelectItem><SelectItem value="OFE">OFE Slot</SelectItem><SelectItem value="PRJ">PRJ</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Subject Title</Label>
-                    <Input 
-                      disabled={isReadOnly || formData.isOFESlot} 
-                      className="h-11 border-primary/20"
-                      value={formData.title || ''} 
-                      onChange={e => setFormData({ ...formData, title: e.target.value })} 
-                    />
+                    <Input disabled={isReadOnly || formData.isOFESlot} className="h-11" value={formData.title || ''} onChange={e => setFormData({ ...formData, title: e.target.value })} />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold">Course Type</Label>
-                    <Select 
-                      disabled={isReadOnly} 
-                      value={formData.type} 
-                      onValueChange={(v: SubjectType) => {
-                        if (isReadOnly) return;
-                        setFormData(prev => {
-                          const updates: Partial<Syllabus> = { ...prev, type: v };
-                          if (v === 'Theory') {
-                            updates.practicalCredits = 0;
-                            updates.lectureCredits = (prev.lectureCredits && prev.lectureCredits > 0) ? prev.lectureCredits : 3;
-                            updates.tutorialCredits = prev.tutorialCredits || 0;
-                          } else {
-                            updates.lectureCredits = 0;
-                            updates.tutorialCredits = 0;
-                            updates.practicalCredits = (prev.practicalCredits && prev.practicalCredits > 0) ? prev.practicalCredits : 2;
-                          }
-                          return updates;
-                        });
-                      }}
-                    >
-                      <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Theory">Theory (L &gt; 0)</SelectItem>
-                        <SelectItem value="Lab/Sessional">Lab/Sessional (P &gt; 0, L=0, T=0)</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label className="text-sm font-semibold">Code</Label>
+                    <Input disabled={isReadOnly || formData.isOFESlot} className="font-mono h-11" value={formData.isOFESlot ? 'POOL-ELECTIVE' : (formData.subjectCode || '')} onChange={e => setFormData({ ...formData, subjectCode: e.target.value.toUpperCase() })} />
                   </div>
-
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold">Semester Placement</Label>
-                    <Select disabled={isReadOnly} value={String(formData.semester)} onValueChange={v => setFormData({ ...formData, semester: Number(v) })}>
-                      <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {[1,2,3,4,5,6,7,8].map(s => <SelectItem key={s} value={String(s)}>Sem {s}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <Label className="text-sm font-semibold">Type</Label>
+                    <Select disabled={isReadOnly} value={formData.type} onValueChange={(v: any) => setFormData({...formData, type: v})}><SelectTrigger className="h-11"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Theory">Theory</SelectItem><SelectItem value="Lab/Sessional">Lab/Sessional</SelectItem></SelectContent></Select>
                   </div>
-
-                  {availableElectiveGroups.length > 0 && (
-                    <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
-                      <Label className="text-sm font-semibold text-accent">Elective Pool Identifier</Label>
-                      <Select disabled={isReadOnly} value={formData.electiveGroupId} onValueChange={v => setFormData({...formData, electiveGroupId: v, title: formData.isOFESlot ? v : formData.title})}>
-                        <SelectTrigger className="h-11 border-accent/30">
-                          <SelectValue placeholder="Select group..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableElectiveGroups.map(group => (
-                            <SelectItem key={group} value={group}>{group}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-5 bg-primary/5 rounded-2xl border border-primary/10 grid grid-cols-4 gap-4 items-end">
-                   <div className="space-y-1">
-                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Lecture</Label>
-                     <Input type="number" disabled={isReadOnly || !isTheory} value={formData.lectureCredits ?? 0} onChange={e => setFormData({...formData, lectureCredits: Number(e.target.value)})} className="h-10" />
-                   </div>
-                   <div className="space-y-1">
-                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Tutorial</Label>
-                     <Input type="number" disabled={isReadOnly || !isTheory} value={formData.tutorialCredits ?? 0} onChange={e => setFormData({...formData, tutorialCredits: Number(e.target.value)})} className="h-10" />
-                   </div>
-                   <div className="space-y-1">
-                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Practical</Label>
-                     <Input type="number" disabled={isReadOnly || isTheory} value={formData.practicalCredits ?? 0} onChange={e => setFormData({...formData, practicalCredits: Number(e.target.value)})} className="h-10" />
-                   </div>
-                   <div className="space-y-1">
-                     <Label className="text-[10px] uppercase font-bold text-primary">Total Credits</Label>
-                     <Input value={formData.credits ?? 0} className="h-10 font-bold bg-white text-primary" readOnly />
-                   </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Sem</Label>
+                    <Select disabled={isReadOnly} value={String(formData.semester)} onValueChange={v => setFormData({ ...formData, semester: Number(v) })}><SelectTrigger className="h-11"><SelectValue /></SelectTrigger><SelectContent>{[1,2,3,4,5,6,7,8].map(s => <SelectItem key={s} value={String(s)}>Sem {s}</SelectItem>)}</SelectContent></Select>
+                  </div>
                 </div>
               </TabsContent>
               
@@ -630,7 +430,7 @@ export function SyllabusDialog({
                    <h3 className="text-lg font-headline font-bold">Subject Units</h3>
                    {!isReadOnly && (
                      <Button size="sm" onClick={() => setFormData(prev => ({...prev, units: [...(prev.units || []), {id: Math.random().toString(36).substr(2, 9), title: '', content: '', courseOutcome: ''}]}))}>
-                       <Plus className="w-4 h-4 mr-2" /> Add Course Unit
+                       <Plus className="w-4 h-4 mr-2" /> Add Unit
                      </Button>
                    )}
                  </div>
@@ -639,31 +439,19 @@ export function SyllabusDialog({
                      <Card key={unit.id} className="border-muted bg-muted/5">
                        <CardContent className="p-4 space-y-4">
                           <div className="flex justify-between items-center">
-                            <Badge variant="secondary" className="font-bold">UNIT {idx + 1}</Badge>
-                            {!isReadOnly && (
+                            <Badge variant="secondary">UNIT {idx + 1}</Badge>
+                            {(!isReadOnly && canDelete) && (
                               <Button variant="ghost" size="sm" className="h-8 w-8 text-red-400" onClick={() => setFormData(prev => ({...prev, units: prev.units?.filter(u => u.id !== unit.id)}))}>
                                 <Trash2 className="w-4 h-4"/>
                               </Button>
                             )}
                           </div>
-                          <div className="space-y-2">
-                            <Label className="text-xs font-bold uppercase text-muted-foreground">Title</Label>
-                            <Input disabled={isReadOnly} value={unit.title} onChange={e => {
-                              const u = [...(formData.units || [])]; u[idx].title = e.target.value; setFormData({...formData, units: u});
-                            }} />
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-xs font-bold uppercase text-muted-foreground">Content Details</Label>
-                            <Textarea disabled={isReadOnly} value={unit.content} onChange={e => {
-                              const u = [...(formData.units || [])]; u[idx].content = e.target.value; setFormData({...formData, units: u});
-                            }} />
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-xs font-bold uppercase text-muted-foreground">Unit Learning Outcome (CO)</Label>
-                            <Input disabled={isReadOnly} value={unit.courseOutcome} onChange={e => {
-                              const u = [...(formData.units || [])]; u[idx].courseOutcome = e.target.value; setFormData({...formData, units: u});
-                            }} />
-                          </div>
+                          <Input disabled={isReadOnly} placeholder="Title" value={unit.title} onChange={e => {
+                            const u = [...(formData.units || [])]; u[idx].title = e.target.value; setFormData({...formData, units: u});
+                          }} />
+                          <Textarea disabled={isReadOnly} placeholder="Content" value={unit.content} onChange={e => {
+                            const u = [...(formData.units || [])]; u[idx].content = e.target.value; setFormData({...formData, units: u});
+                          }} />
                        </CardContent>
                      </Card>
                    ))}
@@ -671,50 +459,19 @@ export function SyllabusDialog({
               </TabsContent>
 
               <TabsContent value="mapping" className="space-y-6">
-                <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex gap-4 text-xs text-primary mb-6">
-                  <ShieldAlert className="w-5 h-5 shrink-0" />
-                  <p>Map unit-wise outcomes (COs) to university-defined Program Outcomes (POs). Levels range from 1 (Low) to 3 (High).</p>
-                </div>
-                
-                <div className="border rounded-xl overflow-hidden bg-white shadow-sm">
+                <div className="border rounded-xl overflow-hidden bg-white">
                   <ScrollArea className="w-full">
                     <Table>
-                      <TableHeader className="bg-muted/50">
-                        <TableRow>
-                          <TableHead className="w-24 bg-muted/50 sticky left-0 z-10">Unit/CO</TableHead>
-                          {PO_DEFINITIONS.map(po => (
-                            <TableHead key={po.code} className="text-center w-16 font-bold">{po.code}</TableHead>
-                          ))}
-                        </TableRow>
-                      </TableHeader>
+                      <TableHeader className="bg-muted/50"><TableRow><TableHead className="w-24">Unit/CO</TableHead>{PO_DEFINITIONS.map(po => <TableHead key={po.code} className="text-center w-16">{po.code}</TableHead>)}</TableRow></TableHeader>
                       <TableBody>
                         {formData.units?.map((unit, uIdx) => (
-                          <TableRow key={unit.id}>
-                            <TableCell className="font-bold text-xs bg-white sticky left-0 z-10">CO{uIdx+1}</TableCell>
-                            {PO_DEFINITIONS.map(po => (
-                              <TableCell key={po.code} className="p-1">
-                                <Select 
-                                  disabled={isReadOnly}
-                                  value={formData.poMappings?.[unit.id]?.[po.code] || '-'} 
-                                  onValueChange={val => {
-                                    const m = { ...(formData.poMappings || {}) };
-                                    if (!m[unit.id]) m[unit.id] = {};
-                                    m[unit.id][po.code] = val as CorrelationLevelType;
-                                    setFormData({ ...formData, poMappings: m });
-                                  }}
-                                >
-                                  <SelectTrigger className="h-8 w-12 mx-auto border-none bg-transparent hover:bg-muted font-mono text-[10px]">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent className="min-w-[4rem]">
-                                    {['1', '2', '3', '-'].map(lvl => (
-                                      <SelectItem key={lvl} value={lvl} className="font-mono text-center">{lvl}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </TableCell>
-                            ))}
-                          </TableRow>
+                          <TableRow key={unit.id}><TableCell className="font-bold">CO{uIdx+1}</TableCell>{PO_DEFINITIONS.map(po => (
+                            <TableCell key={po.code} className="p-1">
+                              <Select disabled={isReadOnly} value={formData.poMappings?.[unit.id]?.[po.code] || '-'} onValueChange={val => {
+                                const m = { ...(formData.poMappings || {}) }; if (!m[unit.id]) m[unit.id] = {}; m[unit.id][po.code] = val as CorrelationLevelType; setFormData({ ...formData, poMappings: m });
+                              }}><SelectTrigger className="h-8 w-12 mx-auto"><SelectValue /></SelectTrigger><SelectContent>{['1', '2', '3', '-'].map(lvl => <SelectItem key={lvl} value={lvl}>{lvl}</SelectItem>)}</SelectContent></Select>
+                            </TableCell>
+                          ))}</TableRow>
                         ))}
                       </TableBody>
                     </Table>
@@ -725,15 +482,9 @@ export function SyllabusDialog({
           </div>
         </ScrollArea>
 
-        <DialogFooter className="p-6 border-t bg-background shrink-0 z-10">
-          <Button variant="outline" className="h-11 px-8" onClick={() => onOpenChange(false)}>
-            {isReadOnly ? 'Close' : 'Cancel'}
-          </Button>
-          {!isReadOnly && (
-            <Button className="h-11 px-8 shadow-lg" onClick={handleSave} disabled={!!codeConflict}>
-              Save Specification
-            </Button>
-          )}
+        <DialogFooter className="p-6 border-t bg-background shrink-0">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{isReadOnly ? 'Close' : 'Cancel'}</Button>
+          {!isReadOnly && <Button onClick={handleSave} disabled={!!codeConflict}>Save Specification</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>
