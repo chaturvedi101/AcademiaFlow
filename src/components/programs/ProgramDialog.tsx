@@ -190,9 +190,9 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
       const newTemplate = prev.slotTemplate?.map(s => {
         if (s.id === id) {
           const updated = { ...s, ...updates };
-          // Automated pre-filling for DSE identity
-          if (updates.creditCategory === 'DSE' && !updated.title) {
-            updated.title = 'Elective-I';
+          // Automated pre-filling for DSE/OFE identity
+          if ((updates.creditCategory === 'DSE' || updates.creditCategory === 'OFE') && !updated.title) {
+            updated.title = updates.creditCategory === 'DSE' ? 'Elective-I' : 'Open Elective-I';
           }
           return updated;
         }
@@ -375,7 +375,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
               <TabsContent value="template" className="mt-0 space-y-6">
                 <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex items-center gap-3 text-primary text-sm mb-6">
                   <Layers className="w-5 h-5 shrink-0" />
-                  <p>Define institutional standardized course slots (AEC, VAC, MDC, SEC) inherited by all Schemes. DSE slots will expand into 3 subject options automatically.</p>
+                  <p>Define institutional standardized course slots (AEC, VAC, MDC, SEC) inherited by all Schemes. DSE/OFE slots will expand into 3 subject options automatically.</p>
                 </div>
 
                 <div className="space-y-8">

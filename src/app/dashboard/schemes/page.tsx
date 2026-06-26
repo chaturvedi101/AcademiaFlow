@@ -66,11 +66,8 @@ export default function SchemesPage() {
     if (isGlobalAdmin) return all;
 
     if (isCommonBos) {
-      // Forbidden: DSC, DSE, PRJ
       return all.filter(c => !['DSC', 'DSE', 'PRJ'].includes(c));
     } else {
-      // Branch roles: dean_faculty, bos_convenor, bos_member
-      // Forbidden: AEC, VAC, MDC
       return all.filter(c => !['AEC', 'VAC', 'MDC'].includes(c));
     }
   }, [isCommonBos, isGlobalAdmin]);
@@ -127,7 +124,7 @@ export default function SchemesPage() {
       credits: 4,
       isInherited: false,
       subjectCode: '',
-      title: isCommonBos ? '' : 'Elective Group'
+      title: isCommonBos ? '' : (isCommonBos ? 'Institutional Pool' : 'Elective Group')
     };
     setSemesterSlots([...semesterSlots, newSlot]);
   };
@@ -203,7 +200,7 @@ export default function SchemesPage() {
         const baseAutoCode = `${prefix}${pedagogy}${pillar}${year}${String(seq).padStart(2, '0')}`;
         const finalCode = slot.subjectCode || baseAutoCode;
 
-        if (cat === 'DSE') {
+        if (cat === 'DSE' || cat === 'OFE') {
           for (let i = 1; i <= 3; i++) {
             const optionId = `SLOT-${cat}-${slot.semester}-${slot.id}-${i}`;
             const optionRef = doc(db, 'schemes', generatedCode, 'syllabi', optionId);
@@ -216,9 +213,9 @@ export default function SchemesPage() {
               semester: slot.semester,
               creditCategory: cat,
               credits: slot.credits,
-              title: `${slot.title || 'Elective'} - Subject ${i}`,
+              title: `${slot.title || (cat === 'DSE' ? 'Elective' : 'Open Elective')} - Subject ${i}`,
               isSlot: true,
-              isOFESlot: false,
+              isOFESlot: cat === 'OFE',
               type: pedagogy === 'P' ? 'Lab/Sessional' : 'Theory',
               lectureCredits: slot.credits,
               tutorialCredits: 0,
@@ -229,7 +226,7 @@ export default function SchemesPage() {
               courseOutcomes: [],
               textBooks: [],
               referenceBooks: [],
-              electiveGroupId: slot.title || 'Elective Group'
+              electiveGroupId: slot.title || (cat === 'DSE' ? 'Elective Group' : 'Open Elective Group')
             };
             batch.set(optionRef, data);
           }
@@ -370,7 +367,7 @@ export default function SchemesPage() {
             <div className="py-4 space-y-6">
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-[10px] text-amber-800 flex gap-2">
                 <ShieldCheck className="w-4 h-4 shrink-0" />
-                <p>Note: DSE slots will be expanded into 3 subject options (Option .1, .2, .3) automatically during scheme creation.</p>
+                <p>Note: DSE/OFE slots will be expanded into 3 subject options (Option .1, .2, .3) automatically during scheme creation.</p>
               </div>
               <ScrollArea className="h-[400px] pr-4">
                 {Array.from({ length: selectedProgram?.totalSemesters || 8 }, (_, i) => i + 1).map(sem => (
