@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from "react";
@@ -21,6 +20,7 @@ import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { UserRole } from "@/lib/types";
 import Image from "next/image";
+import { PlaceHolderImages } from "@/lib/placeholder-images";
 
 export default function Home() {
   const { user, loading: userLoading } = useUser();
@@ -34,6 +34,8 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [role, setRole] = useState<UserRole>("bos_convenor");
+
+  const rtuLogo = PlaceHolderImages.find(img => img.id === 'rtu-logo');
 
   useEffect(() => {
     if (user && !userLoading) {
@@ -138,11 +140,12 @@ export default function Home() {
           <div className="flex items-center gap-4">
             <div className="relative w-20 h-20 bg-white rounded-2xl shadow-sm p-1 border border-border/50">
               <Image 
-                src="https://upload.wikimedia.org/wikipedia/en/2/2e/Rajasthan_Technical_University_logo.png"
+                src={rtuLogo?.imageUrl || "https://picsum.photos/seed/rtu/200/200"}
                 alt="RTU Logo"
-                fill
+                width={200}
+                height={200}
                 className="object-contain p-2"
-                data-ai-hint="Rajasthan Technical University Logo"
+                data-ai-hint={rtuLogo?.imageHint || "RTU Logo"}
               />
             </div>
             <div>

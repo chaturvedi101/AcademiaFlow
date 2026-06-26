@@ -34,6 +34,7 @@ import { useAuth, useUser, useDoc, useFirestore } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { UserProfile, UserRole } from "@/lib/types";
 import Image from "next/image";
+import { PlaceHolderImages } from "@/lib/placeholder-images";
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['bos_convenor', 'bos_member', 'dean_faculty', 'dean_academic', 'admin'] },
@@ -58,6 +59,8 @@ export function AppSidebar() {
   const userDocRef = useMemo(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
   const { data: profile, loading: profileLoading } = useDoc<UserProfile>(userDocRef);
 
+  const rtuLogo = PlaceHolderImages.find(img => img.id === 'rtu-logo');
+
   const role: UserRole = profile?.role || 'bos_convenor';
   const isCommonBos = profile?.faculty === 'University-wide (Common BOS)';
 
@@ -79,11 +82,12 @@ export function AppSidebar() {
       <SidebarHeader className="p-4 border-b border-sidebar-border/50 flex flex-row items-center gap-3">
         <div className="relative w-10 h-10 bg-white rounded-lg p-1 shrink-0">
           <Image 
-            src="https://upload.wikimedia.org/wikipedia/en/2/2e/Rajasthan_Technical_University_logo.png"
+            src={rtuLogo?.imageUrl || "https://picsum.photos/seed/rtu-icon/100/100"}
             alt="RTU"
-            fill
+            width={100}
+            height={100}
             className="object-contain"
-            data-ai-hint="RTU Emblem"
+            data-ai-hint={rtuLogo?.imageHint || "RTU Emblem"}
           />
         </div>
         <div className="flex flex-col group-data-[collapsible=icon]:hidden">
