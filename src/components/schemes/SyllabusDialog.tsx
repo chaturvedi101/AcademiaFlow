@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -132,10 +133,11 @@ export function SyllabusDialog({
     let prefix = 'RT';
     const cat = formData.creditCategory || '';
     
+    // AE for AEC, MD for MDC, VA for VAC
     if (cat === 'AEC') prefix = 'AE';
     else if (cat === 'MDC') prefix = 'MD';
     else if (cat === 'VAC') prefix = 'VA';
-    else if (cat === 'OFE') prefix = 'RT';
+    // OFE now uses branch prefix instead of RT, unless it's a common pool scheme
     else {
       if (branchName === 'Institutional Common Pool') {
         prefix = 'RT';
@@ -353,7 +355,6 @@ export function SyllabusDialog({
   const isInstitutionalCategory = ['VAC', 'AEC', 'MDC', 'SEC', 'OFE'].includes(formData.creditCategory || '');
   const isElectiveCategory = ['DSE', 'OFE'].includes(formData.creditCategory || '');
   
-  // Logic to hide Group Identifier selection if pre-filled via props
   const hideGroupSelection = syllabus?.electiveGroupId !== undefined && syllabus.electiveGroupId !== '';
 
   return (

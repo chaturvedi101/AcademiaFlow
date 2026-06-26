@@ -185,7 +185,7 @@ export default function SchemesPage() {
         if (cat === 'AEC') prefix = 'AE';
         else if (cat === 'MDC') prefix = 'MD';
         else if (cat === 'VAC') prefix = 'VA';
-        else if (cat === 'OFE') prefix = 'RT';
+        // OFE now uses the branch prefix determined above, so we don't force 'RT' here
         else if (isCommonBos) prefix = 'RT';
         
         counters[cat]++;
