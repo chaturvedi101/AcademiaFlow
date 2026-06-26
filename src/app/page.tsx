@@ -141,12 +141,12 @@ export default function Home() {
           <div className="flex items-center gap-4">
             <div className="relative w-20 h-20 bg-white rounded-2xl shadow-sm p-1 border border-border/50">
               <Image 
-                src={rtuLogo?.imageUrl || "https://picsum.photos/seed/rtu/200/200"}
+                src={rtuLogo?.imageUrl || "https://upload.wikimedia.org/wikipedia/en/thumb/1/10/Rajasthan_Technical_University_logo.png/220px-Rajasthan_Technical_University_logo.png"}
                 alt="RTU Logo"
                 width={200}
                 height={200}
                 className="object-contain p-2"
-                data-ai-hint={rtuLogo?.imageHint || "RTU Logo"}
+                data-ai-hint="RTU Emblem"
                 priority
                 unoptimized
               />
@@ -182,22 +182,8 @@ export default function Home() {
               title="Equivalence Engine"
               desc="Manage transition mappings"
             />
-            <FeatureCheck icon={<ShieldCheck className="text-accent" />} title="Secure RBAC" desc="Hierarchy & Audit Logs" />
+            <FeatureCard icon={<ShieldCheck className="text-accent" />} title="Secure RBAC" desc="Hierarchy & Audit Logs" />
           </div>
-
-          <Card className="bg-primary/5 border-primary/10">
-            <CardHeader className="py-3 px-4">
-              <CardTitle className="text-xs font-bold uppercase tracking-wider flex items-center gap-2">
-                <Info className="w-3 h-3 text-primary" />
-                RTU Portal Reference Roles
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="py-2 px-4 space-y-1">
-              <p className="text-[10px] text-muted-foreground"><span className="font-bold">Dean Academic:</span> dean.academic@rtu.ac.in</p>
-              <p className="text-[10px] text-muted-foreground"><span className="font-bold">BoS Convenor:</span> convenor@rtu.ac.in</p>
-              <p className="text-[10px] text-muted-foreground"><span className="font-bold">System Admin:</span> admin@rtu.ac.in</p>
-            </CardContent>
-          </Card>
         </div>
 
         <div className="flex justify-center">
@@ -216,98 +202,46 @@ export default function Home() {
                 </TabsList>
                 
                 <TabsContent value="login">
-                  <div className="space-y-4">
-                    <form onSubmit={handleSignIn} className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input 
-                          id="email" 
-                          type="email" 
-                          placeholder="name@rtu.ac.in" 
-                          required 
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="password">Password</Label>
-                        <Input 
-                          id="password" 
-                          type="password" 
-                          required 
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                        />
-                      </div>
-                      <Button 
-                        type="submit" 
-                        className="w-full h-11" 
-                        disabled={isLoading}
-                      >
-                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Sign In to Portal"}
-                      </Button>
-                    </form>
-
-                    <div className="relative">
-                      <div className="absolute inset-0 flex items-center">
-                        <span className="w-full border-t" />
-                      </div>
-                      <div className="relative flex justify-center text-xs uppercase">
-                        <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
-                      </div>
+                  <form onSubmit={handleSignIn} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input id="email" type="email" placeholder="name@rtu.ac.in" required value={email} onChange={(e) => setEmail(e.target.value)} />
                     </div>
-
-                    <Button 
-                      variant="outline" 
-                      className="w-full h-11 gap-2" 
-                      onClick={handleGithubSignIn}
-                      disabled={isLoading}
-                    >
-                      <Github className="w-4 h-4" />
-                      GitHub Auth
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Password</Label>
+                      <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                    </div>
+                    <Button type="submit" className="w-full h-11" disabled={isLoading}>
+                      {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Sign In to Portal"}
                     </Button>
-                  </div>
+                    <div className="relative my-4">
+                      <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+                      <div className="relative flex justify-center text-[10px] uppercase font-bold text-muted-foreground"><span className="bg-background px-2">Institutional SSO</span></div>
+                    </div>
+                    <Button variant="outline" type="button" className="w-full h-11 gap-2" onClick={handleGithubSignIn} disabled={isLoading}>
+                      <Github className="w-4 h-4" /> GitHub Authorization
+                    </Button>
+                  </form>
                 </TabsContent>
 
                 <TabsContent value="register">
                   <form onSubmit={handleSignUp} className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="reg-name">Full Name</Label>
-                      <Input 
-                        id="reg-name" 
-                        placeholder="Dr. Sarah Smith" 
-                        required 
-                        value={displayName}
-                        onChange={(e) => setDisplayName(e.target.value)}
-                      />
+                      <Input id="reg-name" placeholder="Dr. Sarah Smith" required value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="reg-email">RTU Email</Label>
-                      <Input 
-                        id="reg-email" 
-                        type="email" 
-                        placeholder="name@rtu.ac.in" 
-                        required 
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                      />
+                      <Input id="reg-email" type="email" placeholder="name@rtu.ac.in" required value={email} onChange={(e) => setEmail(e.target.value)} />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="reg-password">Password</Label>
-                      <Input 
-                        id="reg-password" 
-                        type="password" 
-                        required 
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                      />
+                      <Input id="reg-password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="reg-role">Academic Role</Label>
                       <Select value={role} onValueChange={(val: UserRole) => setRole(val)}>
-                        <SelectTrigger id="reg-role">
-                          <SelectValue placeholder="Select a role" />
-                        </SelectTrigger>
+                        <SelectTrigger id="reg-role"><SelectValue placeholder="Select a role" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="bos_convenor">BoS Convenor</SelectItem>
                           <SelectItem value="dean_faculty">Dean of Faculty</SelectItem>
@@ -316,18 +250,14 @@ export default function Home() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <Button 
-                      type="submit" 
-                      className="w-full h-11" 
-                      disabled={isLoading}
-                    >
+                    <Button type="submit" className="w-full h-11" disabled={isLoading}>
                       {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Request Access"}
                     </Button>
                   </form>
                 </TabsContent>
               </Tabs>
-              <div className="text-center text-sm text-muted-foreground pt-6">
-                Institutional access restricted to authorized personnel.
+              <div className="text-center text-[10px] text-muted-foreground pt-6 uppercase tracking-wider font-bold">
+                RTU Portal Connectivity Status: <span className="text-emerald-600">Active</span>
               </div>
             </CardContent>
           </Card>
@@ -338,16 +268,6 @@ export default function Home() {
 }
 
 function FeatureCard({ icon, title, desc }: { icon: React.ReactNode, title: string, desc: string }) {
-  return (
-    <div className="p-4 rounded-xl border border-border bg-white shadow-sm hover:shadow-md transition-shadow">
-      <div className="mb-2">{icon}</div>
-      <h3 className="font-semibold text-sm">{title}</h3>
-      <p className="text-xs text-muted-foreground">{desc}</p>
-    </div>
-  );
-}
-
-function FeatureCheck({ icon, title, desc }: { icon: React.ReactNode, title: string, desc: string }) {
   return (
     <div className="p-4 rounded-xl border border-border bg-white shadow-sm hover:shadow-md transition-shadow">
       <div className="mb-2">{icon}</div>

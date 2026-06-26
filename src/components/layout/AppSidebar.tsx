@@ -70,7 +70,6 @@ export function AppSidebar() {
   const filteredNav = navigation.filter(item => {
     // Override: Common BOS doesn't see My BoS Team
     if (isCommonBos && item.name === 'My BoS Team') return false;
-    
     return item.roles.includes(role);
   });
 
@@ -84,12 +83,12 @@ export function AppSidebar() {
       <SidebarHeader className="p-4 border-b border-sidebar-border/50 flex flex-row items-center gap-3">
         <div className="relative w-10 h-10 bg-white rounded-lg p-1 shrink-0">
           <Image 
-            src={rtuLogo?.imageUrl || "https://picsum.photos/seed/rtu-icon/100/100"}
+            src={rtuLogo?.imageUrl || "https://upload.wikimedia.org/wikipedia/en/thumb/1/10/Rajasthan_Technical_University_logo.png/220px-Rajasthan_Technical_University_logo.png"}
             alt="RTU"
             width={100}
             height={100}
             className="object-contain"
-            data-ai-hint={rtuLogo?.imageHint || "RTU Emblem"}
+            data-ai-hint="RTU Emblem"
             unoptimized
           />
         </div>
@@ -107,7 +106,7 @@ export function AppSidebar() {
           </div>
         ) : (
           <SidebarGroup>
-            <SidebarGroupLabel>Menu</SidebarGroupLabel>
+            <SidebarGroupLabel>Institutional Menu</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {filteredNav.map((item) => (

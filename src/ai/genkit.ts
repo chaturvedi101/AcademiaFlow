@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Genkit configuration for Academic AI Architect.
  * Standardized on Gemini Flash with robust API key detection.

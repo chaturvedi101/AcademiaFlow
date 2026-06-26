@@ -277,6 +277,7 @@ export default function SchemesPage() {
 
   if (schemesLoading) return <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
+  // STRICT ACCESS CONTROL: Only global leadership can initialize new frameworks
   const canCreateScheme = profile?.role === 'admin' || profile?.role === 'dean_academic';
 
   return (

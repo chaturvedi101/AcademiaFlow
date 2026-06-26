@@ -94,7 +94,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       }
     });
 
-    // Sort by semester then by subjectCode ascending
+    // Sort by semester then by subjectCode ascending for academic clarity
     return Array.from(finalById.values()).sort((a, b) => {
       if ((a.semester || 1) !== (b.semester || 1)) {
         return (a.semester || 1) - (b.semester || 1);
@@ -407,6 +407,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                           {sortedGroupEntries.map(([groupId, members]) => {
                             const isExpanded = expandedGroups[groupId];
                             const isOfePool = members.some(m => m.creditCategory === 'OFE' && m.isOFESlot);
+                            
+                            // Re-sort members within the group as well for internal consistency
+                            const sortedMembers = [...members].sort((a, b) => (a.subjectCode || "").localeCompare(b.subjectCode || ""));
+
                             return (
                               <React.Fragment key={groupId}>
                                 <TableRow className={`hover:bg-muted/10 cursor-pointer ${isOfePool ? 'bg-blue-50/30' : 'bg-accent/5'}`} onClick={() => toggleGroup(groupId)}>
@@ -428,7 +432,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                                     )}
                                   </TableCell>
                                 </TableRow>
-                                {isExpanded && members.map(sub => (
+                                {isExpanded && sortedMembers.map(sub => (
                                   <SubjectRow key={sub.id} sub={sub} currentSchemeId={schemeId} schemeStatus={scheme.status} permissions={permissions} isOption onEdit={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }} onDelete={() => handleDeleteSyllabus(sub.id)} />
                                 ))}
                               </React.Fragment>
@@ -468,7 +472,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {syllabi.filter(s => s.isOFEContribution).map(sub => (
+                      {[...syllabi.filter(s => s.isOFEContribution)].sort((a,b) => (a.subjectCode || "").localeCompare(b.subjectCode || "")).map(sub => (
                         <TableRow key={sub.id}>
                           <TableCell className="pl-6 font-mono font-bold text-primary">{sub.subjectCode}</TableCell>
                           <TableCell className="font-medium">{sub.title}</TableCell>
