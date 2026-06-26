@@ -113,11 +113,8 @@ export function SyllabusDialog({
     if (isGlobalAdmin) return all;
 
     if (isStrictlyCommonBOS) {
-      // Forbidden: DSC, DSE, PRJ
       return all.filter(c => !['DSC', 'DSE', 'PRJ'].includes(c));
     } else {
-      // Branch roles: dean_faculty, bos_convenor, bos_member
-      // Forbidden: AEC, VAC, MDC
       return all.filter(c => !['AEC', 'VAC', 'MDC'].includes(c));
     }
   }, [profile, isGlobalAdmin, isStrictlyCommonBOS]);
@@ -192,9 +189,17 @@ export function SyllabusDialog({
       const isNew = !syllabus.id;
       const initialCategory = syllabus.creditCategory || (isNew && isStrictlyCommonBOS ? 'AEC' : 'DSC');
 
+      let initialTitle = syllabus.title || '';
+      if (isNew && syllabus.electiveGroupId) {
+        const peers = existingSyllabi.filter(s => s.electiveGroupId === syllabus.electiveGroupId);
+        const nextNum = peers.length + 1;
+        initialTitle = `Elective Subject ${nextNum}`;
+      }
+
       setFormData(prev => ({
         ...prev,
         ...syllabus,
+        title: initialTitle,
         creditCategory: initialCategory,
         units: syllabus.units || [],
         poMappings: syllabus.poMappings || {},
@@ -207,7 +212,7 @@ export function SyllabusDialog({
       setPoolResults([]);
       setShowPoolPicker(false);
     }
-  }, [syllabus, open, isStrictlyCommonBOS]);
+  }, [syllabus, open, isStrictlyCommonBOS, existingSyllabi]);
 
   useEffect(() => {
     if (open && !syllabus?.id && !isManuallyEditedCode && !formData.isOFESlot) {
