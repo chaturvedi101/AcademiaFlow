@@ -1,55 +1,51 @@
 
 # Academia Flow
 
-Academia Flow is an enterprise-grade Academic Management System designed for Rajasthan Technical University to handle NEP 2020 transitions, scheme management, and syllabus design with AI assistance.
+Academia Flow is an enterprise-grade Academic Management System designed for **Rajasthan Technical University** (RTU), Kota. It facilitates the transition to the **NEP 2020** framework, scheme management, and syllabus design with advanced AI assistance.
 
 ## 🚀 Key Features
 
 - **AI Syllabus Architect**: Automatically generate syllabus units and course outcomes using Gemini Flash.
-- **Smart CO-PO Mapping**: Generate correlation matrices using AI reasoning.
-- **Institutional Pool**: Standardize VAC, AEC, and MDC courses across the university.
-- **Secure RBAC**: Role-based access control for BoS Convenors, Deans, and Admins.
-- **Official Export**: Generate RTU-branded syllabus and structure PDFs.
+- **Institutional Pool**: Standardize VAC, AEC, and MDC courses across the university via a centralized Board of Studies (BOS).
+- **Credit Compliance**: Automated validation against RTU-NEP 2020 credit rules (160 credit UG framework).
+- **Secure RBAC**: Role-based access control for Convenors, Deans, and Administrators.
+- **Official Exports**: Professional PDF generation for individual syllabi and complete course structures.
 
 ## 🔑 AI Configuration
 
-To enable the **AI Architect** features, you must provide a Google AI API key:
+To activate the **AI Architect** features:
 
-1.  **Get a Key**: Visit [Google AI Studio](https://aistudio.google.com/) and create a free API key.
-2.  **Add Key**: Open the `.env` file in the root folder and add:
+1.  **Get an API Key**: Visit [Google AI Studio](https://aistudio.google.com/) and create a free Gemini API key.
+2.  **Add the Key**: Open the `.env` file in the root directory and update:
     ```bash
     GOOGLE_GENAI_API_KEY=your_actual_key_here
     ```
-3.  **Restart**: Run `npm run dev` again to activate AI features.
+3.  **Restart**: Run `npm run dev` again. Verify connectivity via the **AI Diagnostics** page in the dashboard.
 
-## 📦 Git & Remote Sync
+## 📦 Git Synchronization
 
-### 1. Initial Setup
-If you haven't linked the remote repository, run:
+### 1. Linking Remote
+If the remote repository is not already linked:
 ```bash
 npm run git:setup
 ```
 
-### 2. Committing Changes
-You can use the built-in script to stage and commit all recent changes:
+### 2. Finalizing Changes
+To stage and commit all recent academic updates:
 ```bash
 npm run git:commit
 ```
 
 ### 3. Pushing to GitHub
-To push your committed changes:
 ```bash
 git push origin main
 ```
-*Note: GitHub requires a **Personal Access Token (PAT)** as the password.*
-
-### 4. Safety Warning
-The project includes a `.gitignore` file. **Never** remove `.env` from this list to ensure your API keys stay private.
+*Note: GitHub requires a **Personal Access Token (PAT)** as your password during the push prompt.*
 
 ## 🛠 Tech Stack
 
 - **Framework**: Next.js 15 (App Router)
 - **Styling**: Tailwind CSS + ShadCN UI
-- **Backend**: Firebase (Auth, Firestore)
-- **AI Engine**: Google Genkit + Gemini Flash
+- **Backend**: Firebase (Authentication, Firestore)
+- **AI Engine**: Google Genkit + Gemini 2.5 Flash
 - **Exports**: jsPDF with AutoTable
