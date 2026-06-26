@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -121,7 +120,7 @@ export function SyllabusDialog({
     let prefix = 'RT';
     const cat = formData.creditCategory || '';
     
-    if (cat === 'AEC') prefix = 'AB';
+    if (cat === 'AEC') prefix = 'AE';
     else if (cat === 'MDC') prefix = 'MD';
     else if (cat === 'VAC') prefix = 'VA';
     else if (cat === 'OFE') prefix = 'RT';

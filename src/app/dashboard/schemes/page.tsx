@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -172,8 +171,8 @@ export default function SchemesPage() {
         const cat = slot.creditCategory;
         let prefix = branchPrefix || 'GEN';
         
-        // Strictly apply requested institutional prefixes
-        if (cat === 'AEC') prefix = 'AB';
+        // Institutional Pre-filling Logic
+        if (cat === 'AEC') prefix = 'AE';
         else if (cat === 'MDC') prefix = 'MD';
         else if (cat === 'VAC') prefix = 'VA';
         else if (cat === 'OFE') prefix = 'RT';
@@ -208,7 +207,7 @@ export default function SchemesPage() {
               title: `${slot.title || 'Elective'} - Subject ${i}`,
               isSlot: true,
               isOFESlot: false,
-              type: 'Theory',
+              type: pedagogy === 'P' ? 'Lab/Sessional' : 'Theory',
               lectureCredits: slot.credits,
               tutorialCredits: 0,
               practicalCredits: 0,
