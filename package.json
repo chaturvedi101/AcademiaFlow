@@ -11,7 +11,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "git:setup": "git remote set-url origin https://github.com/chaturvedi101/AcademiaFlow.git && echo 'Remote origin updated successfully.'"
+    "git:setup": "git remote set-url origin https://github.com/chaturvedi101/AcademiaFlow.git && echo 'Remote origin updated successfully.'",
+    "git:commit": "git add . && git commit -m 'Finalized RTU Academia Flow core features'"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.28.0",
