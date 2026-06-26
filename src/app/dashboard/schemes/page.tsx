@@ -27,8 +27,6 @@ interface SlotConfig {
   title?: string;
 }
 
-const ALL_CATEGORIES: CreditCategory[] = ['DSC', 'DSE', 'OFE', 'CPF', 'VAC', 'AEC', 'SEC', 'MDC', 'PRJ'];
-
 export default function SchemesPage() {
   const db = useFirestore();
   const { user } = useUser();
@@ -60,6 +58,21 @@ export default function SchemesPage() {
   const [semesterSlots, setSemesterSlots] = useState<SlotConfig[]>([]);
 
   const isCommonBos = profile?.faculty === 'University-wide (Common BOS)';
+  const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile?.role || '');
+
+  const visibleCategories = useMemo(() => {
+    const all = ['DSC', 'DSE', 'OFE', 'CPF', 'VAC', 'AEC', 'SEC', 'MDC', 'PRJ'] as CreditCategory[];
+    if (isGlobalAdmin) return all;
+
+    if (isCommonBos) {
+      // Forbidden: DSC, DSE, PRJ
+      return all.filter(c => !['DSC', 'DSE', 'PRJ'].includes(c));
+    } else {
+      // Branch roles: dean_faculty, bos_convenor, bos_member
+      // Forbidden: AEC, VAC, MDC
+      return all.filter(c => !['AEC', 'VAC', 'MDC'].includes(c));
+    }
+  }, [isCommonBos, isGlobalAdmin]);
 
   const filteredSchemes = useMemo(() => {
     if (!profile) return [];
@@ -171,7 +184,6 @@ export default function SchemesPage() {
         const cat = slot.creditCategory;
         let prefix = branchPrefix || 'GEN';
         
-        // Institutional Pre-filling Logic
         if (cat === 'AEC') prefix = 'AE';
         else if (cat === 'MDC') prefix = 'MD';
         else if (cat === 'VAC') prefix = 'VA';
@@ -190,7 +202,6 @@ export default function SchemesPage() {
         const baseAutoCode = `${prefix}${pedagogy}${pillar}${year}${String(seq).padStart(2, '0')}`;
         const finalCode = slot.subjectCode || baseAutoCode;
 
-        // Expansion for DSE: Create 3 options by default
         if (cat === 'DSE') {
           for (let i = 1; i <= 3; i++) {
             const optionId = `SLOT-${cat}-${slot.semester}-${slot.id}-${i}`;
@@ -222,7 +233,6 @@ export default function SchemesPage() {
             batch.set(optionRef, data);
           }
         } else {
-          // Standard Single Slot
           const slotId = `SLOT-${cat}-${slot.semester}-${slot.id}`;
           const slotRef = doc(db, 'schemes', generatedCode, 'syllabi', slotId);
           
@@ -368,7 +378,7 @@ export default function SchemesPage() {
                     <div className="space-y-4">
                       {semesterSlots.filter(s => s.semester === sem).map(slot => (
                         <div key={slot.id} className="grid grid-cols-12 gap-3 items-end border-b pb-4 last:border-0 last:pb-0">
-                          <div className="col-span-3 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Category</Label><Select disabled={slot.isInherited} value={slot.creditCategory} onValueChange={(v: CreditCategory) => updateSlot(slot.id, { creditCategory: v })}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent>{ALL_CATEGORIES.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}</SelectContent></Select></div>
+                          <div className="col-span-3 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Category</Label><Select disabled={slot.isInherited} value={slot.creditCategory} onValueChange={(v: CreditCategory) => updateSlot(slot.id, { creditCategory: v })}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent>{visibleCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}</SelectContent></Select></div>
                           <div className="col-span-2 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Credits</Label><Input disabled={slot.isInherited} type="number" value={slot.credits} onChange={e => updateSlot(slot.id, { credits: Number(e.target.value) })} className="h-9" /></div>
                           <div className="col-span-3 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Subject Code</Label><Input disabled={slot.isInherited} value={slot.subjectCode || ''} onChange={e => updateSlot(slot.id, { subjectCode: e.target.value.toUpperCase() })} className="h-9" /></div>
                           <div className="col-span-3 space-y-1">

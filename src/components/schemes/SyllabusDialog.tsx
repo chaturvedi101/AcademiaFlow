@@ -106,7 +106,20 @@ export function SyllabusDialog({
 
   const isStrictlyCommonBOS = profile?.faculty === 'University-wide (Common BOS)';
   const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile?.role || '');
-  const isCommonStaff = isStrictlyCommonBOS || isGlobalAdmin;
+
+  const visibleCategories = useMemo(() => {
+    const all = ['DSC', 'DSE', 'OFE', 'CPF', 'VAC', 'AEC', 'SEC', 'MDC', 'PRJ'] as CreditCategory[];
+    if (isGlobalAdmin) return all;
+
+    if (isStrictlyCommonBOS) {
+      // Forbidden: DSC, DSE, PRJ
+      return all.filter(c => !['DSC', 'DSE', 'PRJ'].includes(c));
+    } else {
+      // Branch roles: dean_faculty, bos_convenor, bos_member
+      // Forbidden: AEC, VAC, MDC
+      return all.filter(c => !['AEC', 'VAC', 'MDC'].includes(c));
+    }
+  }, [profile, isGlobalAdmin, isStrictlyCommonBOS]);
 
   const availableElectiveGroups = useMemo(() => {
     if (formData.creditCategory === 'DSE') return DEFAULT_DSE_GROUPS;
@@ -399,7 +412,9 @@ export function SyllabusDialog({
                     <Select disabled={isReadOnly} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v, isOFESlot: v === 'OFE'})}>
                       <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="DSC">DSC</SelectItem><SelectItem value="DSE">DSE</SelectItem><SelectItem value="AEC">AEC</SelectItem><SelectItem value="VAC">VAC</SelectItem><SelectItem value="SEC">SEC</SelectItem><SelectItem value="MDC">MDC</SelectItem><SelectItem value="OFE">OFE Slot</SelectItem><SelectItem value="PRJ">PRJ</SelectItem>
+                        {visibleCategories.map(cat => (
+                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
