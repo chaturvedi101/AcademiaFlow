@@ -10,7 +10,7 @@ import { genkit } from 'genkit';
 const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
 
 if (!apiKey) {
-  console.warn('AI functionality is disabled: Neither GOOGLE_GENAI_API_KEY nor GEMINI_API_KEY is found in environment variables. Please add it to your .env file.');
+  console.warn('AI functionality is disabled: Neither GOOGLE_GENAI_API_KEY nor GEMINI_API_KEY is found in environment variables. Please add it to your .env file in the project root.');
 }
 
 export const ai = genkit({
