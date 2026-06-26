@@ -120,10 +120,13 @@ export function SyllabusDialog({
   }, [profile, isGlobalAdmin, isStrictlyCommonBOS]);
 
   const availableElectiveGroups = useMemo(() => {
-    if (formData.creditCategory === 'DSE') return DEFAULT_DSE_GROUPS;
-    if (formData.creditCategory === 'OFE') return DEFAULT_OFE_GROUPS;
-    return [];
-  }, [formData.creditCategory]);
+    const defaults = formData.creditCategory === 'DSE' ? DEFAULT_DSE_GROUPS : (formData.creditCategory === 'OFE' ? DEFAULT_OFE_GROUPS : []);
+    // Include current group ID if it's not in defaults (e.g. custom from Program master)
+    if (formData.electiveGroupId && !defaults.includes(formData.electiveGroupId)) {
+      return [formData.electiveGroupId, ...defaults];
+    }
+    return defaults;
+  }, [formData.creditCategory, formData.electiveGroupId]);
 
   const generateAutoSubjectCode = useCallback(() => {
     if (!branchName) return '';
@@ -168,8 +171,12 @@ export function SyllabusDialog({
     let finalCode = `${baseCode}${String(sequence).padStart(2, '0')}`;
 
     if (formData.electiveGroupId) {
+      // Find siblings in the same elective group to determine suffix
       const peers = existingSyllabi.filter(s => s.electiveGroupId === formData.electiveGroupId);
+      
+      // If we are editing an existing course in the group, we don't increment
       const isAlreadyInGroup = peers.some(p => p.id === formData.id || p.subjectCode === formData.subjectCode);
+      
       let suffix = peers.length + (isAlreadyInGroup ? 0 : 1);
       finalCode = `${finalCode}.${suffix}`;
     } else {
@@ -190,22 +197,36 @@ export function SyllabusDialog({
       const initialCategory = syllabus.creditCategory || (isNew && isStrictlyCommonBOS ? 'AEC' : 'DSC');
 
       let initialTitle = syllabus.title || '';
+      // Automated Title Generation for Elective Group Options
       if (isNew && syllabus.electiveGroupId) {
         const peers = existingSyllabi.filter(s => s.electiveGroupId === syllabus.electiveGroupId);
         const nextNum = peers.length + 1;
         initialTitle = `Elective Subject ${nextNum}`;
       }
 
-      setFormData(prev => ({
-        ...prev,
-        ...syllabus,
+      setFormData({
+        subjectCode: '',
         title: initialTitle,
+        lectureCredits: 0,
+        tutorialCredits: 0,
+        practicalCredits: 0,
+        credits: 0,
+        semester: 1,
+        type: 'Theory',
         creditCategory: initialCategory,
-        units: syllabus.units || [],
-        poMappings: syllabus.poMappings || {},
-        textBooks: syllabus.textBooks || [],
-        referenceBooks: syllabus.referenceBooks || [],
-      }));
+        units: [],
+        poMappings: {},
+        textBooks: [],
+        referenceBooks: [],
+        electiveGroupId: '',
+        electiveGroupName: '',
+        isCommonCourse: false,
+        isOFESlot: false,
+        isOFEContribution: false,
+        ...syllabus, // This spreads passed electiveGroupId and category
+        title: initialTitle, // Re-enforce generated title if it was a new group option
+        creditCategory: initialCategory,
+      });
       
       setIsManuallyEditedCode(false);
       setCodeConflict(null);
