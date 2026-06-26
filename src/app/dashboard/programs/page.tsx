@@ -9,11 +9,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit3, Trash2, GraduationCap, Loader2, Calendar, Eye } from 'lucide-react';
+import { Plus, Edit3, Trash2, GraduationCap, Loader2, Calendar, Eye, ShieldAlert } from 'lucide-react';
 import { ProgramDialog } from '@/components/programs/ProgramDialog';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import Link from 'next/link';
 
 export default function ProgramsPage() {
   const db = useFirestore();
@@ -21,34 +22,27 @@ export default function ProgramsPage() {
   const { toast } = useToast();
   
   const userDocRef = useMemoFirebase(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
-  const { data: profile } = useDoc<UserProfile>(userDocRef);
+  const { data: profile, loading: profileLoading } = useDoc<UserProfile>(userDocRef);
 
   const programsRef = useMemoFirebase(() => collection(db, 'programs'), [db]);
-  const { data: programs, loading } = useCollection<Program>(programsRef);
+  const { data: programs, loading: programsLoading } = useCollection<Program>(programsRef);
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState<Program | undefined>(undefined);
 
-  const isCommonBos = profile?.faculty === 'University-wide (Common BOS)';
+  const isAdminOrDeanAcad = profile?.role === 'admin' || profile?.role === 'dean_academic';
 
   const filteredPrograms = useMemo(() => {
     if (!profile) return [];
-    // Admins, Dean Academic, and University-wide Common BOS see all programs
-    if (
-      profile.role === 'admin' || 
-      profile.role === 'dean_academic' || 
-      isCommonBos
-    ) {
+    // Only Admin and Dean Academic see the program catalog page
+    if (isAdminOrDeanAcad) {
       return programs;
     }
-    // Dean Faculty can see programs within their faculty
-    if (profile.role === 'dean_faculty') {
-      return programs.filter(p => p.faculty === profile.faculty);
-    }
     return [];
-  }, [programs, profile, isCommonBos]);
+  }, [programs, profile, isAdminOrDeanAcad]);
 
   const handleDelete = (id: string) => {
+    if (!isAdminOrDeanAcad) return;
     const programRef = doc(db, 'programs', id);
     deleteDoc(programRef)
       .catch((err) => {
@@ -60,7 +54,7 @@ export default function ProgramsPage() {
       });
   };
 
-  if (loading) {
+  if (profileLoading || programsLoading) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -68,8 +62,23 @@ export default function ProgramsPage() {
     );
   }
 
-  // Common BOS cannot create programs
-  const canCreateProgram = (profile?.role === 'admin' || profile?.role === 'dean_faculty') && !isCommonBos;
+  // Final check for unauthorized access
+  if (!isAdminOrDeanAcad) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
+        <ShieldAlert className="w-16 h-16 text-red-500 opacity-20" />
+        <h2 className="text-2xl font-headline font-bold">Access Restricted</h2>
+        <p className="text-muted-foreground text-center max-w-md">
+          The Program Catalog is restricted to university-level leadership (Dean Academic & System Administrators).
+        </p>
+        <Button asChild variant="outline">
+          <Link href="/dashboard">Return to Dashboard</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  const canCreateProgram = profile?.role === 'admin' || profile?.role === 'dean_academic';
 
   return (
     <div className="space-y-6">
@@ -77,11 +86,7 @@ export default function ProgramsPage() {
         <div className="space-y-1">
           <h1 className="text-3xl font-headline font-bold">Program Catalog</h1>
           <p className="text-muted-foreground">
-            {isCommonBos 
-              ? 'Viewing all university programs to coordinate common course delivery.'
-              : profile?.role === 'dean_faculty' 
-                ? `Manage programs for ${profile.faculty}.` 
-                : 'Manage university-wide academic programs and NEP 2020 frameworks.'}
+            Institutional catalog of academic programs and NEP 2020 frameworks.
           </p>
         </div>
         {canCreateProgram && (
@@ -95,11 +100,7 @@ export default function ProgramsPage() {
         <CardHeader>
           <CardTitle>Academic Programs</CardTitle>
           <CardDescription>
-            {isCommonBos
-              ? 'Institutional catalog for planning VAC, AEC, SEC, and MDC course sequences.'
-              : profile?.role === 'dean_faculty' 
-                ? `Programs offered under the ${profile.faculty}.` 
-                : 'Defined programs available for scheme creation.'}
+            Defined programs available for university-wide scheme creation.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -134,9 +135,9 @@ export default function ProgramsPage() {
                   <TableCell className="text-right pr-6">
                     <div className="flex justify-end gap-2">
                       <Button variant="ghost" size="icon" onClick={() => { setSelectedProgram(program); setIsDialogOpen(true); }}>
-                        {isCommonBos ? <Eye className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
+                        <Edit3 className="w-4 h-4" />
                       </Button>
-                      {(profile?.role === 'admin' && !isCommonBos) && (
+                      {profile?.role === 'admin' && (
                         <Button variant="ghost" size="icon" className="text-red-400" onClick={() => handleDelete(program.id)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>

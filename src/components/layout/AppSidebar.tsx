@@ -29,7 +29,7 @@ import {
   UserCircle,
   Database
 } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter } from "navigation";
 import Link from "next/link";
 import { useAuth, useUser, useDoc, useFirestore } from "@/firebase";
 import { doc } from "firebase/firestore";
@@ -38,7 +38,7 @@ import Image from "next/image";
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['bos_convenor', 'bos_member', 'dean_faculty', 'dean_academic', 'admin'] },
-  { name: 'Programs', href: '/dashboard/programs', icon: GraduationCap, roles: ['dean_faculty', 'dean_academic', 'admin', 'common_bos'] },
+  { name: 'Programs', href: '/dashboard/programs', icon: GraduationCap, roles: ['dean_academic', 'admin'] },
   { name: 'BoS Authorization', href: '/dashboard/users', icon: ShieldCheck, roles: ['dean_academic', 'admin'] },
   { name: 'My BoS Team', href: '/dashboard/team', icon: UserCircle, roles: ['bos_convenor'] },
   { name: 'Schemes', href: '/dashboard/schemes', icon: BookOpen, roles: ['bos_convenor', 'bos_member', 'dean_faculty', 'dean_academic', 'admin'] },
@@ -63,10 +63,11 @@ export function AppSidebar() {
   const isCommonBos = profile?.faculty === 'University-wide (Common BOS)';
 
   const filteredNav = navigation.filter(item => {
-    if (isCommonBos && item.name === 'Programs') return true;
+    // Override: Common BOS doesn't see My BoS Team
     if (isCommonBos && item.name === 'My BoS Team') return false;
     
-    return item.roles.includes(role) || (isCommonBos && item.roles.includes('common_bos'));
+    // Programs tab is strictly for admin/dean_academic
+    return item.roles.includes(role);
   });
 
   const handleLogout = async () => {
