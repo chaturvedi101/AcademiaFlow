@@ -17,6 +17,17 @@ Academia Flow is an enterprise-grade Academic Management System designed for tec
 - **Backend**: Firebase (Auth, Firestore)
 - **AI Engine**: Google Genkit + Gemini 2.5 Flash
 
+## Configuration
+
+### AI Integration
+To enable the **GenAI Architect**, you must provide a Google AI API key:
+1. Visit [Google AI Studio](https://aistudio.google.com/).
+2. Generate an API Key.
+3. Add the key to your `.env` file:
+   ```bash
+   GOOGLE_GENAI_API_KEY=your_actual_api_key_here
+   ```
+
 ## Remote Setup
 
 ### 1. Fix Remote URL
