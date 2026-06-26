@@ -25,7 +25,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const { toast } = useToast();
 
   const userDocRef = useMemoFirebase(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
-  const { data: profile } = useDoc<UserProfile>(userDocRef);
+  const { data: profile, loading: profileLoading } = useDoc<UserProfile>(userDocRef);
 
   const schemeRef = useMemoFirebase(() => doc(db, 'schemes', schemeId), [db, schemeId]);
   const { data: scheme, loading: schemeLoading } = useDoc<Scheme>(schemeRef);
