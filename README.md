@@ -24,6 +24,11 @@ To activate the **AI Architect** features:
 
 ## 📦 Git & Authentication Guide
 
+### 🛠 Required Token Permissions
+When creating your **Personal Access Token (Classic)** on GitHub, you must select the following scope:
+- **`repo`** (Full control of private repositories)
+  - This is required to push code, manage branches, and update the remote repository.
+
 ### ⚡ EMERGENCY: Fixing "ECONNREFUSED" Socket Errors
 If you see errors like `connect ECONNREFUSED /tmp/vscode-git...`, use the **Nuclear Option** to bypass the broken credential helper:
 

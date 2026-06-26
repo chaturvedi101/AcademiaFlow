@@ -7,7 +7,7 @@ import { UserProfile } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Github, Globe, ShieldCheck, User, Code, Info, Terminal, ExternalLink, AlertTriangle, Key, Zap } from 'lucide-react';
+import { Github, Globe, ShieldCheck, User, Code, Info, Terminal, ExternalLink, AlertTriangle, Key, Zap, CheckCircle2 } from 'lucide-react';
 
 export default function SettingsPage() {
   const db = useFirestore();
@@ -111,14 +111,23 @@ export default function SettingsPage() {
           <CardContent className="space-y-6">
             <div className="space-y-4">
               <div className="space-y-2">
-                <p className="text-[10px] font-bold uppercase text-slate-500">1. Force Push (Detached HEAD Fix)</p>
+                <p className="text-[10px] font-bold uppercase text-slate-500">1. REQUIRED TOKEN PERMISSIONS</p>
+                <div className="bg-blue-500/10 p-3 rounded-lg border border-blue-500/30 space-y-2">
+                  <p className="text-xs text-blue-300 font-bold flex items-center gap-2">
+                    <CheckCircle2 className="w-3 h-3" /> Select "repo" scope
+                  </p>
+                  <p className="text-[10px] text-slate-400">When creating a Personal Access Token (Classic), check the <b>repo</b> box (Full control of private repositories).</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-[10px] font-bold uppercase text-slate-500">2. Force Push (Detached HEAD Fix)</p>
                 <div className="bg-black/50 p-4 rounded-xl border border-slate-700 font-mono text-xs text-amber-300">
                   <p>git push origin HEAD:main</p>
                 </div>
               </div>
               <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl flex gap-3 text-xs text-blue-200">
                 <Info className="w-5 h-5 shrink-0" />
-                <p>Use your GitHub <strong>Personal Access Token (PAT)</strong> as the password when prompted in the terminal.</p>
+                <p>Use your GitHub <b>Personal Access Token (PAT)</b> as the password when prompted in the terminal.</p>
               </div>
             </div>
           </CardContent>
