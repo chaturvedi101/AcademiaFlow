@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo } from 'react';
@@ -29,7 +28,7 @@ import {
   UserCircle,
   Database
 } from "lucide-react";
-import { usePathname, useRouter } from "navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth, useUser, useDoc, useFirestore } from "@/firebase";
 import { doc } from "firebase/firestore";
