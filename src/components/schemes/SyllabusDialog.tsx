@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { BookOpen, Globe, Link2, Loader2, Plus, ShieldAlert, Trash2, Hash, Info, GraduationCap, ClipboardCheck, Search, Layers, AlertTriangle } from "lucide-react";
+import { BookOpen, Globe, Link2, Loader2, Plus, ShieldAlert, Trash2, Hash, Info, GraduationCap, ClipboardCheck, Search, Layers, AlertTriangle, Book, Video, ExternalLink } from "lucide-react";
 import { Syllabus, CorrelationLevel as CorrelationLevelType, CreditRules, SubjectType, CreditCategory } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
@@ -98,6 +98,8 @@ export function SyllabusDialog({
     poMappings: {},
     textBooks: [],
     referenceBooks: [],
+    nptelLinks: [],
+    youtubeLinks: [],
     electiveGroupId: '',
     electiveGroupName: '',
     isCommonCourse: false,
@@ -133,11 +135,9 @@ export function SyllabusDialog({
     let prefix = 'RT';
     const cat = formData.creditCategory || '';
     
-    // AE for AEC, MD for MDC, VA for VAC
     if (cat === 'AEC') prefix = 'AE';
     else if (cat === 'MDC') prefix = 'MD';
     else if (cat === 'VAC') prefix = 'VA';
-    // OFE now uses branch prefix instead of RT, unless it's a common pool scheme
     else {
       if (branchName === 'Institutional Common Pool') {
         prefix = 'RT';
@@ -213,6 +213,8 @@ export function SyllabusDialog({
         poMappings: {},
         textBooks: [],
         referenceBooks: [],
+        nptelLinks: [],
+        youtubeLinks: [],
         electiveGroupId: '',
         electiveGroupName: '',
         isCommonCourse: false,
@@ -351,6 +353,22 @@ export function SyllabusDialog({
     onOpenChange(false);
   };
 
+  const handleUpdateArrayField = (field: keyof Syllabus, index: number, value: string) => {
+    const arr = [...(formData[field] as string[] || [])];
+    arr[index] = value;
+    setFormData({ ...formData, [field]: arr });
+  };
+
+  const handleAddArrayField = (field: keyof Syllabus) => {
+    const arr = [...(formData[field] as string[] || []), ''];
+    setFormData({ ...formData, [field]: arr });
+  };
+
+  const handleRemoveArrayField = (field: keyof Syllabus, index: number) => {
+    const arr = [...(formData[field] as string[] || [])].filter((_, i) => i !== index);
+    setFormData({ ...formData, [field]: arr });
+  };
+
   const isReadOnly = !canEdit;
   const isInstitutionalCategory = ['VAC', 'AEC', 'MDC', 'SEC', 'OFE'].includes(formData.creditCategory || '');
   const isElectiveCategory = ['DSE', 'OFE'].includes(formData.creditCategory || '');
@@ -422,9 +440,10 @@ export function SyllabusDialog({
             )}
 
             <Tabs defaultValue="basic" className="w-full">
-              <TabsList className="grid w-full grid-cols-3 mb-8">
+              <TabsList className="grid w-full grid-cols-4 mb-8">
                 <TabsTrigger value="basic">Identity & Meta</TabsTrigger>
                 <TabsTrigger value="syllabus" disabled={formData.isOFESlot}>Academic Content</TabsTrigger>
+                <TabsTrigger value="resources" disabled={formData.isOFESlot}>Learning Resources</TabsTrigger>
                 <TabsTrigger value="mapping" disabled={formData.isOFESlot}>Outcome Matrix</TabsTrigger>
               </TabsList>
 
@@ -477,7 +496,6 @@ export function SyllabusDialog({
                         </Badge>
                       </div>
                     )}
-                    <p className="text-[10px] text-muted-foreground italic">Group subjects here share a single credit slot in the structure.</p>
                   </div>
                 )}
 
@@ -549,16 +567,66 @@ export function SyllabusDialog({
                           <Textarea disabled={isReadOnly} placeholder="Content" value={unit.content} onChange={e => {
                             const u = [...(formData.units || [])]; u[idx].content = e.target.value; setFormData({...formData, units: u});
                           }} />
+                          <div className="space-y-2">
+                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">Unit Outcome (CO)</Label>
+                             <Input disabled={isReadOnly} placeholder="On successful completion, students will be able to..." value={unit.courseOutcome} onChange={e => {
+                               const u = [...(formData.units || [])]; u[idx].courseOutcome = e.target.value; setFormData({...formData, units: u});
+                             }} />
+                          </div>
                        </CardContent>
                      </Card>
                    ))}
-                   {(!formData.units || formData.units.length === 0) && (
-                     <div className="text-center py-12 border border-dashed rounded-xl bg-muted/20">
-                       <BookOpen className="w-12 h-12 mx-auto mb-2 opacity-10" />
-                       <p className="text-sm text-muted-foreground italic">No syllabus units defined yet.</p>
-                     </div>
-                   )}
                  </div>
+              </TabsContent>
+
+              <TabsContent value="resources" className="space-y-8">
+                <ResourceSection 
+                  title="Recommended Text Books" 
+                  icon={<Book className="w-4 h-4" />}
+                  field="textBooks"
+                  items={formData.textBooks || []}
+                  onAdd={() => handleAddArrayField('textBooks')}
+                  onUpdate={(idx, val) => handleUpdateArrayField('textBooks', idx, val)}
+                  onRemove={(idx) => handleRemoveArrayField('textBooks', idx)}
+                  isReadOnly={isReadOnly}
+                  placeholder="Author, Title, Publisher, Edition"
+                />
+
+                <ResourceSection 
+                  title="Reference Materials & Internet Resources" 
+                  icon={<ExternalLink className="w-4 h-4" />}
+                  field="referenceBooks"
+                  items={formData.referenceBooks || []}
+                  onAdd={() => handleAddArrayField('referenceBooks')}
+                  onUpdate={(idx, val) => handleUpdateArrayField('referenceBooks', idx, val)}
+                  onRemove={(idx) => handleRemoveArrayField('referenceBooks', idx)}
+                  isReadOnly={isReadOnly}
+                  placeholder="Resource URL or Citation"
+                />
+
+                <ResourceSection 
+                  title="Equivalent NPTEL / SWAYAM Courses" 
+                  icon={<Link2 className="w-4 h-4" />}
+                  field="nptelLinks"
+                  items={formData.nptelLinks || []}
+                  onAdd={() => handleAddArrayField('nptelLinks')}
+                  onUpdate={(idx, val) => handleUpdateArrayField('nptelLinks', idx, val)}
+                  onRemove={(idx) => handleRemoveArrayField('nptelLinks', idx)}
+                  isReadOnly={isReadOnly}
+                  placeholder="Course Title & Portal Link"
+                />
+
+                <ResourceSection 
+                  title="YouTube & Video Resources" 
+                  icon={<Video className="w-4 h-4" />}
+                  field="youtubeLinks"
+                  items={formData.youtubeLinks || []}
+                  onAdd={() => handleAddArrayField('youtubeLinks')}
+                  onUpdate={(idx, val) => handleUpdateArrayField('youtubeLinks', idx, val)}
+                  onRemove={(idx) => handleRemoveArrayField('youtubeLinks', idx)}
+                  isReadOnly={isReadOnly}
+                  placeholder="Video URL or Playlist Name"
+                />
               </TabsContent>
 
               <TabsContent value="mapping" className="space-y-6">
@@ -591,5 +659,44 @@ export function SyllabusDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ResourceSection({ title, icon, items, onAdd, onUpdate, onRemove, isReadOnly, placeholder }: any) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-primary font-bold">
+          {icon}
+          <h4 className="text-sm">{title}</h4>
+        </div>
+        {!isReadOnly && (
+          <Button size="sm" variant="ghost" onClick={onAdd} className="h-7 text-[10px] uppercase font-bold tracking-wider">
+            <Plus className="w-3 h-3 mr-1" /> Add
+          </Button>
+        )}
+      </div>
+      <div className="space-y-2">
+        {items.map((item: string, idx: number) => (
+          <div key={idx} className="flex gap-2">
+            <Input 
+              disabled={isReadOnly}
+              placeholder={placeholder}
+              value={item}
+              onChange={e => onUpdate(idx, e.target.value)}
+              className="h-9 text-sm"
+            />
+            {!isReadOnly && (
+              <Button variant="ghost" size="icon" className="h-9 w-9 text-red-400 shrink-0" onClick={() => onRemove(idx)}>
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
+        ))}
+        {items.length === 0 && (
+          <div className="text-[10px] text-muted-foreground italic pl-6">No resources listed.</div>
+        )}
+      </div>
+    </div>
   );
 }
