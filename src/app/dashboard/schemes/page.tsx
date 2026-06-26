@@ -133,7 +133,7 @@ export default function SchemesPage() {
     }
     
     const creationYear = new Date().getFullYear();
-    const generatedCode = `${selectedProgram.code}-${branchPrefix.replace('RT', 'POOL')}-${creationYear}`;
+    const generatedCode = `${selectedProgram.code}-${branchPrefix ? branchPrefix.replace('RT', 'POOL') : 'GEN'}-${creationYear}`;
 
     const schemeDocRef = doc(db, 'schemes', generatedCode);
     
@@ -162,20 +162,28 @@ export default function SchemesPage() {
 
       const batch = writeBatch(db);
       
-      // Counters for each category to handle RTU compliant ranges
+      // Sequence counters
       const counters: Record<string, number> = { DSC: 0, SEC: 39, DSE: 49, PRJ: 94, AEC: 0, MDC: 0, VAC: 0, OFE: 0 };
 
       semesterSlots.forEach(slot => {
         const cat = slot.creditCategory;
-        const isInst = ['AEC', 'MDC', 'VAC', 'OFE'].includes(cat);
-        const prefix = isInst ? 'RT' : branchPrefix;
+        
+        // Use updated prefix logic
+        let prefix = branchPrefix || 'GEN';
+        if (cat === 'AEC') prefix = 'AB';
+        else if (cat === 'MDC') prefix = 'MD';
+        else if (cat === 'VAC') prefix = 'VA';
+        else if (cat === 'OFE') prefix = 'RT';
+        else if (isCommonBos) prefix = 'RT';
         
         // Sequence determination
         counters[cat]++;
         const seq = counters[cat];
         
         // Pedagogy Indicator
-        const pedagogy = cat === 'PRJ' ? 'I' : 'L';
+        let pedagogy = 'L';
+        if (cat === 'PRJ') pedagogy = 'I';
+        
         const pillar = ['DSE', 'OFE'].includes(cat) ? 'E' : 'C';
         const year = Math.ceil(slot.semester / 2);
         

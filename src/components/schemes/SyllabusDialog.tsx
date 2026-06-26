@@ -117,48 +117,57 @@ export function SyllabusDialog({
   /**
    * RTU COMPLIANT CODE GENERATION RULES:
    * [Branch Prefix][Pedagogy][Pillar][Year][Sequence]
-   * Institutional (AEC, MDC, VAC): RT
+   * Institutional Prefixes: AEC->AB, MDC->MD, VAC->VA, OFE->RT
    * Pedagogy: L (Theory), P (Practical), I (Project)
    * Ranges: DSC(1-30), SEC(40-49), DSE(50-94), PRJ(95-99)
    */
   const generateAutoSubjectCode = useCallback(() => {
     if (!branchName) return '';
     
-    // 1. Determine Branch Prefix
-    const isInstitutional = ['AEC', 'MDC', 'VAC', 'OFE'].includes(formData.creditCategory || '');
-    let branchPrefix = 'RT';
+    // 1. Determine Prefix
+    let prefix = 'RT';
+    const cat = formData.creditCategory || '';
     
-    if (!isInstitutional && branchName !== 'Institutional Common Pool') {
-      const lowerBranch = branchName.toLowerCase();
-      if (lowerBranch.includes('production') && lowerBranch.includes('industrial')) {
-        branchPrefix = 'PI';
+    if (cat === 'AEC') prefix = 'AB';
+    else if (cat === 'MDC') prefix = 'MD';
+    else if (cat === 'VAC') prefix = 'VA';
+    else if (cat === 'OFE') prefix = 'RT';
+    else {
+      // Branch derived prefix
+      if (branchName === 'Institutional Common Pool') {
+        prefix = 'RT';
       } else {
-        branchPrefix = branchName.substring(0, 2).toUpperCase();
+        const lowerBranch = branchName.toLowerCase();
+        if (lowerBranch.includes('production') && lowerBranch.includes('industrial')) {
+          prefix = 'PI';
+        } else {
+          prefix = branchName.substring(0, 2).toUpperCase();
+        }
       }
     }
 
     // 2. Pedagogy Indicator
     let pedagogy = 'L';
-    if (formData.creditCategory === 'PRJ') {
+    if (cat === 'PRJ') {
       pedagogy = 'I';
     } else if (formData.type === 'Lab/Sessional') {
       pedagogy = 'P';
     }
 
     // 3. Curriculum Pillar
-    const isElective = ['DSE', 'OFE'].includes(formData.creditCategory || '');
+    const isElective = ['DSE', 'OFE'].includes(cat);
     const pillar = isElective ? 'E' : 'C';
     
     // 4. Academic Year Digit
     const yearDigit = Math.ceil((formData.semester || 1) / 2);
     
-    // 5. Sequence Determination based on Category Rules
+    // 5. Sequence Determination
     let seqStart = 1;
-    if (formData.creditCategory === 'SEC') seqStart = 40;
-    if (formData.creditCategory === 'DSE') seqStart = 50;
-    if (formData.creditCategory === 'PRJ') seqStart = 95;
+    if (cat === 'SEC') seqStart = 40;
+    if (cat === 'DSE') seqStart = 50;
+    if (cat === 'PRJ') seqStart = 95;
 
-    const baseCode = `${branchPrefix}${pedagogy}${pillar}${yearDigit}`;
+    const baseCode = `${prefix}${pedagogy}${pillar}${yearDigit}`;
     
     let sequence = seqStart;
     let finalCode = `${baseCode}${String(sequence).padStart(2, '0')}`;
@@ -444,30 +453,37 @@ export function SyllabusDialog({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Credit Category</Label>
-                    <Select disabled={isReadOnly} value={formData.creditCategory} onValueChange={(v: any) => {
-                      const isOfe = v === 'OFE';
-                      setFormData({...formData, creditCategory: v, electiveGroupId: '', isOFESlot: isOfe, isOFEContribution: false});
-                    }}>
-                      <SelectTrigger className="h-11 border-primary/20"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {(!isStrictlyCommonBOS || isGlobalAdmin) && (
-                          <>
-                            <SelectItem value="DSC">DSC (Discipline Core)</SelectItem>
-                            <SelectItem value="DSE">DSE (Discipline Elective)</SelectItem>
-                            <SelectItem value="PRJ">Project/Internship</SelectItem>
-                          </>
-                        )}
-                        <SelectItem value="SEC">SEC (Skill Enhancement)</SelectItem>
-                        <SelectItem value="OFE">OFE (Open Elective Slot)</SelectItem>
-                        {(isCommonStaff || (formData.creditCategory && ['VAC', 'AEC', 'MDC'].includes(formData.creditCategory))) && (
-                          <>
-                            <SelectItem value="VAC">VAC (Value Added)</SelectItem>
-                            <SelectItem value="AEC">AEC (Ability Enhancement)</SelectItem>
-                            <SelectItem value="MDC">MDC (Multi Disciplinary)</SelectItem>
-                          </>
-                        )}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex gap-2">
+                      <Select disabled={isReadOnly} value={formData.creditCategory} onValueChange={(v: any) => {
+                        const isOfe = v === 'OFE';
+                        setFormData({...formData, creditCategory: v, electiveGroupId: '', isOFESlot: isOfe, isOFEContribution: false});
+                      }}>
+                        <SelectTrigger className="h-11 border-primary/20 flex-1"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {(!isStrictlyCommonBOS || isGlobalAdmin) && (
+                            <>
+                              <SelectItem value="DSC">DSC (Discipline Core)</SelectItem>
+                              <SelectItem value="DSE">DSE (Discipline Elective)</SelectItem>
+                              <SelectItem value="PRJ">Project/Internship</SelectItem>
+                            </>
+                          )}
+                          <SelectItem value="SEC">SEC (Skill Enhancement)</SelectItem>
+                          <SelectItem value="OFE">OFE (Open Elective Slot)</SelectItem>
+                          {(isCommonStaff || (formData.creditCategory && ['VAC', 'AEC', 'MDC'].includes(formData.creditCategory))) && (
+                            <>
+                              <SelectItem value="VAC">VAC (Value Added)</SelectItem>
+                              <SelectItem value="AEC">AEC (Ability Enhancement)</SelectItem>
+                              <SelectItem value="MDC">MDC (Multi Disciplinary)</SelectItem>
+                            </>
+                          )}
+                        </SelectContent>
+                      </Select>
+                      {formData.creditCategory && ['AEC', 'MDC', 'VAC'].includes(formData.creditCategory) && (
+                        <Badge variant="outline" className="h-11 px-3 bg-primary/5 text-primary border-primary/20 font-bold uppercase">
+                          {formData.creditCategory === 'AEC' ? 'AB' : formData.creditCategory === 'MDC' ? 'MD' : 'VA'} Prefix
+                        </Badge>
+                      )}
+                    </div>
                   </div>
 
                   {formData.creditCategory === 'OFE' && !isReadOnly && (
