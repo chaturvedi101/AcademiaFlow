@@ -8,6 +8,130 @@ const PRIMARY_COLOR = [77, 26, 140]; // #4D1A8C
 const ACCENT_COLOR = [61, 143, 255]; // #3D8FFF
 
 /**
+ * Helper to draw a single subject's syllabus into an existing jsPDF instance.
+ * Returns the final Y position.
+ */
+const drawSubjectSyllabus = (
+  doc: jsPDF, 
+  syllabus: Partial<Syllabus>, 
+  programName: string, 
+  branch: string, 
+  batchYear: string,
+  startY: number,
+  isDraft: boolean
+) => {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  let currentY = startY;
+
+  // Header - Institution Title (Only if starting high on page)
+  if (currentY < 40) {
+    doc.setFontSize(14);
+    doc.setTextColor(0);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RAJASTHAN TECHNICAL UNIVERSITY, KOTA', pageWidth / 2, currentY, { align: 'center' });
+    currentY += 8;
+  }
+
+  // Subject Branding Strip
+  doc.setFillColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
+  doc.rect(15, currentY, pageWidth - 30, 10, 'F');
+  doc.setTextColor(255);
+  doc.setFontSize(11);
+  doc.text(`COURSE CODE: ${syllabus.subjectCode || 'CODE'} - ${syllabus.title?.toUpperCase() || 'TITLE'}`, 20, currentY + 6.5);
+  currentY += 16;
+
+  // Basic Info Grid
+  doc.setTextColor(0);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Credit Distribution:', 15, currentY);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`L-T-P: ${syllabus.lectureCredits || 0}-${syllabus.tutorialCredits || 0}-${syllabus.practicalCredits || 0}`, 15, currentY + 5);
+  doc.text(`Total Credits: ${syllabus.credits || 0}`, 15, currentY + 10);
+  
+  doc.setFont('helvetica', 'bold');
+  doc.text('Academic Details:', pageWidth / 2, currentY);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Category: ${syllabus.creditCategory || 'N/A'}`, pageWidth / 2, currentY + 5);
+  doc.text(`Semester: ${syllabus.semester || 'N/A'}`, pageWidth / 2, currentY + 10);
+  currentY += 18;
+
+  doc.setDrawColor(230);
+  doc.line(15, currentY - 2, pageWidth - 15, currentY - 2);
+
+  // Units Section
+  doc.setFontSize(12);
+  doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Course Content & Outcomes', 15, currentY + 5);
+
+  const unitRows = (syllabus.units || []).map((unit, idx) => [
+    `Unit ${idx + 1}\n${unit.title || 'Untitled'}\n(${unit.hours} Hrs)`,
+    unit.content || 'Content not defined.',
+    unit.courseOutcome || 'N/A'
+  ]);
+
+  autoTable(doc, {
+    startY: currentY + 10,
+    head: [['Unit & Title', 'Topics', 'Course Outcome (CO)']],
+    body: unitRows,
+    theme: 'grid',
+    headStyles: { 
+      fillColor: [PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]], 
+      fontSize: 9,
+      halign: 'center'
+    },
+    bodyStyles: { fontSize: 8.5 },
+    columnStyles: {
+      0: { cellWidth: 35, fontStyle: 'bold' },
+      1: { cellWidth: 'auto' },
+      2: { cellWidth: 45 }
+    },
+    margin: { left: 15, right: 15 }
+  });
+
+  currentY = (doc as any).lastAutoTable.finalY + 12;
+
+  // Resources Section
+  const checkPage = (heightNeeded: number) => {
+    if (currentY + heightNeeded > 275) {
+      doc.addPage();
+      currentY = 20;
+      return true;
+    }
+    return false;
+  };
+
+  const drawResourceSection = (title: string, items?: string[]) => {
+    if (!items || items.length === 0) return;
+    checkPage(15);
+    doc.setFontSize(10);
+    doc.setTextColor(ACCENT_COLOR[0], ACCENT_COLOR[1], ACCENT_COLOR[2]);
+    doc.setFont('helvetica', 'bold');
+    doc.text(title, 15, currentY);
+    currentY += 5;
+    
+    doc.setFontSize(9);
+    doc.setTextColor(0);
+    doc.setFont('helvetica', 'normal');
+    items.forEach(item => {
+      const splitText = doc.splitTextToSize(`• ${item}`, pageWidth - 40);
+      checkPage(splitText.length * 5);
+      doc.text(splitText, 20, currentY);
+      currentY += (splitText.length * 4.5);
+    });
+    currentY += 4;
+  };
+
+  drawResourceSection('Recommended Text Books', syllabus.textBooks);
+  drawResourceSection('Reference Materials', syllabus.referenceBooks);
+  drawResourceSection('Digital Courses (NPTEL/SWAYAM)', syllabus.nptelLinks);
+  drawResourceSection('Video Resources (YouTube)', syllabus.youtubeLinks);
+
+  return currentY;
+};
+
+/**
  * Generates and downloads a professional PDF document for a single subject syllabus.
  */
 export const exportSyllabusToPDF = (
@@ -18,136 +142,68 @@ export const exportSyllabusToPDF = (
   status: string = 'Approved'
 ) => {
   const doc = new jsPDF();
-  const pageWidth = doc.internal.pageSize.getWidth();
   const isDraft = status !== 'Approved';
 
-  // RTU Logo Placement
+  drawSubjectSyllabus(doc, syllabus, programName, branch, batchYear, 20, isDraft);
+  addFooter(doc, isDraft);
+  doc.save(`${syllabus.subjectCode || 'Subject'}_Detailed_Syllabus.pdf`);
+};
+
+/**
+ * Generates a complete Syllabus Book containing detailed info for ALL subjects in the scheme.
+ */
+export const exportCompleteSyllabusToPDF = (
+  scheme: Scheme,
+  program: Program,
+  syllabi: Syllabus[]
+) => {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const isDraft = scheme.status !== 'Approved';
+
+  // Title Page
   doc.setFontSize(16);
   doc.setTextColor(0);
   doc.setFont('helvetica', 'bold');
-  doc.text('RAJASTHAN TECHNICAL UNIVERSITY, KOTA', pageWidth / 2, 15, { align: 'center' });
+  doc.text('RAJASTHAN TECHNICAL UNIVERSITY, KOTA', pageWidth / 2, 80, { align: 'center' });
   
-  // Header - Institution Title
-  doc.setFontSize(18);
+  doc.setFontSize(24);
   doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Academia Flow | Syllabus Specification', pageWidth / 2, 25, { align: 'center' });
+  doc.text('COMPLETE SYLLABUS BOOK', pageWidth / 2, 100, { align: 'center' });
   
-  // Header - Status Badge in PDF
-  if (isDraft) {
-    doc.setFontSize(10);
-    doc.setTextColor(150, 0, 0);
-    doc.text('DRAFT COPY - FOR REVIEW ONLY', pageWidth / 2, 30, { align: 'center' });
-  }
-
-  // Scheme Info Header
-  doc.setFontSize(10);
+  doc.setFontSize(14);
   doc.setTextColor(100);
   doc.setFont('helvetica', 'normal');
-  doc.text(`${programName} (${branch})`, pageWidth / 2, 35, { align: 'center' });
-  doc.text(`Batch: ${batchYear} | RTU-NEP Framework Compliance`, pageWidth / 2, 40, { align: 'center' });
-
-  // Subject Branding Strip
-  doc.setFillColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
-  doc.rect(15, 45, pageWidth - 30, 10, 'F');
-  doc.setTextColor(255);
-  doc.setFontSize(11);
-  doc.text(`COURSE CODE: ${syllabus.subjectCode || 'CODE'} - ${syllabus.title?.toUpperCase() || 'TITLE'}`, 20, 51.5);
-
-  // Basic Info Grid
-  doc.setTextColor(0);
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Credit Distribution:', 15, 65);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`L-T-P: ${syllabus.lectureCredits || 0}-${syllabus.tutorialCredits || 0}-${syllabus.practicalCredits || 0}`, 15, 70);
-  doc.text(`Total Credits: ${syllabus.credits || 0}`, 15, 75);
+  doc.text(`${program.name?.toUpperCase()}`, pageWidth / 2, 115, { align: 'center' });
+  doc.text(`Branch: ${scheme.branch || 'General'}`, pageWidth / 2, 125, { align: 'center' });
+  doc.text(`Batch: ${scheme.batchYear}`, pageWidth / 2, 135, { align: 'center' });
+  doc.text(`Framework: RTU-NEP 2020 Compliance`, pageWidth / 2, 145, { align: 'center' });
   
-  doc.setFont('helvetica', 'bold');
-  doc.text('Academic Details:', pageWidth / 2, 65);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Category: ${syllabus.creditCategory || 'N/A'}`, pageWidth / 2, 70);
-  doc.text(`Semester: ${syllabus.semester || 'N/A'}`, pageWidth / 2, 75);
+  doc.setFontSize(10);
+  doc.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth / 2, 160, { align: 'center' });
 
-  doc.setDrawColor(230);
-  doc.line(15, 80, pageWidth - 15, 80);
-
-  // Units Section
-  doc.setFontSize(13);
-  doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Course Content & Outcomes', 15, 88);
-
-  const unitRows = (syllabus.units || []).map((unit, idx) => [
-    `Unit ${idx + 1}\n${unit.title || 'Untitled'}`,
-    unit.content || 'Content not defined.',
-    unit.courseOutcome || 'N/A'
-  ]);
-
-  autoTable(doc, {
-    startY: 93,
-    head: [['Unit & Title', 'Topics', 'Course Outcome (CO)']],
-    body: unitRows,
-    theme: 'grid',
-    headStyles: { 
-      fillColor: [PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]], 
-      fontSize: 10,
-      halign: 'center'
-    },
-    bodyStyles: { fontSize: 9 },
-    columnStyles: {
-      0: { cellWidth: 35, fontStyle: 'bold' },
-      1: { cellWidth: 'auto' },
-      2: { cellWidth: 45 }
-    },
-    margin: { left: 15, right: 15 }
+  // Sorted list for clean document flow
+  const sortedSyllabi = [...syllabi].sort((a, b) => {
+    if (a.semester !== b.semester) return a.semester - b.semester;
+    return a.subjectCode.localeCompare(b.subjectCode);
   });
 
-  // Resources Section
-  let finalY = (doc as any).lastAutoTable.finalY + 12;
-  
-  if (finalY > 230) {
+  // Subjects
+  sortedSyllabi.forEach((syllabus, index) => {
     doc.addPage();
-    finalY = 20;
-  }
-
-  doc.setFontSize(13);
-  doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Learning Resources', 15, finalY);
-  finalY += 8;
-
-  const drawResourceSection = (title: string, items?: string[]) => {
-    if (!items || items.length === 0) return;
-    doc.setFontSize(10);
-    doc.setTextColor(ACCENT_COLOR[0], ACCENT_COLOR[1], ACCENT_COLOR[2]);
-    doc.setFont('helvetica', 'bold');
-    doc.text(title, 15, finalY);
-    finalY += 5;
-    
-    doc.setFontSize(9);
-    doc.setTextColor(0);
-    doc.setFont('helvetica', 'normal');
-    items.forEach(item => {
-      const splitText = doc.splitTextToSize(`• ${item}`, pageWidth - 40);
-      doc.text(splitText, 20, finalY);
-      finalY += (splitText.length * 4.5);
-      
-      if (finalY > 275) {
-        doc.addPage();
-        finalY = 20;
-      }
-    });
-    finalY += 4;
-  };
-
-  drawResourceSection('Recommended Text Books', syllabus.textBooks);
-  drawResourceSection('Reference Materials', syllabus.referenceBooks);
-  drawResourceSection('Digital Courses (NPTEL/SWAYAM)', syllabus.nptelLinks);
-  drawResourceSection('Video Resources (YouTube)', syllabus.youtubeLinks);
+    drawSubjectSyllabus(
+      doc, 
+      syllabus, 
+      program.name, 
+      scheme.branch || 'General', 
+      scheme.batchYear, 
+      20, 
+      isDraft
+    );
+  });
 
   addFooter(doc, isDraft);
-  doc.save(`${syllabus.subjectCode || 'Subject'}_Detailed_Syllabus.pdf`);
+  doc.save(`${program.code}_${scheme.branch}_Complete_Syllabus.pdf`);
 };
 
 /**
@@ -216,7 +272,7 @@ export const exportFullSchemeToPDF = (
 
   // Semester-wise Course Structure
   for (let sem = 1; sem <= (program.totalSemesters || 8); sem++) {
-    const semSubjects = syllabi.filter(s => s.semester === sem);
+    const semSubjects = syllabi.filter(s => s.semester === sem && !s.isOFEContribution);
     const semCredits = semSubjects.reduce((acc, curr) => acc + (curr.credits || 0), 0);
 
     // Page check before each semester

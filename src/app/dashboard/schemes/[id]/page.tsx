@@ -9,14 +9,14 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown, Globe, Layers, RefreshCw } from "lucide-react";
+import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown, Globe, Layers, RefreshCw, BookOpen } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
-import { exportSyllabusToPDF, exportFullSchemeToPDF } from "@/lib/pdf-export";
+import { exportSyllabusToPDF, exportFullSchemeToPDF, exportCompleteSyllabusToPDF } from "@/lib/pdf-export";
 
 export default function SchemeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: schemeId } = React.use(params);
@@ -94,7 +94,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       }
     });
 
-    // Sort by semester then by subjectCode ascending for academic clarity
     return Array.from(finalById.values()).sort((a, b) => {
       if ((a.semester || 1) !== (b.semester || 1)) {
         return (a.semester || 1) - (b.semester || 1);
@@ -309,9 +308,14 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
               Sync Institutional Pool
             </Button>
           )}
-          <Button variant="outline" className="gap-2 border-primary/20 text-primary" onClick={() => exportFullSchemeToPDF(scheme, program!, syllabi)}>
-            <FileText className="w-4 h-4" /> Download Structure
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" className="gap-2 border-primary/20 text-primary" onClick={() => exportFullSchemeToPDF(scheme, program!, syllabi)}>
+              <FileText className="w-4 h-4" /> Download Structure
+            </Button>
+            <Button variant="outline" className="gap-2 border-accent/20 text-accent hover:bg-accent/5" onClick={() => exportCompleteSyllabusToPDF(scheme, program!, syllabi)}>
+              <BookOpen className="w-4 h-4" /> Download Complete Syllabus
+            </Button>
+          </div>
           {permissions.canEditScheme && scheme.status === 'Draft' && (
             <Button className="gap-2 shadow-lg" disabled={!isSchemeValid} onClick={() => handleUpdateScheme({ status: 'Pending Dean' })}>
               <Send className="w-4 h-4" /> Submit for Approval
@@ -408,7 +412,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                             const isExpanded = expandedGroups[groupId];
                             const isOfePool = members.some(m => m.creditCategory === 'OFE' && m.isOFESlot);
                             
-                            // Re-sort members within the group as well for internal consistency
                             const sortedMembers = [...members].sort((a, b) => (a.subjectCode || "").localeCompare(b.subjectCode || ""));
 
                             return (
