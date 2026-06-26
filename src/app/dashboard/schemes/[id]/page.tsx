@@ -336,7 +336,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                   }
                 });
 
-                const semTotal = [...Object.values(groups).map(g => g[0].credits || 0), ...nonGrouped.map(s => s.credits || 0)].reduce((a, b) => a + b, 0);
+                // Total Semester Credits calculation: elective groups count only once
+                const semTotal = [
+                  ...Object.values(groups).map(g => g[0].credits || 0),
+                  ...nonGrouped.map(s => s.credits || 0)
+                ].reduce((a, b) => a + b, 0);
 
                 return (
                   <Card key={sem} className="shadow-sm border-none bg-white overflow-hidden">
@@ -434,7 +438,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                           <TableCell className="pl-6 font-mono font-bold text-primary">{sub.subjectCode}</TableCell>
                           <TableCell className="font-medium">{sub.title}</TableCell>
                           <TableCell>{sub.semester}</TableCell>
-                          <TableCell className="text-center font-mono text-xs">{sub.lectureCredits}-{sub.tutorialCredits}-{sub.practicalCredits}</TableCell>
+                          <TableCell className="text-center font-mono text-xs">{sub.lectureCredits || 0}-{sub.tutorialCredits || 0}-{sub.practicalCredits || 0}</TableCell>
                           <TableCell className="text-right pr-6">
                              <div className="flex justify-end gap-2">
                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }}>
