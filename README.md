@@ -41,18 +41,19 @@ If you see **"Invalid username or token"** or **"Password authentication is not 
 2. **Push with the Token**:
    - When you run `git push origin main` and it asks for a password, **paste the token** instead of your GitHub password.
 
-3. **Optional: Store Credentials**:
-   ```bash
-   git config --global credential.helper store
-   ```
+### 3. Resolving "Not currently on a branch" (Detached HEAD)
+If you get an error saying you are not on a branch:
+```bash
+git push origin HEAD:main
+```
 
-### 3. Finalizing Changes
+### 4. Finalizing Changes
 To stage and commit all recent academic updates:
 ```bash
 npm run git:commit
 ```
 
-### 4. Pushing to GitHub
+### 5. Pushing to GitHub
 ```bash
 git push origin main
 ```

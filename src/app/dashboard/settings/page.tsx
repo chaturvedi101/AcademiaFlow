@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
@@ -82,8 +81,8 @@ export default function SettingsPage() {
                 <Badge className="bg-emerald-100 text-emerald-700 border-none">ACTIVE</Badge>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Branch Protection</span>
-                <span className="font-bold text-accent">LOCKED</span>
+                <span className="text-muted-foreground">Branch Name</span>
+                <span className="font-bold text-accent">main</span>
               </div>
             </div>
 
@@ -111,10 +110,16 @@ export default function SettingsPage() {
           <CardContent className="space-y-6">
             <div className="space-y-4">
               <div className="space-y-2">
-                <p className="text-[10px] font-bold uppercase text-slate-500">To push your changes to GitHub</p>
+                <p className="text-[10px] font-bold uppercase text-slate-500">Standard Push</p>
                 <div className="bg-black/50 p-4 rounded-xl border border-slate-700 font-mono text-xs text-blue-300 space-y-1">
                   <p>npm run git:commit</p>
                   <p>git push origin main</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-[10px] font-bold uppercase text-slate-500 text-amber-400">Detached HEAD Fix (Push anyway)</p>
+                <div className="bg-black/50 p-4 rounded-xl border border-slate-700 font-mono text-xs text-amber-300">
+                  <p>git push origin HEAD:main</p>
                 </div>
               </div>
               <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl flex gap-3 text-xs text-blue-200">
