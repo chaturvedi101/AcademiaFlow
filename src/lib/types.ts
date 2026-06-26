@@ -65,6 +65,7 @@ export interface ProgramSlotTemplate {
   credits: number;
   subjectCode?: string;
   title?: string;
+  electiveGroupId?: string;
 }
 
 export interface Program {

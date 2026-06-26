@@ -209,6 +209,7 @@ export default function SchemesPage() {
           title: slot.title || `${cat} Slot`,
           isSlot: true,
           isOFESlot: cat === 'OFE',
+          electiveGroupId: ['DSE', 'OFE'].includes(cat) ? slot.title : undefined,
           type: 'Theory',
           lectureCredits: slot.credits,
           tutorialCredits: 0,
@@ -333,7 +334,12 @@ export default function SchemesPage() {
                           <div className="col-span-3 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Category</Label><Select disabled={slot.isInherited} value={slot.creditCategory} onValueChange={(v: CreditCategory) => updateSlot(slot.id, { creditCategory: v })}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent>{ALL_CATEGORIES.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}</SelectContent></Select></div>
                           <div className="col-span-2 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Credits</Label><Input disabled={slot.isInherited} type="number" value={slot.credits} onChange={e => updateSlot(slot.id, { credits: Number(e.target.value) })} className="h-9" /></div>
                           <div className="col-span-3 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Subject Code</Label><Input disabled={slot.isInherited} value={slot.subjectCode || ''} onChange={e => updateSlot(slot.id, { subjectCode: e.target.value.toUpperCase() })} className="h-9" /></div>
-                          <div className="col-span-3 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Title</Label><Input disabled={slot.isInherited} value={slot.title || ''} onChange={e => updateSlot(slot.id, { title: e.target.value })} className="h-9" /></div>
+                          <div className="col-span-3 space-y-1">
+                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">
+                              {['DSE', 'OFE'].includes(slot.creditCategory) ? 'Group Identity' : 'Title'}
+                            </Label>
+                            <Input disabled={slot.isInherited} value={slot.title || ''} onChange={e => updateSlot(slot.id, { title: e.target.value })} className="h-9" />
+                          </div>
                           <div className="col-span-1 pb-0.5">{!slot.isInherited && <Button variant="ghost" size="icon" className="h-9 w-9 text-red-400" onClick={() => removeSlot(slot.id)}><Trash2 className="w-4 h-4" /></Button>}</div>
                         </div>
                       ))}

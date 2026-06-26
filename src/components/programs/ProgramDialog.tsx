@@ -358,7 +358,6 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                       <Label className="text-xs">Total Required</Label>
                       <Input disabled={isReadOnly} type="number" value={formData.rules?.totalRequired ?? ''} onChange={e => updateRule('totalRequired', e.target.value)} />
                     </div>
-                    {/* Add other rules here as needed */}
                   </div>
                 </div>
               </TabsContent>
@@ -403,8 +402,16 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                                 <Input disabled={isReadOnly} placeholder="e.g. HS101" value={slot.subjectCode || ''} onChange={e => updateTemplateSlot(slot.id, { subjectCode: e.target.value.toUpperCase() })} className="h-9" />
                               </div>
                               <div className="col-span-3 space-y-1">
-                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Subject Title</Label>
-                                <Input disabled={isReadOnly} placeholder="e.g. Induction Program" value={slot.title || ''} onChange={e => updateTemplateSlot(slot.id, { title: e.target.value })} className="h-9" />
+                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">
+                                  {['DSE', 'OFE'].includes(slot.creditCategory) ? 'Elective Group Identity' : 'Subject Title'}
+                                </Label>
+                                <Input 
+                                  disabled={isReadOnly} 
+                                  placeholder={['DSE', 'OFE'].includes(slot.creditCategory) ? 'e.g. Elective-I' : 'e.g. Induction Program'} 
+                                  value={slot.title || ''} 
+                                  onChange={e => updateTemplateSlot(slot.id, { title: e.target.value })} 
+                                  className="h-9" 
+                                />
                               </div>
                               {!isReadOnly && (
                                 <div className="col-span-1 pb-0.5">
