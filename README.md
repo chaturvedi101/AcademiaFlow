@@ -22,7 +22,7 @@ To activate the **AI Architect** features:
     ```
 3.  **Restart**: Run `npm run dev` again. Verify connectivity via the **AI Diagnostics** page in the dashboard.
 
-## 📦 Git Synchronization
+## 📦 Git & Authentication Guide
 
 ### 1. Linking Remote
 If the remote repository is not already linked:
@@ -30,17 +30,32 @@ If the remote repository is not already linked:
 npm run git:setup
 ```
 
-### 2. Finalizing Changes
+### 2. Resolving Authentication Errors
+If you see **"Invalid username or token"** or **"Password authentication is not supported"**:
+
+1. **Generate a PAT**:
+   - Go to GitHub -> Settings -> Developer Settings -> **Personal Access Tokens (Tokens classic)**.
+   - Click **Generate new token (classic)**.
+   - Select the `repo` scope and generate. **Copy this token immediately.**
+
+2. **Push with the Token**:
+   - When you run `git push origin main` and it asks for a password, **paste the token** instead of your GitHub password.
+
+3. **Optional: Store Credentials**:
+   ```bash
+   git config --global credential.helper store
+   ```
+
+### 3. Finalizing Changes
 To stage and commit all recent academic updates:
 ```bash
 npm run git:commit
 ```
 
-### 3. Pushing to GitHub
+### 4. Pushing to GitHub
 ```bash
 git push origin main
 ```
-*Note: GitHub requires a **Personal Access Token (PAT)** as your password during the push prompt.*
 
 ## 🛠 Tech Stack
 

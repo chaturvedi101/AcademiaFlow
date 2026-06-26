@@ -7,7 +7,7 @@ import { UserProfile } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Github, Globe, ShieldCheck, User, Code, Info, Terminal, ExternalLink } from 'lucide-react';
+import { Github, Globe, ShieldCheck, User, Code, Info, Terminal, ExternalLink, AlertTriangle } from 'lucide-react';
 
 export default function SettingsPage() {
   const db = useFirestore();
@@ -96,34 +96,60 @@ export default function SettingsPage() {
         </Card>
       </div>
 
-      <Card className="bg-slate-900 text-white border-none shadow-xl overflow-hidden relative">
-        <div className="absolute top-0 right-0 p-8 opacity-10">
-          <Terminal className="w-32 h-32" />
-        </div>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-blue-400">
-            <Code className="w-5 h-5" />
-            Terminal Sync Guide
-          </CardTitle>
-          <CardDescription className="text-slate-400">Commands for institutional synchronization.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <p className="text-[10px] font-bold uppercase text-slate-500">To push your changes to GitHub</p>
-              <div className="bg-black/50 p-4 rounded-xl border border-slate-700 font-mono text-xs text-blue-300 space-y-1">
-                <p>git add .</p>
-                <p>git commit -m "Update academic schemes"</p>
-                <p>git push origin main</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <Card className="bg-slate-900 text-white border-none shadow-xl overflow-hidden relative">
+          <div className="absolute top-0 right-0 p-8 opacity-10">
+            <Terminal className="w-32 h-32" />
+          </div>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-blue-400">
+              <Code className="w-5 h-5" />
+              Terminal Sync Guide
+            </CardTitle>
+            <CardDescription className="text-slate-400">Commands for institutional synchronization.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <p className="text-[10px] font-bold uppercase text-slate-500">To push your changes to GitHub</p>
+                <div className="bg-black/50 p-4 rounded-xl border border-slate-700 font-mono text-xs text-blue-300 space-y-1">
+                  <p>npm run git:commit</p>
+                  <p>git push origin main</p>
+                </div>
+              </div>
+              <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl flex gap-3 text-xs text-blue-200">
+                <Info className="w-5 h-5 shrink-0" />
+                <p>Use your GitHub <strong>Personal Access Token (PAT)</strong> as the password when prompted in the terminal.</p>
               </div>
             </div>
-            <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl flex gap-3 text-xs text-blue-200">
-              <Info className="w-5 h-5 shrink-0" />
-              <p>Remember to use your GitHub <strong>Personal Access Token</strong> as the password when prompted in the terminal.</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-red-100 bg-red-50/20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="w-5 h-5" />
+              Authentication Errors
+            </CardTitle>
+            <CardDescription>Fix "Invalid username or token" errors.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-xs text-red-800 leading-relaxed">
+              GitHub does not support your normal password for Git commands. You must use a <strong>Token</strong>.
+            </p>
+            <div className="space-y-2">
+              <p className="text-[10px] font-bold uppercase text-red-900">1. Generate Token</p>
+              <p className="text-[10px] text-red-700">Settings -> Developer Settings -> Tokens (Classic) -> Generate New Token (select 'repo' scope).</p>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+            <div className="space-y-2">
+              <p className="text-[10px] font-bold uppercase text-red-900">2. Reset Stored Password</p>
+              <div className="bg-white p-3 rounded-lg border border-red-200 font-mono text-[10px] text-red-900">
+                git config --global --unset credential.helper
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
