@@ -10,7 +10,8 @@
     "build": "NODE_ENV=production next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "git:setup": "git remote set-url origin https://github.com/chaturvedi101/AcademiaFlow.git && echo 'Remote origin updated successfully.'"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.28.0",

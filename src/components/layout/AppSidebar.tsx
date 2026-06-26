@@ -27,7 +27,8 @@ import {
   Loader2,
   Settings2,
   UserCircle,
-  Database
+  Database,
+  Settings
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -48,6 +49,7 @@ const navigation = [
   { name: 'Audit Logs', href: '/dashboard/audit', icon: History, roles: ['admin'] },
   { name: 'Backups', href: '/dashboard/backups', icon: Database, roles: ['admin'] },
   { name: 'AI Diagnostics', href: '/dashboard/diagnostics', icon: Settings2, roles: ['admin', 'dean_academic'] },
+  { name: 'Settings', href: '/dashboard/settings', icon: Settings, roles: ['bos_convenor', 'dean_faculty', 'dean_academic', 'admin'] },
 ];
 
 export function AppSidebar() {
@@ -69,7 +71,6 @@ export function AppSidebar() {
     // Override: Common BOS doesn't see My BoS Team
     if (isCommonBos && item.name === 'My BoS Team') return false;
     
-    // Programs tab is strictly for admin/dean_academic
     return item.roles.includes(role);
   });
 
