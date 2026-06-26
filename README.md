@@ -29,15 +29,20 @@ GOOGLE_GENAI_API_KEY=your_actual_key_here
 
 ## 📦 Institutional Git Sync
 
-### EMERGENCY: Fixing "ECONNREFUSED" Socket Errors
-Run this to reset broken terminal credentials:
+### 🛠️ Step 1: Initialize Remote with Token (The Nuclear Option)
+Run this to bypass "ECONNREFUSED" and permission errors. Replace `[TOKEN]` with your GitHub Personal Access Token (PAT) with `repo` scope.
 ```bash
-git config --global --unset credential.helper
+git remote set-url origin https://[TOKEN]@github.com/chaturvedi101/AcademiaFlow.git
 ```
 
-### The "Nuclear Option" (Direct Token Sync)
-If normal push fails, set the remote with your Personal Access Token (PAT):
+### 📤 Step 2: Push to Main
+Run this command to finalize your sync. This forces the remote repository to match your local state.
 ```bash
-git remote set-url origin https://<YOUR_PAT>@github.com/chaturvedi101/AcademiaFlow.git
 git push origin HEAD:main --force
+```
+
+### 🆘 Troubleshooting "ECONNREFUSED"
+If your terminal continues to throw socket errors, clear the global credential helper:
+```bash
+git config --global --unset credential.helper
 ```

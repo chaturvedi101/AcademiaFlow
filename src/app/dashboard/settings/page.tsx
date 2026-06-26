@@ -126,11 +126,12 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-2">
-                <p className="text-[10px] font-bold uppercase text-muted-foreground">Safe Remote URL (With Token)</p>
+                <p className="text-[10px] font-bold uppercase text-muted-foreground">The Nuclear Option (Direct Token Sync)</p>
                 <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg border font-mono text-[9px] break-all">
                   <Globe className="w-3.5 h-3.5 text-accent shrink-0" />
-                  https://TOKEN@github.com/chaturvedi101/AcademiaFlow.git
+                  git remote set-url origin https://[YOUR_PAT_TOKEN]@github.com/chaturvedi101/AcademiaFlow.git
                 </div>
+                <p className="text-[10px] text-muted-foreground italic mt-1">Requires 'repo' scope permissions on your GitHub token.</p>
               </div>
 
               <Button variant="outline" className="w-full h-11 gap-2 border-dashed" asChild>
@@ -155,15 +156,15 @@ export default function SettingsPage() {
             <CardContent className="space-y-6">
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <p className="text-[10px] font-bold uppercase text-slate-500">1. Handle Non-Fast-Forward (Rejection)</p>
-                  <div className="bg-black/50 p-4 rounded-xl border border-slate-700 font-mono text-xs text-blue-300">
-                    <p>git push origin HEAD:main --force</p>
+                  <p className="text-[10px] font-bold uppercase text-slate-500">1. Commit All Changes</p>
+                  <div className="bg-black/50 p-4 rounded-xl border border-slate-700 font-mono text-xs text-emerald-400">
+                    <p>git add . && git commit -m "Final Institutional Commit"</p>
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <p className="text-[10px] font-bold uppercase text-slate-500">2. Link New PAT Token</p>
-                  <div className="bg-black/50 p-4 rounded-xl border border-slate-700 font-mono text-[10px] text-amber-300 leading-tight">
-                    <p>git remote set-url origin https://[PAT]@github.com/chaturvedi101/AcademiaFlow.git</p>
+                  <p className="text-[10px] font-bold uppercase text-slate-500">2. Force Push to Main</p>
+                  <div className="bg-black/50 p-4 rounded-xl border border-slate-700 font-mono text-xs text-blue-300">
+                    <p>git push origin HEAD:main --force</p>
                   </div>
                 </div>
               </div>
