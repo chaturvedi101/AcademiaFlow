@@ -102,11 +102,20 @@ export interface Scheme {
   isCommonPoolScheme?: boolean; // Flag to indicate if this is the institutional common course scheme
 }
 
+export interface SyllabusSubUnit {
+  id: string;
+  title: string;
+  content: string;
+  hours: number;
+}
+
 export interface SyllabusUnit {
   id: string;
   title: string;
   content: string;
   courseOutcome: string;
+  hours: number;
+  subUnits?: SyllabusSubUnit[];
 }
 
 export interface Syllabus {

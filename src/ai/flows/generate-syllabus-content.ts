@@ -1,6 +1,7 @@
+
 'use server';
 /**
- * @fileOverview Flow to generate full syllabus content including units, outcomes, and resource recommendations.
+ * @fileOverview Flow to generate full syllabus content including units, subunits, outcomes, and resource recommendations.
  */
 
 import { ai } from '@/ai/genkit';
@@ -17,8 +18,14 @@ const SyllabusInputSchema = z.object({
 const SyllabusOutputSchema = z.object({
   units: z.array(z.object({
     title: z.string().describe('Unit title'),
-    content: z.string().describe('Detailed syllabus content for this unit'),
+    content: z.string().describe('Broad summary of unit content'),
+    hours: z.number().describe('Total teaching hours for this unit'),
     courseOutcome: z.string().describe('The specific learning outcome for this unit (CO)'),
+    subUnits: z.array(z.object({
+      title: z.string().describe('Sub-topic title'),
+      content: z.string().describe('Detailed topics for this sub-unit'),
+      hours: z.number().describe('Hours for this sub-topic'),
+    })).describe('Breakdown of unit into logical sub-topics'),
   })),
   suggestedTextBooks: z.array(z.string()).describe('List of recommended textbooks (Author, Title, Publisher)'),
   suggestedReferences: z.array(z.string()).describe('List of suggested reference books or online resources'),
@@ -36,7 +43,7 @@ const syllabusPrompt = ai.definePrompt({
   input: { schema: SyllabusInputSchema },
   output: { schema: SyllabusOutputSchema },
   config: {
-    maxOutputTokens: 2048,
+    maxOutputTokens: 3000,
     temperature: 0.7,
   },
   prompt: `You are an expert academic curriculum designer for a technical university following NEP 2020 and AICTE guidelines.
@@ -47,14 +54,14 @@ const syllabusPrompt = ai.definePrompt({
   
   For each unit, provide:
   1. A professional title.
-  2. Detailed content topics separated by semicolons.
-  3. A clear Course Outcome (CO) statement using Bloom's Taxonomy verbs.
+  2. A total hour allocation (typically 8-10 hours per unit for a standard 4-credit course).
+  3. A breakdown into 2-3 specific sub-units, each with their own title, detailed content topics, and hour allocation. Ensure sub-unit hours sum to unit total.
+  4. A clear Course Outcome (CO) statement using Bloom's Taxonomy verbs.
   
   Also provide:
   1. At least 2-3 standard Text Books in proper citation format.
-  2. At least 2-3 Reference Books or journals.
-  3. Suggestions for relevant NPTEL/SWAYAM courses and YouTube educational videos that match this syllabus.
-  4. The most fitting NEP credit category (DSC/DSE/SEC/AEC/VAC).`,
+  2. Suggestions for relevant NPTEL/SWAYAM courses and YouTube educational videos.
+  3. The most fitting NEP credit category (DSC/DSE/SEC/AEC/VAC).`,
 });
 
 export async function generateSyllabusContent(input: GenerateSyllabusInput): Promise<GenerateSyllabusOutput> {

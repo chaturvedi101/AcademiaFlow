@@ -13,12 +13,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BookOpen, Globe, Link2, Loader2, Plus, Trash2, Search, Layers, AlertTriangle, Book, Video, ExternalLink, Sparkles } from "lucide-react";
-import { Syllabus, CorrelationLevel as CorrelationLevelType, CreditRules, CreditCategory } from "@/lib/types";
+import { BookOpen, Globe, Link2, Loader2, Plus, Trash2, Search, Layers, AlertTriangle, Book, Video, ExternalLink, Sparkles, Clock, ListPlus, ChevronDown, ChevronUp } from "lucide-react";
+import { Syllabus, CorrelationLevel as CorrelationLevelType, CreditRules, CreditCategory, SyllabusUnit, SyllabusSubUnit } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { collection, query, where, getDocs, doc, collectionGroup } from "firebase/firestore";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
+import { cn } from "@/lib/utils";
 
 const PO_DEFINITIONS = [
   { code: 'PO1', title: 'Engineering Knowledge', desc: 'Apply mathematics, science, and engineering fundamentals.' },
@@ -81,6 +82,7 @@ export function SyllabusDialog({
   const [poolResults, setPoolResults] = useState<Syllabus[]>([]);
   const [showPoolPicker, setShowPoolPicker] = useState(false);
   const [isManuallyEditedCode, setIsManuallyEditedCode] = useState(false);
+  const [expandedUnits, setExpandedUnits] = useState<Record<string, boolean>>({});
   
   const [codeConflict, setCodeConflict] = useState<string | null>(null);
   const [isCheckingUniqueness, setIsCheckingUniqueness] = useState(false);
@@ -110,6 +112,10 @@ export function SyllabusDialog({
 
   const isStrictlyCommonBOS = profile?.faculty === 'University-wide (Common BOS)';
   const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile?.role || '');
+
+  const totalTeachingHours = useMemo(() => {
+    return formData.units?.reduce((acc, unit) => acc + (Number(unit.hours) || 0), 0) || 0;
+  }, [formData.units]);
 
   const visibleCategories = useMemo(() => {
     const all = ['DSC', 'DSE', 'OFE', 'VAC', 'AEC', 'SEC', 'MDC', 'PRJ'] as CreditCategory[];
@@ -230,6 +236,7 @@ export function SyllabusDialog({
       setCodeConflict(null);
       setPoolResults([]);
       setShowPoolPicker(false);
+      setExpandedUnits({});
     }
   }, [syllabus, open, isStrictlyCommonBOS, existingSyllabi]);
 
@@ -297,11 +304,18 @@ export function SyllabusDialog({
         level: 'UG'
       });
 
-      const units = result.units.map(u => ({
+      const units: SyllabusUnit[] = result.units.map(u => ({
         id: Math.random().toString(36).substr(2, 9),
         title: u.title,
         content: u.content,
-        courseOutcome: u.courseOutcome
+        hours: u.hours || 0,
+        courseOutcome: u.courseOutcome,
+        subUnits: u.subUnits?.map(su => ({
+          id: Math.random().toString(36).substr(2, 9),
+          title: su.title,
+          content: su.content,
+          hours: su.hours || 0
+        })) || []
       }));
 
       setFormData(prev => ({
@@ -314,7 +328,7 @@ export function SyllabusDialog({
         creditCategory: (result.suggestedCategory as any) || prev.creditCategory
       }));
 
-      toast({ title: "AI Generation Complete", description: "Syllabus units and resources have been populated." });
+      toast({ title: "AI Generation Complete", description: "Syllabus units, subunits, and resources have been populated." });
     } catch (err: any) {
       toast({ variant: "destructive", title: "AI Architect Failed", description: err.message || "Failed to generate content." });
     } finally {
@@ -343,13 +357,13 @@ export function SyllabusDialog({
       const results: Syllabus[] = [];
       for (const schemeId of poolSchemeIds) {
         const syllabiQuery = query(
-          collection(db, 'schemes', schemeId, 'syllabi'),
+          collection(db, 'syllabi'),
           where('creditCategory', '==', formData.creditCategory)
         );
         const syllabiSnap = await getDocs(syllabiQuery);
         syllabiSnap.forEach(doc => {
           const data = doc.data() as Syllabus;
-          if (!data.isSlot && !data.isOFESlot && data.subjectCode) {
+          if (!data.isSlot && !data.isOFESlot && data.subjectCode && data.schemeId === schemeId) {
             results.push({ ...data, id: doc.id });
           }
         });
@@ -410,6 +424,10 @@ export function SyllabusDialog({
     setFormData({ ...formData, [field]: arr });
   };
 
+  const toggleUnitExpansion = (unitId: string) => {
+    setExpandedUnits(prev => ({ ...prev, [unitId]: !prev[unitId] }));
+  };
+
   const isReadOnly = !canEdit;
   const isInstitutionalCategory = ['VAC', 'AEC', 'MDC', 'SEC', 'OFE'].includes(formData.creditCategory || '');
   const isElectiveCategory = ['DSE', 'OFE'].includes(formData.creditCategory || '');
@@ -433,7 +451,7 @@ export function SyllabusDialog({
             )}
           </DialogTitle>
           <DialogDescription>
-            {isReadOnly ? 'Standardized specification. Managed by the Board of Studies.' : 'Define identity, content units, and learning resource mappings.'}
+            {isReadOnly ? 'Standardized specification. Managed by the Board of Studies.' : 'Define identity, content units, teaching hours, and learning resource mappings.'}
           </DialogDescription>
         </DialogHeader>
         
@@ -591,40 +609,149 @@ export function SyllabusDialog({
               
               <TabsContent value="syllabus" className="space-y-6">
                  <div className="flex justify-between items-center">
-                   <h3 className="text-lg font-headline font-bold">Subject Units</h3>
+                   <h3 className="text-lg font-headline font-bold">Subject Units & Hours</h3>
                    {!isReadOnly && (
-                     <Button size="sm" onClick={() => setFormData(prev => ({...prev, units: [...(prev.units || []), {id: Math.random().toString(36).substr(2, 9), title: '', content: '', courseOutcome: ''}]}))}>
-                       <Plus className="w-4 h-4 mr-2" /> Add Unit
+                     <Button size="sm" variant="outline" className="gap-2" onClick={() => setFormData(prev => ({...prev, units: [...(prev.units || []), {id: Math.random().toString(36).substr(2, 9), title: '', content: '', hours: 0, courseOutcome: '', subUnits: []}]}))}>
+                       <Plus className="w-4 h-4" /> Add Unit
                      </Button>
                    )}
                  </div>
                  <div className="space-y-4">
                    {formData.units?.map((unit, idx) => (
-                     <Card key={unit.id} className="border-muted bg-muted/5">
-                       <CardContent className="p-4 space-y-4">
-                          <div className="flex justify-between items-center">
-                            <Badge variant="secondary">UNIT {idx + 1}</Badge>
+                     <Card key={unit.id} className="border-muted overflow-hidden">
+                       <CardHeader className="p-4 bg-muted/20 flex flex-row items-center justify-between space-y-0">
+                          <div className="flex items-center gap-3">
+                            <Badge variant="secondary" className="bg-primary text-white">UNIT {idx + 1}</Badge>
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => toggleUnitExpansion(unit.id)}>
+                              {expandedUnits[unit.id] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                            </Button>
+                            <span className="font-bold text-sm">{unit.title || 'Untitled Unit'}</span>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2 bg-white border px-3 py-1 rounded-lg">
+                              <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Hours:</Label>
+                              <Input 
+                                disabled={isReadOnly} 
+                                type="number" 
+                                className="w-12 h-6 p-1 text-center border-none focus-visible:ring-0 font-bold" 
+                                value={unit.hours} 
+                                onChange={e => {
+                                  const u = [...(formData.units || [])]; 
+                                  u[idx].hours = Number(e.target.value); 
+                                  setFormData({...formData, units: u});
+                                }} 
+                              />
+                            </div>
                             {(!isReadOnly && canDelete) && (
                               <Button variant="ghost" size="sm" className="h-8 w-8 text-red-400" onClick={() => setFormData(prev => ({...prev, units: prev.units?.filter(u => u.id !== unit.id)}))}>
                                 <Trash2 className="w-4 h-4"/>
                               </Button>
                             )}
                           </div>
-                          <Input disabled={isReadOnly} placeholder="Title" value={unit.title} onChange={e => {
-                            const u = [...(formData.units || [])]; u[idx].title = e.target.value; setFormData({...formData, units: u});
-                          }} />
-                          <Textarea disabled={isReadOnly} placeholder="Content" value={unit.content} onChange={e => {
-                            const u = [...(formData.units || [])]; u[idx].content = e.target.value; setFormData({...formData, units: u});
-                          }} />
+                       </CardHeader>
+                       <CardContent className={cn("p-4 space-y-4", !expandedUnits[unit.id] && "hidden")}>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <div className="space-y-2">
+                               <Label className="text-[10px] uppercase font-bold text-muted-foreground">Unit Title</Label>
+                               <Input disabled={isReadOnly} placeholder="Professional Unit Title" value={unit.title} onChange={e => {
+                                 const u = [...(formData.units || [])]; u[idx].title = e.target.value; setFormData({...formData, units: u});
+                               }} />
+                             </div>
+                             <div className="space-y-2">
+                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Course Outcome (CO)</Label>
+                                <Input disabled={isReadOnly} placeholder="Bloom's Taxonomy Verb based outcome..." value={unit.courseOutcome} onChange={e => {
+                                  const u = [...(formData.units || [])]; u[idx].courseOutcome = e.target.value; setFormData({...formData, units: u});
+                                }} />
+                             </div>
+                          </div>
+                          
                           <div className="space-y-2">
-                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">Unit Outcome (CO)</Label>
-                             <Input disabled={isReadOnly} placeholder="On successful completion, students will be able to..." value={unit.courseOutcome} onChange={e => {
-                               const u = [...(formData.units || [])]; u[idx].courseOutcome = e.target.value; setFormData({...formData, units: u});
-                             }} />
+                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Unit Summary / Topics</Label>
+                            <Textarea disabled={isReadOnly} className="min-h-[60px]" placeholder="Broad topics covered in this unit..." value={unit.content} onChange={e => {
+                              const u = [...(formData.units || [])]; u[idx].content = e.target.value; setFormData({...formData, units: u});
+                            }} />
+                          </div>
+
+                          <div className="mt-4 space-y-3 p-4 bg-muted/5 rounded-xl border border-dashed">
+                             <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-2 text-muted-foreground">
+                                   <ListPlus className="w-4 h-4" />
+                                   <span className="text-[11px] font-bold uppercase tracking-wider">Sub-Unit Breakdown</span>
+                                </div>
+                                {!isReadOnly && (
+                                  <Button size="sm" variant="ghost" className="h-7 text-[10px] uppercase" onClick={() => {
+                                    const u = [...(formData.units || [])];
+                                    if (!u[idx].subUnits) u[idx].subUnits = [];
+                                    u[idx].subUnits!.push({ id: Math.random().toString(36).substr(2, 9), title: '', content: '', hours: 0 });
+                                    setFormData({...formData, units: u});
+                                  }}>
+                                    <Plus className="w-3 h-3 mr-1" /> Add Sub-Topic
+                                  </Button>
+                                )}
+                             </div>
+                             <div className="space-y-3">
+                                {unit.subUnits?.map((sub, sIdx) => (
+                                  <div key={sub.id} className="grid grid-cols-12 gap-3 items-start bg-white p-3 rounded-lg border shadow-sm">
+                                     <div className="col-span-11 space-y-3">
+                                        <div className="flex gap-4">
+                                           <Input disabled={isReadOnly} className="h-8 text-xs font-bold" placeholder="Sub-topic Title" value={sub.title} onChange={e => {
+                                             const u = [...(formData.units || [])]; u[idx].subUnits![sIdx].title = e.target.value; setFormData({...formData, units: u});
+                                           }} />
+                                           <div className="flex items-center gap-2 shrink-0">
+                                              <Label className="text-[9px] uppercase font-bold text-muted-foreground">Hrs:</Label>
+                                              <Input disabled={isReadOnly} type="number" className="w-14 h-8 text-xs text-center" value={sub.hours} onChange={e => {
+                                                const u = [...(formData.units || [])]; u[idx].subUnits![sIdx].hours = Number(e.target.value); setFormData({...formData, units: u});
+                                              }} />
+                                           </div>
+                                        </div>
+                                        <Input disabled={isReadOnly} className="h-8 text-xs italic" placeholder="Specific detailed topics..." value={sub.content} onChange={e => {
+                                          const u = [...(formData.units || [])]; u[idx].subUnits![sIdx].content = e.target.value; setFormData({...formData, units: u});
+                                        }} />
+                                     </div>
+                                     <div className="col-span-1 flex justify-center pt-1">
+                                        {!isReadOnly && (
+                                          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-300 hover:text-red-500" onClick={() => {
+                                            const u = [...(formData.units || [])];
+                                            u[idx].subUnits = u[idx].subUnits!.filter(s => s.id !== sub.id);
+                                            setFormData({...formData, units: u});
+                                          }}>
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </Button>
+                                        )}
+                                     </div>
+                                  </div>
+                                ))}
+                                {(!unit.subUnits || unit.subUnits.length === 0) && (
+                                  <div className="text-[10px] text-muted-foreground italic text-center py-2">
+                                     No sub-units defined for this unit.
+                                  </div>
+                                )}
+                             </div>
                           </div>
                        </CardContent>
                      </Card>
                    ))}
+                 </div>
+                 
+                 <div className="mt-8 flex justify-between items-center p-5 bg-primary/5 rounded-2xl border border-primary/20">
+                    <div>
+                       <p className="text-[11px] font-bold text-primary uppercase tracking-widest">Syllabus Complexity Audit</p>
+                       <p className="text-xs text-muted-foreground">Calculated based on institutional unit-hour allocations.</p>
+                    </div>
+                    <div className="flex items-center gap-6">
+                       <div className="text-right">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase">Total Units</p>
+                          <p className="text-xl font-bold">{formData.units?.length || 0}</p>
+                       </div>
+                       <div className="h-10 w-px bg-primary/20"></div>
+                       <div className="text-right">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase">Teaching Hours</p>
+                          <p className={cn("text-2xl font-black font-headline", totalTeachingHours > 0 ? "text-primary" : "text-amber-500")}>
+                             {totalTeachingHours} Hrs
+                          </p>
+                       </div>
+                    </div>
                  </div>
               </TabsContent>
 
