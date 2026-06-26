@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
@@ -8,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown, Globe, BookOpen, Layers, Info, RefreshCw } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
@@ -109,7 +108,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       ) || false;
     }
 
-    // BoS Members can add/edit but NEVER delete
     const canDelete = !isBoS && (isGlobalAdmin || isProgramDean || (scheme.isCommonPoolScheme && isCommonBOS));
 
     const canEditSyllabus = (s: Partial<Syllabus> | undefined) => {
@@ -345,7 +343,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                     <CardHeader className="flex flex-row items-center justify-between bg-muted/20 py-4 px-6">
                       <div className="space-y-0.5">
                         <CardTitle className="text-lg font-headline">Semester {sem}</CardTitle>
-                        <CardDescription className="text-xs font-medium">Internal Credits: <span className="text-primary font-bold">{semTotal}</span></CardDescription>
                       </div>
                       {permissions.canEditScheme && (
                         <Button size="sm" variant="outline" className="gap-2 h-9 rounded-lg" onClick={() => { setActiveSubject({ semester: sem }); setIsSyllabusDialogOpen(true); }}>
@@ -360,6 +357,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                             <TableHead className="w-24 pl-6">Code</TableHead>
                             <TableHead>Subject Title / Slot</TableHead>
                             <TableHead>Category</TableHead>
+                            <TableHead className="text-center">L-T-P</TableHead>
                             <TableHead className="text-right">Credits</TableHead>
                             <TableHead className="text-right pr-6">Actions</TableHead>
                           </TableRow>
@@ -382,6 +380,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                                     </div>
                                   </TableCell>
                                   <TableCell><Badge className={`${isOfePool ? 'bg-blue-500' : 'bg-accent'} text-white border-none text-[9px]`}>{members[0].creditCategory}</Badge></TableCell>
+                                  <TableCell className="text-center font-mono text-xs">{members[0].lectureCredits}-{members[0].tutorialCredits}-{members[0].practicalCredits}</TableCell>
                                   <TableCell className="text-right font-bold text-sm">{members[0].credits}</TableCell>
                                   <TableCell className="text-right pr-6">
                                     {permissions.canEditScheme && !isOfePool && (
@@ -398,6 +397,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                             );
                           })}
                         </TableBody>
+                        <TableFooter className="bg-muted/5">
+                          <TableRow>
+                            <TableCell colSpan={4} className="pl-6 text-right font-bold text-xs uppercase tracking-wider text-muted-foreground">Total Semester Credits</TableCell>
+                            <TableCell className="text-right font-bold text-primary text-base">{semTotal}</TableCell>
+                            <TableCell className="pr-6"></TableCell>
+                          </TableRow>
+                        </TableFooter>
                       </Table>
                     </CardContent>
                   </Card>
@@ -418,6 +424,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                         <TableHead className="pl-6">Code</TableHead>
                         <TableHead>Title</TableHead>
                         <TableHead>Sem</TableHead>
+                        <TableHead className="text-center">L-T-P</TableHead>
                         <TableHead className="text-right pr-6">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -427,6 +434,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                           <TableCell className="pl-6 font-mono font-bold text-primary">{sub.subjectCode}</TableCell>
                           <TableCell className="font-medium">{sub.title}</TableCell>
                           <TableCell>{sub.semester}</TableCell>
+                          <TableCell className="text-center font-mono text-xs">{sub.lectureCredits}-{sub.tutorialCredits}-{sub.practicalCredits}</TableCell>
                           <TableCell className="text-right pr-6">
                              <div className="flex justify-end gap-2">
                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }}>
@@ -493,6 +501,9 @@ function SubjectRow({ sub, currentSchemeId, schemeStatus, permissions, isOption,
         </div>
       </TableCell>
       <TableCell><Badge variant="secondary" className="text-[9px] font-bold">{sub.creditCategory}</Badge></TableCell>
+      <TableCell className="text-center font-mono text-xs text-muted-foreground">
+        {sub.lectureCredits || 0}-{sub.tutorialCredits || 0}-{sub.practicalCredits || 0}
+      </TableCell>
       <TableCell className="text-right font-bold text-sm">{sub.credits}</TableCell>
       <TableCell className="text-right pr-6">
         <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
