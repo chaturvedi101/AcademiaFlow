@@ -1,9 +1,10 @@
+
 {
   "placeholderImages": [
     {
       "id": "rtu-logo",
       "description": "Rajasthan Technical University Official Logo",
-      "imageUrl": "https://picsum.photos/seed/rtu-emblem/200/200",
+      "imageUrl": "https://upload.wikimedia.org/wikipedia/en/thumb/1/10/Rajasthan_Technical_University_logo.png/220px-Rajasthan_Technical_University_logo.png",
       "imageHint": "RTU Logo"
     }
   ]
