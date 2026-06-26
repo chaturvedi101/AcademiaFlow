@@ -116,7 +116,7 @@ export function SyllabusDialog({
 
   /**
    * RTU COMPLIANT CODE GENERATION RULES:
-   * [Branch Prefix][Pedagogy][Pillar][Year][Sequence]
+   * [Prefix][Pedagogy][Pillar][Year][Sequence]
    * Institutional Prefixes: AEC->AB, MDC->MD, VAC->VA, OFE->RT
    * Pedagogy: L (Theory), P (Practical), I (Project)
    * Ranges: DSC(1-30), SEC(40-49), DSE(50-94), PRJ(95-99)
