@@ -21,6 +21,8 @@ export const ai = genkit({
       apiVersion: 'v1beta',
     }),
   ],
-  // Use the model factory to ensure correct model resolution
-  model: googleAI.model('gemini-1.5-flash'),
+  // Use the standard stable alias for Gemini Flash
+  model: googleAI.model('gemini-flash-latest'),
 });
+
+export { z } from 'genkit';

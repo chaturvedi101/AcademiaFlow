@@ -5,6 +5,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 
 const CategoryInputSchema = z.object({
   title: z.string(),
@@ -18,7 +19,7 @@ const CategoryOutputSchema = z.object({
 
 const categoryPrompt = ai.definePrompt({
   name: 'suggestNEPCategoryPrompt',
-  model: 'googleai/gemini-2.5-flash',
+  model: googleAI.model('gemini-flash-latest'),
   input: { schema: CategoryInputSchema },
   output: { schema: CategoryOutputSchema },
   prompt: `Analyze the course title and description to suggest the most appropriate NEP 2020 credit category.

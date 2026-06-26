@@ -32,7 +32,7 @@ export type GenerateSyllabusOutput = z.infer<typeof SyllabusOutputSchema>;
 
 const syllabusPrompt = ai.definePrompt({
   name: 'generateSyllabusPrompt',
-  model: googleAI.model('gemini-1.5-flash'),
+  model: googleAI.model('gemini-flash-latest'),
   input: { schema: SyllabusInputSchema },
   output: { schema: SyllabusOutputSchema },
   config: {

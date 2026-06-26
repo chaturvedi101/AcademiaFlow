@@ -24,7 +24,7 @@ export type SuggestMappingOutput = z.infer<typeof MappingOutputSchema>;
 
 const mappingPrompt = ai.definePrompt({
   name: 'suggestMappingPrompt',
-  model: googleAI.model('gemini-1.5-flash'),
+  model: googleAI.model('gemini-flash-latest'),
   input: { schema: MappingInputSchema },
   output: { schema: MappingOutputSchema },
   prompt: `As an academic auditor, suggest the correlation matrix between Course Outcomes (COs) and Program Outcomes (POs) for the course "{{{subjectTitle}}}".
