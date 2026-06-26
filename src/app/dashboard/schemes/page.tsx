@@ -4,11 +4,11 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, setDoc, doc, serverTimestamp, query, orderBy, getDoc, writeBatch } from 'firebase/firestore';
-import { Scheme, Program, UserProfile, CreditCategory, Syllabus, ProgramSlotTemplate } from '@/lib/types';
+import { Scheme, Program, UserProfile, CreditCategory, Syllabus } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, BookOpen, Loader2, Calendar, FileText, ArrowRight, ShieldCheck, Info, Hash, Trash2, ChevronLeft, Layers, GraduationCap } from 'lucide-react';
+import { Plus, BookOpen, Loader2, Calendar, FileText, ArrowRight, ShieldCheck, Hash, Trash2, ChevronLeft, GraduationCap } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -16,8 +16,6 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
 
 interface SlotConfig {
@@ -66,14 +64,8 @@ export default function SchemesPage() {
 
   const filteredSchemes = useMemo(() => {
     if (!profile) return [];
-    
-    // Admins and Dean Academic see all schemes
     if (profile.role === 'admin' || profile.role === 'dean_academic') return schemes;
-    
-    // Common BOS sees all schemes to coordinate institutional delivery
     if (isCommonBos) return schemes;
-    
-    // Dean Faculty sees all schemes within their faculty
     if (profile.role === 'dean_faculty') {
       return schemes.filter(s => {
         const prog = programs.find(p => p.id === s.programId);
@@ -81,7 +73,6 @@ export default function SchemesPage() {
       });
     }
 
-    // Branch BOS and members see ONLY their managed branches AND common pool schemes
     const managed = profile.managedBranches || [];
     return schemes.filter(s => 
       s.isCommonPoolScheme || 
@@ -149,7 +140,6 @@ export default function SchemesPage() {
     
     const creationYear = new Date().getFullYear();
     const generatedCode = `${selectedProgram.code}-${branchPrefix ? branchPrefix.replace('RT', 'POOL') : 'GEN'}-${creationYear}`;
-
     const schemeDocRef = doc(db, 'schemes', generatedCode);
     
     try {
@@ -199,7 +189,7 @@ export default function SchemesPage() {
         const slotId = `SLOT-${cat}-${slot.semester}-${slot.id}`;
         const slotRef = doc(db, 'schemes', generatedCode, 'syllabi', slotId);
         
-        batch.set(slotRef, {
+        const data: any = {
           id: slotId,
           schemeId: generatedCode,
           subjectCode: finalCode,
@@ -209,7 +199,6 @@ export default function SchemesPage() {
           title: slot.title || `${cat} Slot`,
           isSlot: true,
           isOFESlot: cat === 'OFE',
-          electiveGroupId: ['DSE', 'OFE'].includes(cat) ? slot.title : undefined,
           type: 'Theory',
           lectureCredits: slot.credits,
           tutorialCredits: 0,
@@ -220,7 +209,14 @@ export default function SchemesPage() {
           courseOutcomes: [],
           textBooks: [],
           referenceBooks: []
-        });
+        };
+
+        // Only add electiveGroupId if it belongs to an elective category to avoid Firestore undefined error
+        if (['DSE', 'OFE'].includes(cat) && slot.title) {
+          data.electiveGroupId = slot.title;
+        }
+        
+        batch.set(slotRef, data);
       });
 
       await batch.commit();
@@ -336,7 +332,7 @@ export default function SchemesPage() {
                           <div className="col-span-3 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Subject Code</Label><Input disabled={slot.isInherited} value={slot.subjectCode || ''} onChange={e => updateSlot(slot.id, { subjectCode: e.target.value.toUpperCase() })} className="h-9" /></div>
                           <div className="col-span-3 space-y-1">
                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">
-                              {['DSE', 'OFE'].includes(slot.creditCategory) ? 'Group Identity' : 'Title'}
+                              {['DSE', 'OFE'].includes(slot.creditCategory) ? 'Elective Group Identity' : 'Title'}
                             </Label>
                             <Input disabled={slot.isInherited} value={slot.title || ''} onChange={e => updateSlot(slot.id, { title: e.target.value })} className="h-9" />
                           </div>

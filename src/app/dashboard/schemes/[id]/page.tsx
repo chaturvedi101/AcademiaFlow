@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown, Globe, BookOpen, Layers, Info, RefreshCw } from "lucide-react";
+import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown, Globe, Layers, RefreshCw } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile } from "@/lib/types";
@@ -77,13 +77,26 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const uniqueMap = new Map<string, Syllabus>();
     const all = [...localSyllabi, ...poolSyllabi];
     
+    // First pass: De-duplicate by subjectCode or ID
     all.forEach(s => {
       const key = (s.isSlot || s.isOFESlot) ? s.id : (s.subjectCode || s.id);
-      if (!uniqueMap.has(key) || s.schemeId === schemeId) {
+      const existing = uniqueMap.get(key);
+      const isNewCourseOnSlot = existing && (existing.isSlot || existing.isOFESlot) && !(s.isSlot || s.isOFESlot);
+      
+      if (!existing || s.schemeId === schemeId || isNewCourseOnSlot) {
         uniqueMap.set(key, s);
       }
     });
-    return Array.from(uniqueMap.values()).sort((a, b) => (a.semester || 1) - (b.semester || 1));
+
+    // Second pass: Ensure ID uniqueness across different subject keys to prevent React key collision
+    const finalById = new Map<string, Syllabus>();
+    Array.from(uniqueMap.values()).forEach(s => {
+      if (!finalById.has(s.id) || s.schemeId === schemeId) {
+        finalById.set(s.id, s);
+      }
+    });
+
+    return Array.from(finalById.values()).sort((a, b) => (a.semester || 1) - (b.semester || 1));
   }, [localSyllabi, poolSyllabi, schemeId]);
 
   const toggleGroup = (groupId: string) => {
