@@ -7,7 +7,7 @@ import { collection, doc } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, Clock, CheckCircle2, ArrowRight, Layers, ShieldCheck, GraduationCap, Loader2, FileCheck, Plus, UserCircle, Hash } from "lucide-react";
+import { FileText, Clock, CheckCircle2, ArrowRight, Layers, ShieldCheck, GraduationCap, Loader2, FileCheck, Plus, UserCircle, Hash, BookOpen } from "lucide-react";
 import Link from "next/link";
 import { Scheme, Program, UserProfile } from '@/lib/types';
 
@@ -23,14 +23,17 @@ export default function DashboardPage() {
   const filteredSchemes = useMemo(() => {
     if (!profile || !programs.length) return [];
     
-    if (
-      profile.role === 'admin' || 
-      profile.role === 'dean_academic' || 
-      profile.faculty === 'University-wide (Common BOS)'
-    ) {
+    // Admins and Dean Academic see everything
+    if (profile.role === 'admin' || profile.role === 'dean_academic') {
       return schemes;
     }
 
+    // Common BOS see everything
+    if (profile.faculty === 'University-wide (Common BOS)') {
+      return schemes;
+    }
+
+    // Dean Faculty see schemes within their faculty
     if (profile.role === 'dean_faculty') {
       return schemes.filter(s => {
         const prog = programs.find(p => p.id === s.programId);
@@ -38,8 +41,10 @@ export default function DashboardPage() {
       });
     }
 
+    // Branch BOS (and BoS Members) see their managed branches AND common pool
     const managed = profile.managedBranches || [];
     return schemes.filter(s => 
+      s.isCommonPoolScheme || 
       managed.some(m => m.programId === s.programId && m.branch === s.branch)
     );
   }, [schemes, profile, programs]);
@@ -71,7 +76,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatsCard title="Active Schemes" value={stats.activeSchemes} trend="In jurisdiction" icon={<FileText className="text-primary" />} />
+        <StatsCard title="Authorized Schemes" value={stats.activeSchemes} trend="In jurisdiction" icon={<FileText className="text-primary" />} />
         <StatsCard title="Pending Review" value={stats.pendingApproval} trend="Awaiting action" icon={<Clock className="text-accent" />} variant="warning" />
         <StatsCard title="Approved" value={stats.approved} trend="Finalized" icon={<CheckCircle2 className="text-green-500" />} />
         <StatsCard title="Programs" value={stats.programs} trend="Total defined" icon={<GraduationCap className="text-muted-foreground" />} />
@@ -98,9 +103,15 @@ export default function DashboardPage() {
                     batch={scheme.batchYear} 
                     status={scheme.status} 
                     code={scheme.schemeCode}
+                    isCommon={scheme.isCommonPoolScheme}
                   />
                 );
               })}
+              {filteredSchemes.length === 0 && (
+                <div className="text-center py-10 text-muted-foreground italic">
+                  No active schemes found in your jurisdiction.
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -135,12 +146,15 @@ function StatsCard({ title, value, trend, icon, variant = 'default' }: any) {
   );
 }
 
-function SchemeRow({ id, name, batch, status, code }: any) {
+function SchemeRow({ id, name, batch, status, code, isCommon }: any) {
   const statusColors: any = { 'Draft': 'bg-slate-100 text-slate-700', 'Pending Dean': 'bg-amber-100 text-amber-700', 'Pending Academics': 'bg-blue-100 text-blue-700', 'Approved': 'bg-emerald-100 text-emerald-700' };
   return (
-    <Link href={`/dashboard/schemes/${id}`} className="flex items-center justify-between p-4 rounded-lg border border-border/50 hover:bg-muted/20 transition-colors">
+    <Link href={`/dashboard/schemes/${id}`} className={`flex items-center justify-between p-4 rounded-lg border border-border/50 hover:bg-muted/20 transition-colors ${isCommon ? 'bg-emerald-50/10 border-emerald-100' : ''}`}>
       <div className="space-y-1">
-        <p className="font-medium text-sm">{name}</p>
+        <div className="flex items-center gap-2">
+          <p className="font-medium text-sm">{name}</p>
+          {isCommon && <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 text-[8px] uppercase font-bold">POOL</Badge>}
+        </div>
         <div className="flex items-center gap-2">
            <p className="text-[10px] text-muted-foreground uppercase font-bold">Batch: {batch}</p>
            <span className="w-1 h-1 rounded-full bg-border"></span>

@@ -36,7 +36,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const programRef = useMemoFirebase(() => (scheme?.programId ? doc(db, 'programs', scheme.programId) : null), [db, scheme?.programId]);
   const { data: program } = useDoc<Program>(programRef);
 
-  // FETCH COMMON POOL SYLLABI
   const [poolSyllabi, setPoolSyllabi] = useState<Syllabus[]>([]);
   const [poolLoading, setPoolLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -101,9 +100,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     let canEditScheme = false;
     if (isGlobalAdmin || isProgramDean) {
       canEditScheme = true;
-    } else if (scheme.isCommonPoolScheme && isCommonBOS) {
-      canEditScheme = true;
-    } else if (!scheme.isCommonPoolScheme) {
+    } else if (scheme.isCommonPoolScheme) {
+      // Branch BOS cannot edit common pool schemes
+      canEditScheme = isCommonBOS;
+    } else {
+      // Branch BOS jurisdiction check
       canEditScheme = profile.managedBranches?.some(
         m => m.programId === scheme.programId && m.branch === scheme.branch
       ) || false;
@@ -117,7 +118,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       const isInstitutionalCategory = s.creditCategory ? ['VAC', 'AEC', 'MDC', 'SEC', 'OFE'].includes(s.creditCategory) : false;
       if (isCommonBOS && isInstitutionalCategory) return true;
 
-      // Ownership check: Synced courses from other schemes are otherwise read-only
+      // Ownership check: If it's a common pool course being viewed in a branch, it's read-only for branch BOS
       if (s?.schemeId && s.schemeId !== schemeId) return false;
       
       return canEditScheme;
@@ -150,38 +151,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
   const isSchemeValid = useMemo(() => {
     if (!program?.rules) return false;
-    const { DSC, DSE, OFE, total, PRJ, VAC, AEC, SEC, MDC } = creditDistribution;
-    
-    const dscProjectTotal = DSC + PRJ;
-    const electiveTotal = DSE + OFE;
-    
-    const { 
-      dscMin, dscMax,
-      dseMin = 8, dseMax = 16,
-      totalRequired, 
-      projectMin = 16, projectMax = 32,
-      electiveMin = 24, electiveMax = 32,
-      ofeMin = 12, ofeMax = 24,
-      vacTotal = 8, aecTotal = 8, secTotal = 8, mdcTotal = 8
-    } = program.rules;
-    
-    const isDscIndividualValid = DSC >= (dscMin || 0) && DSC <= (dscMax || 200);
-    const isPrjIndividualValid = PRJ >= projectMin && PRJ <= projectMax;
-    const isCoreProjectAggregateValid = dscProjectTotal >= 96 && dscProjectTotal <= 104;
-
-    return (
-      isDscIndividualValid &&
-      isPrjIndividualValid &&
-      isCoreProjectAggregateValid &&
-      DSE >= dseMin && DSE <= dseMax &&
-      OFE >= ofeMin && OFE <= ofeMax &&
-      electiveTotal >= electiveMin && electiveTotal <= electiveMax &&
-      VAC === vacTotal &&
-      AEC === aecTotal &&
-      SEC === secTotal &&
-      MDC === mdcTotal &&
-      total === totalRequired
-    );
+    const { total } = creditDistribution;
+    return total === program.rules.totalRequired;
   }, [creditDistribution, program?.rules]);
 
   const handleUpdateScheme = (updates: Partial<Scheme>) => {
@@ -194,7 +165,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     if (!code) return;
 
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', code);
-    // When saving a real syllabus, it is no longer a placeholder slot
     const finalData = { 
       ...data, 
       id: code, 
@@ -251,13 +221,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         if (!isInst) continue;
 
         let match: Syllabus | undefined;
-
-        // Try exact code match first
         if (localSub.subjectCode) {
           match = poolCourses.find(p => p.subjectCode === localSub.subjectCode);
         }
         
-        // If it's a slot, look for a category match in the pool
         if (!match && (localSub.isSlot || localSub.isOFESlot)) {
            const categoryCourses = poolCourses.filter(p => p.creditCategory === localSub.creditCategory && !p.isSlot);
            match = categoryCourses.find(p => p.semester === localSub.semester) || categoryCourses[0];
@@ -265,8 +232,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
         if (match) {
           const docRef = doc(db, 'schemes', schemeId, 'syllabi', localSub.id);
-          
-          // Clean match object of any undefined values for Firestore
           const cleanMatch = JSON.parse(JSON.stringify(match));
           
           const updateData = {
@@ -342,8 +307,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         </div>
       </div>
 
-      <div className="grid grid-cols-1 grid-cols-4 gap-8">
-        <div className="xl:col-span-3 space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div className="md:col-span-3 space-y-6">
           <Tabs defaultValue="syllabi" className="w-full">
             <TabsList className="bg-white border p-1 h-12 w-full justify-start gap-2">
               <TabsTrigger value="syllabi" className="h-10 px-6 data-[state=active]:bg-primary data-[state=active]:text-white">Course Structure</TabsTrigger>
@@ -477,13 +442,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                           </TableCell>
                         </TableRow>
                       ))}
-                      {syllabi.filter(s => s.isOFEContribution).length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={4} className="text-center py-12 text-muted-foreground italic">
-                             No courses currently offered to the university-wide pool.
-                          </TableCell>
-                        </TableRow>
-                      )}
                     </TableBody>
                   </Table>
                 </CardContent>

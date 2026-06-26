@@ -66,12 +66,27 @@ export default function SchemesPage() {
 
   const filteredSchemes = useMemo(() => {
     if (!profile) return [];
-    if (profile.role === 'admin' || profile.role === 'dean_academic' || isCommonBos) return schemes;
+    
+    // Admins and Dean Academic see all schemes
+    if (profile.role === 'admin' || profile.role === 'dean_academic') return schemes;
+    
+    // Common BOS sees all schemes to coordinate institutional delivery
+    if (isCommonBos) return schemes;
+    
+    // Dean Faculty sees all schemes within their faculty
     if (profile.role === 'dean_faculty') {
-      return schemes.filter(s => programs.find(p => p.id === s.programId)?.faculty === profile.faculty);
+      return schemes.filter(s => {
+        const prog = programs.find(p => p.id === s.programId);
+        return prog?.faculty === profile.faculty;
+      });
     }
+
+    // Branch BOS and members see ONLY their managed branches AND common pool schemes
     const managed = profile.managedBranches || [];
-    return schemes.filter(s => managed.some(m => m.programId === s.programId && m.branch === s.branch) || s.isCommonPoolScheme);
+    return schemes.filter(s => 
+      s.isCommonPoolScheme || 
+      managed.some(m => m.programId === s.programId && m.branch === s.branch)
+    );
   }, [schemes, profile, programs, isCommonBos]);
 
   const availablePrograms = useMemo(() => {
@@ -90,7 +105,7 @@ export default function SchemesPage() {
       const inheritedSlots: SlotConfig[] = template.map(t => ({
         id: t.id,
         semester: t.semester,
-        creditCategory: t.creditCategory || (t as any).category || 'DSC',
+        creditCategory: t.creditCategory || 'DSC',
         credits: t.credits,
         subjectCode: t.subjectCode || '',
         title: t.title || '',
@@ -161,14 +176,10 @@ export default function SchemesPage() {
       });
 
       const batch = writeBatch(db);
-      
-      // Sequence counters
       const counters: Record<string, number> = { DSC: 0, SEC: 39, DSE: 49, PRJ: 94, AEC: 0, MDC: 0, VAC: 0, OFE: 0 };
 
       semesterSlots.forEach(slot => {
         const cat = slot.creditCategory;
-        
-        // Use updated prefix logic
         let prefix = branchPrefix || 'GEN';
         if (cat === 'AEC') prefix = 'AB';
         else if (cat === 'MDC') prefix = 'MD';
@@ -176,17 +187,13 @@ export default function SchemesPage() {
         else if (cat === 'OFE') prefix = 'RT';
         else if (isCommonBos) prefix = 'RT';
         
-        // Sequence determination
         counters[cat]++;
         const seq = counters[cat];
-        
-        // Pedagogy Indicator
         let pedagogy = 'L';
         if (cat === 'PRJ') pedagogy = 'I';
         
         const pillar = ['DSE', 'OFE'].includes(cat) ? 'E' : 'C';
         const year = Math.ceil(slot.semester / 2);
-        
         const autoCode = `${prefix}${pedagogy}${pillar}${year}${String(seq).padStart(2, '0')}`;
         const finalCode = slot.subjectCode || autoCode;
         const slotId = `SLOT-${cat}-${slot.semester}-${slot.id}`;
@@ -276,6 +283,12 @@ export default function SchemesPage() {
             </Card>
           );
         })}
+        {filteredSchemes.length === 0 && (
+          <div className="col-span-full py-20 text-center border border-dashed rounded-xl bg-muted/20">
+            <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-10" />
+            <p className="text-muted-foreground">No authorized schemes found for your jurisdiction.</p>
+          </div>
+        )}
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
