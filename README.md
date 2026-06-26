@@ -11,6 +11,15 @@ Academia Flow is an enterprise-grade Academic Management System designed for **R
 - **Secure RBAC**: Role-based access control for Convenors, Deans, and Administrators.
 - **Official Exports**: Professional PDF generation for individual syllabi and complete course structures.
 
+## 💰 Institutional Cost Management (Firebase Blaze)
+
+To keep hosting costs near zero for the university:
+
+1.  **Compute Throttling**: The `apphosting.yaml` is configured with `minInstances: 0`. You are only billed for compute when a user is actively browsing.
+2.  **Resource Capping**: Memory is restricted to 512MB and CPU to 1. This prevents expensive "High-Performance" tier billing.
+3.  **Scaling Protection**: `maxInstances` is set to 1. This protects the university from viral traffic costs or bot attacks.
+4.  **Gemini AI Quota**: AI generation uses your **Google AI Studio Key**. Stay on the "Free of charge" tier in AI Studio to avoid API billing.
+
 ## 🔑 AI Configuration
 
 To activate the **AI Architect** features:
@@ -25,12 +34,16 @@ To activate the **AI Architect** features:
 ## 📦 Git & Authentication Guide
 
 ### 🛠 Required Token Permissions
-When creating your **Personal Access Token (Classic)** on GitHub, you must select the following scope:
+When creating your **Personal Access Token (Classic)** on GitHub, you must select:
 - **`repo`** (Full control of private repositories)
 
-### ⚡ EMERGENCY: Fixing "ECONNREFUSED" Socket Errors
-If you see errors like `connect ECONNREFUSED /tmp/vscode-git...`, use the **Nuclear Option** to bypass the broken credential helper:
+### 🚩 Resolving "non-fast-forward" (Rejected) Errors
+If your push is rejected, use the **Force Push** to set your local code as the definitive version:
+```bash
+git push origin HEAD:main --force
+```
 
+### ⚡ EMERGENCY: Fixing "ECONNREFUSED" Socket Errors
 1. **Set URL with Token**:
    ```bash
    git remote set-url origin https://<YOUR_GITHUB_TOKEN>@github.com/chaturvedi101/AcademiaFlow.git
@@ -39,31 +52,3 @@ If you see errors like `connect ECONNREFUSED /tmp/vscode-git...`, use the **Nucl
    ```bash
    git push origin HEAD:main
    ```
-
-### 🚩 Resolving "non-fast-forward" (Rejected) Errors
-If your push is rejected with a "non-fast-forward" error (meaning the remote has changes you don't have), and you want your local code to be the definitive version, use the **Force Push**:
-```bash
-git push origin HEAD:main --force
-```
-
-### 1. Linking Remote
-If the remote repository is not already linked:
-```bash
-npm run git:setup
-```
-
-### 2. Resolving "Invalid username or token" (Detached HEAD)
-If you are in a "detached HEAD" state:
-```bash
-git push origin HEAD:main
-```
-
-### 3. Resolving Authentication Cache Issues
-If authentication fails repeatedly:
-1. **Clear Credential Helper**:
-   ```bash
-   git config --global --unset credential.helper
-   git config --local --unset credential.helper
-   ```
-2. **Push with the Token**:
-   - When asked for a password, **paste the token** instead of your GitHub password.

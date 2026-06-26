@@ -2,5 +2,12 @@
 # https://firebase.google.com/docs/app-hosting/configure
 
 runConfig:
-  # Restricted to a single instance as per project requirements
+  # Minimizes cost by spinning down to 0 when idle
+  minInstances: 0
+  # Prevents runaway scaling costs by capping at 1 instance
   maxInstances: 1
+  # Efficient memory allocation for Next.js 15
+  memory: 512Mi
+  cpu: 1
+  # Allows one instance to handle up to 80 concurrent users
+  concurrency: 80

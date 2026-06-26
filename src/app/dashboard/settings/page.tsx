@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
@@ -7,7 +6,7 @@ import { UserProfile } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Github, Globe, ShieldCheck, User, Code, Info, Terminal, ExternalLink, AlertTriangle, Key, Zap, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Github, Globe, ShieldCheck, User, Code, Info, Terminal, ExternalLink, AlertTriangle, Key, Zap, CheckCircle2, RefreshCw, Coins, HardDriveDownload } from 'lucide-react';
 
 export default function SettingsPage() {
   const db = useFirestore();
@@ -21,7 +20,7 @@ export default function SettingsPage() {
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-headline font-bold text-primary">System Settings</h1>
-        <p className="text-muted-foreground">Manage your account and institutional connectivity.</p>
+        <p className="text-muted-foreground">Manage your account, hosting efficiency, and institutional connectivity.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -59,6 +58,42 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        <Card className="border-emerald-100 bg-emerald-50/10">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-emerald-700">
+              <Coins className="w-5 h-5" />
+              Hosting Cost Optimization
+            </CardTitle>
+            <CardDescription>Configurations to minimize Firebase Blaze costs.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 bg-white border rounded-lg text-center">
+                <p className="text-[9px] font-bold text-muted-foreground uppercase">Min Instances</p>
+                <p className="text-lg font-bold text-emerald-600">0</p>
+                <p className="text-[8px] text-muted-foreground">Zero cost when idle</p>
+              </div>
+              <div className="p-3 bg-white border rounded-lg text-center">
+                <p className="text-[9px] font-bold text-muted-foreground uppercase">Max Instances</p>
+                <p className="text-lg font-bold text-red-600">1</p>
+                <p className="text-[8px] text-muted-foreground">Prevent scaling spikes</p>
+              </div>
+            </div>
+            <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg space-y-2">
+              <div className="flex items-center gap-2 text-blue-800 font-bold text-[10px]">
+                <Info className="w-3 h-3" /> SAVING TIPS
+              </div>
+              <ul className="text-[10px] text-blue-700 space-y-1 list-disc pl-4">
+                <li>Firestore reads are minimized via snapshot listeners.</li>
+                <li>Gemini AI costs are only triggered on manual generation.</li>
+                <li>App memory is capped at 512Mi to stay in the cheapest tier.</li>
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <Card className="border-accent/10">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-accent">
@@ -94,9 +129,7 @@ export default function SettingsPage() {
             </Button>
           </CardContent>
         </Card>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <Card className="bg-slate-900 text-white border-none shadow-xl overflow-hidden relative">
           <div className="absolute top-0 right-0 p-8 opacity-10">
             <Terminal className="w-32 h-32" />
@@ -112,7 +145,7 @@ export default function SettingsPage() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <p className="text-[10px] font-bold uppercase text-slate-500">1. Force Push (Overwriting Remote)</p>
-                <p className="text-[10px] text-slate-400 mb-2">If your push is rejected because the remote has existing changes, use this to force your local code to be the base:</p>
+                <p className="text-[10px] text-slate-400 mb-2">Use this to overwrite the remote state with your current institutional structure:</p>
                 <div className="bg-black/50 p-4 rounded-xl border border-slate-700 font-mono text-xs text-blue-300">
                   <p>git push origin HEAD:main --force</p>
                 </div>
@@ -127,35 +160,6 @@ export default function SettingsPage() {
                 <Info className="w-5 h-5 shrink-0" />
                 <p>Use your GitHub <b>Personal Access Token (PAT)</b> as the password when prompted in the terminal.</p>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-red-100 bg-red-50/20">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-red-600">
-              <AlertTriangle className="w-5 h-5" />
-              Persistent Authentication Fix
-            </CardTitle>
-            <CardDescription>The "Last Resort" solution for socket and credential errors.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="p-4 bg-white border border-red-200 rounded-xl space-y-4">
-              <div className="flex items-center gap-2 text-red-900 font-bold text-xs">
-                <Zap className="w-4 h-4" /> THE NUCLEAR OPTION (Fixes ECONNREFUSED)
-              </div>
-              <p className="text-[10px] text-red-800">
-                If Git keeps failing with <code>ECONNREFUSED</code>, run this command to embed your token directly in the remote URL:
-              </p>
-              <div className="bg-slate-900 p-3 rounded-lg font-mono text-[9px] text-blue-300 break-all">
-                git remote set-url origin https://&lt;YOUR_TOKEN&gt;@github.com/chaturvedi101/AcademiaFlow.git
-              </div>
-              <p className="text-[9px] text-slate-500 italic">
-                * Replace <code>&lt;YOUR_TOKEN&gt;</code> with your actual GitHub PAT.
-              </p>
-              <Button size="sm" className="w-full h-8 bg-red-600 hover:bg-red-700 text-[10px]" onClick={() => window.open('https://github.com/settings/tokens', '_blank')}>
-                Generate Token Now
-              </Button>
             </div>
           </CardContent>
         </Card>
