@@ -7,7 +7,7 @@ import { UserProfile } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Github, Globe, ShieldCheck, User, Code, Info, Terminal, ExternalLink, AlertTriangle, Key, Zap, CheckCircle2 } from 'lucide-react';
+import { Github, Globe, ShieldCheck, User, Code, Info, Terminal, ExternalLink, AlertTriangle, Key, Zap, CheckCircle2, RefreshCw } from 'lucide-react';
 
 export default function SettingsPage() {
   const db = useFirestore();
@@ -111,16 +111,14 @@ export default function SettingsPage() {
           <CardContent className="space-y-6">
             <div className="space-y-4">
               <div className="space-y-2">
-                <p className="text-[10px] font-bold uppercase text-slate-500">1. REQUIRED TOKEN PERMISSIONS</p>
-                <div className="bg-blue-500/10 p-3 rounded-lg border border-blue-500/30 space-y-2">
-                  <p className="text-xs text-blue-300 font-bold flex items-center gap-2">
-                    <CheckCircle2 className="w-3 h-3" /> Select "repo" scope
-                  </p>
-                  <p className="text-[10px] text-slate-400">When creating a Personal Access Token (Classic), check the <b>repo</b> box (Full control of private repositories).</p>
+                <p className="text-[10px] font-bold uppercase text-slate-500">1. Force Push (Overwriting Remote)</p>
+                <p className="text-[10px] text-slate-400 mb-2">If your push is rejected because the remote has existing changes, use this to force your local code to be the base:</p>
+                <div className="bg-black/50 p-4 rounded-xl border border-slate-700 font-mono text-xs text-blue-300">
+                  <p>git push origin HEAD:main --force</p>
                 </div>
               </div>
               <div className="space-y-2">
-                <p className="text-[10px] font-bold uppercase text-slate-500">2. Force Push (Detached HEAD Fix)</p>
+                <p className="text-[10px] font-bold uppercase text-slate-500">2. Standard Push (Detached HEAD)</p>
                 <div className="bg-black/50 p-4 rounded-xl border border-slate-700 font-mono text-xs text-amber-300">
                   <p>git push origin HEAD:main</p>
                 </div>

@@ -40,6 +40,12 @@ If you see errors like `connect ECONNREFUSED /tmp/vscode-git...`, use the **Nucl
    git push origin HEAD:main
    ```
 
+### 🚩 Resolving "non-fast-forward" (Rejected) Errors
+If your push is rejected with a "non-fast-forward" error (meaning the remote has changes you don't have), and you want your local code to be the definitive version, use the **Force Push**:
+```bash
+git push origin HEAD:main --force
+```
+
 ### 1. Linking Remote
 If the remote repository is not already linked:
 ```bash
