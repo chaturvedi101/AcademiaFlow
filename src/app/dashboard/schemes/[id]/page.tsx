@@ -77,7 +77,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const uniqueMap = new Map<string, Syllabus>();
     const all = [...localSyllabi, ...poolSyllabi];
     
-    // First pass: De-duplicate by subjectCode or ID
     all.forEach(s => {
       const key = (s.isSlot || s.isOFESlot) ? s.id : (s.subjectCode || s.id);
       const existing = uniqueMap.get(key);
@@ -88,7 +87,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       }
     });
 
-    // Second pass: Ensure ID uniqueness across different subject keys to prevent React key collision
     const finalById = new Map<string, Syllabus>();
     Array.from(uniqueMap.values()).forEach(s => {
       if (!finalById.has(s.id) || s.schemeId === schemeId) {
@@ -404,25 +402,25 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                             return (
                               <React.Fragment key={groupId}>
                                 <TableRow className={`hover:bg-muted/10 cursor-pointer ${isOfePool ? 'bg-blue-50/30' : 'bg-accent/5'}`} onClick={() => toggleGroup(groupId)}>
-                                  <TableCell className="pl-6 font-mono font-bold text-accent">{isOfePool ? 'POOL' : 'DSE'}</TableCell>
+                                  <TableCell className={`pl-6 font-mono font-bold ${isOfePool ? 'text-blue-600' : 'text-accent'}`}>{isOfePool ? 'POOL' : 'DSE'}</TableCell>
                                   <TableCell className="font-bold">
                                     <div className={`flex items-center gap-2 ${isOfePool ? 'text-blue-600' : 'text-accent'}`}>
                                       {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                                      {groupId} {isOfePool ? '(Institutional Pool)' : `(${members.length} Branch Options)`}
+                                      {groupId} {isOfePool ? '(Institutional Pool)' : `(${members.length} Options)`}
                                     </div>
                                   </TableCell>
                                   <TableCell><Badge className={`${isOfePool ? 'bg-blue-500' : 'bg-accent'} text-white border-none text-[9px]`}>{members[0].creditCategory}</Badge></TableCell>
                                   <TableCell className="text-center font-mono text-xs">{members[0].lectureCredits}-{members[0].tutorialCredits}-{members[0].practicalCredits}</TableCell>
                                   <TableCell className="text-right font-bold text-sm">{members[0].credits}</TableCell>
                                   <TableCell className="text-right pr-6">
-                                    {permissions.canEditScheme && !isOfePool && (
+                                    {permissions.canEditScheme && (
                                       <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setActiveSubject({ semester: sem, electiveGroupId: groupId, creditCategory: members[0].creditCategory }); setIsSyllabusDialogOpen(true); }}>
                                         <Plus className="w-3.5 h-3.5 mr-1" /> Add Option
                                       </Button>
                                     )}
                                   </TableCell>
                                 </TableRow>
-                                {isExpanded && !isOfePool && members.map(sub => (
+                                {isExpanded && members.map(sub => (
                                   <SubjectRow key={sub.id} sub={sub} currentSchemeId={schemeId} schemeStatus={scheme.status} permissions={permissions} isOption onEdit={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }} onDelete={() => handleDeleteSyllabus(sub.id)} />
                                 ))}
                               </React.Fragment>
