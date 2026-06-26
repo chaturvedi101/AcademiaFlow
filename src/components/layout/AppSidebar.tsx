@@ -26,7 +26,8 @@ import {
   Users,
   Loader2,
   Settings2,
-  UserCircle
+  UserCircle,
+  Database
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -44,6 +45,7 @@ const navigation = [
   { name: 'Equivalence Manager', href: '/dashboard/equivalence', icon: Layers, roles: ['bos_convenor', 'admin'] },
   { name: 'Approvals', href: '/dashboard/approvals', icon: FileCheck, roles: ['dean_faculty', 'dean_academic'] },
   { name: 'Audit Logs', href: '/dashboard/audit', icon: History, roles: ['admin'] },
+  { name: 'Backups', href: '/dashboard/backups', icon: Database, roles: ['admin'] },
   { name: 'AI Diagnostics', href: '/dashboard/diagnostics', icon: Settings2, roles: ['admin', 'dean_academic'] },
 ];
 
