@@ -14,11 +14,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { BookOpen, Globe, Link2, Loader2, Plus, ShieldAlert, Trash2, Hash, Info, GraduationCap, ClipboardCheck, Search, Layers, AlertTriangle, Book, Video, ExternalLink } from "lucide-react";
+import { BookOpen, Globe, Link2, Loader2, Plus, ShieldAlert, Trash2, Hash, Info, GraduationCap, ClipboardCheck, Search, Layers, AlertTriangle, Book, Video, ExternalLink, Sparkles } from "lucide-react";
 import { Syllabus, CorrelationLevel as CorrelationLevelType, CreditRules, SubjectType, CreditCategory } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
 import { collection, query, where, getDocs, doc, collectionGroup } from "firebase/firestore";
+import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 
 const PO_DEFINITIONS = [
   { code: 'PO1', title: 'Engineering Knowledge', desc: 'Apply mathematics, science, and engineering fundamentals.' },
@@ -77,6 +78,7 @@ export function SyllabusDialog({
   const { data: profile } = useDoc<any>(userDocRef);
 
   const [isPoolSearching, setIsPoolSearching] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [poolResults, setPoolResults] = useState<Syllabus[]>([]);
   const [showPoolPicker, setShowPoolPicker] = useState(false);
   const [isManuallyEditedCode, setIsManuallyEditedCode] = useState(false);
@@ -281,6 +283,46 @@ export function SyllabusDialog({
     setFormData(prev => ({ ...prev, credits: l + t + (p * 0.5) }));
   }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits]);
 
+  const handleAISyllabusGenerate = async () => {
+    if (!formData.title) {
+      toast({ title: "Identity Required", description: "Please enter a subject title first.", variant: "destructive" });
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const result = await generateSyllabusContent({
+        title: formData.title,
+        subjectCode: formData.subjectCode,
+        unitCount: 5,
+        level: 'UG'
+      });
+
+      const units = result.units.map(u => ({
+        id: Math.random().toString(36).substr(2, 9),
+        title: u.title,
+        content: u.content,
+        courseOutcome: u.courseOutcome
+      }));
+
+      setFormData(prev => ({
+        ...prev,
+        units,
+        textBooks: result.suggestedTextBooks,
+        referenceBooks: result.suggestedReferences,
+        nptelLinks: result.suggestedNptelLinks,
+        youtubeLinks: result.suggestedYoutubeLinks,
+        creditCategory: (result.suggestedCategory as any) || prev.creditCategory
+      }));
+
+      toast({ title: "AI Generation Complete", description: "Syllabus units and resources have been populated." });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "AI Architect Failed", description: err.message || "Failed to generate content." });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const searchUniversityPool = async () => {
     setIsPoolSearching(true);
     setPoolResults([]);
@@ -379,9 +421,17 @@ export function SyllabusDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl h-[95vh] flex flex-col p-0 overflow-hidden border-none shadow-2xl">
         <DialogHeader className="p-6 border-b shrink-0 bg-background z-10">
-          <DialogTitle className="font-headline text-2xl flex items-center gap-3">
-            <BookOpen className="w-6 h-6 text-primary" />
-            {isReadOnly ? 'Course Specification' : formData.id ? 'Configure Academic Course' : 'Create New Course'}
+          <DialogTitle className="font-headline text-2xl flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <BookOpen className="w-6 h-6 text-primary" />
+              {isReadOnly ? 'Course Specification' : formData.id ? 'Configure Academic Course' : 'Create New Course'}
+            </div>
+            {!isReadOnly && !formData.isOFESlot && (
+              <Button size="sm" className="gap-2 bg-gradient-to-r from-primary to-accent border-none shadow-md" onClick={handleAISyllabusGenerate} disabled={isGenerating}>
+                {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                GenAI Architect
+              </Button>
+            )}
           </DialogTitle>
           <DialogDescription>
             {isReadOnly ? 'Standardized specification. Managed by the Board of Studies.' : 'Define identity, content units, and learning resource mappings.'}
@@ -593,7 +643,7 @@ export function SyllabusDialog({
                 />
 
                 <ResourceSection 
-                  title="Reference Materials & Internet Resources" 
+                  title="Reference Books & Materials" 
                   icon={<ExternalLink className="w-4 h-4" />}
                   field="referenceBooks"
                   items={formData.referenceBooks || []}
@@ -601,7 +651,7 @@ export function SyllabusDialog({
                   onUpdate={(idx, val) => handleUpdateArrayField('referenceBooks', idx, val)}
                   onRemove={(idx) => handleRemoveArrayField('referenceBooks', idx)}
                   isReadOnly={isReadOnly}
-                  placeholder="Resource URL or Citation"
+                  placeholder="Title, Author, Publisher or Reference URL"
                 />
 
                 <ResourceSection 
