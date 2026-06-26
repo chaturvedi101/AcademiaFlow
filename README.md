@@ -8,17 +8,17 @@ Academia Flow is an enterprise-grade Academic Management System designed for **R
 - **AI Syllabus Architect**: Automatically generate syllabus units and course outcomes using Gemini Flash.
 - **Institutional Pool**: Standardize VAC, AEC, and MDC courses across the university via a centralized Board of Studies (BOS).
 - **Credit Compliance**: Automated validation against RTU-NEP 2020 credit rules (160 credit UG framework).
-- **Secure RBAC**: Role-based access control for Convenors, Deans, and Administrators.
 - **Official Exports**: Professional PDF generation for individual syllabi and complete course structures.
 
 ## 💰 Institutional Cost Management (Firebase Blaze)
 
-To keep hosting costs near zero for the university:
+To keep hosting costs near zero for the university, the following configurations are active:
 
 1.  **Compute Throttling**: The `apphosting.yaml` is configured with `minInstances: 0`. You are only billed for compute when a user is actively browsing.
 2.  **Resource Capping**: Memory is restricted to 512MB and CPU to 1. This prevents expensive "High-Performance" tier billing.
-3.  **Scaling Protection**: `maxInstances` is set to 1. This protects the university from viral traffic costs or bot attacks.
-4.  **Gemini AI Quota**: AI generation uses your **Google AI Studio Key**. Stay on the "Free of charge" tier in AI Studio to avoid API billing.
+3.  **Scaling Protection**: `maxInstances` is set to 1. This protects the university from viral traffic costs or bot attacks. Even with many users, the app will not scale to multiple costly servers.
+4.  **Auto-Session Timeout**: The app automatically logs out users after 5 minutes of inactivity to stop background data listeners and reduce "Read" costs.
+5.  **Gemini AI Quota**: AI generation uses your **Google AI Studio Key**. Stay on the "Free of charge" tier in AI Studio to avoid API billing.
 
 ## 🔑 AI Configuration
 
@@ -44,11 +44,15 @@ git push origin HEAD:main --force
 ```
 
 ### ⚡ EMERGENCY: Fixing "ECONNREFUSED" Socket Errors
-1. **Set URL with Token**:
+1. **Reset Git Config**:
+   ```bash
+   git config --global --unset credential.helper
+   ```
+2. **Set URL with Token (Nuclear Option)**:
    ```bash
    git remote set-url origin https://<YOUR_GITHUB_TOKEN>@github.com/chaturvedi101/AcademiaFlow.git
    ```
-2. **Push Directly**:
+3. **Push Directly**:
    ```bash
    git push origin HEAD:main
    ```

@@ -6,7 +6,7 @@ import { UserProfile } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Github, Globe, ShieldCheck, User, Code, Info, Terminal, ExternalLink, AlertTriangle, Key, Zap, CheckCircle2, RefreshCw, Coins, HardDriveDownload } from 'lucide-react';
+import { Github, Globe, ShieldCheck, User, Code, Info, Terminal, ExternalLink, AlertTriangle, Key, Zap, CheckCircle2, RefreshCw, Coins, HardDriveDownload, Activity } from 'lucide-react';
 
 export default function SettingsPage() {
   const db = useFirestore();
@@ -62,7 +62,7 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-emerald-700">
               <Coins className="w-5 h-5" />
-              Hosting Cost Optimization
+              Hosting Cost Management
             </CardTitle>
             <CardDescription>Configurations to minimize Firebase Blaze costs.</CardDescription>
           </CardHeader>
@@ -79,15 +79,26 @@ export default function SettingsPage() {
                 <p className="text-[8px] text-muted-foreground">Prevent scaling spikes</p>
               </div>
             </div>
-            <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg space-y-2">
-              <div className="flex items-center gap-2 text-blue-800 font-bold text-[10px]">
-                <Info className="w-3 h-3" /> SAVING TIPS
+            
+            <div className="p-4 bg-white border rounded-xl space-y-3">
+              <div className="flex items-center gap-2 text-[10px] font-bold text-primary">
+                <Activity className="w-3.5 h-3.5" />
+                USAGE-BASED BILLING (BLAZE)
               </div>
-              <ul className="text-[10px] text-blue-700 space-y-1 list-disc pl-4">
-                <li>Firestore reads are minimized via snapshot listeners.</li>
-                <li>Gemini AI costs are only triggered on manual generation.</li>
-                <li>App memory is capped at 512Mi to stay in the cheapest tier.</li>
-              </ul>
+              <div className="space-y-2">
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-muted-foreground">Active Compute</span>
+                  <span className="font-bold">~$0.02 / active hour</span>
+                </div>
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-muted-foreground">Firestore Reads</span>
+                  <span className="font-bold">50k Free / Day</span>
+                </div>
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-muted-foreground">Auto-Timeout</span>
+                  <span className="text-emerald-600 font-bold">ACTIVE (5 Min)</span>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -145,15 +156,14 @@ export default function SettingsPage() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <p className="text-[10px] font-bold uppercase text-slate-500">1. Force Push (Overwriting Remote)</p>
-                <p className="text-[10px] text-slate-400 mb-2">Use this to overwrite the remote state with your current institutional structure:</p>
                 <div className="bg-black/50 p-4 rounded-xl border border-slate-700 font-mono text-xs text-blue-300">
                   <p>git push origin HEAD:main --force</p>
                 </div>
               </div>
               <div className="space-y-2">
-                <p className="text-[10px] font-bold uppercase text-slate-500">2. Standard Push (Detached HEAD)</p>
+                <p className="text-[10px] font-bold uppercase text-slate-500">2. Emergency Authentication Fix</p>
                 <div className="bg-black/50 p-4 rounded-xl border border-slate-700 font-mono text-xs text-amber-300">
-                  <p>git push origin HEAD:main</p>
+                  <p>git config --global --unset credential.helper</p>
                 </div>
               </div>
               <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl flex gap-3 text-xs text-blue-200">

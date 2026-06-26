@@ -8,6 +8,7 @@ const TIMEOUT_DURATION = 5 * 60 * 1000; // 5 minutes
 
 /**
  * Monitors user activity and automatically signs out the user after 5 minutes of inactivity.
+ * This saves institutional costs by stopping real-time Firestore listeners for idle sessions.
  */
 export function SessionTimeout() {
   const { user } = useUser();
