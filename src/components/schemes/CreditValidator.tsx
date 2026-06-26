@@ -12,7 +12,6 @@ interface CreditValidatorProps {
     DSC: number;
     DSE: number;
     OFE: number;
-    CPF: number;
     VAC: number;
     AEC: number;
     SEC: number;

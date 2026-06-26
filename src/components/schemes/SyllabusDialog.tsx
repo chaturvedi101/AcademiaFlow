@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -108,7 +109,7 @@ export function SyllabusDialog({
   const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile?.role || '');
 
   const visibleCategories = useMemo(() => {
-    const all = ['DSC', 'DSE', 'OFE', 'CPF', 'VAC', 'AEC', 'SEC', 'MDC', 'PRJ'] as CreditCategory[];
+    const all = ['DSC', 'DSE', 'OFE', 'VAC', 'AEC', 'SEC', 'MDC', 'PRJ'] as CreditCategory[];
     if (isGlobalAdmin) return all;
 
     if (isStrictlyCommonBOS) {

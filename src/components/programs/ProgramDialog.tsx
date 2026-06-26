@@ -47,7 +47,7 @@ const DEFAULT_RULES: CreditRules = {
   totalRequired: 160
 };
 
-const ALL_CATEGORIES: CreditCategory[] = ['DSC', 'DSE', 'OFE', 'CPF', 'VAC', 'AEC', 'SEC', 'MDC', 'PRJ'];
+const ALL_CATEGORIES: CreditCategory[] = ['DSC', 'DSE', 'OFE', 'VAC', 'AEC', 'SEC', 'MDC', 'PRJ'];
 
 export function ProgramDialog({ open, onOpenChange, program, userProfile }: ProgramDialogProps) {
   const db = useFirestore();

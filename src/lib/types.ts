@@ -34,7 +34,7 @@ export type SchemeStatus = 'Draft' | 'Pending Dean' | 'Pending Academics' | 'App
 
 export type SubjectType = 'Theory' | 'Lab/Sessional';
 
-export type CreditCategory = 'DSC' | 'DSE' | 'OFE' | 'CPF' | 'VAC' | 'AEC' | 'SEC' | 'MDC' | 'PRJ';
+export type CreditCategory = 'DSC' | 'DSE' | 'OFE' | 'VAC' | 'AEC' | 'SEC' | 'MDC' | 'PRJ';
 
 export type CorrelationLevel = '1' | '2' | '3' | '-';
 

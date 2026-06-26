@@ -137,7 +137,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   }, [profile, profileLoading, scheme, program, schemeId]);
 
   const creditDistribution = useMemo(() => {
-    const dist = { DSC: 0, DSE: 0, OFE: 0, CPF: 0, VAC: 0, AEC: 0, SEC: 0, MDC: 0, PRJ: 0, total: 0 };
+    const dist = { DSC: 0, DSE: 0, OFE: 0, VAC: 0, AEC: 0, SEC: 0, MDC: 0, PRJ: 0, total: 0 };
     const countedGroups = new Set<string>();
 
     syllabi.forEach(sub => {
