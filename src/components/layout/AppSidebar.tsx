@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo } from 'react';
@@ -23,7 +22,6 @@ import {
   Layers,
   LogOut,
   GraduationCap,
-  Users,
   Loader2,
   Settings2,
   UserCircle,
@@ -35,8 +33,6 @@ import Link from "next/link";
 import { useAuth, useUser, useDoc, useFirestore } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { UserProfile, UserRole } from "@/lib/types";
-import Image from "next/image";
-import { PlaceHolderImages } from "@/lib/placeholder-images";
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['bos_convenor', 'bos_member', 'dean_faculty', 'dean_academic', 'admin'] },
@@ -62,8 +58,6 @@ export function AppSidebar() {
   const userDocRef = useMemo(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
   const { data: profile, loading: profileLoading } = useDoc<UserProfile>(userDocRef);
 
-  const rtuLogo = PlaceHolderImages.find(img => img.id === 'rtu-logo');
-
   const role: UserRole = profile?.role || 'bos_convenor';
   const isCommonBos = profile?.faculty === 'University-wide (Common BOS)';
 
@@ -81,16 +75,8 @@ export function AppSidebar() {
   return (
     <Sidebar variant="inset" collapsible="icon">
       <SidebarHeader className="p-4 border-b border-sidebar-border/50 flex flex-row items-center gap-3">
-        <div className="relative w-10 h-10 bg-white rounded-lg p-1 shrink-0">
-          <Image 
-            src={rtuLogo?.imageUrl || "https://upload.wikimedia.org/wikipedia/en/thumb/1/10/Rajasthan_Technical_University_logo.png/220px-Rajasthan_Technical_University_logo.png"}
-            alt="RTU"
-            width={100}
-            height={100}
-            className="object-contain"
-            data-ai-hint="RTU Emblem"
-            unoptimized
-          />
+        <div className="flex items-center justify-center w-10 h-10 bg-white rounded-lg p-1 shrink-0 shadow-sm border border-primary/20 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:h-8 transition-all">
+          <span className="text-primary font-headline font-black text-sm tracking-tighter group-data-[collapsible=icon]:text-[10px]">RTU</span>
         </div>
         <div className="flex flex-col group-data-[collapsible=icon]:hidden">
           <span className="font-headline font-bold text-lg text-white leading-tight">
