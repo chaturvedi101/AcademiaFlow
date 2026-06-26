@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from "react";
@@ -72,10 +73,6 @@ export default function Home() {
           createdAt: serverTimestamp(),
         };
         await setDoc(userRef, userData);
-        toast({
-          title: "Profile Created",
-          description: "Welcome! Your academic account has been initialized.",
-        });
       }
       router.push('/dashboard');
     } catch (error: any) {
@@ -134,7 +131,7 @@ export default function Home() {
       <div className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
         <div className="space-y-8">
           <div className="flex items-center gap-4">
-            <div className="flex items-center justify-center w-20 h-20 bg-primary rounded-2xl shadow-lg border-4 border-white shrink-0 group hover:rotate-3 transition-transform">
+            <div className="flex items-center justify-center w-20 h-20 bg-primary rounded-2xl shadow-lg border-4 border-white shrink-0">
               <span className="text-white font-headline font-black text-3xl tracking-tighter">RTU</span>
             </div>
             <div>
@@ -242,9 +239,6 @@ export default function Home() {
                   </form>
                 </TabsContent>
               </Tabs>
-              <div className="text-center text-[10px] text-muted-foreground pt-6 uppercase tracking-wider font-bold">
-                RTU Portal Connectivity Status: <span className="text-emerald-600">Active</span>
-              </div>
             </CardContent>
           </Card>
         </div>

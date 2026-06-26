@@ -1,3 +1,4 @@
+
 'use client';
 
 import jsPDF from 'jspdf';
@@ -23,15 +24,6 @@ const drawSubjectSyllabus = (
   const pageWidth = doc.internal.pageSize.getWidth();
   let currentY = startY;
 
-  // Header - Institution Title (Only if starting high on page)
-  if (currentY < 40) {
-    doc.setFontSize(14);
-    doc.setTextColor(0);
-    doc.setFont('helvetica', 'bold');
-    doc.text('RAJASTHAN TECHNICAL UNIVERSITY, KOTA', pageWidth / 2, currentY, { align: 'center' });
-    currentY += 8;
-  }
-
   // Subject Branding Strip
   doc.setFillColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
   doc.rect(15, currentY, pageWidth - 30, 10, 'F');
@@ -55,9 +47,6 @@ const drawSubjectSyllabus = (
   doc.text(`Category: ${syllabus.creditCategory || 'N/A'}`, pageWidth / 2, currentY + 5);
   doc.text(`Semester: ${syllabus.semester || 'N/A'}`, pageWidth / 2, currentY + 10);
   currentY += 18;
-
-  doc.setDrawColor(230);
-  doc.line(15, currentY - 2, pageWidth - 15, currentY - 2);
 
   // Units Section
   doc.setFontSize(12);
@@ -144,7 +133,12 @@ export const exportSyllabusToPDF = (
   const doc = new jsPDF();
   const isDraft = status !== 'Approved';
 
-  drawSubjectSyllabus(doc, syllabus, programName, branch, batchYear, 20, isDraft);
+  doc.setFontSize(14);
+  doc.setTextColor(0);
+  doc.setFont('helvetica', 'bold');
+  doc.text('RAJASTHAN TECHNICAL UNIVERSITY, KOTA', doc.internal.pageSize.getWidth() / 2, 15, { align: 'center' });
+
+  drawSubjectSyllabus(doc, syllabus, programName, branch, batchYear, 25, isDraft);
   addFooter(doc, isDraft);
   doc.save(`${syllabus.subjectCode || 'Subject'}_Detailed_Syllabus.pdf`);
 };
@@ -182,22 +176,25 @@ export const exportCompleteSyllabusToPDF = (
   doc.setFontSize(10);
   doc.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth / 2, 160, { align: 'center' });
 
-  // Sorted list for clean document flow
   const sortedSyllabi = [...syllabi].sort((a, b) => {
     if (a.semester !== b.semester) return a.semester - b.semester;
     return a.subjectCode.localeCompare(b.subjectCode);
   });
 
-  // Subjects
-  sortedSyllabi.forEach((syllabus, index) => {
+  sortedSyllabi.forEach((syllabus) => {
     doc.addPage();
+    doc.setFontSize(14);
+    doc.setTextColor(0);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RAJASTHAN TECHNICAL UNIVERSITY, KOTA', pageWidth / 2, 15, { align: 'center' });
+    
     drawSubjectSyllabus(
       doc, 
       syllabus, 
       program.name, 
       scheme.branch || 'General', 
       scheme.batchYear, 
-      20, 
+      25, 
       isDraft
     );
   });
@@ -248,7 +245,7 @@ export const exportFullSchemeToPDF = (
   doc.setFont('helvetica', 'bold');
   doc.text('RTU-NEP 2020 Credit Distribution Summary', 20, 63);
 
-  const categories = ['DSC', 'DSE', 'OFE', 'CPF', 'VAC', 'AEC', 'SEC', 'MDC', 'PRJ'];
+  const categories = ['DSC', 'DSE', 'OFE', 'VAC', 'AEC', 'SEC', 'MDC', 'PRJ'];
   const distribution = categories.map(cat => {
     const total = syllabi.filter(s => s.creditCategory === cat).reduce((acc, curr) => acc + (curr.credits || 0), 0);
     return [cat, total];
@@ -270,12 +267,10 @@ export const exportFullSchemeToPDF = (
 
   let currentY = (doc as any).lastAutoTable.finalY + 15;
 
-  // Semester-wise Course Structure
   for (let sem = 1; sem <= (program.totalSemesters || 8); sem++) {
     const semSubjects = syllabi.filter(s => s.semester === sem && !s.isOFEContribution);
     const semCredits = semSubjects.reduce((acc, curr) => acc + (curr.credits || 0), 0);
 
-    // Page check before each semester
     if (currentY > 230) {
       doc.addPage();
       currentY = 20;
@@ -328,8 +323,6 @@ function addFooter(doc: jsPDF, isDraft: boolean = false) {
   
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
-    
-    // Add Draft Watermark
     if (isDraft) {
       doc.setFontSize(50);
       doc.setTextColor(230, 230, 230);
@@ -339,7 +332,6 @@ function addFooter(doc: jsPDF, isDraft: boolean = false) {
         angle: 45
       });
     }
-    
     doc.setFontSize(8);
     doc.setTextColor(150);
     doc.setDrawColor(200);

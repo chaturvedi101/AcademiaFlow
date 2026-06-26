@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo } from 'react';
@@ -62,7 +63,6 @@ export function AppSidebar() {
   const isCommonBos = profile?.faculty === 'University-wide (Common BOS)';
 
   const filteredNav = navigation.filter(item => {
-    // Override: Common BOS doesn't see My BoS Team
     if (isCommonBos && item.name === 'My BoS Team') return false;
     return item.roles.includes(role);
   });
@@ -75,8 +75,8 @@ export function AppSidebar() {
   return (
     <Sidebar variant="inset" collapsible="icon">
       <SidebarHeader className="p-4 border-b border-sidebar-border/50 flex flex-row items-center gap-3">
-        <div className="flex items-center justify-center w-10 h-10 bg-white rounded-lg p-1 shrink-0 shadow-sm border border-primary/20 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:h-8 transition-all">
-          <span className="text-primary font-headline font-black text-sm tracking-tighter group-data-[collapsible=icon]:text-[10px]">RTU</span>
+        <div className="flex items-center justify-center w-10 h-10 bg-white rounded-lg p-1 shrink-0 shadow-sm border border-primary/20">
+          <span className="text-primary font-headline font-black text-sm tracking-tighter">RTU</span>
         </div>
         <div className="flex flex-col group-data-[collapsible=icon]:hidden">
           <span className="font-headline font-bold text-lg text-white leading-tight">

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useRef } from 'react';
@@ -17,9 +18,11 @@ export function SessionTimeout() {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleLogout = () => {
-    auth.signOut().then(() => {
-      router.push('/');
-    });
+    if (auth.currentUser) {
+      auth.signOut().then(() => {
+        router.push('/');
+      });
+    }
   };
 
   const resetTimer = () => {
@@ -47,10 +50,6 @@ export function SessionTimeout() {
       activityEvents.forEach((event) => {
         window.addEventListener(event, resetTimer);
       });
-    } else {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
     }
 
     return () => {

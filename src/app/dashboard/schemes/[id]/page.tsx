@@ -112,7 +112,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile.role);
     const isProgramDean = profile.role === 'dean_faculty' && profile.faculty === program.faculty;
     const isCommonBOS = profile.faculty === 'University-wide (Common BOS)';
-    const isBoS = ['bos_convenor', 'bos_member'].includes(profile.role);
 
     let canEditScheme = false;
     if (isGlobalAdmin || isProgramDean) {
@@ -125,7 +124,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       ) || false;
     }
 
-    const canDelete = !isBoS && (isGlobalAdmin || isProgramDean || (scheme.isCommonPoolScheme && isCommonBOS));
+    const canDelete = isGlobalAdmin || isProgramDean || (scheme.isCommonPoolScheme && isCommonBOS);
 
     const canEditSyllabus = (s: Partial<Syllabus> | undefined) => {
       if (isGlobalAdmin) return true;
@@ -179,7 +178,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', code);
     const finalData = { 
       ...data, 
-      id: code, 
+      id: code!, 
       schemeId, 
       updatedAt: serverTimestamp(),
       isSlot: false,
@@ -201,79 +200,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     if (!permissions.canDelete) return;
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', id);
     deleteDoc(docRef);
-  };
-
-  const handleBulkSyncPool = async () => {
-    if (!scheme || scheme.isCommonPoolScheme || !permissions.canEditScheme) return;
-    
-    setIsSyncing(true);
-    try {
-      const bYear = scheme.batchYear.trim();
-      const poolQuery = query(
-        collection(db, 'schemes'),
-        where('batchYear', '==', bYear),
-        where('isCommonPoolScheme', '==', true)
-      );
-      
-      const poolSnap = await getDocs(poolQuery);
-      if (poolSnap.empty) {
-        toast({ title: "Pool Not Found", description: `No Common Pool defined for batch "${bYear}".`, variant: "destructive" });
-        return;
-      }
-      
-      const poolSchemeId = poolSnap.docs[0].id;
-      const poolSyllabiSnap = await getDocs(collection(db, 'schemes', poolSchemeId, 'syllabi'));
-      const poolCourses = poolSyllabiSnap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus));
-
-      const batch = writeBatch(db);
-      let syncCount = 0;
-
-      for (const localSub of localSyllabi) {
-        const isInst = ['VAC', 'AEC', 'MDC', 'SEC', 'OFE'].includes(localSub.creditCategory);
-        if (!isInst) continue;
-
-        let match: Syllabus | undefined;
-        if (localSub.subjectCode) {
-          match = poolCourses.find(p => p.subjectCode === localSub.subjectCode);
-        }
-        
-        if (!match && (localSub.isSlot || localSub.isOFESlot)) {
-           const categoryCourses = poolCourses.filter(p => p.creditCategory === localSub.creditCategory && !p.isSlot);
-           match = categoryCourses.find(p => p.semester === localSub.semester) || categoryCourses[0];
-        }
-
-        if (match) {
-          const docRef = doc(db, 'schemes', schemeId, 'syllabi', localSub.id);
-          const cleanMatch = JSON.parse(JSON.stringify(match));
-          
-          const updateData = {
-            ...cleanMatch,
-            id: localSub.id,
-            schemeId: schemeId,
-            semester: localSub.semester,
-            isSlot: false,
-            isOFESlot: false,
-            updatedAt: serverTimestamp()
-          };
-          
-          batch.set(docRef, updateData, { merge: true });
-          syncCount++;
-        }
-      }
-
-      if (syncCount > 0) {
-        await batch.commit();
-        toast({ title: "Sync Complete", description: `Successfully synchronized ${syncCount} courses from the pool.` });
-      } else {
-        toast({ title: "No Matching Courses", description: "No approved courses found in pool for your slots." });
-      }
-
-    } catch (err: any) {
-      console.error("Bulk sync failed:", err);
-      toast({ title: "Sync Failed", description: err.message || "Failed to synchronize.", variant: "destructive" });
-    } finally {
-      setIsSyncing(false);
-    }
   };
 
   if (profileLoading || schemeLoading || syllabiLoading || poolLoading) {
@@ -302,12 +228,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {!scheme.isCommonPoolScheme && permissions.canEditScheme && (
-            <Button variant="outline" className="gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50" onClick={handleBulkSyncPool} disabled={isSyncing}>
-              {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-              Sync Institutional Pool
-            </Button>
-          )}
           <div className="flex items-center gap-2">
             <Button variant="outline" className="gap-2 border-primary/20 text-primary" onClick={() => exportFullSchemeToPDF(scheme, program!, syllabi)}>
               <FileText className="w-4 h-4" /> Download Structure
@@ -333,17 +253,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             </TabsList>
 
             <TabsContent value="syllabi" className="mt-6 space-y-6">
-              {!scheme.isCommonPoolScheme && poolSyllabi.length > 0 && (
-                <Card className="bg-emerald-50 border-emerald-100 border-dashed">
-                  <CardContent className="p-4 flex items-center gap-3 text-xs text-emerald-800">
-                    <Layers className="w-5 h-5 text-emerald-600 shrink-0" />
-                    <div className="flex-1">
-                      <span className="font-bold">Common Pool Active:</span> {poolSyllabi.length} institutional courses are currently synchronized from the University BOS.
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
               {Array.from({ length: program?.totalSemesters || 8 }, (_, i) => i + 1).map(sem => {
                 const semSyllabi = syllabi.filter(s => s.semester === sem && !s.isOFEContribution);
                 const groups: Record<string, Syllabus[]> = {};
@@ -365,27 +274,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                   ...nonGrouped.map(s => s.credits || 0)
                 ].reduce((a, b) => a + b, 0);
 
-                const semL = [
-                  ...Object.values(groups).map(g => g[0].lectureCredits || 0),
-                  ...nonGrouped.map(s => s.lectureCredits || 0)
-                ].reduce((a, b) => a + b, 0);
-
-                const semT = [
-                  ...Object.values(groups).map(g => g[0].tutorialCredits || 0),
-                  ...nonGrouped.map(s => s.tutorialCredits || 0)
-                ].reduce((a, b) => a + b, 0);
-
-                const semP = [
-                  ...Object.values(groups).map(g => g[0].practicalCredits || 0),
-                  ...nonGrouped.map(s => s.practicalCredits || 0)
-                ].reduce((a, b) => a + b, 0);
-
                 return (
                   <Card key={sem} className="shadow-sm border-none bg-white overflow-hidden">
                     <CardHeader className="flex flex-row items-center justify-between bg-muted/20 py-4 px-6">
-                      <div className="space-y-0.5">
-                        <CardTitle className="text-lg font-headline">Semester {sem}</CardTitle>
-                      </div>
+                      <CardTitle className="text-lg font-headline">Semester {sem}</CardTitle>
                       {permissions.canEditScheme && (
                         <Button size="sm" variant="outline" className="gap-2 h-9 rounded-lg" onClick={() => { setActiveSubject({ semester: sem }); setIsSyllabusDialogOpen(true); }}>
                           <Plus className="w-4 h-4" /> Add Subject
@@ -410,21 +302,17 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                           ))}
                           {sortedGroupEntries.map(([groupId, members]) => {
                             const isExpanded = expandedGroups[groupId];
-                            const isOfePool = members.some(m => m.creditCategory === 'OFE' && m.isOFESlot);
-                            
-                            const sortedMembers = [...members].sort((a, b) => (a.subjectCode || "").localeCompare(b.subjectCode || ""));
-
                             return (
                               <React.Fragment key={groupId}>
-                                <TableRow className={`hover:bg-muted/10 cursor-pointer ${isOfePool ? 'bg-blue-50/30' : 'bg-accent/5'}`} onClick={() => toggleGroup(groupId)}>
-                                  <TableCell className={`pl-6 font-mono font-bold ${isOfePool ? 'text-blue-600' : 'text-accent'}`}>{isOfePool ? 'POOL' : 'DSE'}</TableCell>
-                                  <TableCell className="font-bold">
-                                    <div className={`flex items-center gap-2 ${isOfePool ? 'text-blue-600' : 'text-accent'}`}>
+                                <TableRow className="hover:bg-muted/10 cursor-pointer bg-accent/5" onClick={() => toggleGroup(groupId)}>
+                                  <TableCell className="pl-6 font-mono font-bold text-accent">DSE</TableCell>
+                                  <TableCell className="font-bold text-accent">
+                                    <div className="flex items-center gap-2">
                                       {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                                      {groupId} {isOfePool ? '(Institutional Pool)' : `(${members.length} Options)`}
+                                      {groupId} ({members.length} Options)
                                     </div>
                                   </TableCell>
-                                  <TableCell><Badge className={`${isOfePool ? 'bg-blue-500' : 'bg-accent'} text-white border-none text-[9px]`}>{members[0].creditCategory}</Badge></TableCell>
+                                  <TableCell><Badge className="bg-accent text-white border-none text-[9px]">{members[0].creditCategory}</Badge></TableCell>
                                   <TableCell className="text-center font-mono text-xs">{members[0].lectureCredits}-{members[0].tutorialCredits}-{members[0].practicalCredits}</TableCell>
                                   <TableCell className="text-right font-bold text-sm">{members[0].credits}</TableCell>
                                   <TableCell className="text-right pr-6">
@@ -435,7 +323,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                                     )}
                                   </TableCell>
                                 </TableRow>
-                                {isExpanded && sortedMembers.map(sub => (
+                                {isExpanded && members.map(sub => (
                                   <SubjectRow key={sub.id} sub={sub} currentSchemeId={schemeId} schemeStatus={scheme.status} permissions={permissions} isOption onEdit={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }} onDelete={() => handleDeleteSyllabus(sub.id)} />
                                 ))}
                               </React.Fragment>
@@ -444,8 +332,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                         </TableBody>
                         <TableFooter className="bg-muted/5">
                           <TableRow>
-                            <TableCell colSpan={3} className="pl-6 text-right font-bold text-xs uppercase tracking-wider text-muted-foreground">Total Semester Credits</TableCell>
-                            <TableCell className="text-center font-mono font-bold text-xs">{semL}-{semT}-{semP}</TableCell>
+                            <TableCell colSpan={4} className="pl-6 text-right font-bold text-xs uppercase tracking-wider text-muted-foreground">Total Semester Credits</TableCell>
                             <TableCell className="text-right font-bold text-primary text-base">{semTotal}</TableCell>
                             <TableCell className="pr-6"></TableCell>
                           </TableRow>
@@ -475,23 +362,16 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {[...syllabi.filter(s => s.isOFEContribution)].sort((a,b) => (a.subjectCode || "").localeCompare(b.subjectCode || "")).map(sub => (
+                      {syllabi.filter(s => s.isOFEContribution).map(sub => (
                         <TableRow key={sub.id}>
                           <TableCell className="pl-6 font-mono font-bold text-primary">{sub.subjectCode}</TableCell>
                           <TableCell className="font-medium">{sub.title}</TableCell>
                           <TableCell>{sub.semester}</TableCell>
-                          <TableCell className="text-center font-mono text-xs">{sub.lectureCredits || 0}-{sub.tutorialCredits || 0}-{sub.practicalCredits || 0}</TableCell>
+                          <TableCell className="text-center font-mono text-xs">{sub.lectureCredits}-{sub.tutorialCredits}-{sub.practicalCredits}</TableCell>
                           <TableCell className="text-right pr-6">
-                             <div className="flex justify-end gap-2">
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }}>
-                                  <Edit3 className="w-3.5 h-3.5" />
-                                </Button>
-                                {permissions.canDelete && (
-                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={() => handleDeleteSyllabus(sub.id)}>
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </Button>
-                                )}
-                             </div>
+                             <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }}>
+                               <Edit3 className="w-3.5 h-3.5" />
+                             </Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -548,7 +428,7 @@ function SubjectRow({ sub, currentSchemeId, schemeStatus, permissions, isOption,
       </TableCell>
       <TableCell><Badge variant="secondary" className="text-[9px] font-bold">{sub.creditCategory}</Badge></TableCell>
       <TableCell className="text-center font-mono text-xs text-muted-foreground">
-        {sub.lectureCredits || 0}-{sub.tutorialCredits || 0}-{sub.practicalCredits || 0}
+        {sub.lectureCredits}-{sub.tutorialCredits}-{sub.practicalCredits}
       </TableCell>
       <TableCell className="text-right font-bold text-sm">{sub.credits}</TableCell>
       <TableCell className="text-right pr-6">
@@ -567,11 +447,6 @@ function SubjectRow({ sub, currentSchemeId, schemeStatus, permissions, isOption,
             <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={onDelete}>
               <Trash2 className="w-3.5 h-3.5" />
             </Button>
-          )}
-          {isFromPool && (
-            <div className="flex items-center px-2 text-[10px] text-muted-foreground italic">
-              View Only
-            </div>
           )}
         </div>
       </TableCell>

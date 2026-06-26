@@ -54,14 +54,14 @@ const syllabusPrompt = ai.definePrompt({
   
   For each unit, provide:
   1. A professional title.
-  2. A total hour allocation (typically 8-10 hours per unit for a standard 4-credit course).
-  3. A breakdown into 2-3 specific sub-units, each with their own title, detailed content topics, and hour allocation. Ensure sub-unit hours sum to unit total.
-  4. A clear Course Outcome (CO) statement using Bloom's Taxonomy verbs.
+  2. A total hour allocation (typically 8-10 hours per unit).
+  3. A breakdown into specific sub-units, each with their own title and hour allocation. Ensure sub-unit hours sum to unit total.
+  4. A clear Course Outcome (CO) statement.
   
   Also provide:
-  1. At least 2-3 standard Text Books in proper citation format.
-  2. Suggestions for relevant NPTEL/SWAYAM courses and YouTube educational videos.
-  3. The most fitting NEP credit category (DSC/DSE/SEC/AEC/VAC).`,
+  1. Standard Text Books in citation format.
+  2. Suggestions for NPTEL/SWAYAM and YouTube videos.
+  3. The most fitting NEP category (DSC/DSE/SEC/AEC/VAC).`,
 });
 
 export async function generateSyllabusContent(input: GenerateSyllabusInput): Promise<GenerateSyllabusOutput> {

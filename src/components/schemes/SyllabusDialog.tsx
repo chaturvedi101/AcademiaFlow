@@ -437,6 +437,12 @@ export function SyllabusDialog({
         }
       }
     }
+    
+    if (codeConflict && !isInherited) {
+      toast({ title: "Policy Violation", description: "You cannot save a course with a code that is already in use by another specification.", variant: "destructive" });
+      return;
+    }
+
     onSave(formData);
     onOpenChange(false);
   };
@@ -592,13 +598,6 @@ export function SyllabusDialog({
                         <Input disabled={isReadOnly} className="h-10" placeholder="e.g. Cyber Security Specialization" value={formData.electiveGroupName || ''} onChange={e => setFormData({...formData, electiveGroupName: e.target.value})} />
                       </div>
                     </div>
-                    {hideGroupSelection && (
-                      <div className="flex items-center gap-2 mt-2">
-                        <Badge variant="secondary" className="bg-accent/10 text-accent border-none font-bold uppercase text-[9px]">
-                          Target Pool: {formData.electiveGroupId}
-                        </Badge>
-                      </div>
-                    )}
                   </div>
                 )}
 
@@ -744,9 +743,6 @@ export function SyllabusDialog({
                                               }} />
                                            </div>
                                         </div>
-                                        <Input disabled={isReadOnly || isInherited} className="h-8 text-xs italic" placeholder="Specific detailed topics..." value={sub.content} onChange={e => {
-                                          const u = [...(formData.units || [])]; u[idx].subUnits![sIdx].content = e.target.value; setFormData({...formData, units: u});
-                                        }} />
                                      </div>
                                      <div className="col-span-1 flex justify-center pt-1">
                                         {!isReadOnly && !isInherited && (
@@ -761,11 +757,6 @@ export function SyllabusDialog({
                                      </div>
                                   </div>
                                 ))}
-                                {(!unit.subUnits || unit.subUnits.length === 0) && (
-                                  <div className="text-[10px] text-muted-foreground italic text-center py-2">
-                                     No sub-units defined for this unit.
-                                  </div>
-                                )}
                              </div>
                           </div>
                        </CardContent>
@@ -908,9 +899,6 @@ function ResourceSection({ title, icon, items, onAdd, onUpdate, onRemove, isRead
             )}
           </div>
         ))}
-        {items.length === 0 && (
-          <div className="text-[10px] text-muted-foreground italic pl-6">No resources listed.</div>
-        )}
       </div>
     </div>
   );

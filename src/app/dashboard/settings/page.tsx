@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
@@ -92,10 +93,6 @@ export default function SettingsPage() {
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
                     <span><b>AI Quota:</b> Using Gemini Flash (15 req/min) on the Free tier.</span>
                   </li>
-                  <li className="flex items-start gap-2 text-[10px] text-muted-foreground">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                    <span><b>Data Pruning:</b> Recommend setting 90-day TTL on Audit Logs.</span>
-                  </li>
                 </ul>
               </div>
 
@@ -168,10 +165,6 @@ export default function SettingsPage() {
                   <div className="bg-black/50 p-4 rounded-xl border border-slate-700 font-mono text-[10px] text-amber-300 leading-tight">
                     <p>git remote set-url origin https://[PAT]@github.com/chaturvedi101/AcademiaFlow.git</p>
                   </div>
-                </div>
-                <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl flex gap-3 text-xs text-blue-200">
-                  <Info className="w-5 h-5 shrink-0" />
-                  <p>Ensure your GitHub PAT has the <b>"repo"</b> scope selected for full authorization.</p>
                 </div>
               </div>
             </CardContent>
