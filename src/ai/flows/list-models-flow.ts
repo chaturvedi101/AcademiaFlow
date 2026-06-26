@@ -7,6 +7,8 @@ import { ai } from '@/ai/genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 
 export async function listAvailableModels() {
+  const hasKey = !!(process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY);
+  
   try {
     // Verify connection via Gemini Flash alias
     const ping = await ai.generate({
@@ -21,11 +23,13 @@ export async function listAvailableModels() {
 
     return {
       success: true,
+      hasKey,
       models: modelActions.length > 0 
         ? modelActions.map(m => ({ name: m.key, info: { supports: ['text'] } }))
         : [{ name: 'googleai/gemini-flash-latest', info: { supports: ['text'] } }],
       note: 'Connectivity verified via Gemini Flash Latest alias.',
-      response: ping.text
+      response: ping.text,
+      provider: 'Google AI Studio (Gemini API)'
     };
   } catch (error: any) {
     console.error('AI Diagnostics Failed:', error);
@@ -35,7 +39,7 @@ export async function listAvailableModels() {
     let quotaError = false;
 
     if (userMessage.includes('403') || userMessage.includes('PERMISSION_DENIED') || userMessage.includes('denied access')) {
-      userMessage = "Access Denied (403): Your API project has been restricted. Please check your billing status or API key permissions in Google AI Studio.";
+      userMessage = "Access Denied (403): Your API key project is restricted. Check Google AI Studio status.";
       isPermissionError = true;
     } else if (
       userMessage.includes('429') || 
@@ -43,16 +47,18 @@ export async function listAvailableModels() {
       userMessage.toLowerCase().includes('quota') ||
       userMessage.toLowerCase().includes('rate limit')
     ) {
-      userMessage = "Quota Exceeded (429): Request limit reached. Please wait 60 seconds.";
+      userMessage = "Quota Exceeded (429): You have reached the rate limit for your Gemini API key. This is separate from your Firebase Blaze plan.";
       quotaError = true;
     }
 
     return {
       success: false,
+      hasKey,
       error: userMessage,
       isQuotaError: quotaError,
       isPermissionError: isPermissionError,
-      details: error.stack
+      details: error.stack,
+      provider: 'Google AI Studio (Gemini API)'
     };
   }
 }
