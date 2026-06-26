@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
@@ -117,7 +118,7 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <p className="text-[10px] font-bold uppercase text-slate-500 text-amber-400">Detached HEAD Fix (Push anyway)</p>
+                <p className="text-[10px] font-bold uppercase text-amber-400">Detached HEAD Fix (Push anyway)</p>
                 <div className="bg-black/50 p-4 rounded-xl border border-slate-700 font-mono text-xs text-amber-300">
                   <p>git push origin HEAD:main</p>
                 </div>
