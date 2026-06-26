@@ -6,11 +6,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, RefreshCw, Cpu, AlertCircle, CheckCircle2, ExternalLink, Clock } from 'lucide-react';
+import { Loader2, RefreshCw, Cpu, AlertCircle, CheckCircle2, ExternalLink, Clock, ShieldAlert } from 'lucide-react';
 
 export default function DiagnosticsPage() {
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<{ success: boolean; models?: any[]; error?: string; isQuotaError?: boolean } | null>(null);
+  const [data, setData] = useState<{ 
+    success: boolean; 
+    models?: any[]; 
+    error?: string; 
+    isQuotaError?: boolean;
+    isPermissionError?: boolean;
+  } | null>(null);
 
   const fetchModels = async () => {
     setLoading(true);
@@ -61,16 +67,20 @@ export default function DiagnosticsPage() {
             ) : (
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-red-600">
-                  <AlertCircle className="w-5 h-5" />
-                  <span className="font-bold">{data?.isQuotaError ? "Quota Reached" : "Connection Error"}</span>
+                  {data?.isPermissionError ? <ShieldAlert className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+                  <span className="font-bold">
+                    {data?.isQuotaError ? "Quota Reached" : data?.isPermissionError ? "Access Forbidden" : "Connection Error"}
+                  </span>
                 </div>
-                <div className={`p-3 border rounded-lg text-xs font-mono ${data?.isQuotaError ? 'bg-amber-50 border-amber-100 text-amber-800' : 'bg-red-50 border-red-100 text-red-800'}`}>
+                <div className={`p-3 border rounded-lg text-xs font-mono ${
+                  data?.isQuotaError ? 'bg-amber-50 border-amber-100 text-amber-800' : 'bg-red-50 border-red-100 text-red-800'
+                }`}>
                   {data?.error || "Unknown initialization error"}
                 </div>
-                {data?.isQuotaError && (
-                  <div className="flex items-start gap-2 p-3 bg-amber-100/50 rounded-lg text-[10px] text-amber-900">
-                    <Clock className="w-3 h-3 mt-0.5 shrink-0" />
-                    <p>The free tier allows 15 requests per minute. Please wait 60 seconds and refresh.</p>
+                {data?.isPermissionError && (
+                  <div className="flex items-start gap-2 p-3 bg-red-100/50 rounded-lg text-[10px] text-red-900">
+                    <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" />
+                    <p>Your Google Cloud project or API key has been denied access. This usually happens if the project is disabled or flagged. Please check your credentials.</p>
                   </div>
                 )}
                 <Button variant="outline" size="sm" className="w-full gap-2 text-[10px]" asChild>

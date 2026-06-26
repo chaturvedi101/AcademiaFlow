@@ -17,8 +17,6 @@ export const ai = genkit({
   plugins: [
     googleAI({
       apiKey: apiKey,
-      // v1beta is recommended for stable support of structured output and newer models
-      apiVersion: 'v1beta',
     }),
   ],
   // Use the standard stable alias for Gemini Flash

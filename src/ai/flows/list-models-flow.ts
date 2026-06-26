@@ -31,15 +31,19 @@ export async function listAvailableModels() {
     console.error('AI Diagnostics Failed:', error);
     
     let userMessage = error.message || 'Unknown error during AI diagnostics.';
+    let isPermissionError = false;
     let quotaError = false;
 
-    if (
+    if (userMessage.includes('403') || userMessage.includes('PERMISSION_DENIED') || userMessage.includes('denied access')) {
+      userMessage = "Access Denied (403): Your API project has been restricted. Please check your billing status or API key permissions in Google AI Studio.";
+      isPermissionError = true;
+    } else if (
       userMessage.includes('429') || 
       userMessage.includes('RESOURCE_EXHAUSTED') || 
       userMessage.toLowerCase().includes('quota') ||
       userMessage.toLowerCase().includes('rate limit')
     ) {
-      userMessage = "Quota Exceeded (429): You have reached the request limit for the Gemini free tier. Please wait at least 60 seconds before retrying.";
+      userMessage = "Quota Exceeded (429): Request limit reached. Please wait 60 seconds.";
       quotaError = true;
     }
 
@@ -47,6 +51,7 @@ export async function listAvailableModels() {
       success: false,
       error: userMessage,
       isQuotaError: quotaError,
+      isPermissionError: isPermissionError,
       details: error.stack
     };
   }
