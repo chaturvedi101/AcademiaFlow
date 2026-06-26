@@ -147,7 +147,7 @@ export default function SettingsPage() {
                 <Zap className="w-4 h-4" /> THE NUCLEAR OPTION (Fixes ECONNREFUSED)
               </div>
               <p className="text-[10px] text-red-800">
-                If Git keeps failing with <code>ECONNREFUSED</code> or <code>Missing credentials</code>, run this command to embed your token directly:
+                If Git keeps failing with <code>ECONNREFUSED</code>, run this command to embed your token directly in the remote URL:
               </p>
               <div className="bg-slate-900 p-3 rounded-lg font-mono text-[9px] text-blue-300 break-all">
                 git remote set-url origin https://&lt;YOUR_TOKEN&gt;@github.com/chaturvedi101/AcademiaFlow.git

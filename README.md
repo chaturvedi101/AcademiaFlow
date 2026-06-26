@@ -27,7 +27,6 @@ To activate the **AI Architect** features:
 ### 🛠 Required Token Permissions
 When creating your **Personal Access Token (Classic)** on GitHub, you must select the following scope:
 - **`repo`** (Full control of private repositories)
-  - This is required to push code, manage branches, and update the remote repository.
 
 ### ⚡ EMERGENCY: Fixing "ECONNREFUSED" Socket Errors
 If you see errors like `connect ECONNREFUSED /tmp/vscode-git...`, use the **Nuclear Option** to bypass the broken credential helper:
@@ -48,13 +47,13 @@ npm run git:setup
 ```
 
 ### 2. Resolving "Invalid username or token" (Detached HEAD)
-If you are in a "detached HEAD" state (common when syncing from Studio):
+If you are in a "detached HEAD" state:
 ```bash
 git push origin HEAD:main
 ```
 
 ### 3. Resolving Authentication Cache Issues
-If you see `ECONNREFUSED` or authentication fails repeatedly:
+If authentication fails repeatedly:
 1. **Clear Credential Helper**:
    ```bash
    git config --global --unset credential.helper
@@ -62,11 +61,3 @@ If you see `ECONNREFUSED` or authentication fails repeatedly:
    ```
 2. **Push with the Token**:
    - When asked for a password, **paste the token** instead of your GitHub password.
-
-## 🛠 Tech Stack
-
-- **Framework**: Next.js 15 (App Router)
-- **Styling**: Tailwind CSS + ShadCN UI
-- **Backend**: Firebase (Authentication, Firestore)
-- **AI Engine**: Google Genkit + Gemini 2.5 Flash
-- **Exports**: jsPDF with AutoTable
