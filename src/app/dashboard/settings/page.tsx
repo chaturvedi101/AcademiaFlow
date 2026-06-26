@@ -7,7 +7,7 @@ import { UserProfile } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Github, Globe, ShieldCheck, User, Code, Info, Terminal, ExternalLink, AlertTriangle, Key } from 'lucide-react';
+import { Github, Globe, ShieldCheck, User, Code, Info, Terminal, ExternalLink, AlertTriangle, Key, Zap } from 'lucide-react';
 
 export default function SettingsPage() {
   const db = useFirestore();
@@ -111,13 +111,7 @@ export default function SettingsPage() {
           <CardContent className="space-y-6">
             <div className="space-y-4">
               <div className="space-y-2">
-                <p className="text-[10px] font-bold uppercase text-slate-500">1. Commit Changes</p>
-                <div className="bg-black/50 p-4 rounded-xl border border-slate-700 font-mono text-xs text-blue-300">
-                  <p>npm run git:commit</p>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <p className="text-[10px] font-bold uppercase text-slate-500">2. Force Push (Detached HEAD Fix)</p>
+                <p className="text-[10px] font-bold uppercase text-slate-500">1. Force Push (Detached HEAD Fix)</p>
                 <div className="bg-black/50 p-4 rounded-xl border border-slate-700 font-mono text-xs text-amber-300">
                   <p>git push origin HEAD:main</p>
                 </div>
@@ -134,32 +128,27 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-red-600">
               <AlertTriangle className="w-5 h-5" />
-              Fix Authentication Errors
+              Persistent Authentication Fix
             </CardTitle>
-            <CardDescription>Resolve "Invalid username or token" and ECONNREFUSED errors.</CardDescription>
+            <CardDescription>The "Last Resort" solution for socket and credential errors.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <p className="text-[10px] font-bold uppercase text-red-900">Step 1: Clear Broken Credential Socket</p>
-              <div className="bg-white p-3 rounded-lg border border-red-200 font-mono text-[10px] text-red-900">
-                git config --global --unset credential.helper
+            <div className="p-4 bg-white border border-red-200 rounded-xl space-y-4">
+              <div className="flex items-center gap-2 text-red-900 font-bold text-xs">
+                <Zap className="w-4 h-4" /> THE NUCLEAR OPTION (Fixes ECONNREFUSED)
               </div>
-              <p className="text-[9px] text-red-700 italic">This fixes ECONNREFUSED by forcing a direct password prompt.</p>
-            </div>
-            
-            <div className="space-y-2">
-              <p className="text-[10px] font-bold uppercase text-red-900">Step 2: Generate GitHub PAT</p>
               <p className="text-[10px] text-red-800">
-                Go to GitHub Settings &rarr; Developer Settings &rarr; Personal Access Tokens (Classic) &rarr; Generate New Token.
-                Select the <strong>'repo'</strong> scope.
+                If Git keeps failing with <code>ECONNREFUSED</code> or <code>Missing credentials</code>, run this command to embed your token directly:
               </p>
-            </div>
-
-            <div className="space-y-2">
-              <p className="text-[10px] font-bold uppercase text-red-900">Step 3: Push with Token</p>
-              <p className="text-[10px] text-red-800">
-                Run the push command again. When it asks for your password, <strong>paste the token</strong>.
+              <div className="bg-slate-900 p-3 rounded-lg font-mono text-[9px] text-blue-300 break-all">
+                git remote set-url origin https://&lt;YOUR_TOKEN&gt;@github.com/chaturvedi101/AcademiaFlow.git
+              </div>
+              <p className="text-[9px] text-slate-500 italic">
+                * Replace <code>&lt;YOUR_TOKEN&gt;</code> with your actual GitHub PAT.
               </p>
+              <Button size="sm" className="w-full h-8 bg-red-600 hover:bg-red-700 text-[10px]" onClick={() => window.open('https://github.com/settings/tokens', '_blank')}>
+                Generate Token Now
+              </Button>
             </div>
           </CardContent>
         </Card>
