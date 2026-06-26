@@ -7,7 +7,7 @@ import { UserProfile } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Github, Globe, ShieldCheck, User, Code, Info, Terminal, ExternalLink, AlertTriangle } from 'lucide-react';
+import { Github, Globe, ShieldCheck, User, Code, Info, Terminal, ExternalLink, AlertTriangle, Key } from 'lucide-react';
 
 export default function SettingsPage() {
   const db = useFirestore();
@@ -111,14 +111,13 @@ export default function SettingsPage() {
           <CardContent className="space-y-6">
             <div className="space-y-4">
               <div className="space-y-2">
-                <p className="text-[10px] font-bold uppercase text-slate-500">Standard Push</p>
-                <div className="bg-black/50 p-4 rounded-xl border border-slate-700 font-mono text-xs text-blue-300 space-y-1">
+                <p className="text-[10px] font-bold uppercase text-slate-500">1. Commit Changes</p>
+                <div className="bg-black/50 p-4 rounded-xl border border-slate-700 font-mono text-xs text-blue-300">
                   <p>npm run git:commit</p>
-                  <p>git push origin main</p>
                 </div>
               </div>
               <div className="space-y-2">
-                <p className="text-[10px] font-bold uppercase text-amber-400">Detached HEAD Fix (Push anyway)</p>
+                <p className="text-[10px] font-bold uppercase text-slate-500">2. Force Push (Detached HEAD Fix)</p>
                 <div className="bg-black/50 p-4 rounded-xl border border-slate-700 font-mono text-xs text-amber-300">
                   <p>git push origin HEAD:main</p>
                 </div>
@@ -135,23 +134,32 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-red-600">
               <AlertTriangle className="w-5 h-5" />
-              Authentication Errors
+              Fix Authentication Errors
             </CardTitle>
-            <CardDescription>Fix "Invalid username or token" errors.</CardDescription>
+            <CardDescription>Resolve "Invalid username or token" and ECONNREFUSED errors.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-xs text-red-800 leading-relaxed">
-              GitHub does not support your normal password for Git commands. You must use a <strong>Token</strong>.
-            </p>
             <div className="space-y-2">
-              <p className="text-[10px] font-bold uppercase text-red-900">1. Generate Token</p>
-              <p className="text-[10px] text-red-700">Settings -> Developer Settings -> Tokens (Classic) -> Generate New Token (select 'repo' scope).</p>
-            </div>
-            <div className="space-y-2">
-              <p className="text-[10px] font-bold uppercase text-red-900">2. Reset Stored Password</p>
+              <p className="text-[10px] font-bold uppercase text-red-900">Step 1: Clear Broken Credential Socket</p>
               <div className="bg-white p-3 rounded-lg border border-red-200 font-mono text-[10px] text-red-900">
                 git config --global --unset credential.helper
               </div>
+              <p className="text-[9px] text-red-700 italic">This fixes ECONNREFUSED by forcing a direct password prompt.</p>
+            </div>
+            
+            <div className="space-y-2">
+              <p className="text-[10px] font-bold uppercase text-red-900">Step 2: Generate GitHub PAT</p>
+              <p className="text-[10px] text-red-800">
+                Go to GitHub Settings &rarr; Developer Settings &rarr; Personal Access Tokens (Classic) &rarr; Generate New Token.
+                Select the <strong>'repo'</strong> scope.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-[10px] font-bold uppercase text-red-900">Step 3: Push with Token</p>
+              <p className="text-[10px] text-red-800">
+                Run the push command again. When it asks for your password, <strong>paste the token</strong>.
+              </p>
             </div>
           </CardContent>
         </Card>

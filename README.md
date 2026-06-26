@@ -30,15 +30,18 @@ If the remote repository is not already linked:
 npm run git:setup
 ```
 
-### 2. Resolving Authentication Errors
+### 2. Resolving "Invalid username or token" (Authentication)
 If you see **"Invalid username or token"** or **"Password authentication is not supported"**:
 
-1. **Generate a PAT**:
+1. **Clear Credential Helper**: If you see `ECONNREFUSED` errors, run:
+   ```bash
+   git config --global --unset credential.helper
+   ```
+2. **Generate a PAT**:
    - Go to GitHub -> Settings -> Developer Settings -> **Personal Access Tokens (Tokens classic)**.
    - Click **Generate new token (classic)**.
    - Select the `repo` scope and generate. **Copy this token immediately.**
-
-2. **Push with the Token**:
+3. **Push with the Token**:
    - When you run `git push origin main` and it asks for a password, **paste the token** instead of your GitHub password.
 
 ### 3. Resolving "Not currently on a branch" (Detached HEAD)
@@ -51,11 +54,6 @@ git push origin HEAD:main
 To stage and commit all recent academic updates:
 ```bash
 npm run git:commit
-```
-
-### 5. Pushing to GitHub
-```bash
-git push origin main
 ```
 
 ## 🛠 Tech Stack
