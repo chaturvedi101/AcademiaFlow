@@ -320,6 +320,7 @@ export function SyllabusDialog({
   const isReadOnly = !canEdit;
   const isTheory = formData.type === 'Theory';
   const isInstitutionalCategory = ['VAC', 'AEC', 'MDC', 'SEC', 'OFE'].includes(formData.creditCategory || '');
+  const isElectiveCategory = ['DSE', 'OFE'].includes(formData.creditCategory || '');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -405,14 +406,42 @@ export function SyllabusDialog({
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Subject Title</Label>
-                    <Input disabled={isReadOnly || formData.isOFESlot} className="h-11" value={formData.title || ''} onChange={e => setFormData({ ...formData, title: e.target.value })} />
+                    <Input disabled={isReadOnly || formData.isOFESlot} className="h-11" placeholder="e.g. Machine Learning" value={formData.title || ''} onChange={e => setFormData({ ...formData, title: e.target.value })} />
                   </div>
                 </div>
+
+                {isElectiveCategory && (
+                  <div className="p-4 bg-accent/5 border border-accent/20 rounded-xl space-y-4">
+                    <div className="flex items-center gap-2 text-accent">
+                      <Layers className="w-4 h-4" />
+                      <span className="text-xs font-bold uppercase">Elective Group Identity</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-xs">Group Identifier (e.g. Elective-I)</Label>
+                        <Select disabled={isReadOnly} value={formData.electiveGroupId} onValueChange={v => setFormData({...formData, electiveGroupId: v})}>
+                          <SelectTrigger className="h-10"><SelectValue placeholder="Select group..." /></SelectTrigger>
+                          <SelectContent>
+                            {availableElectiveGroups.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Friendly Pool Name</Label>
+                        <Input disabled={isReadOnly} className="h-10" placeholder="e.g. Cyber Security Specialization" value={formData.electiveGroupName || ''} onChange={e => setFormData({...formData, electiveGroupName: e.target.value})} />
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground italic">Grouping subjects here ensures they share a single credit slot in the scheme structure.</p>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Code</Label>
-                    <Input disabled={isReadOnly || formData.isOFESlot} className="font-mono h-11" value={formData.isOFESlot ? 'POOL-ELECTIVE' : (formData.subjectCode || '')} onChange={e => setFormData({ ...formData, subjectCode: e.target.value.toUpperCase() })} />
+                    <Input disabled={isReadOnly || formData.isOFESlot} className="font-mono h-11" value={formData.isOFESlot ? 'POOL-ELECTIVE' : (formData.subjectCode || '')} onChange={e => {
+                      setIsManuallyEditedCode(true);
+                      setFormData({ ...formData, subjectCode: e.target.value.toUpperCase() });
+                    }} />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Type</Label>
@@ -421,6 +450,28 @@ export function SyllabusDialog({
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Sem</Label>
                     <Select disabled={isReadOnly} value={String(formData.semester)} onValueChange={v => setFormData({ ...formData, semester: Number(v) })}><SelectTrigger className="h-11"><SelectValue /></SelectTrigger><SelectContent>{[1,2,3,4,5,6,7,8].map(s => <SelectItem key={s} value={String(s)}>Sem {s}</SelectItem>)}</SelectContent></Select>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <Label className="text-sm font-semibold">L-T-P Distribution</Label>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Lecture (L)</Label>
+                      <Input disabled={isReadOnly} type="number" min="0" value={formData.lectureCredits || 0} onChange={e => setFormData({ ...formData, lectureCredits: Number(e.target.value) })} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Tutorial (T)</Label>
+                      <Input disabled={isReadOnly} type="number" min="0" value={formData.tutorialCredits || 0} onChange={e => setFormData({ ...formData, tutorialCredits: Number(e.target.value) })} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Practical (P)</Label>
+                      <Input disabled={isReadOnly} type="number" min="0" value={formData.practicalCredits || 0} onChange={e => setFormData({ ...formData, practicalCredits: Number(e.target.value) })} />
+                    </div>
+                  </div>
+                  <div className="p-3 bg-primary/5 rounded-lg flex items-center justify-between">
+                    <span className="text-sm font-medium">Calculated Credits</span>
+                    <Badge variant="secondary" className="text-lg font-bold px-4">{formData.credits || 0}</Badge>
                   </div>
                 </div>
               </TabsContent>
@@ -455,6 +506,12 @@ export function SyllabusDialog({
                        </CardContent>
                      </Card>
                    ))}
+                   {(!formData.units || formData.units.length === 0) && (
+                     <div className="text-center py-12 border border-dashed rounded-xl bg-muted/20">
+                       <BookOpen className="w-12 h-12 mx-auto mb-2 opacity-10" />
+                       <p className="text-sm text-muted-foreground italic">No syllabus units defined yet.</p>
+                     </div>
+                   )}
                  </div>
               </TabsContent>
 

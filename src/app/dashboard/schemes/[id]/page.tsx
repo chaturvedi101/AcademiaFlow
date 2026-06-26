@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
@@ -336,10 +337,24 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                   }
                 });
 
-                // Total Semester Credits calculation: elective groups count only once
                 const semTotal = [
                   ...Object.values(groups).map(g => g[0].credits || 0),
                   ...nonGrouped.map(s => s.credits || 0)
+                ].reduce((a, b) => a + b, 0);
+
+                const semL = [
+                  ...Object.values(groups).map(g => g[0].lectureCredits || 0),
+                  ...nonGrouped.map(s => s.lectureCredits || 0)
+                ].reduce((a, b) => a + b, 0);
+
+                const semT = [
+                  ...Object.values(groups).map(g => g[0].tutorialCredits || 0),
+                  ...nonGrouped.map(s => s.tutorialCredits || 0)
+                ].reduce((a, b) => a + b, 0);
+
+                const semP = [
+                  ...Object.values(groups).map(g => g[0].practicalCredits || 0),
+                  ...nonGrouped.map(s => s.practicalCredits || 0)
                 ].reduce((a, b) => a + b, 0);
 
                 return (
@@ -403,7 +418,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                         </TableBody>
                         <TableFooter className="bg-muted/5">
                           <TableRow>
-                            <TableCell colSpan={4} className="pl-6 text-right font-bold text-xs uppercase tracking-wider text-muted-foreground">Total Semester Credits</TableCell>
+                            <TableCell colSpan={3} className="pl-6 text-right font-bold text-xs uppercase tracking-wider text-muted-foreground">Total Semester Credits</TableCell>
+                            <TableCell className="text-center font-mono font-bold text-xs">{semL}-{semT}-{semP}</TableCell>
                             <TableCell className="text-right font-bold text-primary text-base">{semTotal}</TableCell>
                             <TableCell className="pr-6"></TableCell>
                           </TableRow>
