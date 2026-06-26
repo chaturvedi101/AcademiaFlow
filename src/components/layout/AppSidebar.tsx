@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo } from 'react';
@@ -88,6 +89,7 @@ export function AppSidebar() {
             height={100}
             className="object-contain"
             data-ai-hint={rtuLogo?.imageHint || "RTU Emblem"}
+            unoptimized
           />
         </div>
         <div className="flex flex-col group-data-[collapsible=icon]:hidden">

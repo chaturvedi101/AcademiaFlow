@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from "react";
@@ -146,6 +147,8 @@ export default function Home() {
                 height={200}
                 className="object-contain p-2"
                 data-ai-hint={rtuLogo?.imageHint || "RTU Logo"}
+                priority
+                unoptimized
               />
             </div>
             <div>
