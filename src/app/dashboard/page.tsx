@@ -119,7 +119,7 @@ export default function DashboardPage() {
         <Card className="shadow-sm">
           <CardHeader><CardTitle className="font-headline">Quick Actions</CardTitle></CardHeader>
           <CardContent className="flex flex-col gap-3">
-            {profile?.role === 'admin' && <ActionLink href="/dashboard/schemes" label="Draft New Scheme" icon={<Plus className="w-4 h-4" />} />}
+            {(['admin', 'dean_academic'].includes(profile?.role || '')) && <ActionLink href="/dashboard/schemes" label="Draft New Scheme" icon={<Plus className="w-4 h-4" />} />}
             {profile?.role === 'bos_convenor' && profile?.faculty !== 'University-wide (Common BOS)' && <ActionLink href="/dashboard/team" label="Manage BoS Team" icon={<UserCircle className="w-4 h-4" />} />}
             {(['bos_convenor', 'admin'].includes(profile?.role || '')) && <ActionLink href="/dashboard/equivalence" label="Map Equivalence" icon={<Layers className="w-4 h-4" />} />}
             {(['dean_faculty', 'dean_academic', 'admin'].includes(profile?.role || '')) && <ActionLink href="/dashboard/approvals" label="Review Pending" icon={<FileCheck className="w-4 h-4" />} />}

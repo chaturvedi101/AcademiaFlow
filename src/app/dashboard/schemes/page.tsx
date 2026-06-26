@@ -185,7 +185,6 @@ export default function SchemesPage() {
         if (cat === 'AEC') prefix = 'AE';
         else if (cat === 'MDC') prefix = 'MD';
         else if (cat === 'VAC') prefix = 'VA';
-        // OFE now uses the branch prefix determined above, so we don't force 'RT' here
         else if (isCommonBos) prefix = 'RT';
         
         counters[cat]++;
@@ -278,7 +277,7 @@ export default function SchemesPage() {
 
   if (schemesLoading) return <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
-  const canCreateScheme = profile?.role === 'admin' || profile?.role === 'dean_faculty' || (profile?.role === 'bos_convenor' && isCommonBos);
+  const canCreateScheme = profile?.role === 'admin' || profile?.role === 'dean_academic';
 
   return (
     <div className="space-y-6">
