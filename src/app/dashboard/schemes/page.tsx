@@ -114,7 +114,7 @@ export default function SchemesPage() {
       credits: 4,
       isInherited: false,
       subjectCode: '',
-      title: ''
+      title: isCommonBos ? '' : 'Elective Group'
     };
     setSemesterSlots([...semesterSlots, newSlot]);
   };
@@ -171,6 +171,8 @@ export default function SchemesPage() {
       semesterSlots.forEach(slot => {
         const cat = slot.creditCategory;
         let prefix = branchPrefix || 'GEN';
+        
+        // Strictly apply requested institutional prefixes
         if (cat === 'AEC') prefix = 'AB';
         else if (cat === 'MDC') prefix = 'MD';
         else if (cat === 'VAC') prefix = 'VA';
@@ -179,48 +181,84 @@ export default function SchemesPage() {
         
         counters[cat]++;
         const seq = counters[cat];
+        
         let pedagogy = 'L';
         if (cat === 'PRJ') pedagogy = 'I';
+        else if (slot.title?.toLowerCase().includes('lab') || slot.title?.toLowerCase().includes('practical')) pedagogy = 'P';
         
         const pillar = ['DSE', 'OFE'].includes(cat) ? 'E' : 'C';
         const year = Math.ceil(slot.semester / 2);
-        const autoCode = `${prefix}${pedagogy}${pillar}${year}${String(seq).padStart(2, '0')}`;
-        const finalCode = slot.subjectCode || autoCode;
-        const slotId = `SLOT-${cat}-${slot.semester}-${slot.id}`;
-        const slotRef = doc(db, 'schemes', generatedCode, 'syllabi', slotId);
-        
-        const data: any = {
-          id: slotId,
-          schemeId: generatedCode,
-          subjectCode: finalCode,
-          semester: slot.semester,
-          creditCategory: cat,
-          credits: slot.credits,
-          title: slot.title || `${cat} Slot`,
-          isSlot: true,
-          isOFESlot: cat === 'OFE',
-          type: 'Theory',
-          lectureCredits: slot.credits,
-          tutorialCredits: 0,
-          practicalCredits: 0,
-          units: [],
-          poMappings: {},
-          prerequisites: [],
-          courseOutcomes: [],
-          textBooks: [],
-          referenceBooks: []
-        };
+        const baseAutoCode = `${prefix}${pedagogy}${pillar}${year}${String(seq).padStart(2, '0')}`;
+        const finalCode = slot.subjectCode || baseAutoCode;
 
-        // Only add electiveGroupId if it belongs to an elective category to avoid Firestore undefined error
-        if (['DSE', 'OFE'].includes(cat) && slot.title) {
-          data.electiveGroupId = slot.title;
+        // Expansion for DSE: Create 3 options by default
+        if (cat === 'DSE') {
+          for (let i = 1; i <= 3; i++) {
+            const optionId = `SLOT-${cat}-${slot.semester}-${slot.id}-${i}`;
+            const optionRef = doc(db, 'schemes', generatedCode, 'syllabi', optionId);
+            const optionCode = `${finalCode}.${i}`;
+            
+            const data: any = {
+              id: optionId,
+              schemeId: generatedCode,
+              subjectCode: optionCode,
+              semester: slot.semester,
+              creditCategory: cat,
+              credits: slot.credits,
+              title: `${slot.title || 'Elective'} - Subject ${i}`,
+              isSlot: true,
+              isOFESlot: false,
+              type: 'Theory',
+              lectureCredits: slot.credits,
+              tutorialCredits: 0,
+              practicalCredits: 0,
+              units: [],
+              poMappings: {},
+              prerequisites: [],
+              courseOutcomes: [],
+              textBooks: [],
+              referenceBooks: [],
+              electiveGroupId: slot.title || 'Elective Group'
+            };
+            batch.set(optionRef, data);
+          }
+        } else {
+          // Standard Single Slot
+          const slotId = `SLOT-${cat}-${slot.semester}-${slot.id}`;
+          const slotRef = doc(db, 'schemes', generatedCode, 'syllabi', slotId);
+          
+          const data: any = {
+            id: slotId,
+            schemeId: generatedCode,
+            subjectCode: finalCode,
+            semester: slot.semester,
+            creditCategory: cat,
+            credits: slot.credits,
+            title: slot.title || `${cat} Slot`,
+            isSlot: true,
+            isOFESlot: cat === 'OFE',
+            type: pedagogy === 'P' ? 'Lab/Sessional' : 'Theory',
+            lectureCredits: slot.credits,
+            tutorialCredits: 0,
+            practicalCredits: 0,
+            units: [],
+            poMappings: {},
+            prerequisites: [],
+            courseOutcomes: [],
+            textBooks: [],
+            referenceBooks: []
+          };
+
+          if (cat === 'OFE' && slot.title) {
+            data.electiveGroupId = slot.title;
+          }
+          
+          batch.set(slotRef, data);
         }
-        
-        batch.set(slotRef, data);
       });
 
       await batch.commit();
-      toast({ title: "Success", description: "Scheme architecture initialized." });
+      toast({ title: "Success", description: "Scheme architecture initialized with expanded elective groups." });
       setIsDialogOpen(false);
       router.push(`/dashboard/schemes/${generatedCode}`);
     } catch (error) {
@@ -320,6 +358,10 @@ export default function SchemesPage() {
             </div>
           ) : (
             <div className="py-4 space-y-6">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-[10px] text-amber-800 flex gap-2">
+                <ShieldCheck className="w-4 h-4 shrink-0" />
+                <p>Note: DSE slots will be expanded into 3 subject options (Option .1, .2, .3) automatically during scheme creation.</p>
+              </div>
               <ScrollArea className="h-[400px] pr-4">
                 {Array.from({ length: selectedProgram?.totalSemesters || 8 }, (_, i) => i + 1).map(sem => (
                   <div key={sem} className="mb-6 border rounded-xl p-4 bg-muted/20">
