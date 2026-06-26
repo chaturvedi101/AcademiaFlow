@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -121,7 +120,6 @@ export function SyllabusDialog({
 
   const availableElectiveGroups = useMemo(() => {
     const defaults = formData.creditCategory === 'DSE' ? DEFAULT_DSE_GROUPS : (formData.creditCategory === 'OFE' ? DEFAULT_OFE_GROUPS : []);
-    // Include current group ID if it's not in defaults (e.g. custom from Program master)
     if (formData.electiveGroupId && !defaults.includes(formData.electiveGroupId)) {
       return [formData.electiveGroupId, ...defaults];
     }
@@ -171,12 +169,8 @@ export function SyllabusDialog({
     let finalCode = `${baseCode}${String(sequence).padStart(2, '0')}`;
 
     if (formData.electiveGroupId) {
-      // Find siblings in the same elective group to determine suffix
       const peers = existingSyllabi.filter(s => s.electiveGroupId === formData.electiveGroupId);
-      
-      // If we are editing an existing course in the group, we don't increment
       const isAlreadyInGroup = peers.some(p => p.id === formData.id || p.subjectCode === formData.subjectCode);
-      
       let suffix = peers.length + (isAlreadyInGroup ? 0 : 1);
       finalCode = `${finalCode}.${suffix}`;
     } else {
@@ -197,7 +191,6 @@ export function SyllabusDialog({
       const initialCategory = syllabus.creditCategory || (isNew && isStrictlyCommonBOS ? 'AEC' : 'DSC');
 
       let initialTitle = syllabus.title || '';
-      // Automated Title Generation for Elective Group Options
       if (isNew && syllabus.electiveGroupId) {
         const peers = existingSyllabi.filter(s => s.electiveGroupId === syllabus.electiveGroupId);
         const nextNum = peers.length + 1;
@@ -223,8 +216,8 @@ export function SyllabusDialog({
         isCommonCourse: false,
         isOFESlot: false,
         isOFEContribution: false,
-        ...syllabus, // This spreads passed electiveGroupId and category
-        title: initialTitle, // Re-enforce generated title if it was a new group option
+        ...syllabus,
+        title: initialTitle,
         creditCategory: initialCategory,
       });
       
@@ -357,9 +350,11 @@ export function SyllabusDialog({
   };
 
   const isReadOnly = !canEdit;
-  const isTheory = formData.type === 'Theory';
   const isInstitutionalCategory = ['VAC', 'AEC', 'MDC', 'SEC', 'OFE'].includes(formData.creditCategory || '');
   const isElectiveCategory = ['DSE', 'OFE'].includes(formData.creditCategory || '');
+  
+  // Logic to hide Group Identifier selection if pre-filled via props
+  const hideGroupSelection = syllabus?.electiveGroupId !== undefined && syllabus.electiveGroupId !== '';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -455,24 +450,34 @@ export function SyllabusDialog({
                   <div className="p-4 bg-accent/5 border border-accent/20 rounded-xl space-y-4">
                     <div className="flex items-center gap-2 text-accent">
                       <Layers className="w-4 h-4" />
-                      <span className="text-xs font-bold uppercase">Elective Group Identity</span>
+                      <span className="text-xs font-bold uppercase">Elective Pool Context</span>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-xs">Group Identifier (e.g. Elective-I)</Label>
-                        <Select disabled={isReadOnly} value={formData.electiveGroupId} onValueChange={v => setFormData({...formData, electiveGroupId: v})}>
-                          <SelectTrigger className="h-10"><SelectValue placeholder="Select group..." /></SelectTrigger>
-                          <SelectContent>
-                            {availableElectiveGroups.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
+                      {/* Hide the Group ID selection if it was provided from the structure row */}
+                      {!hideGroupSelection && (
+                        <div className="space-y-2">
+                          <Label className="text-xs">Group Identifier (e.g. Elective-I)</Label>
+                          <Select disabled={isReadOnly} value={formData.electiveGroupId} onValueChange={v => setFormData({...formData, electiveGroupId: v})}>
+                            <SelectTrigger className="h-10"><SelectValue placeholder="Select group..." /></SelectTrigger>
+                            <SelectContent>
+                              {availableElectiveGroups.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                      <div className={hideGroupSelection ? "col-span-full space-y-2" : "space-y-2"}>
                         <Label className="text-xs">Friendly Pool Name</Label>
                         <Input disabled={isReadOnly} className="h-10" placeholder="e.g. Cyber Security Specialization" value={formData.electiveGroupName || ''} onChange={e => setFormData({...formData, electiveGroupName: e.target.value})} />
                       </div>
                     </div>
-                    <p className="text-[10px] text-muted-foreground italic">Grouping subjects here ensures they share a single credit slot in the scheme structure.</p>
+                    {hideGroupSelection && (
+                      <div className="flex items-center gap-2 mt-2">
+                        <Badge variant="secondary" className="bg-accent/10 text-accent border-none font-bold uppercase text-[9px]">
+                          Target Pool: {formData.electiveGroupId}
+                        </Badge>
+                      </div>
+                    )}
+                    <p className="text-[10px] text-muted-foreground italic">Group subjects here share a single credit slot in the structure.</p>
                   </div>
                 )}
 
