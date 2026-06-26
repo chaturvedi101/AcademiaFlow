@@ -25,7 +25,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const { toast } = useToast();
 
   const userDocRef = useMemoFirebase(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
-  const { data: profile, loading: profileLoading } = useDoc<UserProfile>(userDocRef);
+  const { data: profile } = useDoc<UserProfile>(userDocRef);
 
   const schemeRef = useMemoFirebase(() => doc(db, 'schemes', schemeId), [db, schemeId]);
   const { data: scheme, loading: schemeLoading } = useDoc<Scheme>(schemeRef);
@@ -94,7 +94,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       }
     });
 
-    return Array.from(finalById.values()).sort((a, b) => (a.semester || 1) - (b.semester || 1));
+    // Sort by semester then by subjectCode ascending
+    return Array.from(finalById.values()).sort((a, b) => {
+      if ((a.semester || 1) !== (b.semester || 1)) {
+        return (a.semester || 1) - (b.semester || 1);
+      }
+      return (a.subjectCode || "").localeCompare(b.subjectCode || "");
+    });
   }, [localSyllabi, poolSyllabi, schemeId]);
 
   const toggleGroup = (groupId: string) => {
@@ -348,6 +354,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                   }
                 });
 
+                const sortedGroupEntries = Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0]));
+
                 const semTotal = [
                   ...Object.values(groups).map(g => g[0].credits || 0),
                   ...nonGrouped.map(s => s.credits || 0)
@@ -396,7 +404,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                           {nonGrouped.map(sub => (
                             <SubjectRow key={sub.id} sub={sub} currentSchemeId={schemeId} schemeStatus={scheme.status} permissions={permissions} onEdit={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }} onDelete={() => handleDeleteSyllabus(sub.id)} />
                           ))}
-                          {Object.entries(groups).map(([groupId, members]) => {
+                          {sortedGroupEntries.map(([groupId, members]) => {
                             const isExpanded = expandedGroups[groupId];
                             const isOfePool = members.some(m => m.creditCategory === 'OFE' && m.isOFESlot);
                             return (
