@@ -318,8 +318,8 @@ export function SyllabusDialog({
     const p = Number(formData.practicalCredits) || 0;
 
     // AICTE Rule Logic:
-    // Standard ratio is 2 hours = 1 credit (0.5 ratio).
-    // Exception: 3 hours = 2 credits.
+    // 3 hours = 2 credits (exception)
+    // 2 hours = 1 credit, 4 hours = 2 credits (standard 2:1 ratio)
     let pCredits = p / 2;
     if (p === 3) {
       pCredits = 2;
@@ -631,7 +631,7 @@ export function SyllabusDialog({
                   <div className="p-3 bg-primary/5 rounded-lg flex items-center justify-between">
                     <div>
                       <span className="text-sm font-medium">Calculated Credits</span>
-                      <p className="text-[10px] text-muted-foreground">AICTE Rule: 3 Hrs = 2 Cr (Standard 2:1 ratio)</p>
+                      <p className="text-[10px] text-muted-foreground">AICTE Exception: 3 Hrs = 2 Credits (Others 2:1 ratio)</p>
                     </div>
                     <Badge variant="secondary" className="text-lg font-bold px-4">{formData.credits || 0}</Badge>
                   </div>
@@ -679,78 +679,6 @@ export function SyllabusDialog({
                                 <Trash2 className="w-4 h-4"/>
                               </Button>
                             )}
-                          </div>
-                       </CardHeader>
-                       <CardContent className={cn("p-4 space-y-4", !expandedUnits[unit.id] && "hidden")}>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             <div className="space-y-2">
-                               <Label className="text-[10px] uppercase font-bold text-muted-foreground">Unit Title</Label>
-                               <Input disabled={isReadOnly} placeholder="Unit Title" value={unit.title} onChange={e => {
-                                 const u = [...(formData.units || [])]; u[idx].title = e.target.value; setFormData({...formData, units: u});
-                               }} />
-                             </div>
-                             <div className="space-y-2">
-                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Outcome (CO)</Label>
-                                <Input disabled={isReadOnly} placeholder="Learning outcome..." value={unit.courseOutcome} onChange={e => {
-                                  const u = [...(formData.units || [])]; u[idx].courseOutcome = e.target.value; setFormData({...formData, units: u});
-                                }} />
-                             </div>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Unit Summary</Label>
-                            <Textarea disabled={isReadOnly} className="min-h-[60px]" placeholder="Broad topics..." value={unit.content} onChange={e => {
-                              const u = [...(formData.units || [])]; u[idx].content = e.target.value; setFormData({...formData, units: u});
-                            }} />
-                          </div>
-
-                          <div className="mt-4 space-y-3 p-4 bg-muted/5 rounded-xl border border-dashed">
-                             <div className="flex justify-between items-center">
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                   <ListPlus className="w-4 h-4" />
-                                   <span className="text-[11px] font-bold uppercase tracking-wider">Sub-Unit Breakdown</span>
-                                </div>
-                                {!isReadOnly && (
-                                  <Button size="sm" variant="ghost" className="h-7 text-[10px] uppercase" onClick={() => {
-                                    const u = [...(formData.units || [])];
-                                    if (!u[idx].subUnits) u[idx].subUnits = [];
-                                    u[idx].subUnits!.push({ id: Math.random().toString(36).substr(2, 9), title: '', content: '', hours: 0 });
-                                    setFormData({...formData, units: u});
-                                  }}>
-                                    <Plus className="w-3.5 h-3.5 mr-1" /> Add Sub-Topic
-                                  </Button>
-                                )}
-                             </div>
-                             <div className="space-y-3">
-                                {unit.subUnits?.map((sub, sIdx) => (
-                                  <div key={sub.id} className="grid grid-cols-12 gap-3 items-start bg-white p-3 rounded-lg border shadow-sm">
-                                     <div className="col-span-11 space-y-3">
-                                        <div className="flex gap-4">
-                                           <Input disabled={isReadOnly} className="h-8 text-xs font-bold" placeholder="Sub-topic Title" value={sub.title} onChange={e => {
-                                             const u = [...(formData.units || [])]; u[idx].subUnits![sIdx].title = e.target.value; setFormData({...formData, units: u});
-                                           }} />
-                                           <div className="flex items-center gap-2 shrink-0">
-                                              <Label className="text-[9px] uppercase font-bold text-muted-foreground">Hrs:</Label>
-                                              <Input disabled={isReadOnly} type="number" className="w-14 h-8 text-xs text-center" value={sub.hours} onChange={e => {
-                                                const u = [...(formData.units || [])]; u[idx].subUnits![sIdx].hours = Number(e.target.value); setFormData({...formData, units: u});
-                                              }} />
-                                           </div>
-                                        </div>
-                                     </div>
-                                     <div className="col-span-1 flex justify-center pt-1">
-                                        {!isReadOnly && (
-                                          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-300 hover:text-red-50" onClick={() => {
-                                            const u = [...(formData.units || [])];
-                                            u[idx].subUnits = u[idx].subUnits!.filter(s => s.id !== sub.id);
-                                            setFormData({...formData, units: u});
-                                          }}>
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                          </Button>
-                                        )}
-                                     </div>
-                                  </div>
-                                ))}
-                             </div>
                           </div>
                        </CardHeader>
                        <CardContent className={cn("p-4 space-y-4", !expandedUnits[unit.id] && "hidden")}>
