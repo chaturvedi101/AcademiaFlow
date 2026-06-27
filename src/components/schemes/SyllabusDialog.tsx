@@ -137,9 +137,14 @@ export function SyllabusDialog({
     return defaults;
   }, [formData.creditCategory, formData.electiveGroupId]);
 
+  /**
+   * RTU-NEP 2020 Subject Code Generation Logic
+   * Format: [Prefix][L/P/I][C/E][Year][Seq].[Option]
+   */
   const generateAutoSubjectCode = useCallback(() => {
     if (!branchName) return '';
     
+    // 1. Prefix Determination
     let prefix = 'RT';
     const cat = formData.creditCategory || '';
     
@@ -151,43 +156,58 @@ export function SyllabusDialog({
         prefix = 'RT';
       } else {
         const lowerBranch = branchName.toLowerCase();
+        // Specific case for PI branch
         if (lowerBranch.includes('production') && lowerBranch.includes('industrial')) {
           prefix = 'PI';
         } else {
+          // Standard first two letters of branch
           prefix = branchName.substring(0, 2).toUpperCase();
         }
       }
     }
 
-    let pedagogy = 'L';
+    // 2. Pedagogy Marker
+    let pedagogy = 'L'; // Lecture (Theory)
     if (cat === 'PRJ') {
-      pedagogy = 'I';
+      pedagogy = 'I'; // Internship/Project
     } else if (formData.type === 'Lab/Sessional') {
-      pedagogy = 'P';
+      pedagogy = 'P'; // Practical
     }
 
+    // 3. Pillar Marker
     const isElective = ['DSE', 'OFE'].includes(cat);
     const pillar = isElective ? 'E' : 'C';
+
+    // 4. Year Digit
     const yearDigit = Math.ceil((formData.semester || 1) / 2);
     
-    let sequence = 1;
-    if (cat === 'SEC') sequence = 40;
-    if (cat === 'DSE') sequence = 50;
-    if (cat === 'PRJ') sequence = 95;
+    // 5. Sequence Determination
+    let sequence = 1; // Default DSC range 01-39
+    if (cat === 'SEC') sequence = 40; // SEC range 40-49
+    if (isElective) sequence = 50; // Elective range 50-94
+    if (cat === 'PRJ') sequence = 95; // Project range 95-99
 
     const baseCode = `${prefix}${pedagogy}${pillar}${yearDigit}`;
+    
+    // Check for collisions within current scheme and increment sequence if needed
     let finalCode = `${baseCode}${String(sequence).padStart(2, '0')}`;
 
     if (formData.electiveGroupId) {
+      // For elective group members, use the group's base code and append .X
       const peers = existingSyllabi.filter(s => s.electiveGroupId === formData.electiveGroupId);
+      // If editing existing, don't increment sequence for same subject
       const isAlreadyInGroup = peers.some(p => p.id === formData.id || p.subjectCode === formData.subjectCode);
       let suffix = peers.length + (isAlreadyInGroup ? 0 : 1);
       finalCode = `${finalCode}.${suffix}`;
     } else {
-      const existingCodes = existingSyllabi.filter(s => s.id !== formData.id && s.subjectCode !== formData.subjectCode).map(s => s.subjectCode);
+      const existingCodes = existingSyllabi
+        .filter(s => s.id !== formData.id && s.subjectCode !== formData.subjectCode)
+        .map(s => s.subjectCode);
+
       while (existingCodes.includes(finalCode)) {
         sequence++;
         finalCode = `${baseCode}${String(sequence).padStart(2, '0')}`;
+        // Safety break
         if (sequence > 99) break;
       }
     }
@@ -200,6 +220,7 @@ export function SyllabusDialog({
       const isNew = !syllabus.id;
       const initialCategory = syllabus.creditCategory || (isNew && isStrictlyCommonBOS ? 'AEC' : 'DSC');
 
+      // Pre-fill a readable title for new elective options
       let initialTitle = syllabus.title || '';
       if (isNew && syllabus.electiveGroupId) {
         const peers = existingSyllabi.filter(s => s.electiveGroupId === syllabus.electiveGroupId);
@@ -242,6 +263,7 @@ export function SyllabusDialog({
     }
   }, [syllabus, open, isStrictlyCommonBOS, existingSyllabi]);
 
+  // Auto-generate code when structural fields change, but only for NEW subjects
   useEffect(() => {
     if (open && !syllabus?.id && !isManuallyEditedCode && !formData.isOFESlot) {
       const newCode = generateAutoSubjectCode();
@@ -251,6 +273,7 @@ export function SyllabusDialog({
     }
   }, [formData.type, formData.semester, formData.creditCategory, formData.electiveGroupId, open, syllabus?.id, isManuallyEditedCode, formData.isOFESlot, generateAutoSubjectCode, formData.subjectCode]);
 
+  // Institutional Pool Lookup & Conflict Detection
   useEffect(() => {
     const code = formData.subjectCode;
     if (!open || !code || code.length < 4 || code === lastCheckedCode) {
@@ -273,7 +296,6 @@ export function SyllabusDialog({
           const data = existingRecord.data() as Syllabus;
           
           // Only auto-fill if it's a NEW entry OR a generic slot being defined for the first time
-          // This prevents overwriting user's intentional title changes like "Programming for Problem Solving"
           const isGenericSlot = formData.isSlot || formData.title?.toLowerCase().includes('slot') || !formData.id;
           
           if (isGenericSlot && isManuallyEditedCode) {
@@ -430,7 +452,6 @@ export function SyllabusDialog({
   };
 
   const handleSave = () => {
-    // Restrictions removed as per request. Only warnings remain.
     onSave(formData);
     onOpenChange(false);
   };
