@@ -1,24 +1,20 @@
-
 /**
  * @fileOverview Genkit configuration for Academic AI Architect.
- * Standardized on Gemini Flash with robust API key detection.
+ * Standardized on Gemini Flash with automatic API key detection.
  */
 
 import { googleAI } from '@genkit-ai/google-genai';
 import { genkit } from 'genkit';
 
-// Check for common API key environment variable names
-const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
-
-if (!apiKey) {
-  console.warn('AI functionality is disabled: Neither GOOGLE_GENAI_API_KEY nor GEMINI_API_KEY is found in environment variables. Please add it to your .env file in the project root.');
-}
-
+/**
+ * Initialize Genkit.
+ * Note: We don't explicitly pass the apiKey here.
+ * Genkit will automatically look for GOOGLE_GENAI_API_KEY or GEMINI_API_KEY 
+ * in the environment variables (standard for Firebase App Hosting).
+ */
 export const ai = genkit({
   plugins: [
-    googleAI({
-      apiKey: apiKey,
-    }),
+    googleAI(),
   ],
   // Use the standard stable alias for Gemini Flash
   model: googleAI.model('gemini-flash-latest'),

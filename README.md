@@ -20,9 +20,19 @@ To keep hosting costs near zero for the university, the following configurations
 3.  **Auto-Session Timeout**: The app automatically logs out users after 5 minutes of inactivity to stop background database listeners.
 4.  **Financial Safety**: Set a budget alert for $1.00 in the Google Cloud Billing console to ensure zero unexpected costs.
 
-## 🔑 AI Configuration
+## 🔑 AI Configuration (Hosting)
 
-Visit [Google AI Studio](https://aistudio.google.com/) and create a free Gemini API key. Add it to your `.env` file:
+If you see "Key Not Found" in your hosted application, you must configure the API key in the Firebase Console:
+
+1.  Visit [Google AI Studio](https://aistudio.google.com/) and create a free Gemini API key.
+2.  Go to the **Firebase Console** > **App Hosting**.
+3.  Select your backend > **Dashboard** > **Settings**.
+4.  Add an **Environment Variable** or **Secret**:
+    - **Key**: `GOOGLE_GENAI_API_KEY`
+    - **Value**: `[Your Actual Key]`
+5.  Re-deploy the application for the changes to take effect.
+
+For local development, add it to your `.env` file:
 ```bash
 GOOGLE_GENAI_API_KEY=your_actual_key_here
 ```
