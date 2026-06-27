@@ -316,7 +316,9 @@ export function SyllabusDialog({
     const l = Number(formData.lectureCredits) || 0;
     const t = Number(formData.tutorialCredits) || 0;
     const p = Number(formData.practicalCredits) || 0;
-    setFormData(prev => ({ ...prev, credits: l + t + (p * 0.5) }));
+    // AICTE Rule: 3 hour practical = 2 credits (ratio of 2/3)
+    const calculatedCredits = l + t + (p * 2 / 3);
+    setFormData(prev => ({ ...prev, credits: Number(calculatedCredits.toFixed(2)) }));
   }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits]);
 
   const handleAISyllabusGenerate = async () => {
@@ -619,7 +621,10 @@ export function SyllabusDialog({
                     </div>
                   </div>
                   <div className="p-3 bg-primary/5 rounded-lg flex items-center justify-between">
-                    <span className="text-sm font-medium">Calculated Credits</span>
+                    <div>
+                      <span className="text-sm font-medium">Calculated Credits</span>
+                      <p className="text-[10px] text-muted-foreground">AICTE Rule: 3 Pract. Hrs = 2 Credits</p>
+                    </div>
                     <Badge variant="secondary" className="text-lg font-bold px-4">{formData.credits || 0}</Badge>
                   </div>
                 </div>
