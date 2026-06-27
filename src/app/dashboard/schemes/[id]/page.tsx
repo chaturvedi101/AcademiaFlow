@@ -40,33 +40,40 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [poolLoading, setPoolLoading] = useState(false);
 
   useEffect(() => {
-    if (!scheme || scheme.isCommonPoolScheme) return;
+    if (!scheme) return;
 
     const fetchPool = async () => {
       setPoolLoading(true);
       try {
+        // Broadened search: Find all schemes marked as common pool for this batch across the university
         const poolQuery = query(
           collection(db, 'schemes'),
-          where('programId', '==', scheme.programId),
           where('batchYear', '==', scheme.batchYear),
           where('isCommonPoolScheme', '==', true)
         );
         const poolSnap = await getDocs(poolQuery);
-        const poolScheme = poolSnap.docs[0];
+        
+        let allPoolSyllabi: Syllabus[] = [];
 
-        if (poolScheme) {
-          const poolSyllabiSnap = await getDocs(collection(db, 'schemes', poolScheme.id, 'syllabi'));
-          setPoolSyllabi(poolSyllabiSnap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus)));
+        // Iterate through all matching pool providers (e.g. University-wide pool AND BTECH.FMAE-POOL)
+        for (const poolDoc of poolSnap.docs) {
+          if (poolDoc.id === schemeId) continue; // Don't fetch from self if I am a pool provider
+
+          const poolSyllabiSnap = await getDocs(collection(db, 'schemes', poolDoc.id, 'syllabi'));
+          const batchSyllabi = poolSyllabiSnap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus));
+          allPoolSyllabi = [...allPoolSyllabi, ...batchSyllabi];
         }
+
+        setPoolSyllabi(allPoolSyllabi);
       } catch (err) {
-        console.error("Failed to fetch common pool:", err);
+        console.error("Failed to synchronize institutional common pool:", err);
       } finally {
         setPoolLoading(false);
       }
     };
 
     fetchPool();
-  }, [db, scheme]);
+  }, [db, scheme, schemeId]);
 
   const [isSyllabusDialogOpen, setIsSyllabusDialogOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Partial<Syllabus> | undefined>(undefined);
@@ -77,6 +84,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const all = [...localSyllabi, ...poolSyllabi];
     
     all.forEach(s => {
+      // Prioritize local overrides but keep unique entries from pool
       const key = (s.isSlot || s.isOFESlot) ? s.id : (s.subjectCode || s.id);
       const existing = uniqueMap.get(key);
       const isNewCourseOnSlot = existing && (existing.isSlot || existing.isOFESlot) && !(s.isSlot || s.isOFESlot);
@@ -136,7 +144,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     };
 
     return { canEditScheme, canDelete, canEditSyllabus };
-  }, [profile, profileLoading, scheme, program, schemeId]);
+  }, [profile, profileLoading, scheme, program]);
 
   const creditDistribution = useMemo(() => {
     const dist = { DSC: 0, DSE: 0, OFE: 0, VAC: 0, AEC: 0, SEC: 0, MDC: 0, PRJ: 0, total: 0 };
@@ -172,8 +180,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const handleSaveSyllabus = async (data: Partial<Syllabus>) => {
-    // CRITICAL: Maintain a stable document ID. 
-    // If it's a slot, use its ID. If new, generate one.
     const docId = data.id || data.subjectCode || Math.random().toString(36).substr(2, 9);
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', docId);
     
@@ -182,7 +188,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       id: docId, 
       schemeId, 
       updatedAt: serverTimestamp(),
-      isSlot: false, // Once user touches it, it's defined
+      isSlot: false,
       isOFESlot: data.creditCategory === 'OFE' ? (data.isOFESlot || false) : false 
     };
     
