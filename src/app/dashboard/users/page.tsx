@@ -302,10 +302,10 @@ export default function UserManagementPage() {
               </div>
               <div className="space-y-2">
                 <Label>Assigned Faculty / Common Pool</Label>
-                <Select value={form.faculty} onValueChange={(v: any) => setForm({...form, faculty: v})}>
+                <Select value={form.faculty || 'none'} onValueChange={(v: any) => setForm({...form, faculty: v === 'none' ? '' : v})}>
                   <SelectTrigger><SelectValue placeholder="None / Branch-Specific" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None (Branch Based Only)</SelectItem>
+                    <SelectItem value="none">None (Branch Based Only)</SelectItem>
                     {FACULTIES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
                   </SelectContent>
                 </Select>
