@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit3, Trash2, GraduationCap, Loader2, Calendar, Eye, ShieldAlert } from 'lucide-react';
+import { Plus, Edit3, Trash2, GraduationCap, Loader2, Calendar, Eye, ShieldAlert, Copy } from 'lucide-react';
 import { ProgramDialog } from '@/components/programs/ProgramDialog';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -52,6 +52,17 @@ export default function ProgramsPage() {
         });
         errorEmitter.emit('permission-error', permissionError);
       });
+  };
+
+  const handleCopy = (program: Program) => {
+    // Strip ID and timestamps to treat it as a new program entry
+    const { id, createdAt, updatedAt, ...copyData } = program;
+    setSelectedProgram({
+      ...copyData,
+      name: `${program.name} (Copy)`,
+      code: `${program.code}-COPY`,
+    } as any);
+    setIsDialogOpen(true);
   };
 
   if (profileLoading || programsLoading) {
@@ -134,11 +145,20 @@ export default function ProgramsPage() {
                   </TableCell>
                   <TableCell className="text-right pr-6">
                     <div className="flex justify-end gap-2">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => handleCopy(program)}
+                        title="Duplicate Program Framework"
+                        className="text-primary hover:text-primary hover:bg-primary/10"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </Button>
                       <Button variant="ghost" size="icon" onClick={() => { setSelectedProgram(program); setIsDialogOpen(true); }}>
                         <Edit3 className="w-4 h-4" />
                       </Button>
                       {profile?.role === 'admin' && (
-                        <Button variant="ghost" size="icon" className="text-red-400" onClick={() => handleDelete(program.id)}>
+                        <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-500 hover:bg-red-50" onClick={() => handleDelete(program.id)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       )}
