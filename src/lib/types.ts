@@ -18,6 +18,7 @@ export type FacultyName = typeof FACULTIES[number];
 export interface ManagedBranch {
   programId: string;
   branch: string;
+  role: 'bos_convenor' | 'bos_member';
 }
 
 export interface UserProfile {

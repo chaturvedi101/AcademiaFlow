@@ -3,13 +3,13 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { useFirestore, useDoc, useCollection, useUser, useMemoFirebase } from "@/firebase";
-import { doc, collection, setDoc, deleteDoc, serverTimestamp, updateDoc, query, where, getDocs, writeBatch } from "firebase/firestore";
+import { doc, collection, setDoc, deleteDoc, serverTimestamp, updateDoc, query, where, getDocs } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown, Globe, Layers, RefreshCw, BookOpen } from "lucide-react";
+import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown, Globe, Layers, BookOpen } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile } from "@/lib/types";
@@ -38,7 +38,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
   const [poolSyllabi, setPoolSyllabi] = useState<Syllabus[]>([]);
   const [poolLoading, setPoolLoading] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
     if (!scheme || scheme.isCommonPoolScheme) return;
@@ -113,18 +112,20 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const isProgramDean = profile.role === 'dean_faculty' && profile.faculty === program.faculty;
     const isCommonBOS = profile.faculty === 'University-wide (Common BOS)';
 
+    // Check specific role for this branch in managed assignments
+    const myBranchRole = profile.managedBranches?.find(m => m.programId === scheme.programId && m.branch === scheme.branch)?.role;
+
     let canEditScheme = false;
     if (isGlobalAdmin || isProgramDean) {
       canEditScheme = true;
     } else if (scheme.isCommonPoolScheme) {
       canEditScheme = isCommonBOS;
     } else {
-      canEditScheme = profile.managedBranches?.some(
-        m => m.programId === scheme.programId && m.branch === scheme.branch
-      ) || false;
+      // Must be at least a Convenor for THIS branch to edit layout
+      canEditScheme = myBranchRole === 'bos_convenor';
     }
 
-    const canDelete = isGlobalAdmin || isProgramDean || (scheme.isCommonPoolScheme && isCommonBOS);
+    const canDelete = isGlobalAdmin || isProgramDean || (scheme.isCommonPoolScheme && isCommonBOS) || myBranchRole === 'bos_convenor';
 
     const canEditSyllabus = (s: Partial<Syllabus> | undefined) => {
       if (isGlobalAdmin) return true;
@@ -132,7 +133,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       const isInstitutionalCategory = s.creditCategory ? ['VAC', 'AEC', 'MDC', 'SEC', 'OFE'].includes(s.creditCategory) : false;
       if (isCommonBOS && isInstitutionalCategory) return true;
       if (s?.schemeId && s.schemeId !== schemeId) return false;
-      return canEditScheme;
+      
+      // Members and Convenors for this branch can edit syllabus
+      return !!myBranchRole || canEditScheme;
     };
 
     return { canEditScheme, canDelete, canEditSyllabus };
