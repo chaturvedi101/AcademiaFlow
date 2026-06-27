@@ -121,7 +121,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     } else if (scheme.isCommonPoolScheme) {
       canEditScheme = isCommonBOS;
     } else {
-      // Must be at least a Convenor for THIS branch to edit layout
       canEditScheme = myBranchRole === 'bos_convenor';
     }
 
@@ -130,12 +129,14 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const canEditSyllabus = (s: Partial<Syllabus> | undefined) => {
       if (isGlobalAdmin) return true;
       if (!s) return false;
-      const isInstitutionalCategory = s.creditCategory ? ['VAC', 'AEC', 'MDC', 'SEC', 'OFE'].includes(s.creditCategory) : false;
-      if (isCommonBOS && isInstitutionalCategory) return true;
-      if (s?.schemeId && s.schemeId !== schemeId) return false;
       
-      // Members and Convenors for this branch can edit syllabus
-      return !!myBranchRole || canEditScheme;
+      // Institutional Board can edit anything in a common pool scheme
+      if (isCommonBOS && scheme.isCommonPoolScheme) return true;
+      
+      // Branch Staff (Convenor or Member) can edit subjects in THEIR scheme,
+      // even if the subject code points to a pool item (this creates a divergence).
+      const hasBranchAccess = !!myBranchRole;
+      return hasBranchAccess || canEditScheme;
     };
 
     return { canEditScheme, canDelete, canEditSyllabus };
