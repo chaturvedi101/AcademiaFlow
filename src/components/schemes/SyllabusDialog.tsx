@@ -86,7 +86,7 @@ export function SyllabusDialog({
   
   const [codeWarning, setCodeWarning] = useState<string | null>(null);
   const [isCheckingUniqueness, setIsCheckingUniqueness] = useState(false);
-  const [isInherited, setIsInherited] = useState(false);
+  const [lastCheckedCode, setLastCheckedCode] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<Partial<Syllabus>>({
     subjectCode: '',
@@ -235,10 +235,10 @@ export function SyllabusDialog({
       
       setIsManuallyEditedCode(false);
       setCodeWarning(null);
+      setLastCheckedCode(null);
       setPoolResults([]);
       setShowPoolPicker(false);
       setExpandedUnits({});
-      setIsInherited(false);
     }
   }, [syllabus, open, isStrictlyCommonBOS, existingSyllabi]);
 
@@ -253,8 +253,8 @@ export function SyllabusDialog({
 
   useEffect(() => {
     const code = formData.subjectCode;
-    if (!open || !code || code.length < 4) {
-      setCodeWarning(null);
+    if (!open || !code || code.length < 4 || code === lastCheckedCode) {
+      if (!code) setCodeWarning(null);
       return;
     }
 
@@ -272,10 +272,11 @@ export function SyllabusDialog({
         if (existingRecord) {
           const data = existingRecord.data() as Syllabus;
           
-          // CRITICAL: Only inherit if it's a NEW entry or the user has manually entered/changed the code
-          const isNewEntry = !syllabus?.id;
-          if (!isInherited && (isNewEntry || isManuallyEditedCode)) {
-            setIsInherited(true);
+          // Only auto-fill if it's a NEW entry OR a generic slot being defined for the first time
+          // This prevents overwriting user's intentional title changes like "Programming for Problem Solving"
+          const isGenericSlot = formData.isSlot || formData.title?.toLowerCase().includes('slot') || !formData.id;
+          
+          if (isGenericSlot && isManuallyEditedCode) {
             setFormData(prev => ({
               ...prev,
               title: data.title,
@@ -296,18 +297,18 @@ export function SyllabusDialog({
             }));
 
             toast({ 
-              title: "Institutional Specification Detected", 
-              description: `Shared content for ${code} ("${data.title}") has been synchronized.` 
+              title: "Institutional Specification Synced", 
+              description: `Fetched contents for code ${code} ("${data.title}").` 
             });
           }
 
-          setCodeWarning(`Institutional Conflict: This code is already registered to "${data.title}". Modifying details here will create a divergence specific to your scheme.`);
+          setCodeWarning(`Institutional Conflict: This code is already registered to "${data.title}" globally. Your modifications here will create a scheme-specific version.`);
         } else {
           setCodeWarning(null);
-          setIsInherited(false);
         }
+        setLastCheckedCode(code);
       } catch (err) {
-        console.error("Global inheritance check failed:", err);
+        console.error("Global lookup failed:", err);
       } finally {
         setIsCheckingUniqueness(false);
       }
@@ -315,7 +316,7 @@ export function SyllabusDialog({
 
     const timer = setTimeout(checkGlobalUniquenessAndInherit, 800);
     return () => clearTimeout(timer);
-  }, [formData.subjectCode, currentSchemeId, db, open, toast, isInherited, isManuallyEditedCode, syllabus?.id]);
+  }, [formData.subjectCode, currentSchemeId, db, open, toast, lastCheckedCode, isManuallyEditedCode, formData.isSlot, formData.title, formData.id]);
 
   useEffect(() => {
     const l = Number(formData.lectureCredits) || 0;
@@ -429,17 +430,7 @@ export function SyllabusDialog({
   };
 
   const handleSave = () => {
-    if (formData.electiveGroupId) {
-      const groupMembers = existingSyllabi.filter(s => s.electiveGroupId === formData.electiveGroupId && (s.id !== formData.id && s.subjectCode !== formData.subjectCode));
-      if (groupMembers.length > 0) {
-        const standardCredit = groupMembers[0].credits;
-        if (formData.credits !== standardCredit) {
-          toast({ title: "Credit Mismatch", description: `Group ${formData.electiveGroupId} subjects must be ${standardCredit} credits.`, variant: "destructive" });
-          return;
-        }
-      }
-    }
-    
+    // Restrictions removed as per request. Only warnings remain.
     onSave(formData);
     onOpenChange(false);
   };
@@ -742,7 +733,7 @@ export function SyllabusDialog({
                                      </div>
                                      <div className="col-span-1 flex justify-center pt-1">
                                         {!isReadOnly && (
-                                          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-300 hover:text-red-500" onClick={() => {
+                                          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-300 hover:text-red-50" onClick={() => {
                                             const u = [...(formData.units || [])];
                                             u[idx].subUnits = u[idx].subUnits!.filter(s => s.id !== sub.id);
                                             setFormData({...formData, units: u});
