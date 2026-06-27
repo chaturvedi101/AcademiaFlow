@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -141,7 +140,7 @@ export default function SchemesPage() {
     setIsCreating(true);
 
     const branchName = isCommonBos ? 'Institutional Common Pool' : newScheme.branch;
-    let branchPrefix = isCommonBos ? 'RT' : (selectedProgram.branchPrefixes?.[branchName]);
+    let branchPrefix = isCommonBos ? 'GN' : (selectedProgram.branchPrefixes?.[branchName]);
     
     if (!branchPrefix && !isCommonBos) {
       const lowerBranch = branchName.toLowerCase();
@@ -149,7 +148,8 @@ export default function SchemesPage() {
     }
     
     const creationYear = new Date().getFullYear();
-    const generatedCode = `${selectedProgram.code}-${branchPrefix ? branchPrefix.replace('RT', 'POOL') : 'GEN'}-${creationYear}`;
+    const shortPrefix = branchPrefix === 'GN' ? 'POOL' : (branchPrefix || 'GEN');
+    const generatedCode = `${selectedProgram.code}-${shortPrefix}-${creationYear}`;
     const schemeDocRef = doc(db, 'schemes', generatedCode);
     
     try {
@@ -185,7 +185,6 @@ export default function SchemesPage() {
         if (cat === 'AEC') prefix = 'AE';
         else if (cat === 'MDC') prefix = 'MD';
         else if (cat === 'VAC') prefix = 'VA';
-        else if (isCommonBos) prefix = 'RT';
         
         counters[cat]++;
         const seq = counters[cat];
@@ -277,7 +276,6 @@ export default function SchemesPage() {
 
   if (schemesLoading) return <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
-  // STRICT ACCESS CONTROL: Only global leadership can initialize new frameworks
   const canCreateScheme = profile?.role === 'admin' || profile?.role === 'dean_academic';
 
   return (

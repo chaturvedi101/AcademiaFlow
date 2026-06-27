@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -33,7 +32,7 @@ const PO_DEFINITIONS = [
   { code: 'PO9', title: 'Team Work', desc: 'Function effectively as an individual or team member.' },
   { code: 'PO10', title: 'Communication', desc: 'Communicate effectively on complex activities.' },
   { code: 'PO11', title: 'Project Management', desc: 'Apply engineering and management principles.' },
-  { code: 'PO12', title: 'Life-long Learning', desc: 'Engage in independent and life-long learning.' },
+  { code: 'PO12', title: 'Life-long Learning', engage: 'Engage in independent and life-long learning.' },
 ];
 
 const DEFAULT_DSE_GROUPS = [
@@ -137,65 +136,47 @@ export function SyllabusDialog({
     return defaults;
   }, [formData.creditCategory, formData.electiveGroupId]);
 
-  /**
-   * RTU-NEP 2020 Subject Code Generation Logic
-   * Format: [Prefix][L/P/I][C/E][Year][Seq].[Option]
-   */
   const generateAutoSubjectCode = useCallback(() => {
     if (!branchName) return '';
     
-    // 1. Prefix Determination
-    let prefix = 'RT';
+    let prefix = 'GN';
     const cat = formData.creditCategory || '';
     
     if (cat === 'AEC') prefix = 'AE';
     else if (cat === 'MDC') prefix = 'MD';
     else if (cat === 'VAC') prefix = 'VA';
     else {
-      if (branchName === 'Institutional Common Pool') {
-        prefix = 'RT';
-      } else {
+      if (branchName !== 'Institutional Common Pool') {
         const lowerBranch = branchName.toLowerCase();
-        // Specific case for PI branch
         if (lowerBranch.includes('production') && lowerBranch.includes('industrial')) {
           prefix = 'PI';
         } else {
-          // Standard first two letters of branch
           prefix = branchName.substring(0, 2).toUpperCase();
         }
       }
     }
 
-    // 2. Pedagogy Marker
-    let pedagogy = 'L'; // Lecture (Theory)
+    let pedagogy = 'L';
     if (cat === 'PRJ') {
-      pedagogy = 'I'; // Internship/Project
+      pedagogy = 'I';
     } else if (formData.type === 'Lab/Sessional') {
-      pedagogy = 'P'; // Practical
+      pedagogy = 'P';
     }
 
-    // 3. Pillar Marker
     const isElective = ['DSE', 'OFE'].includes(cat);
     const pillar = isElective ? 'E' : 'C';
-
-    // 4. Year Digit
     const yearDigit = Math.ceil((formData.semester || 1) / 2);
     
-    // 5. Sequence Determination
-    let sequence = 1; // Default DSC range 01-39
-    if (cat === 'SEC') sequence = 40; // SEC range 40-49
-    if (isElective) sequence = 50; // Elective range 50-94
-    if (cat === 'PRJ') sequence = 95; // Project range 95-99
+    let sequence = 1;
+    if (cat === 'SEC') sequence = 40;
+    if (isElective) sequence = 50;
+    if (cat === 'PRJ') sequence = 95;
 
     const baseCode = `${prefix}${pedagogy}${pillar}${yearDigit}`;
-    
-    // Check for collisions within current scheme and increment sequence if needed
     let finalCode = `${baseCode}${String(sequence).padStart(2, '0')}`;
 
     if (formData.electiveGroupId) {
-      // For elective group members, use the group's base code and append .X
       const peers = existingSyllabi.filter(s => s.electiveGroupId === formData.electiveGroupId);
-      // If editing existing, don't increment sequence for same subject
       const isAlreadyInGroup = peers.some(p => p.id === formData.id || p.subjectCode === formData.subjectCode);
       let suffix = peers.length + (isAlreadyInGroup ? 0 : 1);
       finalCode = `${finalCode}.${suffix}`;
@@ -207,7 +188,6 @@ export function SyllabusDialog({
       while (existingCodes.includes(finalCode)) {
         sequence++;
         finalCode = `${baseCode}${String(sequence).padStart(2, '0')}`;
-        // Safety break
         if (sequence > 99) break;
       }
     }
@@ -220,7 +200,6 @@ export function SyllabusDialog({
       const isNew = !syllabus.id;
       const initialCategory = syllabus.creditCategory || (isNew && isStrictlyCommonBOS ? 'AEC' : 'DSC');
 
-      // Pre-fill a readable title for new elective options
       let initialTitle = syllabus.title || '';
       if (isNew && syllabus.electiveGroupId) {
         const peers = existingSyllabi.filter(s => s.electiveGroupId === syllabus.electiveGroupId);
@@ -263,7 +242,6 @@ export function SyllabusDialog({
     }
   }, [syllabus, open, isStrictlyCommonBOS, existingSyllabi]);
 
-  // Auto-generate code when structural fields change, but only for NEW subjects
   useEffect(() => {
     if (open && !syllabus?.id && !isManuallyEditedCode && !formData.isOFESlot) {
       const newCode = generateAutoSubjectCode();
@@ -273,7 +251,6 @@ export function SyllabusDialog({
     }
   }, [formData.type, formData.semester, formData.creditCategory, formData.electiveGroupId, open, syllabus?.id, isManuallyEditedCode, formData.isOFESlot, generateAutoSubjectCode, formData.subjectCode]);
 
-  // Institutional Pool Lookup & Conflict Detection
   useEffect(() => {
     const code = formData.subjectCode;
     if (!open || !code || code.length < 4 || code === lastCheckedCode) {
@@ -294,8 +271,6 @@ export function SyllabusDialog({
         
         if (existingRecord) {
           const data = existingRecord.data() as Syllabus;
-          
-          // Only auto-fill if it's a NEW entry OR a generic slot being defined for the first time
           const isGenericSlot = formData.isSlot || formData.title?.toLowerCase().includes('slot') || !formData.id;
           
           if (isGenericSlot && isManuallyEditedCode) {
@@ -318,13 +293,10 @@ export function SyllabusDialog({
               electiveGroupId: data.electiveGroupId
             }));
 
-            toast({ 
-              title: "Institutional Specification Synced", 
-              description: `Fetched contents for code ${code} ("${data.title}").` 
-            });
+            toast({ title: "Institutional Specification Synced", description: `Fetched contents for code ${code}.` });
           }
 
-          setCodeWarning(`Institutional Conflict: This code is already registered to "${data.title}" globally. Your modifications here will create a scheme-specific version.`);
+          setCodeWarning(`Institutional Code Detected: This code is registered to "${data.title}" elsewhere.`);
         } else {
           setCodeWarning(null);
         }
