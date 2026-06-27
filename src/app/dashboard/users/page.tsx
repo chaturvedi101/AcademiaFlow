@@ -244,7 +244,7 @@ export default function UserManagementPage() {
                         {user.managedBranches?.map((mb, idx) => (
                           <Badge key={idx} variant="outline" className="text-[10px] bg-muted/50 gap-2">
                             {programs.find(p => p.id === mb.programId)?.code || '??'} - {mb.branch}
-                            <span className="text-[8px] font-black uppercase text-accent">({mb.role.split('_')[1]})</span>
+                            <span className="text-[8px] font-black uppercase text-accent">({(mb.role || 'bos_member').split('_')[1] || 'member'})</span>
                           </Badge>
                         ))}
                       </div>
@@ -348,7 +348,7 @@ export default function UserManagementPage() {
               <div className="flex flex-wrap gap-2 mt-4">
                 {form.managedBranches.map((mb, idx) => (
                   <Badge key={idx} className="h-8 gap-2 bg-white text-foreground border-border">
-                    {programs.find(p => p.id === mb.programId)?.code} - {mb.branch} ({mb.role.split('_')[1]})
+                    {programs.find(p => p.id === mb.programId)?.code} - {mb.branch} ({(mb.role || 'bos_member').split('_')[1] || 'member'})
                     <X className="w-3 h-3 cursor-pointer text-red-400" onClick={() => handleRemoveAssignment(idx)} />
                   </Badge>
                 ))}

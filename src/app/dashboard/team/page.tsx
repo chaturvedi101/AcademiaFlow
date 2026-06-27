@@ -191,7 +191,7 @@ export default function TeamManagementPage() {
                         return (
                           <Badge key={idx} variant="outline" className={`gap-2 py-1 ${isMyJurisdiction ? 'bg-primary/5 border-primary/20' : 'bg-muted/30 opacity-50'}`}>
                             <span className="font-bold">{prog?.code || '??'}</span> - {mb.branch}
-                            <span className="text-[8px] font-black uppercase text-accent">({mb.role.split('_')[1]})</span>
+                            <span className="text-[8px] font-black uppercase text-accent">({(mb.role || 'bos_member').split('_')[1] || 'member'})</span>
                             {isMyJurisdiction && (
                               <X className="w-3 h-3 text-red-400 cursor-pointer hover:text-red-600" onClick={() => handleRemoveAssignment(member.id, mb.programId, mb.branch)} />
                             )}
