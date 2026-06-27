@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -12,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Users, UserPlus, ShieldCheck, Loader2, Plus, X } from 'lucide-react';
+import { Users, UserPlus, ShieldCheck, Loader2, Plus, X, GraduationCap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -43,10 +42,15 @@ export default function TeamManagementPage() {
   const [registerForm, setRegisterForm] = useState({ 
     email: '', 
     displayName: '',
+    managedBranches: [] as ManagedBranch[]
+  });
+  
+  const [newAssignment, setNewAssignment] = useState<ManagedBranch>({
     programId: '',
     branch: '',
-    role: 'bos_member' as 'bos_member' | 'bos_convenor'
+    role: 'bos_member'
   });
+
   const [isRegistering, setIsRegistering] = useState(false);
 
   // My branches where I am a Convenor
@@ -57,9 +61,40 @@ export default function TeamManagementPage() {
     return profile?.managedBranches?.filter(mb => mb.role === 'bos_convenor') || [];
   }, [profile, programs]);
 
+  const handleAddAssignment = () => {
+    if (!newAssignment.programId || !newAssignment.branch) return;
+    
+    const isDuplicate = registerForm.managedBranches.some(
+      mb => mb.programId === newAssignment.programId && mb.branch === newAssignment.branch
+    );
+
+    if (isDuplicate) {
+      toast({ title: "Assignment Exists", description: "This branch is already in the list.", variant: "destructive" });
+      return;
+    }
+
+    setRegisterForm({
+      ...registerForm,
+      managedBranches: [...registerForm.managedBranches, { ...newAssignment }]
+    });
+    setNewAssignment({ programId: '', branch: '', role: 'bos_member' });
+  };
+
+  const handleRemoveAssignmentFromForm = (idx: number) => {
+    setRegisterForm({
+      ...registerForm,
+      managedBranches: registerForm.managedBranches.filter((_, i) => i !== idx)
+    });
+  };
+
   const handleRegisterMember = async () => {
-    if (!registerForm.email || !registerForm.displayName || !registerForm.branch) {
-      toast({ title: "Validation Error", description: "Email, Name, and Branch assignment are required.", variant: "destructive" });
+    if (!registerForm.email || !registerForm.displayName) {
+      toast({ title: "Validation Error", description: "Email and Name are required.", variant: "destructive" });
+      return;
+    }
+
+    if (registerForm.managedBranches.length === 0) {
+      toast({ title: "Assignment Required", description: "Add at least one branch assignment.", variant: "destructive" });
       return;
     }
 
@@ -68,26 +103,24 @@ export default function TeamManagementPage() {
     const existingUser = allUsers.find(u => u.email.toLowerCase() === registerForm.email.toLowerCase());
     
     if (existingUser) {
-      // APPEND to existing user
       const userRef = doc(db, 'users', existingUser.id);
-      const newAssignment: ManagedBranch = {
-        programId: registerForm.programId,
-        branch: registerForm.branch,
-        role: registerForm.role
-      };
-
-      const alreadyHasBranch = existingUser.managedBranches?.some(mb => mb.programId === newAssignment.programId && mb.branch === newAssignment.branch);
       
-      if (alreadyHasBranch) {
-        toast({ title: "Already Assigned", description: `${registerForm.displayName} is already a member of this BOS.` });
-        setIsRegistering(false);
-        return;
-      }
+      // Merge unique branches
+      const currentBranches = existingUser.managedBranches || [];
+      const newBranches = [...currentBranches];
 
-      const managedBranches = [...(existingUser.managedBranches || []), newAssignment];
+      registerForm.managedBranches.forEach(pending => {
+        const index = newBranches.findIndex(b => b.programId === pending.programId && b.branch === pending.branch);
+        if (index === -1) {
+          newBranches.push(pending);
+        } else {
+          // Update role if different
+          newBranches[index].role = pending.role;
+        }
+      });
       
-      await updateDoc(userRef, { managedBranches });
-      toast({ title: "Assignment Added", description: `Added ${registerForm.branch} access to ${registerForm.displayName}'s institutional ID.` });
+      await updateDoc(userRef, { managedBranches: newBranches });
+      toast({ title: "Assignments Synced", description: `Updated branch access for ${registerForm.displayName}'s institutional ID.` });
       setIsRegistering(false);
       setIsRegisterDialogOpen(false);
       return;
@@ -110,18 +143,14 @@ export default function TeamManagementPage() {
         email: registerForm.email,
         role: 'bos_member', // Initial primary role
         createdAt: serverTimestamp(),
-        managedBranches: [{
-          programId: registerForm.programId,
-          branch: registerForm.branch,
-          role: registerForm.role
-        }]
+        managedBranches: registerForm.managedBranches
       };
 
       await setDoc(userRef, userData);
       
-      toast({ title: "Member Registered", description: `${registerForm.displayName} added to your BoS team.` });
+      toast({ title: "Member Registered", description: `${registerForm.displayName} added to your BoS team with ${registerForm.managedBranches.length} assignments.` });
       setIsRegisterDialogOpen(false);
-      setRegisterForm({ email: '', displayName: '', programId: '', branch: '', role: 'bos_member' });
+      setRegisterForm({ email: '', displayName: '', managedBranches: [] });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Registration Failed", description: error.message });
     } finally {
@@ -130,7 +159,7 @@ export default function TeamManagementPage() {
     }
   };
 
-  const handleRemoveAssignment = (memberId: string, programId: string, branch: string) => {
+  const handleRemoveAssignmentFromMember = (memberId: string, programId: string, branch: string) => {
     const member = teamMembers.find(u => u.id === memberId);
     if (!member) return;
 
@@ -142,6 +171,8 @@ export default function TeamManagementPage() {
     });
   };
 
+  const selectedProgramForNewAssignment = programs.find(p => p.id === newAssignment.programId);
+
   if (usersLoading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary w-8 h-8" /></div>;
 
   return (
@@ -151,7 +182,10 @@ export default function TeamManagementPage() {
           <h1 className="text-3xl font-headline font-bold">BoS Faculty Management</h1>
           <p className="text-muted-foreground">Identify members by email to sync their access across multiple Boards of Study.</p>
         </div>
-        <Button onClick={() => setIsRegisterDialogOpen(true)} className="gap-2 shadow-lg">
+        <Button onClick={() => {
+          setRegisterForm({ email: '', displayName: '', managedBranches: [] });
+          setIsRegisterDialogOpen(true);
+        }} className="gap-2 shadow-lg">
           <UserPlus className="w-4 h-4" /> Add Team Member
         </Button>
       </div>
@@ -193,7 +227,7 @@ export default function TeamManagementPage() {
                             <span className="font-bold">{prog?.code || '??'}</span> - {mb.branch}
                             <span className="text-[8px] font-black uppercase text-accent">({(mb.role || 'bos_member').split('_')[1] || 'member'})</span>
                             {isMyJurisdiction && (
-                              <X className="w-3 h-3 text-red-400 cursor-pointer hover:text-red-600" onClick={() => handleRemoveAssignment(member.id, mb.programId, mb.branch)} />
+                              <X className="w-3 h-3 text-red-400 cursor-pointer hover:text-red-600" onClick={() => handleRemoveAssignmentFromMember(member.id, mb.programId, mb.branch)} />
                             )}
                           </Badge>
                         );
@@ -211,48 +245,93 @@ export default function TeamManagementPage() {
       </Card>
 
       <Dialog open={isRegisterDialogOpen} onOpenChange={setIsRegisterDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Assign Faculty Member</DialogTitle>
             <DialogDescription>
-              Enter the member's email. If they already have an account, their assignments will be merged.
+              Enter the member's email. You can assign them to multiple branches where you are a Convenor.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Institutional Email</Label>
-              <Input type="email" placeholder="faculty@rtu.ac.in" value={registerForm.email} onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label>Full Name</Label>
-              <Input placeholder="Member Name" value={registerForm.displayName} onChange={(e) => setRegisterForm({ ...registerForm, displayName: e.target.value })} />
-            </div>
+          
+          <div className="space-y-6 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>BOS Branch</Label>
-                <Select onValueChange={v => {
-                   const found = myConvenorBranches.find(b => b.branch === v);
-                   setRegisterForm({...registerForm, programId: found?.programId || '', branch: v});
-                }}>
-                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
-                  <SelectContent>{myConvenorBranches.map((mb, idx) => (<SelectItem key={idx} value={mb.branch}>{mb.branch}</SelectItem>))}</SelectContent>
-                </Select>
+                <Label>Institutional Email</Label>
+                <Input type="email" placeholder="faculty@rtu.ac.in" value={registerForm.email} onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <Label>Role in Branch</Label>
-                <Select value={registerForm.role} onValueChange={(v: any) => setRegisterForm({...registerForm, role: v})}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="bos_member">BoS Member</SelectItem>
-                    <SelectItem value="bos_convenor">BoS Convenor</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Full Name</Label>
+                <Input placeholder="Member Name" value={registerForm.displayName} onChange={(e) => setRegisterForm({ ...registerForm, displayName: e.target.value })} />
+              </div>
+            </div>
+
+            <div className="space-y-4 border rounded-xl p-4 bg-muted/20">
+              <Label className="font-bold flex items-center gap-2 text-primary">
+                <GraduationCap className="w-4 h-4" /> 
+                Assignments Builder
+              </Label>
+              
+              <div className="grid grid-cols-12 gap-2 items-end">
+                <div className="col-span-8 space-y-1">
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Select Branch Under Your Jurisdiction</Label>
+                  <Select onValueChange={v => {
+                     const found = myConvenorBranches.find(b => b.branch === v);
+                     setNewAssignment({...newAssignment, programId: found?.programId || '', branch: v});
+                  }}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="Select a branch..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {myConvenorBranches.map((mb, idx) => {
+                        const prog = programs.find(p => p.id === mb.programId);
+                        return (
+                          <SelectItem key={idx} value={mb.branch}>
+                            {prog?.code} - {mb.branch}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-3 space-y-1">
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Role</Label>
+                  <Select value={newAssignment.role} onValueChange={(v: any) => setNewAssignment({...newAssignment, role: v})}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bos_member">Member</SelectItem>
+                      <SelectItem value="bos_convenor">Convenor</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-1">
+                  <Button type="button" size="icon" className="h-10 w-10" onClick={handleAddAssignment} disabled={!newAssignment.branch}>
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2 mt-4 min-h-[40px]">
+                {registerForm.managedBranches.map((mb, idx) => (
+                  <Badge key={idx} className="h-8 gap-2 bg-white text-foreground border-primary/20">
+                    {programs.find(p => p.id === mb.programId)?.code} - {mb.branch} ({(mb.role || 'bos_member').split('_')[1] || 'member'})
+                    <X className="w-3.5 h-3.5 cursor-pointer text-red-400 hover:text-red-600" onClick={() => handleRemoveAssignmentFromForm(idx)} />
+                  </Badge>
+                ))}
+                {registerForm.managedBranches.length === 0 && (
+                  <p className="text-[10px] text-muted-foreground italic w-full text-center py-2">No branches added yet.</p>
+                )}
               </div>
             </div>
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsRegisterDialogOpen(false)} disabled={isRegistering}>Cancel</Button>
-            <Button onClick={handleRegisterMember} disabled={isRegistering}>{isRegistering ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <UserPlus className="w-4 h-4 mr-2" />}Sync Access</Button>
+            <Button onClick={handleRegisterMember} disabled={isRegistering || registerForm.managedBranches.length === 0}>
+              {isRegistering ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
+              Sync Institutional Access
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
