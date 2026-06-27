@@ -13,7 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BookOpen, Globe, Link2, Loader2, Plus, Trash2, Search, Layers, AlertTriangle, Book, Video, ExternalLink, Sparkles, Clock, ListPlus, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
+import { BookOpen, Globe, Link2, Loader2, Plus, Trash2, Search, Layers, AlertTriangle, Book, Video, ExternalLink, Sparkles, Clock, ListPlus, ChevronDown, ChevronUp, CheckCircle2, Info } from "lucide-react";
 import { Syllabus, CorrelationLevel as CorrelationLevelType, CreditRules, CreditCategory, SyllabusUnit, SyllabusSubUnit } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase";
@@ -84,7 +84,7 @@ export function SyllabusDialog({
   const [isManuallyEditedCode, setIsManuallyEditedCode] = useState(false);
   const [expandedUnits, setExpandedUnits] = useState<Record<string, boolean>>({});
   
-  const [codeConflict, setCodeConflict] = useState<string | null>(null);
+  const [codeWarning, setCodeWarning] = useState<string | null>(null);
   const [isCheckingUniqueness, setIsCheckingUniqueness] = useState(false);
   const [isInherited, setIsInherited] = useState(false);
 
@@ -234,7 +234,7 @@ export function SyllabusDialog({
       });
       
       setIsManuallyEditedCode(false);
-      setCodeConflict(null);
+      setCodeWarning(null);
       setPoolResults([]);
       setShowPoolPicker(false);
       setExpandedUnits({});
@@ -253,8 +253,9 @@ export function SyllabusDialog({
 
   useEffect(() => {
     const code = formData.subjectCode;
+    // Don't trigger for short or placeholder codes
     if (!open || !code || code === 'POOL-ELECTIVE' || code === 'SLOT' || code.length < 5) {
-      setCodeConflict(null);
+      setCodeWarning(null);
       setIsInherited(false);
       return;
     }
@@ -273,35 +274,39 @@ export function SyllabusDialog({
         
         if (existingRecord) {
           const data = existingRecord.data() as Syllabus;
-          setIsInherited(true);
-          setCodeConflict(`This code is already assigned to "${data.title}". Institutional details have been auto-populated.`);
           
-          // Auto-populate form from existing master record
-          setFormData(prev => ({
-            ...prev,
-            title: data.title,
-            lectureCredits: data.lectureCredits,
-            tutorialCredits: data.tutorialCredits,
-            practicalCredits: data.practicalCredits,
-            credits: data.credits,
-            type: data.type,
-            creditCategory: data.creditCategory,
-            units: data.units,
-            poMappings: data.poMappings,
-            textBooks: data.textBooks,
-            referenceBooks: data.referenceBooks,
-            nptelLinks: data.nptelLinks,
-            youtubeLinks: data.youtubeLinks,
-            electiveGroupName: data.electiveGroupName,
-            electiveGroupId: data.electiveGroupId
-          }));
+          // Only auto-populate if the form is still empty/new or hasn't been significantly edited
+          // We check if "isInherited" was already true to avoid overwrite loops
+          if (!isInherited) {
+            setIsInherited(true);
+            setFormData(prev => ({
+              ...prev,
+              title: data.title,
+              lectureCredits: data.lectureCredits,
+              tutorialCredits: data.tutorialCredits,
+              practicalCredits: data.practicalCredits,
+              credits: data.credits,
+              type: data.type,
+              creditCategory: data.creditCategory,
+              units: data.units,
+              poMappings: data.poMappings,
+              textBooks: data.textBooks,
+              referenceBooks: data.referenceBooks,
+              nptelLinks: data.nptelLinks,
+              youtubeLinks: data.youtubeLinks,
+              electiveGroupName: data.electiveGroupName,
+              electiveGroupId: data.electiveGroupId
+            }));
 
-          toast({ 
-            title: "Course Inherited", 
-            description: `Academic content for ${code} synced from University database.` 
-          });
+            toast({ 
+              title: "Institutional Specification Detected", 
+              description: `Shared content for ${code} ("${data.title}") has been synchronized.` 
+            });
+          }
+
+          setCodeWarning(`This code is already assigned to "${data.title}". Modifying it here will create a divergence for your scheme.`);
         } else {
-          setCodeConflict(null);
+          setCodeWarning(null);
           setIsInherited(false);
         }
       } catch (err) {
@@ -313,7 +318,7 @@ export function SyllabusDialog({
 
     const timer = setTimeout(checkGlobalUniquenessAndInherit, 800);
     return () => clearTimeout(timer);
-  }, [formData.subjectCode, currentSchemeId, db, open, toast]);
+  }, [formData.subjectCode, currentSchemeId, db, open, toast, isInherited]);
 
   useEffect(() => {
     const l = Number(formData.lectureCredits) || 0;
@@ -427,6 +432,7 @@ export function SyllabusDialog({
   };
 
   const handleSave = () => {
+    // Basic validation: Check if credits match group standard if in an elective group
     if (formData.electiveGroupId) {
       const groupMembers = existingSyllabi.filter(s => s.electiveGroupId === formData.electiveGroupId && (s.id !== formData.id && s.subjectCode !== formData.subjectCode));
       if (groupMembers.length > 0) {
@@ -438,11 +444,7 @@ export function SyllabusDialog({
       }
     }
     
-    if (codeConflict && !isInherited) {
-      toast({ title: "Policy Violation", description: "You cannot save a course with a code that is already in use by another specification.", variant: "destructive" });
-      return;
-    }
-
+    // We allow saving even if a warning exists, as per user request.
     onSave(formData);
     onOpenChange(false);
   };
@@ -496,13 +498,13 @@ export function SyllabusDialog({
         
         <ScrollArea className="flex-1 w-full min-h-0">
           <div className="p-6 space-y-8 pb-12">
-            {codeConflict && (
-              <div className={cn(
-                "p-4 border rounded-xl flex items-center gap-3 text-sm animate-in fade-in slide-in-from-top-1",
-                isInherited ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-red-50 border-red-200 text-red-700"
-              )}>
-                {isInherited ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertTriangle className="w-5 h-5 shrink-0" />}
-                <p className="font-bold">{codeConflict}</p>
+            {codeWarning && (
+              <div className="p-4 border rounded-xl flex items-center gap-3 text-sm animate-in fade-in slide-in-from-top-1 bg-amber-50 border-amber-200 text-amber-700">
+                <AlertTriangle className="w-5 h-5 shrink-0" />
+                <div className="flex flex-col">
+                   <p className="font-bold">Content Synchronization Active</p>
+                   <p className="text-xs opacity-80">{codeWarning}</p>
+                </div>
               </div>
             )}
 
@@ -560,7 +562,7 @@ export function SyllabusDialog({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Credit Category</Label>
-                    <Select disabled={isReadOnly || isInherited} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v})}>
+                    <Select disabled={isReadOnly} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v})}>
                       <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {visibleCategories.map(cat => (
@@ -571,7 +573,7 @@ export function SyllabusDialog({
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Subject Title</Label>
-                    <Input disabled={isReadOnly || isInherited} className="h-11" placeholder="e.g. Machine Learning" value={formData.title || ''} onChange={e => setFormData({ ...formData, title: e.target.value })} />
+                    <Input disabled={isReadOnly} className="h-11" placeholder="e.g. Machine Learning" value={formData.title || ''} onChange={e => setFormData({ ...formData, title: e.target.value })} />
                   </div>
                 </div>
 
@@ -614,7 +616,7 @@ export function SyllabusDialog({
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Type</Label>
-                    <Select disabled={isReadOnly || isInherited} value={formData.type} onValueChange={(v: any) => setFormData({...formData, type: v})}><SelectTrigger className="h-11"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Theory">Theory</SelectItem><SelectItem value="Lab/Sessional">Lab/Sessional</SelectItem></SelectContent></Select>
+                    <Select disabled={isReadOnly} value={formData.type} onValueChange={(v: any) => setFormData({...formData, type: v})}><SelectTrigger className="h-11"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Theory">Theory</SelectItem><SelectItem value="Lab/Sessional">Lab/Sessional</SelectItem></SelectContent></Select>
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Sem</Label>
@@ -627,15 +629,15 @@ export function SyllabusDialog({
                   <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-1">
                       <Label className="text-[10px] uppercase text-muted-foreground">Lecture (L)</Label>
-                      <Input disabled={isReadOnly || isInherited} type="number" min="0" value={formData.lectureCredits || 0} onChange={e => setFormData({ ...formData, lectureCredits: Number(e.target.value) })} />
+                      <Input disabled={isReadOnly} type="number" min="0" value={formData.lectureCredits || 0} onChange={e => setFormData({ ...formData, lectureCredits: Number(e.target.value) })} />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-[10px] uppercase text-muted-foreground">Tutorial (T)</Label>
-                      <Input disabled={isReadOnly || isInherited} type="number" min="0" value={formData.tutorialCredits || 0} onChange={e => setFormData({ ...formData, tutorialCredits: Number(e.target.value) })} />
+                      <Input disabled={isReadOnly} type="number" min="0" value={formData.tutorialCredits || 0} onChange={e => setFormData({ ...formData, tutorialCredits: Number(e.target.value) })} />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-[10px] uppercase text-muted-foreground">Practical (P)</Label>
-                      <Input disabled={isReadOnly || isInherited} type="number" min="0" value={formData.practicalCredits || 0} onChange={e => setFormData({ ...formData, practicalCredits: Number(e.target.value) })} />
+                      <Input disabled={isReadOnly} type="number" min="0" value={formData.practicalCredits || 0} onChange={e => setFormData({ ...formData, practicalCredits: Number(e.target.value) })} />
                     </div>
                   </div>
                   <div className="p-3 bg-primary/5 rounded-lg flex items-center justify-between">
@@ -648,7 +650,7 @@ export function SyllabusDialog({
               <TabsContent value="syllabus" className="space-y-6">
                  <div className="flex justify-between items-center">
                    <h3 className="text-lg font-headline font-bold">Subject Units & Hours</h3>
-                   {!isReadOnly && !isInherited && (
+                   {!isReadOnly && (
                      <Button size="sm" variant="outline" className="gap-2" onClick={() => setFormData(prev => ({...prev, units: [...(prev.units || []), {id: Math.random().toString(36).substr(2, 9), title: '', content: '', hours: 0, courseOutcome: '', subUnits: []}]}))}>
                        <Plus className="w-4 h-4" /> Add Unit
                      </Button>
@@ -670,7 +672,7 @@ export function SyllabusDialog({
                               <Clock className="w-3.5 h-3.5 text-muted-foreground" />
                               <Label className="text-[10px] uppercase font-bold text-muted-foreground">Hours:</Label>
                               <Input 
-                                disabled={isReadOnly || isInherited} 
+                                disabled={isReadOnly} 
                                 type="number" 
                                 className="w-12 h-6 p-1 text-center border-none focus-visible:ring-0 font-bold" 
                                 value={unit.hours} 
@@ -681,7 +683,7 @@ export function SyllabusDialog({
                                 }} 
                               />
                             </div>
-                            {(!isReadOnly && !isInherited && canDelete) && (
+                            {(!isReadOnly && canDelete) && (
                               <Button variant="ghost" size="sm" className="h-8 w-8 text-red-400" onClick={() => setFormData(prev => ({...prev, units: prev.units?.filter(u => u.id !== unit.id)}))}>
                                 <Trash2 className="w-4 h-4"/>
                               </Button>
@@ -692,13 +694,13 @@ export function SyllabusDialog({
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              <div className="space-y-2">
                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Unit Title</Label>
-                               <Input disabled={isReadOnly || isInherited} placeholder="Professional Unit Title" value={unit.title} onChange={e => {
+                               <Input disabled={isReadOnly} placeholder="Professional Unit Title" value={unit.title} onChange={e => {
                                  const u = [...(formData.units || [])]; u[idx].title = e.target.value; setFormData({...formData, units: u});
                                }} />
                              </div>
                              <div className="space-y-2">
                                 <Label className="text-[10px] uppercase font-bold text-muted-foreground">Course Outcome (CO)</Label>
-                                <Input disabled={isReadOnly || isInherited} placeholder="Bloom's Taxonomy Verb based outcome..." value={unit.courseOutcome} onChange={e => {
+                                <Input disabled={isReadOnly} placeholder="Bloom's Taxonomy Verb based outcome..." value={unit.courseOutcome} onChange={e => {
                                   const u = [...(formData.units || [])]; u[idx].courseOutcome = e.target.value; setFormData({...formData, units: u});
                                 }} />
                              </div>
@@ -706,7 +708,7 @@ export function SyllabusDialog({
                           
                           <div className="space-y-2">
                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">Unit Summary / Topics</Label>
-                            <Textarea disabled={isReadOnly || isInherited} className="min-h-[60px]" placeholder="Broad topics covered in this unit..." value={unit.content} onChange={e => {
+                            <Textarea disabled={isReadOnly} className="min-h-[60px]" placeholder="Broad topics covered in this unit..." value={unit.content} onChange={e => {
                               const u = [...(formData.units || [])]; u[idx].content = e.target.value; setFormData({...formData, units: u});
                             }} />
                           </div>
@@ -717,7 +719,7 @@ export function SyllabusDialog({
                                    <ListPlus className="w-4 h-4" />
                                    <span className="text-[11px] font-bold uppercase tracking-wider">Sub-Unit Breakdown</span>
                                 </div>
-                                {!isReadOnly && !isInherited && (
+                                {!isReadOnly && (
                                   <Button size="sm" variant="ghost" className="h-7 text-[10px] uppercase" onClick={() => {
                                     const u = [...(formData.units || [])];
                                     if (!u[idx].subUnits) u[idx].subUnits = [];
@@ -733,19 +735,19 @@ export function SyllabusDialog({
                                   <div key={sub.id} className="grid grid-cols-12 gap-3 items-start bg-white p-3 rounded-lg border shadow-sm">
                                      <div className="col-span-11 space-y-3">
                                         <div className="flex gap-4">
-                                           <Input disabled={isReadOnly || isInherited} className="h-8 text-xs font-bold" placeholder="Sub-topic Title" value={sub.title} onChange={e => {
+                                           <Input disabled={isReadOnly} className="h-8 text-xs font-bold" placeholder="Sub-topic Title" value={sub.title} onChange={e => {
                                              const u = [...(formData.units || [])]; u[idx].subUnits![sIdx].title = e.target.value; setFormData({...formData, units: u});
                                            }} />
                                            <div className="flex items-center gap-2 shrink-0">
                                               <Label className="text-[9px] uppercase font-bold text-muted-foreground">Hrs:</Label>
-                                              <Input disabled={isReadOnly || isInherited} type="number" className="w-14 h-8 text-xs text-center" value={sub.hours} onChange={e => {
+                                              <Input disabled={isReadOnly} type="number" className="w-14 h-8 text-xs text-center" value={sub.hours} onChange={e => {
                                                 const u = [...(formData.units || [])]; u[idx].subUnits![sIdx].hours = Number(e.target.value); setFormData({...formData, units: u});
                                               }} />
                                            </div>
                                         </div>
                                      </div>
                                      <div className="col-span-1 flex justify-center pt-1">
-                                        {!isReadOnly && !isInherited && (
+                                        {!isReadOnly && (
                                           <Button variant="ghost" size="icon" className="h-8 w-8 text-red-300 hover:text-red-500" onClick={() => {
                                             const u = [...(formData.units || [])];
                                             u[idx].subUnits = u[idx].subUnits!.filter(s => s.id !== sub.id);
@@ -794,7 +796,7 @@ export function SyllabusDialog({
                   onAdd={() => handleAddArrayField('textBooks')}
                   onUpdate={(idx, val) => handleUpdateArrayField('textBooks', idx, val)}
                   onRemove={(idx) => handleRemoveArrayField('textBooks', idx)}
-                  isReadOnly={isReadOnly || isInherited}
+                  isReadOnly={isReadOnly}
                   placeholder="Author, Title, Publisher, Edition"
                 />
 
@@ -806,7 +808,7 @@ export function SyllabusDialog({
                   onAdd={() => handleAddArrayField('referenceBooks')}
                   onUpdate={(idx, val) => handleUpdateArrayField('referenceBooks', idx, val)}
                   onRemove={(idx) => handleRemoveArrayField('referenceBooks', idx)}
-                  isReadOnly={isReadOnly || isInherited}
+                  isReadOnly={isReadOnly}
                   placeholder="Title, Author, Publisher or Reference URL"
                 />
 
@@ -818,7 +820,7 @@ export function SyllabusDialog({
                   onAdd={() => handleAddArrayField('nptelLinks')}
                   onUpdate={(idx, val) => handleUpdateArrayField('nptelLinks', idx, val)}
                   onRemove={(idx) => handleRemoveArrayField('nptelLinks', idx)}
-                  isReadOnly={isReadOnly || isInherited}
+                  isReadOnly={isReadOnly}
                   placeholder="Course Title & Portal Link"
                 />
 
@@ -830,7 +832,7 @@ export function SyllabusDialog({
                   onAdd={() => handleAddArrayField('youtubeLinks')}
                   onUpdate={(idx, val) => handleUpdateArrayField('youtubeLinks', idx, val)}
                   onRemove={(idx) => handleRemoveArrayField('youtubeLinks', idx)}
-                  isReadOnly={isReadOnly || isInherited}
+                  isReadOnly={isReadOnly}
                   placeholder="Video URL or Playlist Name"
                 />
               </TabsContent>
@@ -844,7 +846,7 @@ export function SyllabusDialog({
                         {formData.units?.map((unit, uIdx) => (
                           <TableRow key={unit.id}><TableCell className="font-bold">CO{uIdx+1}</TableCell>{PO_DEFINITIONS.map(po => (
                             <TableCell key={po.code} className="p-1">
-                              <Select disabled={isReadOnly || isInherited} value={formData.poMappings?.[unit.id]?.[po.code] || '-'} onValueChange={val => {
+                              <Select disabled={isReadOnly} value={formData.poMappings?.[unit.id]?.[po.code] || '-'} onValueChange={val => {
                                 const m = { ...(formData.poMappings || {}) }; if (!m[unit.id]) m[unit.id] = {}; m[unit.id][po.code] = val as CorrelationLevelType; setFormData({ ...formData, poMappings: m });
                               }}><SelectTrigger className="h-8 w-12 mx-auto"><SelectValue /></SelectTrigger><SelectContent>{['1', '2', '3', '-'].map(lvl => <SelectItem key={lvl} value={lvl}>{lvl}</SelectItem>)}</SelectContent></Select>
                             </TableCell>
@@ -861,7 +863,12 @@ export function SyllabusDialog({
 
         <DialogFooter className="p-6 border-t bg-background shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>{isReadOnly ? 'Close' : 'Cancel'}</Button>
-          {!isReadOnly && <Button onClick={handleSave}>Save Specification</Button>}
+          {!isReadOnly && (
+            <Button onClick={handleSave} className="gap-2">
+              {codeWarning && <Info className="w-4 h-4" />}
+              Save Specification
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
