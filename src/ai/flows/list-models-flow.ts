@@ -17,9 +17,13 @@ export async function listAvailableModels() {
       config: { maxOutputTokens: 5 }
     });
 
-    // Get actions from registry using correct 1.x API
-    const actions = ai.registry.listActions();
-    const modelActions = actions.filter(a => a.key.includes('/model/'));
+    // Get actions from registry using correct 1.x API - Awaiting in case it returns a promise
+    const actions = await ai.registry.listActions();
+    
+    // Safety check: ensure actions is an array before filtering
+    const modelActions = Array.isArray(actions) 
+      ? actions.filter(a => a.key.includes('/model/'))
+      : [];
 
     return {
       success: true,
