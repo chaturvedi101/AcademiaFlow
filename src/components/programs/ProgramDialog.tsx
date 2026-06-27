@@ -16,7 +16,7 @@ import { Program, CreditRules, FACULTIES, UserProfile, ProgramSlotTemplate, Cred
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { X, Plus, ShieldAlert, Trash2, Layers } from 'lucide-react';
+import { X, Plus, ShieldAlert, Trash2, Layers, ShieldCheck, GraduationCap } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 
@@ -360,13 +360,102 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                 </div>
               </TabsContent>
 
-              <TabsContent value="rules" className="mt-0 space-y-6">
-                <div className="space-y-4">
-                  <Label className="text-sm font-semibold">Credit Framework (Standard NEP Rules)</Label>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs">Total Required</Label>
-                      <Input disabled={isReadOnly} type="number" value={formData.rules?.totalRequired ?? ''} onChange={e => updateRule('totalRequired', e.target.value)} />
+              <TabsContent value="rules" className="mt-0 space-y-8">
+                <div className="space-y-6">
+                  <div className="p-4 bg-accent/5 rounded-xl border border-accent/10 flex items-center gap-3 text-accent text-sm">
+                    <ShieldCheck className="w-5 h-5 shrink-0" />
+                    <p>These parameters define the institutional boundaries for all schemes under this program. Credits are validated in real-time by the Scheme Architect.</p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h3 className="font-bold text-sm uppercase tracking-wider text-primary">Core Requirements</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                      <div className="space-y-2">
+                        <Label className="text-xs">DSC Min Credits</Label>
+                        <Input disabled={isReadOnly} type="number" value={formData.rules?.dscMin ?? ''} onChange={e => updateRule('dscMin', e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">DSC Max Credits</Label>
+                        <Input disabled={isReadOnly} type="number" value={formData.rules?.dscMax ?? ''} onChange={e => updateRule('dscMax', e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Project Min Credits</Label>
+                        <Input disabled={isReadOnly} type="number" value={formData.rules?.projectMin ?? ''} onChange={e => updateRule('projectMin', e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Project Max Credits</Label>
+                        <Input disabled={isReadOnly} type="number" value={formData.rules?.projectMax ?? ''} onChange={e => updateRule('projectMax', e.target.value)} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h3 className="font-bold text-sm uppercase tracking-wider text-primary">Elective Pools</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                      <div className="space-y-2">
+                        <Label className="text-xs">DSE Min</Label>
+                        <Input disabled={isReadOnly} type="number" value={formData.rules?.dseMin ?? ''} onChange={e => updateRule('dseMin', e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">DSE Max</Label>
+                        <Input disabled={isReadOnly} type="number" value={formData.rules?.dseMax ?? ''} onChange={e => updateRule('dseMax', e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">OFE Min</Label>
+                        <Input disabled={isReadOnly} type="number" value={formData.rules?.ofeMin ?? ''} onChange={e => updateRule('ofeMin', e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">OFE Max</Label>
+                        <Input disabled={isReadOnly} type="number" value={formData.rules?.ofeMax ?? ''} onChange={e => updateRule('ofeMax', e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Combined Elective Min</Label>
+                        <Input disabled={isReadOnly} type="number" value={formData.rules?.electiveMin ?? ''} onChange={e => updateRule('electiveMin', e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Combined Elective Max</Label>
+                        <Input disabled={isReadOnly} type="number" value={formData.rules?.electiveMax ?? ''} onChange={e => updateRule('electiveMax', e.target.value)} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h3 className="font-bold text-sm uppercase tracking-wider text-primary">Institutional Targets (NEP Fixed)</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                      <div className="space-y-2">
+                        <Label className="text-xs">VAC Total</Label>
+                        <Input disabled={isReadOnly} type="number" value={formData.rules?.vacTotal ?? ''} onChange={e => updateRule('vacTotal', e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">AEC Total</Label>
+                        <Input disabled={isReadOnly} type="number" value={formData.rules?.aecTotal ?? ''} onChange={e => updateRule('aecTotal', e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">SEC Total</Label>
+                        <Input disabled={isReadOnly} type="number" value={formData.rules?.secTotal ?? ''} onChange={e => updateRule('secTotal', e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">MDC Total</Label>
+                        <Input disabled={isReadOnly} type="number" value={formData.rules?.mdcTotal ?? ''} onChange={e => updateRule('mdcTotal', e.target.value)} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-6 border-t">
+                    <div className="flex items-center justify-between p-6 bg-primary/5 rounded-2xl border-2 border-primary/20">
+                      <div className="space-y-1">
+                        <Label className="text-lg font-bold text-primary">Final Degree Credits</Label>
+                        <p className="text-sm text-muted-foreground font-medium">The mandatory total for RTU degree completion.</p>
+                      </div>
+                      <div className="w-48">
+                        <Input 
+                          disabled={isReadOnly} 
+                          type="number" 
+                          className="text-2xl h-14 text-center font-black border-primary/30" 
+                          value={formData.rules?.totalRequired ?? ''} 
+                          onChange={e => updateRule('totalRequired', e.target.value)} 
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -450,3 +539,4 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
     </Dialog>
   );
 }
+
