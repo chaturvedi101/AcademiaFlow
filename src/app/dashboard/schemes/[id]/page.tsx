@@ -112,7 +112,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const isProgramDean = profile.role === 'dean_faculty' && profile.faculty === program.faculty;
     const isCommonBOS = profile.faculty === 'University-wide (Common BOS)';
 
-    // Check specific role for this branch in managed assignments
     const myBranchRole = profile.managedBranches?.find(m => m.programId === scheme.programId && m.branch === scheme.branch)?.role;
 
     let canEditScheme = false;
@@ -130,11 +129,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       if (isGlobalAdmin) return true;
       if (!s) return false;
       
-      // Institutional Board can edit anything in a common pool scheme
       if (isCommonBOS && scheme.isCommonPoolScheme) return true;
       
-      // Branch Staff (Convenor or Member) can edit subjects in THEIR scheme,
-      // even if the subject code points to a pool item (this creates a divergence).
       const hasBranchAccess = !!myBranchRole;
       return hasBranchAccess || canEditScheme;
     };
@@ -176,21 +172,22 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const handleSaveSyllabus = async (data: Partial<Syllabus>) => {
-    const code = (data.isSlot || data.isOFESlot) ? data.id : data.subjectCode;
-    if (!code) return;
-
-    const docRef = doc(db, 'schemes', schemeId, 'syllabi', code);
+    // CRITICAL: Maintain a stable document ID. 
+    // If it's a slot, use its ID. If new, generate one.
+    const docId = data.id || data.subjectCode || Math.random().toString(36).substr(2, 9);
+    const docRef = doc(db, 'schemes', schemeId, 'syllabi', docId);
+    
     const finalData = { 
       ...data, 
-      id: code!, 
+      id: docId, 
       schemeId, 
       updatedAt: serverTimestamp(),
-      isSlot: false,
+      isSlot: false, // Once user touches it, it's defined
       isOFESlot: data.creditCategory === 'OFE' ? (data.isOFESlot || false) : false 
     };
     
     setDoc(docRef, finalData, { merge: true })
-      .then(() => toast({ title: "Course Synchronized", description: `${code} registered.` }))
+      .then(() => toast({ title: "Course Synchronized", description: `${finalData.subjectCode} registered.` }))
       .catch(err => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: docRef.path,

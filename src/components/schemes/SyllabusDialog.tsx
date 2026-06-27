@@ -272,7 +272,9 @@ export function SyllabusDialog({
         if (existingRecord) {
           const data = existingRecord.data() as Syllabus;
           
-          if (!isInherited) {
+          // CRITICAL: Only inherit if it's a NEW entry or the user has manually entered/changed the code
+          const isNewEntry = !syllabus?.id;
+          if (!isInherited && (isNewEntry || isManuallyEditedCode)) {
             setIsInherited(true);
             setFormData(prev => ({
               ...prev,
@@ -313,7 +315,7 @@ export function SyllabusDialog({
 
     const timer = setTimeout(checkGlobalUniquenessAndInherit, 800);
     return () => clearTimeout(timer);
-  }, [formData.subjectCode, currentSchemeId, db, open, toast, isInherited]);
+  }, [formData.subjectCode, currentSchemeId, db, open, toast, isInherited, isManuallyEditedCode, syllabus?.id]);
 
   useEffect(() => {
     const l = Number(formData.lectureCredits) || 0;
@@ -396,7 +398,7 @@ export function SyllabusDialog({
         const syllabiSnap = await getDocs(syllabiQuery);
         syllabiSnap.forEach(doc => {
           const data = doc.data() as Syllabus;
-          if (!data.isSlot && !data.isOFESlot && data.subjectCode && data.schemeId === schemeId) {
+          if (!data.isSlot && !data.isOFESlot) {
             results.push({ ...data, id: doc.id });
           }
         });
