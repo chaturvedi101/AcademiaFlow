@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -73,7 +74,8 @@ export function SyllabusDialog({
   const [formData, setFormData] = useState<Partial<Syllabus>>({
     subjectCode: '', title: '', lectureCredits: 0, tutorialCredits: 0, practicalCredits: 0,
     credits: 0, semester: 1, type: 'Theory', creditCategory: 'DSC', units: [],
-    poMappings: {}, textBooks: [], referenceBooks: [], nptelLinks: [], youtubeLinks: []
+    poMappings: {}, textBooks: [], referenceBooks: [], nptelLinks: [], youtubeLinks: [],
+    timetableSlot: ''
   });
 
   const generateAutoCode = useCallback(() => {
@@ -146,7 +148,8 @@ export function SyllabusDialog({
               credits: data.credits,
               lectureCredits: data.lectureCredits || 0,
               tutorialCredits: data.tutorialCredits || 0,
-              practicalCredits: data.practicalCredits || 0
+              practicalCredits: data.practicalCredits || 0,
+              timetableSlot: data.timetableSlot || prev.timetableSlot
             }));
           }
         } else {
@@ -189,10 +192,9 @@ export function SyllabusDialog({
     } finally { setIsGenerating(false); }
   };
 
-  // Central Institutional Auth logic
   const isAuthorized = useMemo(() => {
     if (!userProfile) return false;
-    if (userProfile.role === 'monitor') return false; // Monitor is strictly read-only
+    if (userProfile.role === 'monitor') return false; 
 
     const cat = formData.creditCategory;
     const isInstitutionalCategory = ['AEC', 'VAC', 'MDC'].includes(cat || '');
@@ -306,15 +308,34 @@ export function SyllabusDialog({
                     <div className="p-2 bg-primary/5 rounded font-bold text-center h-10 flex items-center justify-center text-primary">{formData.credits} Cr</div>
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
-                   <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Lecture (L)</Label><Input type="number" disabled={isReadOnly} value={formData.lectureCredits} onChange={e => setFormData({...formData, lectureCredits: Number(e.target.value)})} /></div>
-                   <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Tutorial (T)</Label><Input type="number" disabled={isReadOnly} value={formData.tutorialCredits} onChange={e => setFormData({...formData, tutorialCredits: Number(e.target.value)})} /></div>
-                   <div className="space-y-1">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Practical (P)</Label>
-                      <Input type="number" disabled={isReadOnly} value={formData.practicalCredits} onChange={e => setFormData({...formData, practicalCredits: Number(e.target.value)})} />
-                      <div className="flex items-center gap-1 mt-1 text-[8px] text-muted-foreground">
-                        <Info className="w-2.5 h-2.5" />
-                        <span>AICTE Rule: 3H = 2Cr exception active</span>
+
+                <div className="grid grid-cols-3 gap-6">
+                   <div className="space-y-2 col-span-1">
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-2">
+                        Timetable Slot
+                        <Info className="w-3 h-3 text-muted-foreground" />
+                      </Label>
+                      <Input 
+                        disabled={isReadOnly} 
+                        value={formData.timetableSlot} 
+                        onChange={e => setFormData({...formData, timetableSlot: e.target.value.toUpperCase()})} 
+                        placeholder={formData.type === 'Theory' ? "e.g. 1, 2, 3" : "e.g. A, B, C"}
+                        className="font-mono font-bold"
+                      />
+                      <p className="text-[9px] text-muted-foreground mt-1">
+                        {formData.type === 'Theory' ? 'Suggested: Numeric (1-8)' : 'Suggested: Alphabetic (A-D)'}
+                      </p>
+                   </div>
+                   <div className="col-span-2 grid grid-cols-3 gap-4">
+                      <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Lecture (L)</Label><Input type="number" disabled={isReadOnly} value={formData.lectureCredits} onChange={e => setFormData({...formData, lectureCredits: Number(e.target.value)})} /></div>
+                      <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Tutorial (T)</Label><Input type="number" disabled={isReadOnly} value={formData.tutorialCredits} onChange={e => setFormData({...formData, tutorialCredits: Number(e.target.value)})} /></div>
+                      <div className="space-y-1">
+                          <Label className="text-[10px] uppercase font-bold text-muted-foreground">Practical (P)</Label>
+                          <Input type="number" disabled={isReadOnly} value={formData.practicalCredits} onChange={e => setFormData({...formData, practicalCredits: Number(e.target.value)})} />
+                          <div className="flex items-center gap-1 mt-1 text-[8px] text-muted-foreground">
+                            <Info className="w-2.5 h-2.5" />
+                            <span>AICTE Rule: 3H = 2Cr exception active</span>
+                          </div>
                       </div>
                    </div>
                 </div>

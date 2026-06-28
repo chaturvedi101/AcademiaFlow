@@ -150,6 +150,7 @@ export interface Syllabus {
   isOFESlot?: boolean; // True if this is just a placeholder slot in a scheme
   isOFEContribution?: boolean; // True if this is a course offered by this branch to the global pool
   isSlot?: boolean; // Generic flag for a pre-defined locked slot
+  timetableSlot?: string; // e.g. "1", "2" for Theory or "A", "B" for Practical
 }
 
 export interface AuditLog {

@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown, Globe, Layers, BookOpen, Eye } from "lucide-react";
+import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown, Globe, Layers, BookOpen, Eye, Clock } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile } from "@/lib/types";
@@ -111,7 +111,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     };
 
     if (profile.role === 'monitor') {
-      return { canEditScheme: false, canDeleteSyllabus: () => false, canEditSyllabus: () => false };
+      return { canEditScheme: false, canDeleteSyllabus: () => false, canEditSyllabus: () => false, isMonitor: true };
     }
 
     const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile.role);
@@ -129,7 +129,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     }
 
     const canEditSyllabus = (s: any) => {
-      // AEC, VAC, MDC are restricted to Admin, Dean Academic, and Common BOS
       const isInstitutionalCategory = ['AEC', 'VAC', 'MDC'].includes(s?.creditCategory);
       const hasCentralAuth = isGlobalAdmin || isCommonBOS;
       
@@ -137,13 +136,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         return hasCentralAuth;
       }
       
-      // Standard categories allow modification by scheme owners or branch managers
       return isGlobalAdmin || isProgramDean || !!myBranchRole || canEditScheme;
     };
 
     const canDeleteSyllabus = (s: any) => canEditSyllabus(s);
 
-    return { canEditScheme, canDeleteSyllabus, canEditSyllabus };
+    return { canEditScheme, canDeleteSyllabus, canEditSyllabus, isMonitor: false };
   }, [profile, profileLoading, scheme, program]);
 
   const creditDistribution = useMemo(() => {
@@ -277,7 +275,17 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                     </CardHeader>
                     <CardContent className="p-0">
                       <Table>
-                        <TableHeader className="bg-muted/10"><TableRow><TableHead className="w-24 pl-6">Code</TableHead><TableHead>Subject Title / Slot</TableHead><TableHead>Category</TableHead><TableHead className="text-center">L-T-P</TableHead><TableHead className="text-right">Credits</TableHead><TableHead className="text-right pr-6">Actions</TableHead></TableRow></TableHeader>
+                        <TableHeader className="bg-muted/10">
+                          <TableRow>
+                            <TableHead className="w-20 pl-6">Slot</TableHead>
+                            <TableHead className="w-24">Code</TableHead>
+                            <TableHead>Subject Title / Slot</TableHead>
+                            <TableHead>Category</TableHead>
+                            <TableHead className="text-center">L-T-P</TableHead>
+                            <TableHead className="text-right">Credits</TableHead>
+                            <TableHead className="text-right pr-6">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
                         <TableBody>
                           {nonGrouped.map(sub => (
                             <SubjectRow key={sub.id} sub={sub} currentSchemeId={schemeId} schemeStatus={scheme.status} permissions={permissions} onEdit={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }} onDelete={() => handleDeleteSyllabus(sub.id)} />
@@ -285,7 +293,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                           {Object.entries(groups).map(([groupId, members]) => (
                             <React.Fragment key={groupId}>
                               <TableRow className="hover:bg-muted/10 cursor-pointer bg-accent/5" onClick={() => setExpandedGroups(p => ({ ...p, [groupId]: !p[groupId] }))}>
-                                <TableCell className="pl-6 font-mono font-bold text-accent">DSE</TableCell>
+                                <TableCell className="pl-6"></TableCell>
+                                <TableCell className="font-mono font-bold text-accent">DSE</TableCell>
                                 <TableCell className="font-bold text-accent"><div className="flex items-center gap-2">{expandedGroups[groupId] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />} {groupId} ({members.length} Options)</div></TableCell>
                                 <TableCell><Badge className="bg-accent text-white">{members[0].creditCategory}</Badge></TableCell>
                                 <TableCell className="text-center font-mono text-xs">{members[0].lectureCredits}-{members[0].tutorialCredits}-{members[0].practicalCredits}</TableCell>
@@ -296,7 +305,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                             </React.Fragment>
                           ))}
                         </TableBody>
-                        <TableFooter className="bg-muted/5"><TableRow><TableCell colSpan={4} className="pl-6 text-right font-bold text-xs">Total Semester Credits</TableCell><TableCell className="text-right font-bold text-primary text-base">{semTotal}</TableCell><TableCell className="pr-6"></TableCell></TableRow></TableFooter>
+                        <TableFooter className="bg-muted/5"><TableRow><TableCell colSpan={5} className="pl-6 text-right font-bold text-xs">Total Semester Credits</TableCell><TableCell className="text-right font-bold text-primary text-base">{semTotal}</TableCell><TableCell className="pr-6"></TableCell></TableRow></TableFooter>
                       </Table>
                     </CardContent>
                   </Card>
@@ -346,7 +355,16 @@ function SubjectRow({ sub, currentSchemeId, schemeStatus, permissions, isOption,
   const isFromPool = sub.schemeId !== currentSchemeId;
   return (
     <TableRow className={`group transition-colors ${isOption ? 'bg-muted/30' : ''} ${isFromPool ? 'bg-emerald-50/20' : ''}`}>
-      <TableCell className={`font-mono text-xs font-bold ${isSlot ? 'text-blue-600' : isFromPool ? 'text-emerald-700' : 'text-primary'} ${isOption ? 'pl-10' : 'pl-6'}`}>{(isSlot && !sub.subjectCode) ? 'SLOT' : sub.subjectCode}</TableCell>
+      <TableCell className="pl-6">
+        {sub.timetableSlot ? (
+          <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 font-bold font-mono text-[10px]">
+            {sub.timetableSlot}
+          </Badge>
+        ) : (
+          <span className="text-[10px] text-muted-foreground italic">-</span>
+        )}
+      </TableCell>
+      <TableCell className={`font-mono text-xs font-bold ${isSlot ? 'text-blue-600' : isFromPool ? 'text-emerald-700' : 'text-primary'}`}>{(isSlot && !sub.subjectCode) ? 'SLOT' : sub.subjectCode}</TableCell>
       <TableCell className="font-medium">
         <div className="flex flex-col"><span className="flex items-center gap-2">{isSlot && <Globe className="w-3 h-3 text-blue-500" />} {isFromPool && <Layers className="w-3 h-3 text-emerald-500" />} {sub.title} {isFromPool && <Badge variant="outline" className="text-[8px] bg-white border-emerald-200 text-emerald-600">POOL</Badge>}</span><span className="text-[10px] text-muted-foreground uppercase">{isSlot ? 'Institutional Pool Slot' : sub.type}</span></div>
       </TableCell>
