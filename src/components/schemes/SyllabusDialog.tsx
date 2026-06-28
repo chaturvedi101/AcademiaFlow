@@ -12,10 +12,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BookOpen, Loader2, Plus, Sparkles, Clock, AlertTriangle, Info, Cpu } from "lucide-react";
+import { BookOpen, Loader2, Plus, Sparkles, Clock, AlertTriangle, Info, Cpu, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { Syllabus, CreditRules, CreditCategory } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
-import { useFirestore, useMemoFirebase } from "@/firebase";
+import { useFirestore } from "@/firebase";
 import { query, getDocs, collectionGroup, where } from "firebase/firestore";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { cn } from "@/lib/utils";
@@ -41,11 +41,13 @@ interface SyllabusDialogProps {
   syllabus?: Partial<Syllabus>;
   existingSyllabi?: Syllabus[];
   onSave: (data: Partial<Syllabus>) => void;
+  programName?: string;
   branchName?: string;
   canEdit?: boolean;
   canDelete?: boolean;
   currentSchemeId?: string;
   programRules?: CreditRules;
+  batchYear?: string;
 }
 
 export function SyllabusDialog({ 
@@ -64,6 +66,7 @@ export function SyllabusDialog({
   const [selectedModel, setSelectedModel] = useState('googleai/gemini-flash-latest');
   const [codeWarning, setCodeWarning] = useState<string | null>(null);
   const [isCheckingUniqueness, setIsCheckingUniqueness] = useState(false);
+  const [expandedUnits, setExpandedUnits] = useState<Record<string, boolean>>({});
 
   const [formData, setFormData] = useState<Partial<Syllabus>>({
     subjectCode: '', title: '', lectureCredits: 0, tutorialCredits: 0, practicalCredits: 0,
@@ -89,13 +92,17 @@ export function SyllabusDialog({
     if (['DSE', 'OFE'].includes(cat)) seq = 50;
     if (cat === 'PRJ') seq = 95;
 
-    return `${prefix}${ped${pillar}${year}${String(seq).padStart(2, '0')}`;
+    return `${prefix}${ped}${pillar}${year}${String(seq).padStart(2, '0')}`;
   }, [branchName, formData.type, formData.semester, formData.creditCategory]);
 
   useEffect(() => {
     if (open && syllabus) {
       setFormData({ ...formData, ...syllabus });
       setCodeWarning(null);
+      // Expand units by default when opening
+      const initialExpanded: Record<string, boolean> = {};
+      syllabus.units?.forEach(u => initialExpanded[u.id] = true);
+      setExpandedUnits(initialExpanded);
     }
   }, [open, syllabus]);
 
@@ -119,11 +126,27 @@ export function SyllabusDialog({
         const q = query(collectionGroup(db, 'syllabi'), where('subjectCode', '==', formData.subjectCode));
         const snap = await getDocs(q);
         const existing = snap.docs.find(d => d.data().schemeId !== currentSchemeId);
+        
         if (existing) {
           const data = existing.data() as Syllabus;
           setCodeWarning(`Institutional Code Detected: This code is registered to "${data.title}" in another scheme. Saving will create a local branch-specific adaptation.`);
-          if (!formData.id || formData.isSlot) {
-            setFormData(prev => ({ ...prev, title: data.title, units: data.units || [], credits: data.credits }));
+          
+          // Only auto-populate if the title is generic/empty to avoid overwriting manual changes
+          const isGenericTitle = !formData.title || 
+                                formData.title.includes('Slot') || 
+                                formData.title.includes('Elective') || 
+                                formData.title.includes('Subject');
+
+          if (isGenericTitle && (!formData.id || formData.isSlot)) {
+            setFormData(prev => ({ 
+              ...prev, 
+              title: data.title, 
+              units: data.units || [], 
+              credits: data.credits,
+              lectureCredits: data.lectureCredits || 0,
+              tutorialCredits: data.tutorialCredits || 0,
+              practicalCredits: data.practicalCredits || 0
+            }));
           }
         } else {
           setCodeWarning(null);
@@ -143,12 +166,18 @@ export function SyllabusDialog({
         unitCount: 5,
         modelId: selectedModel 
       });
+      const newUnits = res.units.map(u => ({ ...u, id: Math.random().toString(36).substr(2, 9) }));
       setFormData(p => ({ 
         ...p, 
-        units: res.units.map(u => ({ ...u, id: Math.random().toString(36).substr(2, 9) })), 
+        units: newUnits, 
         textBooks: res.suggestedTextBooks, 
         referenceBooks: res.suggestedReferences 
       }));
+      
+      const newExpanded: Record<string, boolean> = {};
+      newUnits.forEach(u => newExpanded[u.id] = true);
+      setExpandedUnits(newExpanded);
+      
       toast({ title: "AI Generation Complete" });
     } catch (e: any) { 
       toast({ 
@@ -208,7 +237,7 @@ export function SyllabusDialog({
               <TabsContent value="basic" className="space-y-6">
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label>Credit Category</Label>
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Credit Category</Label>
                     <Select disabled={isReadOnly} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v})}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -217,20 +246,20 @@ export function SyllabusDialog({
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Course Title</Label>
-                    <Input disabled={isReadOnly} value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Course Title</Label>
+                    <Input disabled={isReadOnly} value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="e.g. Programming for Problem Solving" />
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label>Subject Code</Label>
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Subject Code</Label>
                     <div className="relative">
                       <Input disabled={isReadOnly} value={formData.subjectCode} onChange={e => setFormData({...formData, subjectCode: e.target.value.toUpperCase()})} />
                       {isCheckingUniqueness && <Loader2 className="absolute right-3 top-3 w-4 h-4 animate-spin opacity-50" />}
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>Teaching Methodology</Label>
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Teaching Methodology</Label>
                     <Select disabled={isReadOnly} value={formData.type} onValueChange={(v: any) => setFormData({...formData, type: v})}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -240,7 +269,7 @@ export function SyllabusDialog({
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Calculated Credits</Label>
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Calculated Credits</Label>
                     <div className="p-2 bg-primary/5 rounded font-bold text-center h-10 flex items-center justify-center text-primary">{formData.credits} Cr</div>
                   </div>
                 </div>
@@ -259,23 +288,96 @@ export function SyllabusDialog({
               </TabsContent>
               <TabsContent value="syllabus" className="space-y-6">
                  {formData.units?.map((u, i) => (
-                   <Card key={u.id} className="border-muted">
-                     <CardHeader className="p-4 bg-muted/20 flex flex-row items-center justify-between">
-                        <div className="flex items-center gap-3"><Badge>Unit {i+1}</Badge><span className="font-bold">{u.title || 'Untitled Unit'}</span></div>
-                        <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-muted-foreground" /><Input className="w-16 h-8 text-center" value={u.hours} onChange={e => {const units=[...(formData.units||[])]; units[i].hours=Number(e.target.value); setFormData({...formData, units})}} /></div>
+                   <Card key={u.id} className="border-muted overflow-hidden">
+                     <CardHeader 
+                      className="p-4 bg-muted/20 flex flex-row items-center justify-between cursor-pointer hover:bg-muted/30 transition-colors"
+                      onClick={() => setExpandedUnits(prev => ({ ...prev, [u.id]: !prev[u.id] }))}
+                     >
+                        <div className="flex items-center gap-3">
+                          <Badge className="bg-primary/10 text-primary hover:bg-primary/20 border-none">Unit {i+1}</Badge>
+                          <span className="font-bold truncate max-w-[400px]">{u.title || 'Untitled Unit'}</span>
+                          {expandedUnits[u.id] ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                        </div>
+                        <div className="flex items-center gap-4" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-muted-foreground" />
+                            <Input 
+                              className="w-16 h-8 text-center" 
+                              value={u.hours} 
+                              type="number"
+                              disabled={isReadOnly}
+                              onChange={e => {
+                                const units = [...(formData.units || [])];
+                                units[i] = { ...units[i], hours: Number(e.target.value) };
+                                setFormData({ ...formData, units });
+                              }} 
+                            />
+                          </div>
+                          {!isReadOnly && (
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50"
+                              onClick={() => {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  units: prev.units?.filter(unit => unit.id !== u.id)
+                                }));
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
                      </CardHeader>
-                     <CardContent className="p-4 space-y-4">
-                        <Input placeholder="Unit Title" value={u.title} onChange={e => {const units=[...(formData.units||[])]; units[i].title=e.target.value; setFormData({...formData, units})}} />
-                        <Textarea placeholder="Course content breakdown..." value={u.content} onChange={e => {const units=[...(formData.units||[])]; units[i].content=e.target.value; setFormData({...formData, units})}} className="min-h-[120px]" />
-                        <div className="space-y-1">
-                          <Label className="text-[10px] uppercase font-bold text-muted-foreground">Course Outcome (CO)</Label>
-                          <Input placeholder="Learners will be able to..." value={u.courseOutcome} onChange={e => {const units=[...(formData.units||[])]; units[i].courseOutcome=e.target.value; setFormData({...formData, units})}} />
+                     <CardContent className={cn("p-4 space-y-4", !expandedUnits[u.id] && "hidden")}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           <div className="space-y-2">
+                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">Unit Title</Label>
+                             <Input 
+                                disabled={isReadOnly}
+                                placeholder="Unit Title" 
+                                value={u.title} 
+                                onChange={e => {
+                                  const units = [...(formData.units || [])];
+                                  units[i] = { ...units[i], title: e.target.value };
+                                  setFormData({ ...formData, units });
+                                }} 
+                             />
+                           </div>
+                           <div className="space-y-2">
+                              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Course Outcome (CO)</Label>
+                              <Input 
+                                disabled={isReadOnly}
+                                placeholder="Learners will be able to..." 
+                                value={u.courseOutcome} 
+                                onChange={e => {
+                                  const units = [...(formData.units || [])];
+                                  units[i] = { ...units[i], courseOutcome: e.target.value };
+                                  setFormData({ ...formData, units });
+                                }} 
+                              />
+                           </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] uppercase font-bold text-muted-foreground">Unit Topics & Content</Label>
+                          <Textarea 
+                            disabled={isReadOnly}
+                            placeholder="Course content breakdown..." 
+                            value={u.content} 
+                            onChange={e => {
+                              const units = [...(formData.units || [])];
+                              units[i] = { ...units[i], content: e.target.value };
+                              setFormData({ ...formData, units });
+                            }} 
+                            className="min-h-[120px]" 
+                          />
                         </div>
                      </CardContent>
                    </Card>
                  ))}
                  {!isReadOnly && (
-                   <Button variant="outline" className="w-full border-dashed" onClick={() => setFormData(p => ({...p, units: [...(p.units||[]), {id:Math.random().toString(), title:'', content:'', hours:0, courseOutcome:''}]}))}>
+                   <Button variant="outline" className="w-full border-dashed" onClick={() => setFormData(p => ({...p, units: [...(p.units||[]), {id:Math.random().toString(36).substr(2,9), title:'', content:'', hours:0, courseOutcome:''}]}))}>
                      <Plus className="w-4 h-4 mr-2" /> Add Unit
                    </Button>
                  )}
