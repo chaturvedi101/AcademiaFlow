@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -13,7 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BookOpen, Loader2, Plus, Sparkles, Clock, AlertTriangle, Info, Cpu, ChevronDown, ChevronUp, Trash2, ShieldAlert } from "lucide-react";
+import { BookOpen, Loader2, Plus, Sparkles, Clock, AlertTriangle, Info, Cpu, ChevronDown, ChevronUp, Trash2, ShieldAlert, ShieldCheck } from "lucide-react";
 import { Syllabus, CreditRules, CreditCategory, UserProfile } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore } from "@/firebase";
