@@ -139,7 +139,22 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       return isGlobalAdmin || isProgramDean || !!myBranchRole || canEditScheme;
     };
 
-    const canDeleteSyllabus = (s: any) => canEditSyllabus(s);
+    const canDeleteSyllabus = (s: any) => {
+      if (!canEditSyllabus(s)) return false;
+      
+      // Institutional Standard: Branch members (BOS Members) cannot delete courses.
+      // Deletion is restricted to Convenors or higher leadership (Dean/Admin).
+      
+      const isInstitutionalCategory = ['AEC', 'VAC', 'MDC'].includes(s?.creditCategory);
+      const hasCentralAuth = isGlobalAdmin || isCommonBOS;
+
+      if (isInstitutionalCategory) {
+        return hasCentralAuth;
+      }
+
+      // Departmental categories (DSC, DSE, etc.)
+      return isGlobalAdmin || isProgramDean || myBranchRole === 'bos_convenor' || (scheme.isCommonPoolScheme && isCommonBOS);
+    };
 
     return { canEditScheme, canDeleteSyllabus, canEditSyllabus, isMonitor: false };
   }, [profile, profileLoading, scheme, program]);
