@@ -59,6 +59,7 @@ export default function SchemesPage() {
 
   const isCommonBos = profile?.faculty === 'University-wide (Common BOS)';
   const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile?.role || '');
+  const isMonitor = profile?.role === 'monitor';
 
   const visibleCategories = useMemo(() => {
     const all = ['DSC', 'DSE', 'OFE', 'VAC', 'AEC', 'SEC', 'MDC', 'PRJ'] as CreditCategory[];
@@ -73,8 +74,14 @@ export default function SchemesPage() {
 
   const filteredSchemes = useMemo(() => {
     if (!profile) return [];
-    if (profile.role === 'admin' || profile.role === 'dean_academic') return schemes;
+    
+    // Admins, Dean Academic, and Monitors see everything university-wide
+    if (profile.role === 'admin' || profile.role === 'dean_academic' || profile.role === 'monitor') {
+      return schemes;
+    }
+    
     if (isCommonBos) return schemes;
+    
     if (profile.role === 'dean_faculty') {
       return schemes.filter(s => {
         const prog = programs.find(p => p.id === s.programId);
@@ -91,11 +98,11 @@ export default function SchemesPage() {
 
   const availablePrograms = useMemo(() => {
     if (!profile) return [];
-    if (profile.role === 'admin' || profile.role === 'dean_academic' || isCommonBos) return programs;
+    if (profile.role === 'admin' || profile.role === 'dean_academic' || isCommonBos || isMonitor) return programs;
     if (profile.role === 'dean_faculty') return programs.filter(p => p.faculty === profile.faculty);
     const managedProgramIds = new Set(profile.managedBranches?.map(b => b.programId) || []);
     return programs.filter(p => managedProgramIds.has(p.id));
-  }, [programs, profile, isCommonBos]);
+  }, [programs, profile, isCommonBos, isMonitor]);
 
   const selectedProgram = programs.find(p => p.id === newScheme.programId);
 
