@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from "react";
@@ -6,14 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ShieldCheck, GraduationCap, FileCheck, Layers, Loader2, Github } from "lucide-react";
+import { ShieldCheck, GraduationCap, FileCheck, Layers, Loader2, Github, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore, useUser } from "@/firebase";
 import { 
   signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword,
   GithubAuthProvider,
   signInWithPopup
 } from "firebase/auth";
@@ -31,8 +27,6 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [role, setRole] = useState<UserRole>("bos_convenor");
 
   useEffect(() => {
     if (user && !userLoading) {
@@ -79,38 +73,6 @@ export default function Home() {
       toast({
         variant: 'destructive',
         title: "GitHub Authentication Failed",
-        description: error.message,
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    try {
-      const result = await createUserWithEmailAndPassword(auth, email, password);
-      const userRef = doc(db, 'users', result.user.uid);
-      
-      const userData = {
-        displayName: displayName || email.split('@')[0],
-        email: email,
-        role: role,
-        createdAt: serverTimestamp(),
-      };
-
-      await setDoc(userRef, userData, { merge: true });
-      
-      toast({
-        title: "Account Created",
-        description: `Welcome! You have been registered as a ${role.replace('_', ' ')}.`,
-      });
-      router.push('/dashboard');
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: "Registration Failed",
         description: error.message,
       });
     } finally {
@@ -172,74 +134,62 @@ export default function Home() {
         <div className="flex justify-center">
           <Card className="w-full max-w-md shadow-2xl border-primary/10">
             <CardHeader className="space-y-1">
+              <div className="flex justify-center mb-4">
+                <div className="p-3 bg-primary/5 rounded-full">
+                  <Lock className="w-6 h-6 text-primary" />
+                </div>
+              </div>
               <CardTitle className="text-2xl text-center font-headline">Secure Access</CardTitle>
               <CardDescription className="text-center">
                 Authorized Faculty & Staff Only
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Tabs defaultValue="login" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 mb-6">
-                  <TabsTrigger value="login">Sign In</TabsTrigger>
-                  <TabsTrigger value="register">Register</TabsTrigger>
-                </TabsList>
+              <form onSubmit={handleSignIn} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Institutional Email</Label>
+                  <Input 
+                    id="email" 
+                    type="email" 
+                    placeholder="name@rtu.ac.in" 
+                    required 
+                    value={email} 
+                    onChange={(e) => setEmail(e.target.value)} 
+                    className="h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password">Password</Label>
+                  </div>
+                  <Input 
+                    id="password" 
+                    type="password" 
+                    required 
+                    value={password} 
+                    onChange={(e) => setPassword(e.target.value)} 
+                    className="h-11"
+                  />
+                </div>
+                <Button type="submit" className="w-full h-12 text-base shadow-lg shadow-primary/20" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="mr-2 h-5 w-4 animate-spin" /> : "Sign In to Portal"}
+                </Button>
                 
-                <TabsContent value="login">
-                  <form onSubmit={handleSignIn} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input id="email" type="email" placeholder="name@rtu.ac.in" required value={email} onChange={(e) => setEmail(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="password">Password</Label>
-                      <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-                    </div>
-                    <Button type="submit" className="w-full h-11" disabled={isLoading}>
-                      {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Sign In to Portal"}
-                    </Button>
-                    <div className="relative my-4">
-                      <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                      <div className="relative flex justify-center text-[10px] uppercase font-bold text-muted-foreground"><span className="bg-background px-2">Institutional SSO</span></div>
-                    </div>
-                    <Button variant="outline" type="button" className="w-full h-11 gap-2" onClick={handleGithubSignIn} disabled={isLoading}>
-                      <Github className="w-4 h-4" /> GitHub Authorization
-                    </Button>
-                  </form>
-                </TabsContent>
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+                  <div className="relative flex justify-center text-[10px] uppercase font-bold text-muted-foreground"><span className="bg-background px-2">Institutional SSO</span></div>
+                </div>
+                
+                <Button variant="outline" type="button" className="w-full h-12 gap-2 text-base" onClick={handleGithubSignIn} disabled={isLoading}>
+                  <Github className="w-5 h-5" /> GitHub Authorization
+                </Button>
 
-                <TabsContent value="register">
-                  <form onSubmit={handleSignUp} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="reg-name">Full Name</Label>
-                      <Input id="reg-name" placeholder="Dr. Sarah Smith" required value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="reg-email">RTU Email</Label>
-                      <Input id="reg-email" type="email" placeholder="name@rtu.ac.in" required value={email} onChange={(e) => setEmail(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="reg-password">Password</Label>
-                      <Input id="reg-password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="reg-role">Academic Role</Label>
-                      <Select value={role} onValueChange={(val: UserRole) => setRole(val)}>
-                        <SelectTrigger id="reg-role"><SelectValue placeholder="Select a role" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="bos_convenor">BoS Convenor</SelectItem>
-                          <SelectItem value="dean_faculty">Dean of Faculty</SelectItem>
-                          <SelectItem value="dean_academic">Dean Academic</SelectItem>
-                          <SelectItem value="admin">System Administrator</SelectItem>
-                          <SelectItem value="monitor">Academic Monitor</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button type="submit" className="w-full h-11" disabled={isLoading}>
-                      {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Request Access"}
-                    </Button>
-                  </form>
-                </TabsContent>
-              </Tabs>
+                <p className="text-[10px] text-center text-muted-foreground mt-6 px-4">
+                  Account registration is restricted to authorized personnel. 
+                  Contact the <span className="font-bold text-primary">Academic Monitor</span> or 
+                  <span className="font-bold text-primary">Dean Academic</span> for credentials.
+                </p>
+              </form>
             </CardContent>
           </Card>
         </div>
