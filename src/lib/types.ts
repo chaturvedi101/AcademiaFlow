@@ -161,3 +161,13 @@ export interface AuditLog {
   timestamp: any;
   details: string;
 }
+
+export interface AppHostingConfig {
+  minInstances: number;
+  maxInstances: number;
+  memory: '256Mi' | '512Mi' | '1Gi' | '2Gi';
+  cpu: number;
+  concurrency: number;
+  updatedAt?: any;
+  updatedBy?: string;
+}
