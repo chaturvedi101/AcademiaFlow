@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
@@ -103,7 +104,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   }, [localSyllabi, poolSyllabi, schemeId]);
 
   const permissions = useMemo(() => {
-    if (profileLoading || !profile || !scheme || !program) return { canEditScheme: false, canDelete: false, canEditSyllabus: (s: any) => false };
+    if (profileLoading || !profile || !scheme || !program) return { 
+      canEditScheme: false, 
+      canDeleteSyllabus: (s: any) => false, 
+      canEditSyllabus: (s: any) => false 
+    };
 
     const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile.role);
     const isProgramDean = profile.role === 'dean_faculty' && profile.faculty === program.faculty;
@@ -119,10 +124,22 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       canEditScheme = myBranchRole === 'bos_convenor';
     }
 
-    const canDelete = isGlobalAdmin || isProgramDean || (scheme.isCommonPoolScheme && isCommonBOS) || myBranchRole === 'bos_convenor';
-    const canEditSyllabus = (s: any) => isGlobalAdmin || !!myBranchRole || canEditScheme;
+    const canEditSyllabus = (s: any) => {
+      // AEC, VAC, MDC are restricted to Admin, Dean Academic, and Common BOS
+      const isInstitutionalCategory = ['AEC', 'VAC', 'MDC'].includes(s?.creditCategory);
+      const hasCentralAuth = isGlobalAdmin || isCommonBOS;
+      
+      if (isInstitutionalCategory) {
+        return hasCentralAuth;
+      }
+      
+      // Standard categories allow modification by scheme owners or branch managers
+      return isGlobalAdmin || isProgramDean || !!myBranchRole || canEditScheme;
+    };
 
-    return { canEditScheme, canDelete, canEditSyllabus };
+    const canDeleteSyllabus = (s: any) => canEditSyllabus(s);
+
+    return { canEditScheme, canDeleteSyllabus, canEditSyllabus };
   }, [profile, profileLoading, scheme, program]);
 
   const creditDistribution = useMemo(() => {
@@ -182,7 +199,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const handleDeleteSyllabus = (id: string) => {
-    if (!permissions.canDelete) return;
+    const syllabusToDelete = localSyllabi.find(s => s.id === id);
+    if (!syllabusToDelete || !permissions.canDeleteSyllabus(syllabusToDelete)) return;
+    
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', id);
     deleteDoc(docRef);
   };
@@ -303,10 +322,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         programName={program?.name}
         branchName={scheme?.branch}
         canEdit={permissions.canEditSyllabus(activeSubject)}
-        canDelete={permissions.canDelete}
+        canDelete={permissions.canDeleteSyllabus(activeSubject)}
         currentSchemeId={schemeId}
         programRules={program?.rules}
         batchYear={scheme?.batchYear}
+        userProfile={profile || undefined}
       />
     </div>
   );
@@ -314,6 +334,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
 function SubjectRow({ sub, currentSchemeId, schemeStatus, permissions, isOption, onEdit, onDelete }: any) {
   const canEdit = permissions.canEditSyllabus(sub);
+  const canDelete = permissions.canDeleteSyllabus(sub);
   const isSlot = sub.isSlot || sub.isOFESlot;
   const isFromPool = sub.schemeId !== currentSchemeId;
   return (
@@ -328,7 +349,7 @@ function SubjectRow({ sub, currentSchemeId, schemeStatus, permissions, isOption,
       <TableCell className="text-right pr-6"><div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         {!isSlot && <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500" onClick={() => exportSyllabusToPDF(sub, 'Program', 'Branch', 'Year', schemeStatus)}><FileDown className="w-3.5 h-3.5" /></Button>}
         {canEdit && <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={onEdit}><Edit3 className="w-3.5 h-3.5" /></Button>}
-        {permissions.canDelete && !isFromPool && <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={onDelete}><Trash2 className="w-3.5 h-3.5" /></Button>}
+        {canDelete && !isFromPool && <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={onDelete}><Trash2 className="w-3.5 h-3.5" /></Button>}
       </div></TableCell>
     </TableRow>
   );

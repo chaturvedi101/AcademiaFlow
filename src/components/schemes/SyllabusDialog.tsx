@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,8 +13,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BookOpen, Loader2, Plus, Sparkles, Clock, AlertTriangle, Info, Cpu, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
-import { Syllabus, CreditRules, CreditCategory } from "@/lib/types";
+import { BookOpen, Loader2, Plus, Sparkles, Clock, AlertTriangle, Info, Cpu, ChevronDown, ChevronUp, Trash2, ShieldAlert } from "lucide-react";
+import { Syllabus, CreditRules, CreditCategory, UserProfile } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useFirestore } from "@/firebase";
 import { query, getDocs, collectionGroup, where } from "firebase/firestore";
@@ -48,6 +49,7 @@ interface SyllabusDialogProps {
   currentSchemeId?: string;
   programRules?: CreditRules;
   batchYear?: string;
+  userProfile?: UserProfile;
 }
 
 export function SyllabusDialog({ 
@@ -58,6 +60,7 @@ export function SyllabusDialog({
   branchName,
   canEdit = true,
   currentSchemeId,
+  userProfile,
 }: SyllabusDialogProps) {
   const { toast } = useToast();
   const db = useFirestore();
@@ -78,6 +81,8 @@ export function SyllabusDialog({
     if (!branchName) return '';
     let prefix = branchName.substring(0, 2).toUpperCase();
     const cat = formData.creditCategory || '';
+    
+    // RTU Institutional Category Prefixes
     if (cat === 'AEC') prefix = 'AE';
     else if (cat === 'MDC') prefix = 'MD';
     else if (cat === 'VAC') prefix = 'VA';
@@ -99,7 +104,6 @@ export function SyllabusDialog({
     if (open && syllabus) {
       setFormData({ ...formData, ...syllabus });
       setCodeWarning(null);
-      // Expand units by default when opening
       const initialExpanded: Record<string, boolean> = {};
       syllabus.units?.forEach(u => initialExpanded[u.id] = true);
       setExpandedUnits(initialExpanded);
@@ -112,7 +116,6 @@ export function SyllabusDialog({
     const p = Number(formData.practicalCredits) || 0;
     
     // AICTE Rule: 3h practical = 2 credits (special exception)
-    // Otherwise 2:1 ratio (e.g. 2h = 1cr, 4h = 2cr)
     const pCr = p === 3 ? 2 : p / 2;
     
     setFormData(prev => ({ ...prev, credits: Number((l + t + pCr).toFixed(2)) }));
@@ -131,7 +134,6 @@ export function SyllabusDialog({
           const data = existing.data() as Syllabus;
           setCodeWarning(`Institutional Code Detected: This code is registered to "${data.title}" in another scheme. Saving will create a local branch-specific adaptation.`);
           
-          // Only auto-populate if the title is generic/empty to avoid overwriting manual changes
           const isGenericTitle = !formData.title || 
                                 formData.title.includes('Slot') || 
                                 formData.title.includes('Elective') || 
@@ -188,14 +190,36 @@ export function SyllabusDialog({
     } finally { setIsGenerating(false); }
   };
 
-  const isReadOnly = !canEdit;
+  // Central Institutional Auth logic
+  const isAuthorized = useMemo(() => {
+    if (!userProfile) return false;
+    const cat = formData.creditCategory;
+    const isInstitutionalCategory = ['AEC', 'VAC', 'MDC'].includes(cat || '');
+    const isCentralAuth = ['admin', 'dean_academic'].includes(userProfile.role) || userProfile.faculty === 'University-wide (Common BOS)';
+    
+    if (isInstitutionalCategory) {
+      return isCentralAuth;
+    }
+    
+    return canEdit;
+  }, [userProfile, formData.creditCategory, canEdit]);
+
+  const isReadOnly = !isAuthorized;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl h-[95vh] flex flex-col p-0 overflow-hidden border-none shadow-2xl">
         <DialogHeader className="p-6 border-b shrink-0 bg-background z-10">
           <DialogTitle className="font-headline text-2xl flex items-center justify-between">
-            <div className="flex items-center gap-3"><BookOpen className="w-6 h-6 text-primary" /> {isReadOnly ? 'Subject Specification' : 'Course Architect'}</div>
+            <div className="flex items-center gap-3">
+              <BookOpen className="w-6 h-6 text-primary" /> 
+              {isReadOnly ? 'Subject Specification (Locked)' : 'Course Architect'}
+              {isReadOnly && ['AEC', 'VAC', 'MDC'].includes(formData.creditCategory || '') && (
+                <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 gap-1">
+                  <ShieldAlert className="w-3 h-3" /> Institutional Authority Only
+                </Badge>
+              )}
+            </div>
             {!isReadOnly && (
               <div className="flex items-center gap-2">
                 <Select value={selectedModel} onValueChange={setSelectedModel}>
@@ -215,6 +239,9 @@ export function SyllabusDialog({
               </div>
             )}
           </DialogTitle>
+          <DialogDescription>
+            {isReadOnly ? 'AEC, VAC, and MDC categories are locked for branch users to maintain university standardization.' : 'Define course identity, content, and expected outcomes.'}
+          </DialogDescription>
         </DialogHeader>
         <ScrollArea className="flex-1 w-full min-h-0">
           <div className="p-6 space-y-8">
@@ -406,7 +433,7 @@ export function SyllabusDialog({
                     onAdd={() => setFormData({...formData, nptelLinks:[...(formData.nptelLinks||[]), '']})} 
                     onRemove={(idx) => setFormData({...formData, nptelLinks: formData.nptelLinks?.filter((_, i) => i !== idx)})}
                     disabled={isReadOnly}
-                    disableAdd // Disabled per institutional requirement
+                    disableAdd
                  />
               </TabsContent>
               <TabsContent value="mapping">
