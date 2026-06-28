@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -34,7 +33,6 @@ export default function ProgramsPage() {
 
   const filteredPrograms = useMemo(() => {
     if (!profile) return [];
-    // Only Admin and Dean Academic see the program catalog page
     if (isAdminOrDeanAcad) {
       return programs;
     }
@@ -73,7 +71,6 @@ export default function ProgramsPage() {
     );
   }
 
-  // Final check for unauthorized access
   if (!isAdminOrDeanAcad) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
@@ -89,8 +86,6 @@ export default function ProgramsPage() {
     );
   }
 
-  const canCreateProgram = profile?.role === 'admin' || profile?.role === 'dean_academic';
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -100,11 +95,9 @@ export default function ProgramsPage() {
             Institutional catalog of academic programs and NEP 2020 frameworks.
           </p>
         </div>
-        {canCreateProgram && (
-          <Button onClick={() => { setSelectedProgram(undefined); setIsDialogOpen(true); }} className="gap-2 shadow-lg">
-            <Plus className="w-4 h-4" /> Add Program
-          </Button>
-        )}
+        <Button onClick={() => { setSelectedProgram(undefined); setIsDialogOpen(true); }} className="gap-2 shadow-lg">
+          <Plus className="w-4 h-4" /> Add Program
+        </Button>
       </div>
 
       <Card>
@@ -166,14 +159,6 @@ export default function ProgramsPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {filteredPrograms.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
-                    <GraduationCap className="w-12 h-12 mx-auto mb-4 opacity-10" />
-                    <p>No programs found.</p>
-                  </TableCell>
-                </TableRow>
-              )}
             </TableBody>
           </Table>
         </CardContent>
