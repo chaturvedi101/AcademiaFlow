@@ -812,6 +812,7 @@ export function SyllabusDialog({
                   onUpdate={(idx, val) => handleUpdateArrayField('nptelLinks', idx, val)}
                   onRemove={(idx) => handleRemoveArrayField('nptelLinks', idx)}
                   isReadOnly={isReadOnly}
+                  disableAdd={true}
                   placeholder="Course Portal Link"
                 />
 
@@ -866,7 +867,7 @@ export function SyllabusDialog({
   );
 }
 
-function ResourceSection({ title, icon, items, onAdd, onUpdate, onRemove, isReadOnly, placeholder }: any) {
+function ResourceSection({ title, icon, items, onAdd, onUpdate, onRemove, isReadOnly, placeholder, disableAdd }: any) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -874,7 +875,7 @@ function ResourceSection({ title, icon, items, onAdd, onUpdate, onRemove, isRead
           {icon}
           <h4 className="text-sm">{title}</h4>
         </div>
-        {!isReadOnly && (
+        {!isReadOnly && !disableAdd && (
           <Button size="sm" variant="ghost" onClick={onAdd} className="h-7 text-[10px] uppercase font-bold tracking-wider">
             <Plus className="w-3 h-3 mr-1" /> Add
           </Button>
