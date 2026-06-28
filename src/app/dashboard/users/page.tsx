@@ -26,6 +26,9 @@ export default function UserManagementPage() {
   const { toast } = useToast();
   const { user: currentUser } = useUser();
 
+  const userDocRef = useMemoFirebase(() => (currentUser ? doc(db, 'users', currentUser.uid) : null), [db, currentUser]);
+  const { data: myProfile } = useDoc<UserProfile>(userDocRef);
+
   const usersRef = useMemoFirebase(() => collection(db, 'users'), [db]);
   const programsRef = useMemoFirebase(() => collection(db, 'programs'), [db]);
 
@@ -51,7 +54,7 @@ export default function UserManagementPage() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const academicStaff = useMemo(() => {
-    return users.filter(u => ['bos_convenor', 'bos_member', 'dean_faculty', 'dean_academic', 'admin'].includes(u.role));
+    return users.filter(u => ['bos_convenor', 'bos_member', 'dean_faculty', 'dean_academic', 'admin', 'monitor'].includes(u.role));
   }, [users]);
 
   const handleOpenDialog = (userToEdit?: UserProfile) => {
@@ -297,6 +300,7 @@ export default function UserManagementPage() {
                     <SelectItem value="bos_convenor">BoS Staff (Multi-BOS)</SelectItem>
                     <SelectItem value="dean_academic">Dean Academic</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="monitor">Monitor</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

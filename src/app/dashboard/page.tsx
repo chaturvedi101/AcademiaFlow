@@ -23,8 +23,8 @@ export default function DashboardPage() {
   const filteredSchemes = useMemo(() => {
     if (!profile || !programs.length) return [];
     
-    // Admins and Dean Academic see everything
-    if (profile.role === 'admin' || profile.role === 'dean_academic') {
+    // Admins, Dean Academic, and Monitors see everything
+    if (profile.role === 'admin' || profile.role === 'dean_academic' || profile.role === 'monitor') {
       return schemes;
     }
 
@@ -123,6 +123,7 @@ export default function DashboardPage() {
             {profile?.role === 'bos_convenor' && profile?.faculty !== 'University-wide (Common BOS)' && <ActionLink href="/dashboard/team" label="Manage BoS Team" icon={<UserCircle className="w-4 h-4" />} />}
             {(['bos_convenor', 'admin'].includes(profile?.role || '')) && <ActionLink href="/dashboard/equivalence" label="Map Equivalence" icon={<Layers className="w-4 h-4" />} />}
             {(['dean_faculty', 'dean_academic', 'admin'].includes(profile?.role || '')) && <ActionLink href="/dashboard/approvals" label="Review Pending" icon={<FileCheck className="w-4 h-4" />} />}
+            {profile?.role === 'monitor' && <ActionLink href="/dashboard/users" label="Authorize Staff" icon={<ShieldCheck className="w-4 h-4" />} />}
           </CardContent>
         </Card>
       </div>

@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown, Globe, Layers, BookOpen } from "lucide-react";
+import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown, Globe, Layers, BookOpen, Eye } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile } from "@/lib/types";
@@ -109,6 +109,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       canDeleteSyllabus: (s: any) => false, 
       canEditSyllabus: (s: any) => false 
     };
+
+    if (profile.role === 'monitor') {
+      return { canEditScheme: false, canDeleteSyllabus: () => false, canEditSyllabus: () => false };
+    }
 
     const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile.role);
     const isProgramDean = profile.role === 'dean_faculty' && profile.faculty === program.faculty;
@@ -220,6 +224,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             <h1 className="text-3xl font-headline font-bold">{program?.name || 'Academic Layout'}</h1>
             {scheme.isCommonPoolScheme && <Badge className="bg-emerald-100 text-emerald-700 border-none font-bold">INSTITUTIONAL</Badge>}
             <Badge variant="outline" className="bg-primary/10 text-primary border-none font-medium">{scheme.version}</Badge>
+            {profile?.role === 'monitor' && (
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Monitoring View</Badge>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-3 text-muted-foreground text-sm">
             <div className="flex items-center gap-1.5 font-mono text-primary font-bold"><Hash className="w-3.5 h-3.5" /> {scheme.schemeCode || 'N/A'}</div>
@@ -348,7 +355,7 @@ function SubjectRow({ sub, currentSchemeId, schemeStatus, permissions, isOption,
       <TableCell className="text-right font-bold text-sm">{sub.credits}</TableCell>
       <TableCell className="text-right pr-6"><div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         {!isSlot && <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500" onClick={() => exportSyllabusToPDF(sub, 'Program', 'Branch', 'Year', schemeStatus)}><FileDown className="w-3.5 h-3.5" /></Button>}
-        {canEdit && <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={onEdit}><Edit3 className="w-3.5 h-3.5" /></Button>}
+        {(canEdit || permissions.isMonitor) && <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={onEdit}>{canEdit ? <Edit3 className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}</Button>}
         {canDelete && !isFromPool && <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={onDelete}><Trash2 className="w-3.5 h-3.5" /></Button>}
       </div></TableCell>
     </TableRow>

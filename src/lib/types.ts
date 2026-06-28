@@ -1,5 +1,5 @@
 
-export type UserRole = 'bos_convenor' | 'bos_member' | 'dean_faculty' | 'dean_academic' | 'admin';
+export type UserRole = 'bos_convenor' | 'bos_member' | 'dean_faculty' | 'dean_academic' | 'admin' | 'monitor';
 
 export const FACULTIES = [
   "Faculty of Built Environment",

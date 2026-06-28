@@ -193,6 +193,8 @@ export function SyllabusDialog({
   // Central Institutional Auth logic
   const isAuthorized = useMemo(() => {
     if (!userProfile) return false;
+    if (userProfile.role === 'monitor') return false; // Monitor is strictly read-only
+
     const cat = formData.creditCategory;
     const isInstitutionalCategory = ['AEC', 'VAC', 'MDC'].includes(cat || '');
     const isCentralAuth = ['admin', 'dean_academic'].includes(userProfile.role) || userProfile.faculty === 'University-wide (Common BOS)';
@@ -214,7 +216,12 @@ export function SyllabusDialog({
             <div className="flex items-center gap-3">
               <BookOpen className="w-6 h-6 text-primary" /> 
               {isReadOnly ? 'Subject Specification (Locked)' : 'Course Architect'}
-              {isReadOnly && ['AEC', 'VAC', 'MDC'].includes(formData.creditCategory || '') && (
+              {isReadOnly && userProfile?.role === 'monitor' && (
+                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 gap-1">
+                  <ShieldCheck className="w-3 h-3" /> Monitoring Access
+                </Badge>
+              )}
+              {isReadOnly && userProfile?.role !== 'monitor' && ['AEC', 'VAC', 'MDC'].includes(formData.creditCategory || '') && (
                 <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 gap-1">
                   <ShieldAlert className="w-3 h-3" /> Institutional Authority Only
                 </Badge>
@@ -240,7 +247,7 @@ export function SyllabusDialog({
             )}
           </DialogTitle>
           <DialogDescription>
-            {isReadOnly ? 'AEC, VAC, and MDC categories are locked for branch users to maintain university standardization.' : 'Define course identity, content, and expected outcomes.'}
+            {userProfile?.role === 'monitor' ? 'You have administrative visibility to monitor curriculum progress.' : isReadOnly ? 'AEC, VAC, and MDC categories are locked for branch users to maintain university standardization.' : 'Define course identity, content, and expected outcomes.'}
           </DialogDescription>
         </DialogHeader>
         <ScrollArea className="flex-1 w-full min-h-0">
@@ -503,7 +510,7 @@ function ResourceSection({ title, items, onAdd, onUpdate, onRemove, disabled, di
          {items.map((it: string, i: number) => (
             <div key={i} className="flex gap-2">
                <Input value={it} onChange={e => onUpdate(i, e.target.value)} disabled={disabled} className="text-sm" />
-               {!disabled && <Button variant="ghost" size="icon" onClick={() => onRemove(i)} className="text-red-400 hover:text-red-500 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>}
+               {!disabled && <Button variant="ghost" size="icon" onClick={() => onRemove(i)} className="text-red-400 hover:text-red-600 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>}
             </div>
          ))}
          {items.length === 0 && <p className="text-xs text-muted-foreground italic py-2">No resources listed yet.</p>}

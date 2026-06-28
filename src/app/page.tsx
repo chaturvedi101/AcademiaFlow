@@ -230,6 +230,7 @@ export default function Home() {
                           <SelectItem value="dean_faculty">Dean of Faculty</SelectItem>
                           <SelectItem value="dean_academic">Dean Academic</SelectItem>
                           <SelectItem value="admin">System Administrator</SelectItem>
+                          <SelectItem value="monitor">Academic Monitor</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
