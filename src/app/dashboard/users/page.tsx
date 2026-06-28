@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Users, ShieldCheck, Plus, GraduationCap, Loader2, UserPlus, Edit3, Trash2, Hash, X } from 'lucide-react';
+import { Users, ShieldCheck, Plus, GraduationCap, Loader2, UserPlus, Edit3, Trash2, Hash, X, ShieldAlert } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -53,8 +53,17 @@ export default function UserManagementPage() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const academicStaff = useMemo(() => {
-    return users.filter(u => ['bos_convenor', 'bos_member', 'dean_faculty', 'dean_academic', 'admin', 'monitor'].includes(u.role));
-  }, [users]);
+    return users.filter(u => {
+      const isStaff = ['bos_convenor', 'bos_member', 'dean_faculty', 'dean_academic', 'admin', 'monitor'].includes(u.role);
+      if (!isStaff) return false;
+
+      // Hide top leadership from monitors
+      if (myProfile?.role === 'monitor') {
+        return !['admin', 'dean_academic'].includes(u.role);
+      }
+      return true;
+    });
+  }, [users, myProfile]);
 
   const handleOpenDialog = (userToEdit?: UserProfile) => {
     if (userToEdit) {
@@ -95,10 +104,23 @@ export default function UserManagementPage() {
       return;
     }
 
+    // Guard: Monitors cannot create/modify admin/dean accounts
+    if (myProfile?.role === 'monitor' && ['admin', 'dean_academic'].includes(form.role)) {
+      toast({ title: "Hierarchy Violation", description: "You are not authorized to assign high-level leadership roles.", variant: "destructive" });
+      return;
+    }
+
     setIsProcessing(true);
 
     const existingUser = users.find(u => u.email.toLowerCase() === form.email.toLowerCase());
     
+    // Guard: If editing existing user, check if it's a hidden account
+    if (existingUser && myProfile?.role === 'monitor' && ['admin', 'dean_academic'].includes(existingUser.role)) {
+      toast({ title: "Operation Denied", description: "This account is protected by institutional policy.", variant: "destructive" });
+      setIsProcessing(false);
+      return;
+    }
+
     if (editingUser || existingUser) {
       const targetId = editingUser?.id || existingUser?.id;
       const userRef = doc(db, 'users', targetId!);
@@ -174,6 +196,12 @@ export default function UserManagementPage() {
     if (uid === currentUser?.uid) {
       toast({ title: "Operation Denied", description: "You cannot delete your own account.", variant: "destructive" });
       return;
+    }
+
+    const targetUser = users.find(u => u.id === uid);
+    if (myProfile?.role === 'monitor' && targetUser && ['admin', 'dean_academic'].includes(targetUser.role)) {
+       toast({ title: "Hierarchy Violation", description: "Monitors cannot delete leadership accounts.", variant: "destructive" });
+       return;
     }
 
     const userRef = doc(db, 'users', uid);
@@ -264,6 +292,13 @@ export default function UserManagementPage() {
                   </TableCell>
                 </TableRow>
               ))}
+              {academicStaff.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-20 text-muted-foreground italic">
+                    No matching staff members found in your jurisdiction.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -278,6 +313,12 @@ export default function UserManagementPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-6 py-4">
+            {myProfile?.role === 'monitor' && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex gap-2 text-[11px] text-blue-800">
+                <ShieldAlert className="w-4 h-4 shrink-0" />
+                <p>As a Monitor, you can manage BoS and Faculty accounts. System Admin and Dean Academic roles are restricted.</p>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Full Name</Label>
@@ -297,8 +338,9 @@ export default function UserManagementPage() {
                   <SelectContent>
                     <SelectItem value="dean_faculty">Dean of Faculty</SelectItem>
                     <SelectItem value="bos_convenor">BoS Staff (Multi-BOS)</SelectItem>
-                    <SelectItem value="dean_academic">Dean Academic</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="bos_member">BoS Member</SelectItem>
+                    {myProfile?.role !== 'monitor' && <SelectItem value="dean_academic">Dean Academic</SelectItem>}
+                    {myProfile?.role !== 'monitor' && <SelectItem value="admin">Admin</SelectItem>}
                     <SelectItem value="monitor">Monitor</SelectItem>
                   </SelectContent>
                 </Select>
@@ -352,7 +394,7 @@ export default function UserManagementPage() {
                 {form.managedBranches.map((mb, idx) => (
                   <Badge key={idx} className="h-8 gap-2 bg-white text-foreground border-border">
                     {programs.find(p => p.id === mb.programId)?.code} - {mb.branch} ({(mb.role || 'bos_member').split('_')[1] || 'member'})
-                    <X className="w-3 h-3 cursor-pointer text-red-400" onClick={() => handleRemoveAssignment(idx)} />
+                    <X className="w-3.5 h-3.5 cursor-pointer text-red-400" onClick={() => handleRemoveAssignment(idx)} />
                   </Badge>
                 ))}
               </div>
