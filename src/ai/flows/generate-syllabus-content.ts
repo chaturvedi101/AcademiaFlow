@@ -43,27 +43,26 @@ export async function generateSyllabusContent(input: GenerateSyllabusInput): Pro
     output: { schema: SyllabusOutputSchema },
     config: {
       maxOutputTokens: 3000,
-      temperature: 0.7,
+      temperature: 0.5, // Reduced temperature for more standard academic accuracy
       googleSearchRetrieval: {},
     },
-    prompt: `You are an expert academic curriculum designer for a technical university.
+    prompt: `You are an expert academic curriculum designer benchmarking against world-class technical universities.
     
-    CRITICAL REQUIREMENT: The absolute focus of this request is the subject: "{{{title}}}". 
-    You MUST generate a syllabus strictly for "{{{title}}}". Do NOT generate content for "{{branch}}" or any other subject. Use "{{branch}}" only to understand the student's background interest.
-
-    STEP 1: Research current academic standards and university syllabi specifically for "{{{title}}}" at the {{level}} level.
-    STEP 2: Analyze the academic continuity: 
-    - Branch Context: {{branch}}
-    - Semester: {{semester}}
-    - Student Background: They have already studied {{#each previousCourses}}"{{this}}", {{/each}}.
-    - Current Load: This is taught alongside {{#each peerCourses}}"{{this}}", {{/each}}.
+    CRITICAL ANCHOR: The absolute and sole primary focus of this request is the subject: "{{{title}}}". 
     
-    STEP 3: Generate a detailed syllabus with EXACTLY {{unitCount}} units for the subject "{{{title}}}".
-    - Total Hours target: {{totalHours}} hours.
-    - Ensure zero overlap with the specific topics in previous courses.
+    STEP 1: Research current academic syllabi for the specific course "{{{title}}}" at the {{level}} level across top-tier technical institutes (e.g., IITs, MIT, Stanford, and standard AICTE/UGC models).
+    STEP 2: Analyze the specific depth required for a {{level}} student in Semester {{semester}}. 
+    STEP 3: Ensure zero deviation into "{{branch}}" core topics unless "{{{title}}}" is inherently a branch-specific elective. For fundamental subjects (Maths, Physics, etc.), stay strictly within the domain of the subject title.
     
-    Provide Unit Titles, Content summaries, Teaching hours per unit, and clear Course Outcomes (COs) for the subject "{{{title}}}".
-    Also suggest the latest Standard Text Books and References specifically for {{{title}}}.`,
+    STEP 4: Synthesize a syllabus with EXACTLY {{unitCount}} units for "{{{title}}}".
+    - Target: {{totalHours}} teaching hours.
+    - Context: The students have studied {{#each previousCourses}}"{{this}}", {{/each}} and are concurrently studying {{#each peerCourses}}"{{this}}", {{/each}}. Avoid duplicating topics from these specific lists.
+    
+    Output Requirements:
+    - Unit Titles: Standard, descriptive titles.
+    - Content: Detailed topics covering standard industry/academic requirements for {{{title}}}.
+    - COs: Measurable learning outcomes mapping to the content.
+    - Books: Latest editions of standard textbooks for {{{title}}}.`,
   });
 
   if (!response.output) throw new Error('AI failed to generate syllabus content. Check your API key and network connection.');
