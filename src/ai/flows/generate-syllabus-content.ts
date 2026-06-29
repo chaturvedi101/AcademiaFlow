@@ -42,30 +42,35 @@ export async function generateSyllabusContent(input: GenerateSyllabusInput): Pro
     input: input,
     output: { schema: SyllabusOutputSchema },
     config: {
-      maxOutputTokens: 4096, // Increased token limit for detailed syllabi
-      temperature: 0.4, // Slightly lower for more consistent formatting
+      maxOutputTokens: 4096,
+      temperature: 0.2, // Lowered for higher precision
       googleSearchRetrieval: {},
     },
-    prompt: `You are an expert academic curriculum designer benchmarking against world-class technical universities.
+    prompt: `You are a world-class Academic Curriculum Architect specializing in technical education.
     
-    CRITICAL ANCHOR: The absolute and sole primary focus of this request is the subject: "{{{title}}}". 
+    PRIMARY DIRECTIVE: Generate a syllabus for the subject: "{{{title}}}".
     
-    STEP 1: Research current academic syllabi for the specific course "{{{title}}}" at the {{level}} level across top-tier technical institutes (e.g., IITs, MIT, Stanford, and standard AICTE/UGC models).
-    STEP 2: Analyze the specific depth required for a {{level}} student in Semester {{semester}}. 
-    STEP 3: Ensure zero deviation into "{{branch}}" core topics unless "{{{title}}}" is inherently a branch-specific elective. For fundamental subjects (Maths, Physics, etc.), stay strictly within the domain of the subject title.
+    CRITICAL ANCHORING:
+    - The content MUST be strictly related to "{{{title}}}". 
+    - The Branch is "{{branch}}". Use this ONLY to decide the depth of examples. 
+    - DO NOT include topics from the Branch core if they are unrelated to the Subject Title.
+    - Example: If the Subject is "Engineering Mechanics" and the Branch is "Computer Science", the syllabus MUST cover Statics and Dynamics, NOT Algorithms.
     
-    STEP 4: Synthesize a syllabus with EXACTLY {{unitCount}} units for "{{{title}}}".
-    - Target: {{totalHours}} teaching hours distributed logically across units.
-    - Context: The students have studied {{#each previousCourses}}"{{this}}", {{/each}} and are concurrently studying {{#each peerCourses}}"{{this}}", {{/each}}. Avoid duplicating topics from these specific lists.
+    STEP 1: USE GOOGLE SEARCH to find the standard latest (2024-2025) syllabus for "{{{title}}}" at the {{level}} level from premier institutes like IITs, NITs, MIT, and standard AICTE model curricula.
+    STEP 2: Identify exact topics required for a Semester {{semester}} student.
+    STEP 3: NEGATIVE CONSTRAINTS (DO NOT REPEAT):
+      - Avoid duplicating content from Previous Courses: {{#each previousCourses}}"{{this}}", {{/each}}
+      - Avoid overlapping with Concurrent Peer Courses: {{#each peerCourses}}"{{this}}", {{/each}}
     
-    MANDATORY OUTPUT FIELDS:
-    - units: An array of exactly {{unitCount}} objects.
-    - suggestedTextBooks: A list of latest editions of standard textbooks for {{{title}}}.
-    - suggestedReferences: A list of standard reference books and research materials.
+    OUTPUT REQUIREMENTS:
+    - Exactly {{unitCount}} units.
+    - Total targeted hours: {{totalHours}} (distribute logically).
+    - Detailed units with specific technical topics.
+    - Standard industry-leading textbooks and reference books.
     
-    Each unit must have a title, detailed content string, teaching hours, and a measurable course outcome (CO).`,
+    MANDATORY JSON FIELDS: units, suggestedTextBooks, suggestedReferences.`,
   });
 
-  if (!response.output) throw new Error('AI failed to generate syllabus content. Check your API key and network connection.');
+  if (!response.output) throw new Error('AI failed to generate syllabus content. The model returned an empty response. Try using Gemini Pro for complex reasoning.');
   return response.output;
 }
