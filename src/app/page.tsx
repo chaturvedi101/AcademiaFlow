@@ -5,13 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ShieldCheck, GraduationCap, FileCheck, Layers, Loader2, Github, Lock } from "lucide-react";
+import { ShieldCheck, GraduationCap, FileCheck, Layers, Loader2, Github, Lock, Mail } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore, useUser } from "@/firebase";
 import { 
   signInWithEmailAndPassword, 
   GithubAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  sendPasswordResetEmail
 } from "firebase/auth";
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
@@ -27,6 +28,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isResetting, setIsResetting] = useState(false);
 
   useEffect(() => {
     if (user && !userLoading) {
@@ -48,6 +50,34 @@ export default function Home() {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      toast({
+        variant: 'destructive',
+        title: "Input Required",
+        description: "Please enter your institutional email first to receive a reset link.",
+      });
+      return;
+    }
+
+    setIsResetting(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast({
+        title: "Reset Link Sent",
+        description: "Please check your institutional inbox for password recovery instructions.",
+      });
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: "Recovery Failed",
+        description: error.message,
+      });
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -161,6 +191,14 @@ export default function Home() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="password">Password</Label>
+                    <button 
+                      type="button"
+                      onClick={handleForgotPassword}
+                      disabled={isResetting}
+                      className="text-[10px] font-bold text-accent hover:underline uppercase tracking-tight disabled:opacity-50"
+                    >
+                      {isResetting ? "Sending..." : "Forgot Password?"}
+                    </button>
                   </div>
                   <Input 
                     id="password" 
@@ -184,10 +222,17 @@ export default function Home() {
                   <Github className="w-5 h-5" /> GitHub Authorization
                 </Button>
 
-                <p className="text-[10px] text-center text-muted-foreground mt-6 px-4">
-                  Account registration is restricted to authorized personnel. 
-                  Contact the <span className="font-bold text-primary">Academic Monitor</span> or 
-                  <span className="font-bold text-primary">Dean Academic</span> for credentials.
+                <div className="mt-6 p-3 bg-muted/30 rounded-lg flex gap-3 text-[9px] text-muted-foreground leading-tight">
+                  <Mail className="w-4 h-4 shrink-0 text-primary" />
+                  <p>
+                    <b>Institutional Policy:</b> For security, passwords cannot be retrieved. If you forget your password, enter your email and click <b>Forgot Password?</b> to receive a secure reset link.
+                  </p>
+                </div>
+
+                <p className="text-[10px] text-center text-muted-foreground mt-4 px-4">
+                  Account registration is restricted. Contact the 
+                  <span className="font-bold text-primary"> Academic Monitor</span> or 
+                  <span className="font-bold text-primary"> Dean Academic</span> for access.
                 </p>
               </form>
             </CardContent>
