@@ -44,7 +44,7 @@ export async function generateSyllabusContent(input: GenerateSyllabusInput): Pro
     config: {
       maxOutputTokens: 3000,
       temperature: 0.7,
-      googleSearchRetrieval: true,
+      googleSearchRetrieval: {},
     },
     prompt: `You are an expert academic curriculum designer for a technical university.
     
@@ -53,7 +53,7 @@ export async function generateSyllabusContent(input: GenerateSyllabusInput): Pro
 
     STEP 1: Research current academic standards and university syllabi specifically for "{{{title}}}" at the {{level}} level.
     STEP 2: Analyze the academic continuity: 
-    - Branch Context: {{branch}} (Use this only to choose relevant examples, but keep the core subject strictly as {{{title}}}).
+    - Branch Context: {{branch}}
     - Semester: {{semester}}
     - Student Background: They have already studied {{#each previousCourses}}"{{this}}", {{/each}}.
     - Current Load: This is taught alongside {{#each peerCourses}}"{{this}}", {{/each}}.
@@ -66,6 +66,6 @@ export async function generateSyllabusContent(input: GenerateSyllabusInput): Pro
     Also suggest the latest Standard Text Books and References specifically for {{{title}}}.`,
   });
 
-  if (!response.output) throw new Error('AI failed to generate syllabus content');
+  if (!response.output) throw new Error('AI failed to generate syllabus content. Check your API key and network connection.');
   return response.output;
 }

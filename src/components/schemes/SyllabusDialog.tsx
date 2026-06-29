@@ -90,7 +90,13 @@ export function SyllabusDialog({
 
   useEffect(() => {
     if (open && syllabus) {
-      setFormData({ ...formData, ...syllabus });
+      setFormData({ 
+        subjectCode: '', title: '', lectureCredits: 0, tutorialCredits: 0, practicalCredits: 0,
+        credits: 0, semester: 1, type: 'Theory', creditCategory: 'DSC', units: [],
+        poMappings: {}, textBooks: [], referenceBooks: [], nptelLinks: [], youtubeLinks: [],
+        timetableSlot: '',
+        ...syllabus 
+      });
       setCodeWarning(null);
       setShowAIPlanner(false);
       setConfirmations({ title: false, credits: false, hours: false });
@@ -187,10 +193,11 @@ export function SyllabusDialog({
       toast({ title: "AI Generation Complete", description: `Drafted ${unitCount} units using academic context.` });
       setShowAIPlanner(false);
     } catch (e: any) { 
+      console.error("AI Generation Error:", e);
       toast({ 
         variant: "destructive", 
         title: "AI Generation Failed", 
-        description: e.message.includes('429') ? "Rate limit reached. Try Gemini Pro or wait 1 minute." : "Could not connect to AI services."
+        description: e.message || "Could not connect to AI services. Verify your API key in Diagnostics."
       }); 
     } finally { setIsGenerating(false); }
   };
@@ -251,15 +258,15 @@ export function SyllabusDialog({
                   <CardContent className="space-y-4">
                     <div className="flex items-center space-x-2">
                       <Checkbox id="c-title" checked={confirmations.title} onCheckedChange={(v) => setConfirmations({...confirmations, title: !!v})} />
-                      <Label htmlFor="c-title" className="text-xs">Title: <b>{formData.title}</b> is correct</Label>
+                      <Label htmlFor="c-title" className="text-xs">Title: <b>{formData.title || 'N/A'}</b> is correct</Label>
                     </div>
                     <div className="flex items-center space-x-2">
                       <Checkbox id="c-credits" checked={confirmations.credits} onCheckedChange={(v) => setConfirmations({...confirmations, credits: !!v})} />
-                      <Label htmlFor="c-credits" className="text-xs">Distribution: <b>{formData.lectureCredits}-{formData.tutorialCredits}-{formData.practicalCredits} (L-T-P)</b> is correct</Label>
+                      <Label htmlFor="c-credits" className="text-xs">Distribution: <b>{formData.lectureCredits || 0}-{formData.tutorialCredits || 0}-{formData.practicalCredits || 0} (L-T-P)</b> is correct</Label>
                     </div>
                     <div className="flex items-center space-x-2">
                       <Checkbox id="c-hours" checked={confirmations.hours} onCheckedChange={(v) => setConfirmations({...confirmations, hours: !!v})} />
-                      <Label htmlFor="c-hours" className="text-xs">Credits: <b>{formData.credits} Cr</b> total is correct</Label>
+                      <Label htmlFor="c-hours" className="text-xs">Credits: <b>{formData.credits || 0} Cr</b> total is correct</Label>
                     </div>
                   </CardContent>
                 </Card>
@@ -367,20 +374,20 @@ export function SyllabusDialog({
                     </div>
                     <div className="space-y-2">
                       <Label className="text-[10px] uppercase font-bold text-muted-foreground">Course Title</Label>
-                      <Input disabled={isReadOnly} value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="e.g. Data Structures" />
+                      <Input disabled={isReadOnly} value={formData.title || ''} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="e.g. Data Structures" />
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label className="text-[10px] uppercase font-bold text-muted-foreground">Subject Code</Label>
                       <div className="relative">
-                        <Input disabled={isReadOnly} value={formData.subjectCode} onChange={e => setFormData({...formData, subjectCode: e.target.value.toUpperCase()})} />
+                        <Input disabled={isReadOnly} value={formData.subjectCode || ''} onChange={e => setFormData({...formData, subjectCode: e.target.value.toUpperCase()})} />
                         {isCheckingUniqueness && <Loader2 className="absolute right-3 top-3 w-4 h-4 animate-spin opacity-50" />}
                       </div>
                     </div>
                     <div className="space-y-2">
                       <Label className="text-[10px] uppercase font-bold text-muted-foreground">Methodology</Label>
-                      <Select disabled={isReadOnly} value={formData.type} onValueChange={(v: any) => setFormData({...formData, type: v})}>
+                      <Select disabled={isReadOnly} value={formData.type || 'Theory'} onValueChange={(v: any) => setFormData({...formData, type: v})}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Theory">Theory</SelectItem>
@@ -390,14 +397,14 @@ export function SyllabusDialog({
                     </div>
                     <div className="space-y-2">
                       <Label className="text-[10px] uppercase font-bold text-muted-foreground">Credits</Label>
-                      <div className="p-2 bg-primary/5 rounded font-bold text-center h-10 flex items-center justify-center text-primary">{formData.credits} Cr</div>
+                      <div className="p-2 bg-primary/5 rounded font-bold text-center h-10 flex items-center justify-center text-primary">{formData.credits || 0} Cr</div>
                     </div>
                   </div>
                   <div className="grid grid-cols-4 gap-4">
-                      <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">L</Label><Input type="number" disabled={isReadOnly} value={formData.lectureCredits} onChange={e => setFormData({...formData, lectureCredits: Number(e.target.value)})} /></div>
-                      <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">T</Label><Input type="number" disabled={isReadOnly} value={formData.tutorialCredits} onChange={e => setFormData({...formData, tutorialCredits: Number(e.target.value)})} /></div>
-                      <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">P</Label><Input type="number" disabled={isReadOnly} value={formData.practicalCredits} onChange={e => setFormData({...formData, practicalCredits: Number(e.target.value)})} /></div>
-                      <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Slot</Label><Input disabled={isReadOnly} value={formData.timetableSlot} onChange={e => setFormData({...formData, timetableSlot: e.target.value.toUpperCase()})} placeholder="1 or A" /></div>
+                      <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">L</Label><Input type="number" disabled={isReadOnly} value={formData.lectureCredits || 0} onChange={e => setFormData({...formData, lectureCredits: Number(e.target.value)})} /></div>
+                      <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">T</Label><Input type="number" disabled={isReadOnly} value={formData.tutorialCredits || 0} onChange={e => setFormData({...formData, tutorialCredits: Number(e.target.value)})} /></div>
+                      <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">P</Label><Input type="number" disabled={isReadOnly} value={formData.practicalCredits || 0} onChange={e => setFormData({...formData, practicalCredits: Number(e.target.value)})} /></div>
+                      <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Slot</Label><Input disabled={isReadOnly} value={formData.timetableSlot || ''} onChange={e => setFormData({...formData, timetableSlot: e.target.value.toUpperCase()})} placeholder="1 or A" /></div>
                   </div>
                 </TabsContent>
                 <TabsContent value="syllabus" className="space-y-6">
@@ -415,7 +422,7 @@ export function SyllabusDialog({
                           <div className="flex items-center gap-4" onClick={e => e.stopPropagation()}>
                             <div className="flex items-center gap-2">
                               <Clock className="w-4 h-4 text-muted-foreground" />
-                              <Input className="w-16 h-8 text-center" value={u.hours} type="number" disabled={isReadOnly} onChange={e => {
+                              <Input className="w-16 h-8 text-center" value={u.hours || 0} type="number" disabled={isReadOnly} onChange={e => {
                                 const units = [...(formData.units || [])];
                                 units[i] = { ...units[i], hours: Number(e.target.value) };
                                 setFormData({ ...formData, units });
@@ -426,18 +433,18 @@ export function SyllabusDialog({
                        </CardHeader>
                        <CardContent className={cn("p-4 space-y-4", !expandedUnits[u.id] && "hidden")}>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             <div className="space-y-2"><Label className="text-[10px] font-bold uppercase">Title</Label><Input disabled={isReadOnly} value={u.title} onChange={e => { const units = [...(formData.units || [])]; units[i] = { ...units[i], title: e.target.value }; setFormData({ ...formData, units }); }} /></div>
-                             <div className="space-y-2"><Label className="text-[10px] font-bold uppercase">Outcome</Label><Input disabled={isReadOnly} value={u.courseOutcome} onChange={e => { const units = [...(formData.units || [])]; units[i] = { ...units[i], courseOutcome: e.target.value }; setFormData({ ...formData, units }); }} /></div>
+                             <div className="space-y-2"><Label className="text-[10px] font-bold uppercase">Title</Label><Input disabled={isReadOnly} value={u.title || ''} onChange={e => { const units = [...(formData.units || [])]; units[i] = { ...units[i], title: e.target.value }; setFormData({ ...formData, units }); }} /></div>
+                             <div className="space-y-2"><Label className="text-[10px] font-bold uppercase">Outcome</Label><Input disabled={isReadOnly} value={u.courseOutcome || ''} onChange={e => { const units = [...(formData.units || [])]; units[i] = { ...units[i], courseOutcome: e.target.value }; setFormData({ ...formData, units }); }} /></div>
                           </div>
-                          <div className="space-y-2"><Label className="text-[10px] font-bold uppercase">Content</Label><Textarea disabled={isReadOnly} value={u.content} onChange={e => { const units = [...(formData.units || [])]; units[i] = { ...units[i], content: e.target.value }; setFormData({ ...formData, units }); }} className="min-h-[120px]" /></div>
+                          <div className="space-y-2"><Label className="text-[10px] font-bold uppercase">Content</Label><Textarea disabled={isReadOnly} value={u.content || ''} onChange={e => { const units = [...(formData.units || [])]; units[i] = { ...units[i], content: e.target.value }; setFormData({ ...formData, units }); }} className="min-h-[120px]" /></div>
                        </CardContent>
                      </Card>
                    ))}
                    {!isReadOnly && <Button variant="outline" className="w-full border-dashed" onClick={() => setFormData(p => ({...p, units: [...(p.units||[]), {id:Math.random().toString(36).substr(2,9), title:'', content:'', hours:0, courseOutcome:''}]}))}><Plus className="w-4 h-4 mr-2" /> Add Unit</Button>}
                 </TabsContent>
                 <TabsContent value="resources" className="space-y-8">
-                   <ResourceSection title="Text Books" items={formData.textBooks||[]} onUpdate={(idx, v) => {const a=[...formData.textBooks!]; a[idx]=v; setFormData({...formData, textBooks:a})}} onAdd={() => setFormData({...formData, textBooks:[...(formData.textBooks||[]), '']})} onRemove={(idx) => setFormData({...formData, textBooks: formData.textBooks?.filter((_, i) => i !== idx)})} disabled={isReadOnly} />
-                   <ResourceSection title="Reference Books" items={formData.referenceBooks||[]} onUpdate={(idx, v) => {const a=[...formData.referenceBooks!]; a[idx]=v; setFormData({...formData, referenceBooks:a})}} onAdd={() => setFormData({...formData, referenceBooks:[...(formData.referenceBooks||[]), '']})} onRemove={(idx) => setFormData({...formData, referenceBooks: formData.referenceBooks?.filter((_, i) => i !== idx)})} disabled={isReadOnly} />
+                   <ResourceSection title="Text Books" items={formData.textBooks||[]} onUpdate={(idx: number, v: string) => {const a=[...formData.textBooks!]; a[idx]=v; setFormData({...formData, textBooks:a})}} onAdd={() => setFormData({...formData, textBooks:[...(formData.textBooks||[]), '']})} onRemove={(idx: number) => setFormData({...formData, textBooks: formData.textBooks?.filter((_, i) => i !== idx)})} disabled={isReadOnly} />
+                   <ResourceSection title="Reference Books" items={formData.referenceBooks||[]} onUpdate={(idx: number, v: string) => {const a=[...formData.referenceBooks!]; a[idx]=v; setFormData({...formData, referenceBooks:a})}} onAdd={() => setFormData({...formData, referenceBooks:[...(formData.referenceBooks||[]), '']})} onRemove={(idx: number) => setFormData({...formData, referenceBooks: formData.referenceBooks?.filter((_, i) => i !== idx)})} disabled={isReadOnly} />
                 </TabsContent>
                 <TabsContent value="mapping">
                    <div className="border rounded-xl overflow-hidden bg-white"><Table><TableHeader className="bg-muted/50"><TableRow><TableHead className="w-20">CO</TableHead>{PO_DEFINITIONS.map(po => <TableHead key={po.code} className="text-center font-mono text-[10px]">{po.code}</TableHead>)}</TableRow></TableHeader><TableBody>{formData.units?.map((u, ui) => (<TableRow key={u.id}><TableCell className="font-bold">CO{ui+1}</TableCell>{PO_DEFINITIONS.map(po => (<TableCell key={po.code} className="p-1"><Select disabled={isReadOnly} value={formData.poMappings?.[u.id]?.[po.code] || '-'} onValueChange={v => { const m={...(formData.poMappings||{})}; if(!m[u.id])m[u.id]={}; m[u.id][po.code]=v as any; setFormData({...formData, poMappings:m}) }}><SelectTrigger className="h-8 w-14 text-[10px]"><SelectValue /></SelectTrigger><SelectContent>{['1','2','3','-'].map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent></Select></TableCell>))}</TableRow>))}</TableBody></Table></div>

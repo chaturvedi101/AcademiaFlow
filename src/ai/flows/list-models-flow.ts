@@ -17,7 +17,7 @@ export async function listAvailableModels() {
       config: { maxOutputTokens: 5 }
     });
 
-    // Get actions from registry using correct 1.x API - Awaiting in case it returns a promise
+    // Get actions from registry using correct 1.x API
     const actions = await ai.registry.listActions();
     
     // Safety check: ensure actions is an array before filtering
@@ -43,7 +43,7 @@ export async function listAvailableModels() {
     let quotaError = false;
 
     if (userMessage.includes('403') || userMessage.includes('PERMISSION_DENIED') || userMessage.includes('denied access')) {
-      userMessage = "Access Denied (403): Your API key project is restricted. Check Google AI Studio status.";
+      userMessage = "Access Denied (403): Your API key project is restricted or invalid. Check Google AI Studio.";
       isPermissionError = true;
     } else if (
       userMessage.includes('429') || 
@@ -51,8 +51,10 @@ export async function listAvailableModels() {
       userMessage.toLowerCase().includes('quota') ||
       userMessage.toLowerCase().includes('rate limit')
     ) {
-      userMessage = "Quota Exceeded (429): You have reached the rate limit for your Gemini API key. This is separate from your Firebase Blaze plan.";
+      userMessage = "Quota Exceeded (429): Rate limit reached for your Gemini API key.";
       quotaError = true;
+    } else if (userMessage.toLowerCase().includes('fetch failed')) {
+      userMessage = "Network Failure: Could not reach Google AI services. Check your internet or proxy settings.";
     }
 
     return {
