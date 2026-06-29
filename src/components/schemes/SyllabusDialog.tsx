@@ -120,12 +120,21 @@ export function SyllabusDialog({
         if (existing) {
           const data = existing.data() as Syllabus;
           setCodeWarning(`Institutional Code Detected: Existing syllabus for "${data.title}" found.`);
-          const isGeneric = !formData.title || formData.title.includes('Slot') || formData.title.includes('Elective');
+          
+          // Only overwrite if current title is a generic placeholder
+          const currentTitle = formData.title || '';
+          const isGeneric = currentTitle.includes('Slot') || currentTitle.includes('Elective') || !currentTitle.trim();
+          
           if (isGeneric && (!formData.id || formData.isSlot)) {
             setFormData(prev => ({ 
-              ...prev, title: data.title, units: data.units || [], credits: data.credits,
-              lectureCredits: data.lectureCredits || 0, tutorialCredits: data.tutorialCredits || 0,
-              practicalCredits: data.practicalCredits || 0, timetableSlot: data.timetableSlot || prev.timetableSlot
+              ...prev, 
+              title: data.title, 
+              units: data.units || [], 
+              credits: data.credits,
+              lectureCredits: data.lectureCredits || 0, 
+              tutorialCredits: data.tutorialCredits || 0,
+              practicalCredits: data.practicalCredits || 0, 
+              timetableSlot: data.timetableSlot || prev.timetableSlot
             }));
           }
         } else {
@@ -159,7 +168,7 @@ export function SyllabusDialog({
         semester: formData.semester,
         previousCourses: prevCourses,
         peerCourses: peerCourses,
-        totalHours: (formData.lectureCredits || 0) * 14, // Roughly 14 weeks
+        totalHours: (formData.lectureCredits || 0) * 14, 
         modelId: selectedModel 
       });
 

@@ -44,25 +44,26 @@ export async function generateSyllabusContent(input: GenerateSyllabusInput): Pro
     config: {
       maxOutputTokens: 3000,
       temperature: 0.7,
-      // Enable Search Grounding to find similar courses on the net
       googleSearchRetrieval: true,
     },
     prompt: `You are an expert academic curriculum designer for a technical university.
     
-    STEP 1: Research current academic standards for "{{title}}" at the {{level}} level.
-    STEP 2: Analyze the context: 
-    - Branch: {{branch}}
+    CRITICAL REQUIREMENT: The absolute focus of this request is the subject: "{{{title}}}". 
+    You MUST generate a syllabus strictly for "{{{title}}}". Do NOT generate content for "{{branch}}" or any other subject. Use "{{branch}}" only to understand the student's background interest.
+
+    STEP 1: Research current academic standards and university syllabi specifically for "{{{title}}}" at the {{level}} level.
+    STEP 2: Analyze the academic continuity: 
+    - Branch Context: {{branch}} (Use this only to choose relevant examples, but keep the core subject strictly as {{{title}}}).
     - Semester: {{semester}}
     - Student Background: They have already studied {{#each previousCourses}}"{{this}}", {{/each}}.
-    - Current Load: This subject is being taught alongside {{#each peerCourses}}"{{this}}", {{/each}}.
+    - Current Load: This is taught alongside {{#each peerCourses}}"{{this}}", {{/each}}.
     
-    STEP 3: Generate a detailed syllabus with EXACTLY {{unitCount}} units.
-    - Total Hours allocated for the full course: {{totalHours}} hours.
-    - Ensure zero overlap with previous courses.
-    - Focus on industry-relevant topics for {{branch}}.
+    STEP 3: Generate a detailed syllabus with EXACTLY {{unitCount}} units for the subject "{{{title}}}".
+    - Total Hours target: {{totalHours}} hours.
+    - Ensure zero overlap with the specific topics in previous courses.
     
-    Provide Unit Titles, Content summaries, Teaching hours per unit, and clear Course Outcomes (COs).
-    Also suggest the latest Standard Text Books and References.`,
+    Provide Unit Titles, Content summaries, Teaching hours per unit, and clear Course Outcomes (COs) for the subject "{{{title}}}".
+    Also suggest the latest Standard Text Books and References specifically for {{{title}}}.`,
   });
 
   if (!response.output) throw new Error('AI failed to generate syllabus content');
