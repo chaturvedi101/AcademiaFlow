@@ -140,7 +140,6 @@ export function SyllabusDialog({
       const year = Math.ceil((formData.semester || 1) / 2);
 
       // 5. Sequence determination
-      const typeKey = `${cat}-${year}`;
       const sameType = existingSyllabi.filter(s => 
         s.creditCategory === cat && 
         Math.ceil(s.semester / 2) === year
@@ -170,7 +169,6 @@ export function SyllabusDialog({
     }
     
     // Other categories are managed by Branch BOS (Convenor/Member)
-    // Here we assume canEdit is passed based on branch assignment logic in parent
     return canEdit;
   }, [userProfile, formData.creditCategory, canEdit, isAdminOrDeanAcad]);
 
@@ -241,7 +239,21 @@ export function SyllabusDialog({
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Methodology</Label>
-                    <Select disabled={isReadOnly} value={formData.type || 'Theory'} onValueChange={(v: SubjectType) => setFormData({...formData, type: v})}>
+                    <Select 
+                      disabled={isReadOnly} 
+                      value={formData.type || 'Theory'} 
+                      onValueChange={(v: SubjectType) => {
+                        const updates: Partial<Syllabus> = { type: v };
+                        // Enforce mutual exclusivity
+                        if (v === 'Theory') {
+                          updates.practicalCredits = 0;
+                        } else {
+                          updates.lectureCredits = 0;
+                          updates.tutorialCredits = 0;
+                        }
+                        setFormData({...formData, ...updates});
+                      }}
+                    >
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Theory">Theory (L-T)</SelectItem>

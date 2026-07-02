@@ -158,7 +158,16 @@ export default function SchemesPage() {
   const updateSlot = (id: string, updates: Partial<SlotConfig>) => {
     setSemesterSlots(semesterSlots.map(s => {
       if (s.id === id) {
-        const updated = { ...s, ...updates };
+        let updated = { ...s, ...updates };
+
+        // Enforce mutual exclusivity
+        if (updates.type === 'Theory') {
+          updated.practicalCredits = 0;
+        } else if (updates.type === 'Lab/Sessional') {
+          updated.lectureCredits = 0;
+          updated.tutorialCredits = 0;
+        }
+
         const l = Number(updated.lectureCredits) || 0;
         const t = Number(updated.tutorialCredits) || 0;
         const p = Number(updated.practicalCredits) || 0;

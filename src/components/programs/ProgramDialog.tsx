@@ -208,7 +208,15 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
     setFormData(prev => {
       const newTemplate = prev.slotTemplate?.map(s => {
         if (s.id === id) {
-          const updated = { ...s, ...updates };
+          let updated = { ...s, ...updates };
+          
+          // Enforce mutual exclusivity
+          if (updates.type === 'Theory') {
+            updated.practicalCredits = 0;
+          } else if (updates.type === 'Lab/Sessional') {
+            updated.lectureCredits = 0;
+            updated.tutorialCredits = 0;
+          }
           
           // Recalculate credits if L, T, P or Type changed
           const l = Number(updated.lectureCredits) || 0;
