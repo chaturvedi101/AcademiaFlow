@@ -68,9 +68,11 @@ export default function SchemesPage() {
 
   const calculateCredits = (l: number, t: number, p: number) => {
     let total = l + t;
-    if (p > 0) {
-      total += (p === 3 ? 2 : p / 2);
-    }
+    if (p === 1) total += 0.5;
+    else if (p === 2) total += 1;
+    else if (p === 3) total += 2;
+    else if (p === 4) total += 2;
+    else if (p > 4) total += p / 2;
     return Number(total.toFixed(2));
   };
 

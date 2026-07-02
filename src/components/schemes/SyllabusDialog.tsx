@@ -98,11 +98,14 @@ export function SyllabusDialog({
     const t = Number(formData.tutorialCredits) || 0;
     const p = Number(formData.practicalCredits) || 0;
     
-    // RTU Credit Calculation Logic: L+T + P/2 (Practical of 3h is usually 2 Cr)
+    // RTU Credit Calculation Logic: L+T + Practical specific rules
     let creditTotal = l + t;
-    if (p > 0) {
-       creditTotal += (p === 3 ? 2 : p / 2);
-    }
+    if (p === 1) creditTotal += 0.5;
+    else if (p === 2) creditTotal += 1;
+    else if (p === 3) creditTotal += 2;
+    else if (p === 4) creditTotal += 2;
+    else if (p > 4) creditTotal += p / 2;
+    
     setFormData(prev => ({ ...prev, credits: Number(creditTotal.toFixed(2)) }));
   }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits, formData.type]);
 
