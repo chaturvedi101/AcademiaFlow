@@ -143,8 +143,6 @@ export function SyllabusDialog({
       else if (cat === 'MDC') prefix = 'MD';
       else if (cat === 'VAC') prefix = 'VA';
       else {
-        // Logic to derive prefix from current branch/program is handled by parent context usually
-        // For local generation, we use current prefix if available
         prefix = formData.subjectCode?.substring(0, 2) || 'CS';
       }
 
@@ -152,13 +150,20 @@ export function SyllabusDialog({
       if (cat === 'PRJ') pedagogy = 'I';
       else if (formData.type === 'Lab/Sessional') pedagogy = 'P';
 
-      const pillar = ['DSE', 'OFE', 'VAC', 'MDC', 'AEC'].includes(cat!) ? 'E' : 'C';
+      // Distinguish Pillar chars (C=DSC, S=SEC, V=VAC, A=AEC, M=MDC, E=Electives, P=Project)
+      let pillar = 'C';
+      if (cat === 'DSE' || cat === 'OFE') pillar = 'E';
+      else if (cat === 'SEC') pillar = 'S';
+      else if (cat === 'VAC') pillar = 'V';
+      else if (cat === 'AEC') pillar = 'A';
+      else if (cat === 'MDC') pillar = 'M';
+      else if (cat === 'PRJ') pillar = 'P';
+
       const year = Math.ceil((formData.semester || 1) / 2);
 
       let sequence = 1;
       let finalCode = '';
       
-      // Attempt to find next available sequence globally
       while (sequence < 100) {
         const seqStr = String(sequence).padStart(2, '0');
         const candidate = `${prefix}${pedagogy}${pillar}${year}${seqStr}`;

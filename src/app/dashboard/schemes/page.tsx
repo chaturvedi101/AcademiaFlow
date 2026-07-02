@@ -237,7 +237,15 @@ export default function SchemesPage() {
         if (cat === 'PRJ') pedagogy = 'I';
         else if (slot.type === 'Lab/Sessional' || slot.title?.toLowerCase().includes('lab') || slot.title?.toLowerCase().includes('practical')) pedagogy = 'P';
         
-        const pillar = ['DSE', 'OFE'].includes(cat) ? 'E' : 'C';
+        // Granular Pillar Characters to avoid collisions (DSC=C, DSE/OFE=E, SEC=S, VAC=V, AEC=A, MDC=M, PRJ=P)
+        let pillar = 'C';
+        if (cat === 'DSE' || cat === 'OFE') pillar = 'E';
+        else if (cat === 'SEC') pillar = 'S';
+        else if (cat === 'VAC') pillar = 'V';
+        else if (cat === 'AEC') pillar = 'A';
+        else if (cat === 'MDC') pillar = 'M';
+        else if (cat === 'PRJ') pillar = 'P';
+
         const year = Math.ceil(slot.semester / 2);
         
         const generateUniqueCode = (baseCode: string, optionIdx?: number) => {
