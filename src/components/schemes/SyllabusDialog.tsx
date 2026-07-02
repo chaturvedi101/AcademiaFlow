@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   BookOpen, Loader2, Plus, Clock, AlertTriangle, 
-  ShieldCheck, ChevronDown, ChevronUp, Trash2, Lock
+  ShieldCheck, ChevronDown, ChevronUp, Trash2, Lock, CheckCircle2
 } from "lucide-react";
 import { Syllabus, CreditRules, UserProfile, CreditCategory, SubjectType } from "@/lib/types";
 import { useFirestore } from "@/firebase";
@@ -67,6 +67,7 @@ export function SyllabusDialog({
 
   const [codeWarning, setCodeWarning] = useState<string | null>(null);
   const [isCheckingUniqueness, setIsCheckingUniqueness] = useState(false);
+  const [isCodeUnique, setIsCodeUnique] = useState<boolean | null>(null);
   const [expandedUnits, setExpandedUnits] = useState<Record<string, boolean>>({});
 
   const [formData, setFormData] = useState<Partial<Syllabus>>({
@@ -86,19 +87,18 @@ export function SyllabusDialog({
         ...syllabus 
       });
       setCodeWarning(null);
+      setIsCodeUnique(null);
       const initialExpanded: Record<string, boolean> = {};
       syllabus.units?.forEach(u => initialExpanded[u.id] = true);
       setExpandedUnits(initialExpanded);
     }
   }, [open, syllabus]);
 
-  // Sync credits and hours visibility
   useEffect(() => {
     const l = Number(formData.lectureCredits) || 0;
     const t = Number(formData.tutorialCredits) || 0;
     const p = Number(formData.practicalCredits) || 0;
     
-    // RTU Credit Calculation Logic: L+T + Practical specific rules
     let creditTotal = l + t;
     if (p === 1) creditTotal += 0.5;
     else if (p === 2) creditTotal += 1;
@@ -109,51 +109,78 @@ export function SyllabusDialog({
     setFormData(prev => ({ ...prev, credits: Number(creditTotal.toFixed(2)) }));
   }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits, formData.type]);
 
-  // Auto-Code Generation Logic
+  const checkCodeUniqueness = async (code: string) => {
+    if (!code || code === syllabus?.subjectCode) {
+      setIsCodeUnique(true);
+      return;
+    }
+    setIsCheckingUniqueness(true);
+    try {
+      const q = query(collectionGroup(db, 'syllabi'), where('subjectCode', '==', code));
+      const snap = await getDocs(q);
+      const exists = !snap.empty;
+      setIsCodeUnique(!exists);
+      if (exists) {
+        setCodeWarning(`Institutional violation: Subject code ${code} is already in use by another program.`);
+      } else {
+        setCodeWarning(null);
+      }
+    } catch (e) {
+      console.error("Code check failed:", e);
+    } finally {
+      setIsCheckingUniqueness(false);
+    }
+  };
+
   useEffect(() => {
     if (!open || !formData.creditCategory || !formData.semester) return;
-    
-    // Do not auto-generate if we are editing an existing non-slot course
     if (formData.id && !formData.isSlot) return;
 
-    const generateCode = () => {
-      // 1. Prefix determination
+    const generateCode = async () => {
       let prefix = 'GN'; 
       const cat = formData.creditCategory;
       if (cat === 'AEC') prefix = 'AE';
       else if (cat === 'MDC') prefix = 'MD';
       else if (cat === 'VAC') prefix = 'VA';
       else {
-        // Try to derive from current program context or use placeholders
-        prefix = 'CS'; // Default for testing, would normally use scheme/program data
+        // Logic to derive prefix from current branch/program is handled by parent context usually
+        // For local generation, we use current prefix if available
+        prefix = formData.subjectCode?.substring(0, 2) || 'CS';
       }
 
-      // 2. Pedagogy determination
       let pedagogy = 'L';
       if (cat === 'PRJ') pedagogy = 'I';
       else if (formData.type === 'Lab/Sessional') pedagogy = 'P';
 
-      // 3. Pillar determination
       const pillar = ['DSE', 'OFE', 'VAC', 'MDC', 'AEC'].includes(cat!) ? 'E' : 'C';
-
-      // 4. Year determination
       const year = Math.ceil((formData.semester || 1) / 2);
 
-      // 5. Sequence determination
-      const sameType = existingSyllabi.filter(s => 
-        s.creditCategory === cat && 
-        Math.ceil(s.semester / 2) === year
-      );
-      const seq = String(sameType.length + 1).padStart(2, '0');
+      let sequence = 1;
+      let finalCode = '';
+      
+      // Attempt to find next available sequence globally
+      while (sequence < 100) {
+        const seqStr = String(sequence).padStart(2, '0');
+        const candidate = `${prefix}${pedagogy}${pillar}${year}${seqStr}`;
+        
+        const q = query(collectionGroup(db, 'syllabi'), where('subjectCode', '==', candidate));
+        const snap = await getDocs(q);
+        
+        if (snap.empty) {
+          finalCode = candidate;
+          break;
+        }
+        sequence++;
+      }
 
-      return `${prefix}${pedagogy}${pillar}${year}${seq}`;
+      if (finalCode && finalCode !== formData.subjectCode) {
+        setFormData(prev => ({ ...prev, subjectCode: finalCode }));
+        setIsCodeUnique(true);
+      }
     };
 
-    const newCode = generateCode();
-    if (newCode !== formData.subjectCode) {
-      setFormData(prev => ({ ...prev, subjectCode: newCode }));
-    }
-  }, [formData.creditCategory, formData.type, formData.semester, open, existingSyllabi]);
+    generateCode();
+  }, [formData.creditCategory, formData.type, formData.semester, open, db]);
 
   const isAdminOrDeanAcad = userProfile?.role === 'admin' || userProfile?.role === 'dean_academic';
 
@@ -163,12 +190,10 @@ export function SyllabusDialog({
     const isInstitutional = ['AEC', 'VAC', 'MDC'].includes(formData.creditCategory || '');
     const isCommonBOS = userProfile.faculty === 'University-wide (Common BOS)';
     
-    // Institutional categories are ONLY managed by Common BOS or high leadership
     if (isInstitutional) {
       return isAdminOrDeanAcad || isCommonBOS;
     }
     
-    // Other categories are managed by Branch BOS (Convenor/Member)
     return canEdit;
   }, [userProfile, formData.creditCategory, canEdit, isAdminOrDeanAcad]);
 
@@ -231,11 +256,22 @@ export function SyllabusDialog({
                       <Input 
                         disabled={!isAdminOrDeanAcad} 
                         value={formData.subjectCode || ''} 
-                        onChange={e => setFormData({...formData, subjectCode: e.target.value.toUpperCase()})}
-                        className={cn(!isAdminOrDeanAcad && "bg-muted/50 cursor-not-allowed font-bold text-primary")}
+                        onChange={e => {
+                          const val = e.target.value.toUpperCase();
+                          setFormData({...formData, subjectCode: val});
+                          if (val.length >= 7) checkCodeUniqueness(val);
+                        }}
+                        className={cn(
+                          !isAdminOrDeanAcad && "bg-muted/50 cursor-not-allowed font-bold text-primary",
+                          isCodeUnique === false && "border-red-500 text-red-600 focus-visible:ring-red-500",
+                          isCodeUnique === true && "border-emerald-500 text-emerald-600"
+                        )}
                       />
                       {isCheckingUniqueness && <Loader2 className="absolute right-3 top-3 w-4 h-4 animate-spin opacity-50" />}
+                      {!isCheckingUniqueness && isCodeUnique === true && <CheckCircle2 className="absolute right-3 top-3 w-4 h-4 text-emerald-500" />}
+                      {!isCheckingUniqueness && isCodeUnique === false && <AlertTriangle className="absolute right-3 top-3 w-4 h-4 text-red-500" />}
                     </div>
+                    {codeWarning && <p className="text-[10px] font-bold text-red-600 animate-pulse">{codeWarning}</p>}
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Methodology</Label>
@@ -244,7 +280,6 @@ export function SyllabusDialog({
                       value={formData.type || 'Theory'} 
                       onValueChange={(v: SubjectType) => {
                         const updates: Partial<Syllabus> = { type: v };
-                        // Enforce mutual exclusivity
                         if (v === 'Theory') {
                           updates.practicalCredits = 0;
                         } else {
@@ -374,7 +409,7 @@ export function SyllabusDialog({
         
         <DialogFooter className="p-6 border-t bg-background shrink-0">
            <Button variant="outline" onClick={() => onOpenChange(false)}>{isReadOnly ? 'Close' : 'Cancel'}</Button>
-           {!isReadOnly && <Button onClick={() => { onSave(formData); onOpenChange(false); }}>Save Course Specification</Button>}
+           {!isReadOnly && <Button disabled={isCodeUnique === false} onClick={() => { onSave(formData); onOpenChange(false); }}>Save Course Specification</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>

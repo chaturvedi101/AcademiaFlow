@@ -3,12 +3,12 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
-import { collection, setDoc, doc, serverTimestamp, query, orderBy, getDoc, writeBatch } from 'firebase/firestore';
+import { collection, setDoc, doc, serverTimestamp, query, orderBy, getDoc, writeBatch, collectionGroup, where, getDocs } from 'firebase/firestore';
 import { Scheme, Program, UserProfile, CreditCategory, Syllabus, SubjectType } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, BookOpen, Loader2, Calendar, FileText, ArrowRight, ShieldCheck, Hash, Trash2, ChevronLeft, GraduationCap } from 'lucide-react';
+import { Plus, BookOpen, Loader2, Calendar, FileText, ArrowRight, ShieldCheck, Hash, Trash2, ChevronLeft, GraduationCap, AlertCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -159,15 +159,12 @@ export default function SchemesPage() {
     setSemesterSlots(semesterSlots.map(s => {
       if (s.id === id) {
         let updated = { ...s, ...updates };
-
-        // Enforce mutual exclusivity
         if (updates.type === 'Theory') {
           updated.practicalCredits = 0;
         } else if (updates.type === 'Lab/Sessional') {
           updated.lectureCredits = 0;
           updated.tutorialCredits = 0;
         }
-
         const l = Number(updated.lectureCredits) || 0;
         const t = Number(updated.tutorialCredits) || 0;
         const p = Number(updated.practicalCredits) || 0;
@@ -207,6 +204,10 @@ export default function SchemesPage() {
         return;
       }
 
+      // Pre-fetch all syllabus codes to check for uniqueness
+      const allSyllabiSnap = await getDocs(collectionGroup(db, 'syllabi'));
+      const existingGlobalCodes = new Set(allSyllabiSnap.docs.map(d => d.data().subjectCode as string));
+
       await setDoc(schemeDocRef, {
         ...newScheme,
         id: generatedCode,
@@ -223,45 +224,54 @@ export default function SchemesPage() {
       });
 
       const batch = writeBatch(db);
-      const counters: Record<string, number> = { DSC: 0, SEC: 0, DSE: 0, PRJ: 0, AEC: 0, MDC: 0, VAC: 0, OFE: 0 };
+      const usedCodesInCurrentBatch = new Set<string>();
 
-      semesterSlots.forEach(slot => {
+      for (const slot of semesterSlots) {
         const cat = slot.creditCategory;
-        
-        // Institutional Rule: Prefix Determination
         let prefix = branchPrefix || 'GEN';
         if (cat === 'AEC') prefix = 'AE';
         else if (cat === 'MDC') prefix = 'MD';
         else if (cat === 'VAC') prefix = 'VA';
         
-        counters[cat]++;
-        const seq = counters[cat];
-        
-        // Institutional Rule: Pedagogy determination
-        let pedagogy = 'L'; // Default: Lecture
-        if (cat === 'PRJ') pedagogy = 'I'; // Internship/Project
+        let pedagogy = 'L';
+        if (cat === 'PRJ') pedagogy = 'I';
         else if (slot.type === 'Lab/Sessional' || slot.title?.toLowerCase().includes('lab') || slot.title?.toLowerCase().includes('practical')) pedagogy = 'P';
         
-        // Institutional Rule: Pillar determination
-        const pillar = ['DSE', 'OFE'].includes(cat) ? 'E' : 'C'; // Elective or Core
-        
-        // Institutional Rule: Year determination
+        const pillar = ['DSE', 'OFE'].includes(cat) ? 'E' : 'C';
         const year = Math.ceil(slot.semester / 2);
         
-        // Institutional Rule: 7-Character Composite Code
-        const baseAutoCode = `${prefix.substring(0,2)}${pedagogy}${pillar}${year}${String(seq).padStart(2, '0')}`;
-        const finalCode = slot.subjectCode || baseAutoCode;
+        const generateUniqueCode = (baseCode: string, optionIdx?: number) => {
+          let sequence = 1;
+          let finalCode = '';
+          
+          while (sequence < 100) {
+            const seqStr = String(sequence).padStart(2, '0');
+            const candidate = optionIdx 
+              ? `${prefix.substring(0,2)}${pedagogy}${pillar}${year}${seqStr}.${optionIdx}`
+              : `${prefix.substring(0,2)}${pedagogy}${pillar}${year}${seqStr}`;
+            
+            if (!existingGlobalCodes.has(candidate) && !usedCodesInCurrentBatch.has(candidate)) {
+              finalCode = candidate;
+              break;
+            }
+            sequence++;
+          }
+          
+          if (!finalCode) throw new Error(`Could not generate unique code for ${cat} in Year ${year}. Database exhausted.`);
+          return finalCode;
+        };
 
         if (cat === 'DSE' || cat === 'OFE') {
           for (let i = 1; i <= 3; i++) {
             const optionId = `SLOT-${cat}-${slot.semester}-${slot.id}-${i}`;
             const optionRef = doc(db, 'schemes', generatedCode, 'syllabi', optionId);
-            const optionCode = `${finalCode}.${i}`;
+            const finalCode = generateUniqueCode('', i);
+            usedCodesInCurrentBatch.add(finalCode);
             
             const data: any = {
               id: optionId,
               schemeId: generatedCode,
-              subjectCode: optionCode,
+              subjectCode: finalCode,
               semester: slot.semester,
               creditCategory: cat,
               credits: slot.credits,
@@ -285,6 +295,8 @@ export default function SchemesPage() {
         } else {
           const slotId = `SLOT-${cat}-${slot.semester}-${slot.id}`;
           const slotRef = doc(db, 'schemes', generatedCode, 'syllabi', slotId);
+          const finalCode = generateUniqueCode('');
+          usedCodesInCurrentBatch.add(finalCode);
           
           const data: any = {
             id: slotId,
@@ -314,15 +326,15 @@ export default function SchemesPage() {
           
           batch.set(slotRef, data);
         }
-      });
+      }
 
       await batch.commit();
-      toast({ title: "Success", description: "Scheme architecture initialized." });
+      toast({ title: "Success", description: "Scheme architecture initialized with unique subject codes." });
       setIsDialogOpen(false);
       router.push(`/dashboard/schemes/${generatedCode}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating scheme:", error);
-      toast({ title: "Error", description: "Initialization failed.", variant: "destructive" });
+      toast({ title: "Initialization Failed", description: error.message || "Failed to generate unique codes.", variant: "destructive" });
     } finally {
       setIsCreating(false);
     }
@@ -417,9 +429,9 @@ export default function SchemesPage() {
             </div>
           ) : (
             <div className="py-4 space-y-6">
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-[10px] text-amber-800 flex gap-2">
-                <ShieldCheck className="w-4 h-4 shrink-0" />
-                <p>Note: DSE/OFE slots will be expanded into 3 subject options automatically during scheme creation.</p>
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 text-[11px] text-primary flex gap-3">
+                <ShieldCheck className="w-5 h-5 shrink-0" />
+                <p><b>Institutional Integrity Guard:</b> Subject codes will be automatically generated and verified for global uniqueness within the RTU system. If a collision is found, the sequence will automatically advance.</p>
               </div>
               <ScrollArea className="h-[400px] pr-4">
                 {Array.from({ length: selectedProgram?.totalSemesters || 8 }, (_, i) => i + 1).map(sem => (
@@ -441,7 +453,7 @@ export default function SchemesPage() {
                           )}
 
                           <div className="col-span-1 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Cr</Label><div className="h-9 flex items-center justify-center bg-white border rounded text-[10px] font-bold">{slot.credits}</div></div>
-                          <div className="col-span-2 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Code</Label><Input disabled={slot.isInherited} value={slot.subjectCode || ''} onChange={e => updateSlot(slot.id, { subjectCode: e.target.value.toUpperCase() })} className="h-9" /></div>
+                          <div className="col-span-2 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Auto-Code</Label><div className="h-9 flex items-center px-3 bg-muted border rounded text-[10px] font-mono italic text-muted-foreground">SYS-GEN</div></div>
                           <div className="col-span-2 space-y-1">
                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">
                               {['DSE', 'OFE'].includes(slot.creditCategory) ? 'Group Identity' : 'Title'}
