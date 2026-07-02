@@ -16,7 +16,7 @@ import { Program, CreditRules, FACULTIES, UserProfile, ProgramSlotTemplate, Cred
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { X, Plus, ShieldAlert, Trash2, Layers, ShieldCheck, GraduationCap } from 'lucide-react';
+import { X, Plus, ShieldCheck, Trash2, Layers, ShieldCheck as ShieldIcon } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 
@@ -78,7 +78,12 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
         branches: program.branches || [],
         branchPrefixes: program.branchPrefixes || {},
         rules: { ...DEFAULT_RULES, ...(program.rules || {}) },
-        slotTemplate: program.slotTemplate || []
+        slotTemplate: (program.slotTemplate || []).map(s => ({
+          ...s,
+          lectureCredits: s.lectureCredits ?? 0,
+          tutorialCredits: s.tutorialCredits ?? 0,
+          practicalCredits: s.practicalCredits ?? 0
+        }))
       });
     } else {
       setFormData({
@@ -95,6 +100,14 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
       });
     }
   }, [program, open, initialFaculty]);
+
+  const calculateCredits = (l: number, t: number, p: number) => {
+    let total = l + t;
+    if (p > 0) {
+      total += (p === 3 ? 2 : p / 2);
+    }
+    return Number(total.toFixed(2));
+  };
 
   const handleSave = () => {
     if (isCommonBos) return;
@@ -177,6 +190,9 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
       creditCategory: 'VAC',
       credits: 2,
       type: 'Theory',
+      lectureCredits: 2,
+      tutorialCredits: 0,
+      practicalCredits: 0,
       subjectCode: '',
       title: ''
     };
@@ -191,10 +207,14 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
       const newTemplate = prev.slotTemplate?.map(s => {
         if (s.id === id) {
           const updated = { ...s, ...updates };
-          // Pedagogy alignment
-          if (updates.type === 'Lab/Sessional' && s.credits !== updated.credits) {
-             // Logic for lab credits...
-          }
+          
+          // Recalculate credits if L, T, P or Type changed
+          const l = Number(updated.lectureCredits) || 0;
+          const t = Number(updated.tutorialCredits) || 0;
+          const p = Number(updated.practicalCredits) || 0;
+          
+          updated.credits = calculateCredits(l, t, p);
+          
           return updated;
         }
         return s;
@@ -329,7 +349,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
               <TabsContent value="rules" className="mt-0 space-y-8">
                 <div className="space-y-6">
                   <div className="p-4 bg-accent/5 rounded-xl border border-accent/10 flex items-center gap-3 text-accent text-sm">
-                    <ShieldCheck className="w-5 h-5 shrink-0" />
+                    <ShieldIcon className="w-5 h-5 shrink-0" />
                     <p>Parameters defining institutional boundaries for all schemes. Credits validated by Scheme Architect.</p>
                   </div>
                   <div className="space-y-4">
@@ -371,7 +391,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
               <TabsContent value="template" className="mt-0 space-y-6">
                 <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex items-center gap-3 text-primary text-sm mb-6">
                   <Layers className="w-5 h-5 shrink-0" />
-                  <p>Standardized course slots (AEC, VAC, MDC, SEC) inherited by all Schemes.</p>
+                  <p>Standardized course slots (AEC, VAC, MDC, SEC) inherited by all Schemes. Credits are automatically calculated from L-T-P.</p>
                 </div>
                 <div className="space-y-8">
                   {Array.from({ length: formData.totalSemesters || 8 }, (_, i) => i + 1).map(sem => {
@@ -399,15 +419,38 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                                   </SelectContent>
                                 </Select>
                               </div>
+
+                              {/* Methodology Aware LTP Inputs */}
+                              {slot.type === 'Theory' ? (
+                                <>
+                                  <div className="col-span-1 space-y-1">
+                                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">L</Label>
+                                    <Input disabled={isReadOnly} type="number" value={slot.lectureCredits} onChange={e => updateTemplateSlot(slot.id, { lectureCredits: Number(e.target.value) })} className="h-9" />
+                                  </div>
+                                  <div className="col-span-1 space-y-1">
+                                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">T</Label>
+                                    <Input disabled={isReadOnly} type="number" value={slot.tutorialCredits} onChange={e => updateTemplateSlot(slot.id, { tutorialCredits: Number(e.target.value) })} className="h-9" />
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="col-span-2 space-y-1">
+                                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">P (Practical)</Label>
+                                  <Input disabled={isReadOnly} type="number" value={slot.practicalCredits} onChange={e => updateTemplateSlot(slot.id, { practicalCredits: Number(e.target.value) })} className="h-9" />
+                                </div>
+                              )}
+
                               <div className="col-span-1 space-y-1">
                                 <Label className="text-[10px] uppercase font-bold text-muted-foreground">Cr</Label>
-                                <Input disabled={isReadOnly} type="number" value={slot.credits} onChange={e => updateTemplateSlot(slot.id, { credits: Number(e.target.value) })} className="h-9" />
+                                <div className="h-9 flex items-center justify-center bg-primary/5 rounded border border-primary/20 text-xs font-bold text-primary">
+                                  {slot.credits}
+                                </div>
                               </div>
-                              <div className="col-span-3 space-y-1">
-                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Code (Auto if empty)</Label>
-                                <Input disabled={isReadOnly} placeholder="e.g. HS101" value={slot.subjectCode || ''} onChange={e => updateTemplateSlot(slot.id, { subjectCode: e.target.value.toUpperCase() })} className="h-9" />
+                              
+                              <div className="col-span-2 space-y-1">
+                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Code</Label>
+                                <Input disabled={isReadOnly} placeholder="HS101" value={slot.subjectCode || ''} onChange={e => updateTemplateSlot(slot.id, { subjectCode: e.target.value.toUpperCase() })} className="h-9" />
                               </div>
-                              <div className="col-span-3 space-y-1">
+                              <div className="col-span-2 space-y-1">
                                 <Label className="text-[10px] uppercase font-bold text-muted-foreground">Title</Label>
                                 <Input disabled={isReadOnly} value={slot.title || ''} onChange={e => updateTemplateSlot(slot.id, { title: e.target.value })} className="h-9" />
                               </div>

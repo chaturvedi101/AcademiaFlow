@@ -1,9 +1,10 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, setDoc, doc, serverTimestamp, query, orderBy, getDoc, writeBatch } from 'firebase/firestore';
-import { Scheme, Program, UserProfile, CreditCategory, Syllabus } from '@/lib/types';
+import { Scheme, Program, UserProfile, CreditCategory, Syllabus, SubjectType } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +23,10 @@ interface SlotConfig {
   semester: number;
   creditCategory: CreditCategory;
   credits: number;
+  type: SubjectType;
+  lectureCredits: number;
+  tutorialCredits: number;
+  practicalCredits: number;
   isInherited?: boolean;
   subjectCode?: string;
   title?: string;
@@ -60,6 +65,14 @@ export default function SchemesPage() {
   const isCommonBos = profile?.faculty === 'University-wide (Common BOS)';
   const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile?.role || '');
   const isMonitor = profile?.role === 'monitor';
+
+  const calculateCredits = (l: number, t: number, p: number) => {
+    let total = l + t;
+    if (p > 0) {
+      total += (p === 3 ? 2 : p / 2);
+    }
+    return Number(total.toFixed(2));
+  };
 
   const visibleCategories = useMemo(() => {
     const all = ['DSC', 'DSE', 'OFE', 'VAC', 'AEC', 'SEC', 'MDC', 'PRJ'] as CreditCategory[];
@@ -109,6 +122,10 @@ export default function SchemesPage() {
         semester: t.semester,
         creditCategory: t.creditCategory || 'DSC',
         credits: t.credits,
+        type: t.type || 'Theory',
+        lectureCredits: t.lectureCredits || 0,
+        tutorialCredits: t.tutorialCredits || 0,
+        practicalCredits: t.practicalCredits || 0,
         subjectCode: t.subjectCode || '',
         title: t.title || '',
         isInherited: true
@@ -123,6 +140,10 @@ export default function SchemesPage() {
       semester,
       creditCategory: isCommonBos ? 'VAC' : 'DSE',
       credits: 4,
+      type: 'Theory',
+      lectureCredits: 4,
+      tutorialCredits: 0,
+      practicalCredits: 0,
       isInherited: false,
       subjectCode: '',
       title: isCommonBos ? '' : (isCommonBos ? 'Institutional Pool' : 'Elective Group')
@@ -131,7 +152,20 @@ export default function SchemesPage() {
   };
 
   const removeSlot = (id: string) => setSemesterSlots(semesterSlots.filter(s => s.id !== id));
-  const updateSlot = (id: string, updates: Partial<SlotConfig>) => setSemesterSlots(semesterSlots.map(s => s.id === id ? { ...s, ...updates } : s));
+  
+  const updateSlot = (id: string, updates: Partial<SlotConfig>) => {
+    setSemesterSlots(semesterSlots.map(s => {
+      if (s.id === id) {
+        const updated = { ...s, ...updates };
+        const l = Number(updated.lectureCredits) || 0;
+        const t = Number(updated.tutorialCredits) || 0;
+        const p = Number(updated.practicalCredits) || 0;
+        updated.credits = calculateCredits(l, t, p);
+        return updated;
+      }
+      return s;
+    }));
+  };
 
   const handleCreateScheme = async () => {
     if (!newScheme.programId || !newScheme.batchYear) {
@@ -195,7 +229,7 @@ export default function SchemesPage() {
         // Institutional Rule: Pedagogy determination
         let pedagogy = 'L'; // Default: Lecture
         if (cat === 'PRJ') pedagogy = 'I'; // Internship/Project
-        else if (slot.title?.toLowerCase().includes('lab') || slot.title?.toLowerCase().includes('practical')) pedagogy = 'P';
+        else if (slot.type === 'Lab/Sessional' || slot.title?.toLowerCase().includes('lab') || slot.title?.toLowerCase().includes('practical')) pedagogy = 'P';
         
         // Institutional Rule: Pillar determination
         const pillar = ['DSE', 'OFE'].includes(cat) ? 'E' : 'C'; // Elective or Core
@@ -223,10 +257,10 @@ export default function SchemesPage() {
               title: `${slot.title || (cat === 'DSE' ? 'Elective' : 'Open Elective')} - Subject ${i}`,
               isSlot: true,
               isOFESlot: cat === 'OFE',
-              type: pedagogy === 'P' ? 'Lab/Sessional' : 'Theory',
-              lectureCredits: slot.credits,
-              tutorialCredits: 0,
-              practicalCredits: 0,
+              type: slot.type,
+              lectureCredits: slot.lectureCredits,
+              tutorialCredits: slot.tutorialCredits,
+              practicalCredits: slot.practicalCredits,
               units: [],
               poMappings: {},
               prerequisites: [],
@@ -251,10 +285,10 @@ export default function SchemesPage() {
             title: slot.title || `${cat} Slot`,
             isSlot: true,
             isOFESlot: cat === 'OFE',
-            type: pedagogy === 'P' ? 'Lab/Sessional' : 'Theory',
-            lectureCredits: slot.credits,
-            tutorialCredits: 0,
-            practicalCredits: 0,
+            type: slot.type,
+            lectureCredits: slot.lectureCredits,
+            tutorialCredits: slot.tutorialCredits,
+            practicalCredits: slot.practicalCredits,
             units: [],
             poMappings: {},
             prerequisites: [],
@@ -383,12 +417,23 @@ export default function SchemesPage() {
                     <div className="space-y-4">
                       {semesterSlots.filter(s => s.semester === sem).map(slot => (
                         <div key={slot.id} className="grid grid-cols-12 gap-3 items-end border-b pb-4 last:border-0 last:pb-0">
-                          <div className="col-span-3 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Category</Label><Select disabled={slot.isInherited} value={slot.creditCategory} onValueChange={(v: CreditCategory) => updateSlot(slot.id, { creditCategory: v })}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent>{visibleCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}</SelectContent></Select></div>
-                          <div className="col-span-2 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Credits</Label><Input disabled={slot.isInherited} type="number" value={slot.credits} onChange={e => updateSlot(slot.id, { credits: Number(e.target.value) })} className="h-9" /></div>
-                          <div className="col-span-3 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Code</Label><Input disabled={slot.isInherited} value={slot.subjectCode || ''} onChange={e => updateSlot(slot.id, { subjectCode: e.target.value.toUpperCase() })} className="h-9" /></div>
-                          <div className="col-span-3 space-y-1">
+                          <div className="col-span-2 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Category</Label><Select disabled={slot.isInherited} value={slot.creditCategory} onValueChange={(v: CreditCategory) => updateSlot(slot.id, { creditCategory: v })}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent>{visibleCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}</SelectContent></Select></div>
+                          <div className="col-span-2 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Method</Label><Select disabled={slot.isInherited} value={slot.type} onValueChange={(v: SubjectType) => updateSlot(slot.id, { type: v })}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Theory">Theory</SelectItem><SelectItem value="Lab/Sessional">Lab</SelectItem></SelectContent></Select></div>
+                          
+                          {slot.type === 'Theory' ? (
+                            <>
+                              <div className="col-span-1 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">L</Label><Input disabled={slot.isInherited} type="number" value={slot.lectureCredits} onChange={e => updateSlot(slot.id, { lectureCredits: Number(e.target.value) })} className="h-9" /></div>
+                              <div className="col-span-1 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">T</Label><Input disabled={slot.isInherited} type="number" value={slot.tutorialCredits} onChange={e => updateSlot(slot.id, { tutorialCredits: Number(e.target.value) })} className="h-9" /></div>
+                            </>
+                          ) : (
+                            <div className="col-span-2 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">P</Label><Input disabled={slot.isInherited} type="number" value={slot.practicalCredits} onChange={e => updateSlot(slot.id, { practicalCredits: Number(e.target.value) })} className="h-9" /></div>
+                          )}
+
+                          <div className="col-span-1 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Cr</Label><div className="h-9 flex items-center justify-center bg-white border rounded text-[10px] font-bold">{slot.credits}</div></div>
+                          <div className="col-span-2 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Code</Label><Input disabled={slot.isInherited} value={slot.subjectCode || ''} onChange={e => updateSlot(slot.id, { subjectCode: e.target.value.toUpperCase() })} className="h-9" /></div>
+                          <div className="col-span-2 space-y-1">
                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">
-                              {['DSE', 'OFE'].includes(slot.creditCategory) ? 'Elective Group Identity' : 'Title'}
+                              {['DSE', 'OFE'].includes(slot.creditCategory) ? 'Group Identity' : 'Title'}
                             </Label>
                             <Input disabled={slot.isInherited} value={slot.title || ''} onChange={e => updateSlot(slot.id, { title: e.target.value })} className="h-9" />
                           </div>

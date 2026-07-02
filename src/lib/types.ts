@@ -65,6 +65,9 @@ export interface ProgramSlotTemplate {
   creditCategory: CreditCategory;
   credits: number;
   type: SubjectType;
+  lectureCredits: number;
+  tutorialCredits: number;
+  practicalCredits: number;
   subjectCode?: string;
   title?: string;
   electiveGroupId?: string;
