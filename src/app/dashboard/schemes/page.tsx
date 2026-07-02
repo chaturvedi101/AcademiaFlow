@@ -74,21 +74,16 @@ export default function SchemesPage() {
 
   const filteredSchemes = useMemo(() => {
     if (!profile) return [];
-    
-    // Admins, Dean Academic, and Monitors see everything university-wide
     if (profile.role === 'admin' || profile.role === 'dean_academic' || profile.role === 'monitor') {
       return schemes;
     }
-    
     if (isCommonBos) return schemes;
-    
     if (profile.role === 'dean_faculty') {
       return schemes.filter(s => {
         const prog = programs.find(p => p.id === s.programId);
         return prog?.faculty === profile.faculty;
       });
     }
-
     const managed = profile.managedBranches || [];
     return schemes.filter(s => 
       s.isCommonPoolScheme || 
@@ -183,12 +178,13 @@ export default function SchemesPage() {
       });
 
       const batch = writeBatch(db);
-      const counters: Record<string, number> = { DSC: 0, SEC: 39, DSE: 49, PRJ: 94, AEC: 0, MDC: 0, VAC: 0, OFE: 0 };
+      const counters: Record<string, number> = { DSC: 0, SEC: 0, DSE: 0, PRJ: 0, AEC: 0, MDC: 0, VAC: 0, OFE: 0 };
 
       semesterSlots.forEach(slot => {
         const cat = slot.creditCategory;
-        let prefix = branchPrefix || 'GEN';
         
+        // Institutional Rule: Prefix Determination
+        let prefix = branchPrefix || 'GEN';
         if (cat === 'AEC') prefix = 'AE';
         else if (cat === 'MDC') prefix = 'MD';
         else if (cat === 'VAC') prefix = 'VA';
@@ -196,13 +192,19 @@ export default function SchemesPage() {
         counters[cat]++;
         const seq = counters[cat];
         
-        let pedagogy = 'L';
-        if (cat === 'PRJ') pedagogy = 'I';
+        // Institutional Rule: Pedagogy determination
+        let pedagogy = 'L'; // Default: Lecture
+        if (cat === 'PRJ') pedagogy = 'I'; // Internship/Project
         else if (slot.title?.toLowerCase().includes('lab') || slot.title?.toLowerCase().includes('practical')) pedagogy = 'P';
         
-        const pillar = ['DSE', 'OFE'].includes(cat) ? 'E' : 'C';
+        // Institutional Rule: Pillar determination
+        const pillar = ['DSE', 'OFE'].includes(cat) ? 'E' : 'C'; // Elective or Core
+        
+        // Institutional Rule: Year determination
         const year = Math.ceil(slot.semester / 2);
-        const baseAutoCode = `${prefix}${pedagogy}${pillar}${year}${String(seq).padStart(2, '0')}`;
+        
+        // Institutional Rule: 7-Character Composite Code
+        const baseAutoCode = `${prefix.substring(0,2)}${pedagogy}${pillar}${year}${String(seq).padStart(2, '0')}`;
         const finalCode = slot.subjectCode || baseAutoCode;
 
         if (cat === 'DSE' || cat === 'OFE') {
@@ -260,7 +262,7 @@ export default function SchemesPage() {
             textBooks: [],
             referenceBooks: []
           };
-
+          
           if (cat === 'OFE' && slot.title) {
             data.electiveGroupId = slot.title;
           }
@@ -270,7 +272,7 @@ export default function SchemesPage() {
       });
 
       await batch.commit();
-      toast({ title: "Success", description: "Scheme architecture initialized with expanded elective groups." });
+      toast({ title: "Success", description: "Scheme architecture initialized." });
       setIsDialogOpen(false);
       router.push(`/dashboard/schemes/${generatedCode}`);
     } catch (error) {
@@ -372,18 +374,18 @@ export default function SchemesPage() {
             <div className="py-4 space-y-6">
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-[10px] text-amber-800 flex gap-2">
                 <ShieldCheck className="w-4 h-4 shrink-0" />
-                <p>Note: DSE/OFE slots will be expanded into 3 subject options (Option .1, .2, .3) automatically during scheme creation.</p>
+                <p>Note: DSE/OFE slots will be expanded into 3 subject options automatically during scheme creation.</p>
               </div>
               <ScrollArea className="h-[400px] pr-4">
                 {Array.from({ length: selectedProgram?.totalSemesters || 8 }, (_, i) => i + 1).map(sem => (
                   <div key={sem} className="mb-6 border rounded-xl p-4 bg-muted/20">
-                    <div className="flex items-center justify-between mb-4"><h4 className="font-headline font-bold text-sm">Semester {sem}</h4><Button variant="outline" size="sm" onClick={() => handleAddSlot(sem)} className="h-8 gap-2"><Plus className="w-3.5 h-3.5" /> Add Branch Slot</Button></div>
+                    <div className="flex items-center justify-between mb-4"><h4 className="font-headline font-bold text-sm">Semester {sem}</h4><Button variant="outline" size="sm" onClick={() => handleAddSlot(sem)} className="h-8 gap-2"><Plus className="w-3.5 h-3.5" /> Add Slot</Button></div>
                     <div className="space-y-4">
                       {semesterSlots.filter(s => s.semester === sem).map(slot => (
                         <div key={slot.id} className="grid grid-cols-12 gap-3 items-end border-b pb-4 last:border-0 last:pb-0">
                           <div className="col-span-3 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Category</Label><Select disabled={slot.isInherited} value={slot.creditCategory} onValueChange={(v: CreditCategory) => updateSlot(slot.id, { creditCategory: v })}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent>{visibleCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}</SelectContent></Select></div>
                           <div className="col-span-2 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Credits</Label><Input disabled={slot.isInherited} type="number" value={slot.credits} onChange={e => updateSlot(slot.id, { credits: Number(e.target.value) })} className="h-9" /></div>
-                          <div className="col-span-3 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Subject Code</Label><Input disabled={slot.isInherited} value={slot.subjectCode || ''} onChange={e => updateSlot(slot.id, { subjectCode: e.target.value.toUpperCase() })} className="h-9" /></div>
+                          <div className="col-span-3 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Code</Label><Input disabled={slot.isInherited} value={slot.subjectCode || ''} onChange={e => updateSlot(slot.id, { subjectCode: e.target.value.toUpperCase() })} className="h-9" /></div>
                           <div className="col-span-3 space-y-1">
                             <Label className="text-[10px] uppercase font-bold text-muted-foreground">
                               {['DSE', 'OFE'].includes(slot.creditCategory) ? 'Elective Group Identity' : 'Title'}
