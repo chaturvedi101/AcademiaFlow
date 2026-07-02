@@ -119,41 +119,24 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const isCommonBOS = profile.faculty === 'University-wide (Common BOS)';
     const myBranchRole = profile.managedBranches?.find(m => m.programId === scheme.programId && m.branch === scheme.branch)?.role;
 
-    let canEditScheme = false;
-    if (isGlobalAdmin || isProgramDean) {
-      canEditScheme = true;
-    } else if (scheme.isCommonPoolScheme) {
-      canEditScheme = isCommonBOS;
-    } else {
-      canEditScheme = myBranchRole === 'bos_convenor';
-    }
+    const canEditScheme = isGlobalAdmin || isProgramDean || (scheme.isCommonPoolScheme ? isCommonBOS : myBranchRole === 'bos_convenor');
 
     const canEditSyllabus = (s: any) => {
-      const isInstitutionalCategory = ['AEC', 'VAC', 'MDC'].includes(s?.creditCategory);
-      const hasCentralAuth = isGlobalAdmin || isCommonBOS;
-      
-      if (isInstitutionalCategory) {
-        return hasCentralAuth;
-      }
-      
+      const isInstitutional = ['AEC', 'VAC', 'MDC'].includes(s?.creditCategory);
+      if (isInstitutional) return isGlobalAdmin || isCommonBOS;
       return isGlobalAdmin || isProgramDean || !!myBranchRole || canEditScheme;
     };
 
     const canDeleteSyllabus = (s: any) => {
       if (!canEditSyllabus(s)) return false;
       
-      // Institutional Standard: Branch members (BOS Members) cannot delete courses.
-      // Deletion is restricted to Convenors or higher leadership (Dean/Admin).
+      // Institutional rule: bos_member cannot delete, only convenors or higher
+      if (profile.role === 'bos_member' && !isGlobalAdmin && !isProgramDean) return false;
+
+      const isInstitutional = ['AEC', 'VAC', 'MDC'].includes(s?.creditCategory);
+      if (isInstitutional) return isGlobalAdmin || (isCommonBOS && profile.role === 'bos_convenor');
       
-      const isInstitutionalCategory = ['AEC', 'VAC', 'MDC'].includes(s?.creditCategory);
-      const hasCentralAuth = isGlobalAdmin || isCommonBOS;
-
-      if (isInstitutionalCategory) {
-        return hasCentralAuth;
-      }
-
-      // Departmental categories (DSC, DSE, etc.)
-      return isGlobalAdmin || isProgramDean || myBranchRole === 'bos_convenor' || (scheme.isCommonPoolScheme && isCommonBOS);
+      return isGlobalAdmin || isProgramDean || myBranchRole === 'bos_convenor' || (scheme.isCommonPoolScheme && isCommonBOS && profile.role === 'bos_convenor');
     };
 
     return { canEditScheme, canDeleteSyllabus, canEditSyllabus, isMonitor: false };
@@ -200,7 +183,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       id: docId, 
       schemeId, 
       updatedAt: serverTimestamp(),
-      isSlot: false,
+      isSlot: data.isSlot || false,
       isOFESlot: data.creditCategory === 'OFE' ? (data.isOFESlot || false) : false 
     };
     
@@ -294,7 +277,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                           <TableRow>
                             <TableHead className="w-20 pl-6">Slot</TableHead>
                             <TableHead className="w-24">Code</TableHead>
-                            <TableHead>Subject Title / Slot</TableHead>
+                            <TableHead>Subject Title</TableHead>
                             <TableHead>Category</TableHead>
                             <TableHead className="text-center">L-T-P</TableHead>
                             <TableHead className="text-right">Credits</TableHead>
@@ -309,7 +292,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                             <React.Fragment key={groupId}>
                               <TableRow className="hover:bg-muted/10 cursor-pointer bg-accent/5" onClick={() => setExpandedGroups(p => ({ ...p, [groupId]: !p[groupId] }))}>
                                 <TableCell className="pl-6"></TableCell>
-                                <TableCell className="font-mono font-bold text-accent">DSE</TableCell>
+                                <TableCell className="font-mono font-bold text-accent">ELECT</TableCell>
                                 <TableCell className="font-bold text-accent"><div className="flex items-center gap-2">{expandedGroups[groupId] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />} {groupId} ({members.length} Options)</div></TableCell>
                                 <TableCell><Badge className="bg-accent text-white">{members[0].creditCategory}</Badge></TableCell>
                                 <TableCell className="text-center font-mono text-xs">{members[0].lectureCredits}-{members[0].tutorialCredits}-{members[0].practicalCredits}</TableCell>

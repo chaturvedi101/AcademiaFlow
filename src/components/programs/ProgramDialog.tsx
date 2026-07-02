@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -11,7 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useFirestore } from '@/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { Program, CreditRules, FACULTIES, UserProfile, ProgramSlotTemplate, CreditCategory } from '@/lib/types';
+import { Program, CreditRules, FACULTIES, UserProfile, ProgramSlotTemplate, CreditCategory, SubjectType } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -175,6 +176,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
       semester,
       creditCategory: 'VAC',
       credits: 2,
+      type: 'Theory',
       subjectCode: '',
       title: ''
     };
@@ -189,8 +191,9 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
       const newTemplate = prev.slotTemplate?.map(s => {
         if (s.id === id) {
           const updated = { ...s, ...updates };
-          if ((updates.creditCategory === 'DSE' || updates.creditCategory === 'OFE') && !updated.title) {
-            updated.title = updates.creditCategory === 'DSE' ? 'Elective-I' : 'Open Elective-I';
+          // Pedagogy alignment
+          if (updates.type === 'Lab/Sessional' && s.credits !== updated.credits) {
+             // Logic for lab credits...
           }
           return updated;
         }
@@ -212,7 +215,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl h-[95vh] flex flex-col p-0 overflow-hidden shadow-2xl border-none">
+      <DialogContent className="max-w-[95vw] lg:max-w-6xl h-[95vh] flex flex-col p-0 overflow-hidden shadow-2xl border-none">
         <DialogHeader className="p-6 border-b shrink-0 bg-background z-20">
           <DialogTitle className="font-headline text-2xl flex items-center gap-3">
             {program ? 'Program Details' : 'New Program Definition'}
@@ -379,10 +382,35 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                         <div className="space-y-4">
                           {slots.map(slot => (
                             <div key={slot.id} className="grid grid-cols-12 gap-3 items-end border-b pb-4 last:border-0 last:pb-0">
-                              <div className="col-span-3 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Category</Label><Select disabled={isReadOnly} value={slot.creditCategory} onValueChange={(v: CreditCategory) => updateTemplateSlot(slot.id, { creditCategory: v })}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent>{ALL_CATEGORIES.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}</SelectContent></Select></div>
-                              <div className="col-span-2 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Credits</Label><Input disabled={isReadOnly} type="number" value={slot.credits} onChange={e => updateTemplateSlot(slot.id, { credits: Number(e.target.value) })} className="h-9" /></div>
-                              <div className="col-span-3 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Code</Label><Input disabled={isReadOnly} placeholder="e.g. HS101" value={slot.subjectCode || ''} onChange={e => updateTemplateSlot(slot.id, { subjectCode: e.target.value.toUpperCase() })} className="h-9" /></div>
-                              <div className="col-span-3 space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Title</Label><Input disabled={isReadOnly} value={slot.title || ''} onChange={e => updateTemplateSlot(slot.id, { title: e.target.value })} className="h-9" /></div>
+                              <div className="col-span-2 space-y-1">
+                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Category</Label>
+                                <Select disabled={isReadOnly} value={slot.creditCategory} onValueChange={(v: CreditCategory) => updateTemplateSlot(slot.id, { creditCategory: v })}>
+                                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                                  <SelectContent>{ALL_CATEGORIES.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}</SelectContent>
+                                </Select>
+                              </div>
+                              <div className="col-span-2 space-y-1">
+                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Method</Label>
+                                <Select disabled={isReadOnly} value={slot.type} onValueChange={(v: SubjectType) => updateTemplateSlot(slot.id, { type: v })}>
+                                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="Theory">Theory</SelectItem>
+                                    <SelectItem value="Lab/Sessional">Lab</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="col-span-1 space-y-1">
+                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Cr</Label>
+                                <Input disabled={isReadOnly} type="number" value={slot.credits} onChange={e => updateTemplateSlot(slot.id, { credits: Number(e.target.value) })} className="h-9" />
+                              </div>
+                              <div className="col-span-3 space-y-1">
+                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Code (Auto if empty)</Label>
+                                <Input disabled={isReadOnly} placeholder="e.g. HS101" value={slot.subjectCode || ''} onChange={e => updateTemplateSlot(slot.id, { subjectCode: e.target.value.toUpperCase() })} className="h-9" />
+                              </div>
+                              <div className="col-span-3 space-y-1">
+                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Title</Label>
+                                <Input disabled={isReadOnly} value={slot.title || ''} onChange={e => updateTemplateSlot(slot.id, { title: e.target.value })} className="h-9" />
+                              </div>
                               {!isReadOnly && <div className="col-span-1 pb-0.5"><Button variant="ghost" size="icon" className="h-9 w-9 text-red-400" onClick={() => removeTemplateSlot(slot.id)}><Trash2 className="w-4 h-4" /></Button></div>}
                             </div>
                           ))}

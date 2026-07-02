@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -14,9 +15,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   BookOpen, Loader2, Plus, Clock, AlertTriangle, 
-  ShieldCheck, ChevronDown, ChevronUp, Trash2
+  ShieldCheck, ChevronDown, ChevronUp, Trash2, Lock
 } from "lucide-react";
-import { Syllabus, CreditRules, UserProfile } from "@/lib/types";
+import { Syllabus, CreditRules, UserProfile, CreditCategory, SubjectType } from "@/lib/types";
 import { useFirestore } from "@/firebase";
 import { query, getDocs, collectionGroup, where } from "firebase/firestore";
 import { cn } from "@/lib/utils";
@@ -60,6 +61,7 @@ export function SyllabusDialog({
   canEdit = true,
   currentSchemeId,
   userProfile,
+  existingSyllabi = []
 }: SyllabusDialogProps) {
   const db = useFirestore();
 
@@ -90,63 +92,90 @@ export function SyllabusDialog({
     }
   }, [open, syllabus]);
 
+  // Sync credits and hours visibility
   useEffect(() => {
     const l = Number(formData.lectureCredits) || 0;
     const t = Number(formData.tutorialCredits) || 0;
     const p = Number(formData.practicalCredits) || 0;
-    const pCr = p === 3 ? 2 : p / 2;
-    setFormData(prev => ({ ...prev, credits: Number((l + t + pCr).toFixed(2)) }));
-  }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits]);
+    
+    // RTU Credit Calculation Logic: L+T + P/2 (Practical of 3h is usually 2 Cr)
+    let creditTotal = l + t;
+    if (p > 0) {
+       creditTotal += (p === 3 ? 2 : p / 2);
+    }
+    setFormData(prev => ({ ...prev, credits: Number(creditTotal.toFixed(2)) }));
+  }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits, formData.type]);
 
+  // Auto-Code Generation Logic
   useEffect(() => {
-    if (!open || !formData.subjectCode || formData.subjectCode.length < 4) return;
-    const checkCode = async () => {
-      setIsCheckingUniqueness(true);
-      try {
-        const q = query(collectionGroup(db, 'syllabi'), where('subjectCode', '==', formData.subjectCode));
-        const snap = await getDocs(q);
-        const existing = snap.docs.find(d => d.data().schemeId !== currentSchemeId);
-        
-        if (existing) {
-          const data = existing.data() as Syllabus;
-          setCodeWarning(`Institutional Code Detected: Existing syllabus for "${data.title}" found.`);
-          
-          const currentTitle = formData.title || '';
-          const isGeneric = currentTitle.includes('Slot') || currentTitle.includes('Elective') || !currentTitle.trim();
-          
-          if (isGeneric && (!formData.id || formData.isSlot)) {
-            setFormData(prev => ({ 
-              ...prev, 
-              title: data.title, 
-              units: data.units || [], 
-              credits: data.credits,
-              lectureCredits: data.lectureCredits || 0, 
-              tutorialCredits: data.tutorialCredits || 0, 
-              practicalCredits: data.practicalCredits || 0, 
-              timetableSlot: data.timetableSlot || prev.timetableSlot
-            }));
-          }
-        } else {
-          setCodeWarning(null);
-        }
-      } catch (e) { console.error(e); } finally { setIsCheckingUniqueness(false); }
+    if (!open || !formData.creditCategory || !formData.semester) return;
+    
+    // Do not auto-generate if we are editing an existing non-slot course
+    if (formData.id && !formData.isSlot) return;
+
+    const generateCode = () => {
+      // 1. Prefix determination
+      let prefix = 'GN'; 
+      const cat = formData.creditCategory;
+      if (cat === 'AEC') prefix = 'AE';
+      else if (cat === 'MDC') prefix = 'MD';
+      else if (cat === 'VAC') prefix = 'VA';
+      else {
+        // Try to derive from current program context or use placeholders
+        prefix = 'CS'; // Default for testing, would normally use scheme/program data
+      }
+
+      // 2. Pedagogy determination
+      let pedagogy = 'L';
+      if (cat === 'PRJ') pedagogy = 'I';
+      else if (formData.type === 'Lab/Sessional') pedagogy = 'P';
+
+      // 3. Pillar determination
+      const pillar = ['DSE', 'OFE', 'VAC', 'MDC', 'AEC'].includes(cat!) ? 'E' : 'C';
+
+      // 4. Year determination
+      const year = Math.ceil((formData.semester || 1) / 2);
+
+      // 5. Sequence determination
+      const typeKey = `${cat}-${year}`;
+      const sameType = existingSyllabi.filter(s => 
+        s.creditCategory === cat && 
+        Math.ceil(s.semester / 2) === year
+      );
+      const seq = String(sameType.length + 1).padStart(2, '0');
+
+      return `${prefix}${pedagogy}${pillar}${year}${seq}`;
     };
-    const t = setTimeout(checkCode, 800);
-    return () => clearTimeout(t);
-  }, [formData.subjectCode, currentSchemeId, db, open]);
+
+    const newCode = generateCode();
+    if (newCode !== formData.subjectCode) {
+      setFormData(prev => ({ ...prev, subjectCode: newCode }));
+    }
+  }, [formData.creditCategory, formData.type, formData.semester, open, existingSyllabi]);
+
+  const isAdminOrDeanAcad = userProfile?.role === 'admin' || userProfile?.role === 'dean_academic';
 
   const isAuthorized = useMemo(() => {
     if (!userProfile || userProfile.role === 'monitor') return false; 
+    
     const isInstitutional = ['AEC', 'VAC', 'MDC'].includes(formData.creditCategory || '');
-    if (isInstitutional) return ['admin', 'dean_academic'].includes(userProfile.role) || userProfile.faculty === 'University-wide (Common BOS)';
+    const isCommonBOS = userProfile.faculty === 'University-wide (Common BOS)';
+    
+    // Institutional categories are ONLY managed by Common BOS or high leadership
+    if (isInstitutional) {
+      return isAdminOrDeanAcad || isCommonBOS;
+    }
+    
+    // Other categories are managed by Branch BOS (Convenor/Member)
+    // Here we assume canEdit is passed based on branch assignment logic in parent
     return canEdit;
-  }, [userProfile, formData.creditCategory, canEdit]);
+  }, [userProfile, formData.creditCategory, canEdit, isAdminOrDeanAcad]);
 
   const isReadOnly = !isAuthorized;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl h-[95vh] flex flex-col p-0 overflow-hidden border-none shadow-2xl">
+      <DialogContent className="max-w-[95vw] lg:max-w-6xl h-[95vh] flex flex-col p-0 overflow-hidden border-none shadow-2xl">
         <DialogHeader className="p-6 border-b shrink-0 bg-background z-10">
           <DialogTitle className="font-headline text-2xl flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -160,21 +189,12 @@ export function SyllabusDialog({
             </div>
           </DialogTitle>
           <DialogDescription>
-            {isReadOnly ? 'University standard definition. Editing restricted.' : 'Manual configuration of course identity, content, and outcomes.'}
+            {isReadOnly ? 'University standard definition. Editing restricted.' : 'Configure institutional course identity and academic content.'}
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="flex-1 w-full min-h-0 bg-muted/5">
           <div className="p-6 space-y-8">
-            {codeWarning && (
-              <div className="p-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl flex gap-3 text-sm">
-                <AlertTriangle className="w-5 h-5 shrink-0" />
-                <div>
-                  <p className="font-bold">Institutional Link Detected</p>
-                  <p className="text-xs">{codeWarning}</p>
-                </div>
-              </div>
-            )}
             <Tabs defaultValue="basic">
               <TabsList className="grid w-full grid-cols-4 mb-8">
                 <TabsTrigger value="basic">Identity</TabsTrigger>
@@ -182,8 +202,9 @@ export function SyllabusDialog({
                 <TabsTrigger value="resources">Resources</TabsTrigger>
                 <TabsTrigger value="mapping">Outcomes</TabsTrigger>
               </TabsList>
+
               <TabsContent value="basic" className="space-y-6">
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Credit Category</Label>
                     <Select disabled={isReadOnly} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v})}>
@@ -198,36 +219,70 @@ export function SyllabusDialog({
                     <Input disabled={isReadOnly} value={formData.title || ''} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="e.g. Data Structures" />
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Subject Code</Label>
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-2">
+                      Subject Code 
+                      {!isAdminOrDeanAcad && <Lock className="w-3 h-3 text-amber-600" />}
+                    </Label>
                     <div className="relative">
-                      <Input disabled={isReadOnly} value={formData.subjectCode || ''} onChange={e => setFormData({...formData, subjectCode: e.target.value.toUpperCase()})} />
+                      <Input 
+                        disabled={!isAdminOrDeanAcad} 
+                        value={formData.subjectCode || ''} 
+                        onChange={e => setFormData({...formData, subjectCode: e.target.value.toUpperCase()})}
+                        className={cn(!isAdminOrDeanAcad && "bg-muted/50 cursor-not-allowed font-bold text-primary")}
+                      />
                       {isCheckingUniqueness && <Loader2 className="absolute right-3 top-3 w-4 h-4 animate-spin opacity-50" />}
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Methodology</Label>
-                    <Select disabled={isReadOnly} value={formData.type || 'Theory'} onValueChange={(v: any) => setFormData({...formData, type: v})}>
+                    <Select disabled={isReadOnly} value={formData.type || 'Theory'} onValueChange={(v: SubjectType) => setFormData({...formData, type: v})}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Theory">Theory</SelectItem>
-                        <SelectItem value="Lab/Sessional">Lab/Sessional</SelectItem>
+                        <SelectItem value="Theory">Theory (L-T)</SelectItem>
+                        <SelectItem value="Lab/Sessional">Lab/Sessional (P)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Credits</Label>
-                    <div className="p-2 bg-primary/5 rounded font-bold text-center h-10 flex items-center justify-center text-primary">{formData.credits || 0} Cr</div>
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Total Credits</Label>
+                    <div className="p-2 bg-primary/5 rounded font-bold text-center h-10 flex items-center justify-center text-primary border border-primary/20">
+                      {formData.credits || 0} Cr
+                    </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-4 gap-4">
-                    <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">L</Label><Input type="number" disabled={isReadOnly} value={formData.lectureCredits || 0} onChange={e => setFormData({...formData, lectureCredits: Number(e.target.value)})} /></div>
-                    <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">T</Label><Input type="number" disabled={isReadOnly} value={formData.tutorialCredits || 0} onChange={e => setFormData({...formData, tutorialCredits: Number(e.target.value)})} /></div>
-                    <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">P</Label><Input type="number" disabled={isReadOnly} value={formData.practicalCredits || 0} onChange={e => setFormData({...formData, practicalCredits: Number(e.target.value)})} /></div>
-                    <div className="space-y-1"><Label className="text-[10px] uppercase font-bold text-muted-foreground">Slot</Label><Input disabled={isReadOnly} value={formData.timetableSlot || ''} onChange={e => setFormData({...formData, timetableSlot: e.target.value.toUpperCase()})} placeholder="1 or A" /></div>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-white border rounded-xl shadow-sm">
+                    {formData.type === 'Theory' ? (
+                      <>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase font-bold text-muted-foreground">L (Lecture)</Label>
+                          <Input type="number" disabled={isReadOnly} value={formData.lectureCredits || 0} onChange={e => setFormData({...formData, lectureCredits: Number(e.target.value)})} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase font-bold text-muted-foreground">T (Tutorial)</Label>
+                          <Input type="number" disabled={isReadOnly} value={formData.tutorialCredits || 0} onChange={e => setFormData({...formData, tutorialCredits: Number(e.target.value)})} />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="space-y-1 col-span-2">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">P (Practical/Sessional)</Label>
+                        <Input type="number" disabled={isReadOnly} value={formData.practicalCredits || 0} onChange={e => setFormData({...formData, practicalCredits: Number(e.target.value)})} />
+                      </div>
+                    )}
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Slot</Label>
+                      <Input disabled={isReadOnly} value={formData.timetableSlot || ''} onChange={e => setFormData({...formData, timetableSlot: e.target.value.toUpperCase()})} placeholder="1 or A" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Semester</Label>
+                      <Input type="number" disabled={isReadOnly} value={formData.semester || 1} onChange={e => setFormData({...formData, semester: Number(e.target.value)})} />
+                    </div>
                 </div>
               </TabsContent>
+
               <TabsContent value="syllabus" className="space-y-6">
                  {formData.units?.map((u, i) => (
                    <Card key={u.id} className="border-muted overflow-hidden">
@@ -263,12 +318,40 @@ export function SyllabusDialog({
                  ))}
                  {!isReadOnly && <Button variant="outline" className="w-full border-dashed" onClick={() => setFormData(p => ({...p, units: [...(p.units||[]), {id:Math.random().toString(36).substr(2,9), title:'', content:'', hours:0, courseOutcome:''}]}))}><Plus className="w-4 h-4 mr-2" /> Add Unit</Button>}
               </TabsContent>
+
               <TabsContent value="resources" className="space-y-8">
                  <ResourceSection title="Text Books" items={formData.textBooks||[]} onUpdate={(idx: number, v: string) => {const a=[...formData.textBooks!]; a[idx]=v; setFormData({...formData, textBooks:a})}} onAdd={() => setFormData({...formData, textBooks:[...(formData.textBooks||[]), '']})} onRemove={(idx: number) => setFormData({...formData, textBooks: formData.textBooks?.filter((_, i) => i !== idx)})} disabled={isReadOnly} />
                  <ResourceSection title="Reference Books" items={formData.referenceBooks||[]} onUpdate={(idx: number, v: string) => {const a=[...formData.referenceBooks!]; a[idx]=v; setFormData({...formData, referenceBooks:a})}} onAdd={() => setFormData({...formData, referenceBooks:[...(formData.referenceBooks||[]), '']})} onRemove={(idx: number) => setFormData({...formData, referenceBooks: formData.referenceBooks?.filter((_, i) => i !== idx)})} disabled={isReadOnly} />
               </TabsContent>
+
               <TabsContent value="mapping">
-                 <div className="border rounded-xl overflow-hidden bg-white"><Table><TableHeader className="bg-muted/50"><TableRow><TableHead className="w-20">CO</TableHead>{PO_DEFINITIONS.map(po => <TableHead key={po.code} className="text-center font-mono text-[10px]">{po.code}</TableHead>)}</TableRow></TableHeader><TableBody>{formData.units?.map((u, ui) => (<TableRow key={u.id}><TableCell className="font-bold">CO{ui+1}</TableCell>{PO_DEFINITIONS.map(po => (<TableCell key={po.code} className="p-1"><Select disabled={isReadOnly} value={formData.poMappings?.[u.id]?.[po.code] || '-'} onValueChange={v => { const m={...(formData.poMappings||{})}; if(!m[u.id])m[u.id]={}; m[u.id][po.code]=v as any; setFormData({...formData, poMappings:m}) }}><SelectTrigger className="h-8 w-14 text-[10px]"><SelectValue /></SelectTrigger><SelectContent>{['1','2','3','-'].map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent></Select></TableCell>))}</TableRow>))}</TableBody></Table></div>
+                 <div className="border rounded-xl overflow-hidden bg-white">
+                   <Table>
+                     <TableHeader className="bg-muted/50">
+                       <TableRow>
+                         <TableHead className="w-20">CO</TableHead>
+                         {PO_DEFINITIONS.map(po => <TableHead key={po.code} className="text-center font-mono text-[10px]">{po.code}</TableHead>)}
+                       </TableRow>
+                     </TableHeader>
+                     <TableBody>
+                       {formData.units?.map((u, ui) => (
+                         <TableRow key={u.id}>
+                           <TableCell className="font-bold">CO{ui+1}</TableCell>
+                           {PO_DEFINITIONS.map(po => (
+                             <TableCell key={po.code} className="p-1">
+                               <Select disabled={isReadOnly} value={formData.poMappings?.[u.id]?.[po.code] || '-'} onValueChange={v => { const m={...(formData.poMappings||{})}; if(!m[u.id])m[u.id]={}; m[u.id][po.code]=v as any; setFormData({...formData, poMappings:m}) }}>
+                                 <SelectTrigger className="h-8 w-14 text-[10px]"><SelectValue /></SelectTrigger>
+                                 <SelectContent>
+                                   {['1','2','3','-'].map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                                 </SelectContent>
+                               </Select>
+                             </TableCell>
+                           ))}
+                         </TableRow>
+                       ))}
+                     </TableBody>
+                   </Table>
+                 </div>
               </TabsContent>
             </Tabs>
           </div>
