@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   BookOpen, Loader2, Plus, Clock, AlertTriangle, 
-  ShieldCheck, ChevronDown, ChevronUp, Trash2, Lock, CheckCircle2, ShieldAlert, Eye, Sparkles, Wand2
+  ShieldCheck, ChevronDown, ChevronUp, Trash2, Lock, CheckCircle2, ShieldAlert, Eye, Sparkles, Wand2, FlaskConical
 } from "lucide-react";
 import { Syllabus, CreditRules, UserProfile, CreditCategory, SubjectType, SyllabusUnit } from "@/lib/types";
 import { useFirestore } from "@/firebase";
@@ -87,6 +87,9 @@ export function SyllabusDialog({
   const isAdmin = userProfile?.role === 'admin';
   const isCommonBOS = userProfile?.faculty === 'University-wide (Common BOS)';
 
+  const itemLabel = formData.type === 'Lab/Sessional' ? 'Experiment' : 'Unit';
+  const minItems = formData.type === 'Lab/Sessional' ? 8 : 5;
+
   const visibleCategories = useMemo(() => {
     if (isAdmin || userProfile?.role === 'dean_academic') return ALL_CATEGORIES;
     if (isCommonBOS) return ['VAC', 'MDC', 'AEC', 'OFE'] as CreditCategory[];
@@ -100,9 +103,12 @@ export function SyllabusDialog({
       
       const isMonitor = userProfile?.role === 'monitor';
       const canCurrentlyEdit = canEdit && !isMonitor;
+      
+      // Determine initial target count based on methodology
+      const targetCount = (syllabus.type === 'Lab/Sessional' || formData.type === 'Lab/Sessional') ? 8 : 5;
 
-      if (canCurrentlyEdit && finalUnits.length < 5) {
-        const needed = 5 - finalUnits.length;
+      if (canCurrentlyEdit && finalUnits.length < targetCount) {
+        const needed = targetCount - finalUnits.length;
         const newUnits: SyllabusUnit[] = Array.from({ length: needed }).map(() => ({
           id: Math.random().toString(36).substr(2, 9),
           title: '',
@@ -131,6 +137,24 @@ export function SyllabusDialog({
       setExpandedUnits(initialExpanded);
     }
   }, [open, syllabus, userProfile, canEdit]);
+
+  // Adjust units if type changes manually
+  useEffect(() => {
+    if (open && formData.type) {
+      const targetCount = formData.type === 'Lab/Sessional' ? 8 : 5;
+      if (formData.units && formData.units.length < targetCount) {
+        const needed = targetCount - formData.units.length;
+        const newItems: SyllabusUnit[] = Array.from({ length: needed }).map(() => ({
+          id: Math.random().toString(36).substr(2, 9),
+          title: '',
+          content: '',
+          hours: 0,
+          courseOutcome: ''
+        }));
+        setFormData(prev => ({ ...prev, units: [...(prev.units || []), ...newItems] }));
+      }
+    }
+  }, [formData.type]);
 
   useEffect(() => {
     const l = Number(formData.lectureCredits) || 0;
@@ -197,7 +221,8 @@ export function SyllabusDialog({
       const result = await generateSyllabusContent({
         title: formData.title,
         category: formData.creditCategory,
-        credits: formData.credits
+        credits: formData.credits,
+        type: formData.type
       });
 
       const mappedUnits: SyllabusUnit[] = result.units.map(u => ({
@@ -219,7 +244,10 @@ export function SyllabusDialog({
       mappedUnits.forEach(u => newExpanded[u.id] = true);
       setExpandedUnits(newExpanded);
 
-      toast({ title: "Content Generated", description: "The AI has researched and drafted 5 units and resource lists. Please review and modify as needed." });
+      toast({ 
+        title: "Content Generated", 
+        description: `The AI has researched and drafted ${mappedUnits.length} ${formData.type === 'Lab/Sessional' ? 'experiments' : 'units'}. Please review and modify.` 
+      });
     } catch (error: any) {
       toast({ title: "Generation Failed", description: error.message, variant: "destructive" });
     } finally {
@@ -243,7 +271,7 @@ export function SyllabusDialog({
         <DialogHeader className="p-6 border-b shrink-0 bg-background z-10">
           <DialogTitle className="font-headline text-2xl flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {isReadOnly ? <Eye className="w-6 h-6 text-muted-foreground" /> : <BookOpen className="w-6 h-6 text-primary" />} 
+              {formData.type === 'Lab/Sessional' ? <FlaskConical className="w-6 h-6 text-accent" /> : <BookOpen className="w-6 h-6 text-primary" />} 
               {isReadOnly ? 'Subject Specification (Locked)' : 'Course Architect'}
             </div>
             {!isReadOnly && (
@@ -411,8 +439,10 @@ export function SyllabusDialog({
                       onClick={() => setExpandedUnits(prev => ({ ...prev, [u.id]: !prev[u.id] }))}
                      >
                         <div className="flex items-center gap-3">
-                          <Badge className="bg-primary/10 text-primary border-none">Unit {i+1}</Badge>
-                          <span className="font-bold">{u.title || 'Untitled Unit'}</span>
+                          <Badge className={cn("border-none", formData.type === 'Lab/Sessional' ? "bg-accent/10 text-accent" : "bg-primary/10 text-primary")}>
+                            {itemLabel} {i+1}
+                          </Badge>
+                          <span className="font-bold">{u.title || `Untitled ${itemLabel}`}</span>
                           {expandedUnits[u.id] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                         </div>
                         <div className="flex items-center gap-4" onClick={e => e.stopPropagation()}>
@@ -424,7 +454,7 @@ export function SyllabusDialog({
                               setFormData({ ...formData, units });
                             }} />
                           </div>
-                          {!isReadOnly && formData.units && formData.units.length > 5 && (
+                          {!isReadOnly && formData.units && formData.units.length > minItems && (
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={() => setFormData(prev => ({...prev, units: prev.units?.filter(unit => unit.id !== u.id)}))}><Trash2 className="w-4 h-4" /></Button>
                           )}
                         </div>
@@ -434,16 +464,21 @@ export function SyllabusDialog({
                            <div className="space-y-2"><Label className="text-[10px] font-bold uppercase">Title</Label><Input disabled={isReadOnly} value={u.title || ''} onChange={e => { const units = [...(formData.units || [])]; units[i] = { ...units[i], title: e.target.value }; setFormData({ ...formData, units }); }} /></div>
                            <div className="space-y-2"><Label className="text-[10px] font-bold uppercase">Outcome</Label><Input disabled={isReadOnly} value={u.courseOutcome || ''} onChange={e => { const units = [...(formData.units || [])]; units[i] = { ...units[i], courseOutcome: e.target.value }; setFormData({ ...formData, units }); }} /></div>
                         </div>
-                        <div className="space-y-2"><Label className="text-[10px] font-bold uppercase">Content</Label><Textarea disabled={isReadOnly} value={u.content || ''} onChange={e => { const units = [...(formData.units || [])]; units[i] = { ...units[i], content: e.target.value }; setFormData({ ...formData, units }); }} className="min-h-[120px]" /></div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-bold uppercase">
+                            {formData.type === 'Lab/Sessional' ? 'Experiment Procedure / Details' : 'Unit Topics'}
+                          </Label>
+                          <Textarea disabled={isReadOnly} value={u.content || ''} onChange={e => { const units = [...(formData.units || [])]; units[i] = { ...units[i], content: e.target.value }; setFormData({ ...formData, units }); }} className="min-h-[120px]" />
+                        </div>
                      </CardContent>
                    </Card>
                  ))}
-                 {!isReadOnly && <Button variant="outline" className="w-full border-dashed" onClick={() => setFormData(p => ({...p, units: [...(p.units||[]), {id:Math.random().toString(36).substr(2,9), title:'', content:'', hours:0, courseOutcome:''}]}))}><Plus className="w-4 h-4 mr-2" /> Add Additional Unit</Button>}
+                 {!isReadOnly && <Button variant="outline" className="w-full border-dashed" onClick={() => setFormData(p => ({...p, units: [...(p.units||[]), {id:Math.random().toString(36).substr(2,9), title:'', content:'', hours:0, courseOutcome:''}]}))}><Plus className="w-4 h-4 mr-2" /> Add Additional {itemLabel}</Button>}
               </TabsContent>
 
               <TabsContent value="resources" className="space-y-8">
-                 <ResourceSection title="Text Books" items={formData.textBooks||[]} onUpdate={(idx: number, v: string) => {const a=[...formData.textBooks!]; a[idx]=v; setFormData({...formData, textBooks:a})}} onAdd={() => setFormData({...formData, textBooks:[...(formData.textBooks||[]), '']})} onRemove={(idx: number) => setFormData({...formData, textBooks: formData.textBooks?.filter((_, i) => i !== idx)})} disabled={isReadOnly} />
-                 <ResourceSection title="Reference Books" items={formData.referenceBooks||[]} onUpdate={(idx: number, v: string) => {const a=[...formData.referenceBooks!]; a[idx]=v; setFormData({...formData, referenceBooks:a})}} onAdd={() => setFormData({...formData, referenceBooks:[...(formData.referenceBooks||[]), '']})} onRemove={(idx: number) => setFormData({...formData, referenceBooks: formData.referenceBooks?.filter((_, i) => i !== idx)})} disabled={isReadOnly} />
+                 <ResourceSection title={formData.type === 'Lab/Sessional' ? "Lab Manuals & Standards" : "Text Books"} items={formData.textBooks||[]} onUpdate={(idx: number, v: string) => {const a=[...formData.textBooks!]; a[idx]=v; setFormData({...formData, textBooks:a})}} onAdd={() => setFormData({...formData, textBooks:[...(formData.textBooks||[]), '']})} onRemove={(idx: number) => setFormData({...formData, textBooks: formData.textBooks?.filter((_, i) => i !== idx)})} disabled={isReadOnly} />
+                 <ResourceSection title={formData.type === 'Lab/Sessional' ? "Software / Equipment List" : "Reference Books"} items={formData.referenceBooks||[]} onUpdate={(idx: number, v: string) => {const a=[...formData.referenceBooks!]; a[idx]=v; setFormData({...formData, referenceBooks:a})}} onAdd={() => setFormData({...formData, referenceBooks:[...(formData.referenceBooks||[]), '']})} onRemove={(idx: number) => setFormData({...formData, referenceBooks: formData.referenceBooks?.filter((_, i) => i !== idx)})} disabled={isReadOnly} />
               </TabsContent>
 
               <TabsContent value="mapping">
@@ -451,14 +486,14 @@ export function SyllabusDialog({
                    <Table>
                      <TableHeader className="bg-muted/50">
                        <TableRow>
-                         <TableHead className="w-20">CO</TableHead>
+                         <TableHead className="w-20">{formData.type === 'Lab/Sessional' ? 'Exp' : 'CO'}</TableHead>
                          {PO_DEFINITIONS.map(po => <TableHead key={po.code} className="text-center font-mono text-[10px]">{po.code}</TableHead>)}
                        </TableRow>
                      </TableHeader>
                      <TableBody>
                        {formData.units?.map((u, ui) => (
                          <TableRow key={u.id}>
-                           <TableCell className="font-bold">CO{ui+1}</TableCell>
+                           <TableCell className="font-bold">{formData.type === 'Lab/Sessional' ? `Exp${ui+1}` : `CO${ui+1}`}</TableCell>
                            {PO_DEFINITIONS.map(po => (
                              <TableCell key={po.code} className="p-1">
                                <Select disabled={isReadOnly} value={formData.poMappings?.[u.id]?.[po.code] || '-'} onValueChange={v => { const m={...(formData.poMappings||{})}; if(!m[u.id])m[u.id]={}; m[u.id][po.code]=v as any; setFormData({...formData, poMappings:m}) }}>
@@ -487,7 +522,7 @@ export function SyllabusDialog({
                onClick={() => { onSave(formData); onOpenChange(false); }}
              >
                {(isCheckingUniqueness || isAiGenerating) ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-               Save Course Specification
+               Save {formData.type === 'Lab/Sessional' ? 'Practical' : 'Course'} Specification
              </Button>
            )}
         </DialogFooter>

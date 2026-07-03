@@ -1,4 +1,3 @@
-
 'use client';
 
 import jsPDF from 'jspdf';
@@ -61,6 +60,7 @@ const drawSubjectSyllabus = (
   let currentY = startY;
 
   const displayTitle = getCleanTitle(syllabus);
+  const itemLabel = syllabus.type === 'Lab/Sessional' ? 'Experiment' : 'Unit';
 
   // Subject Branding Strip
   doc.setFillColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
@@ -90,17 +90,17 @@ const drawSubjectSyllabus = (
   doc.setFontSize(12);
   doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
   doc.setFont('helvetica', 'bold');
-  doc.text('Course Content & Outcomes', 15, currentY + 5);
+  doc.text(syllabus.type === 'Lab/Sessional' ? 'Practical Experiments' : 'Course Content & Outcomes', 15, currentY + 5);
 
   const unitRows = (syllabus.units || []).map((unit, idx) => [
-    `Unit ${idx + 1}\n${unit.title || 'Untitled'}\n(${unit.hours} Hrs)`,
+    `${itemLabel} ${idx + 1}\n${unit.title || 'Untitled'}\n(${unit.hours} Hrs)`,
     unit.content || 'Content not defined.',
     unit.courseOutcome || 'N/A'
   ]);
 
   autoTable(doc, {
     startY: currentY + 10,
-    head: [['Unit & Title', 'Topics', 'Course Outcome (CO)']],
+    head: [[`${itemLabel} & Title`, syllabus.type === 'Lab/Sessional' ? 'Procedure / Description' : 'Topics', 'Learning Outcome']],
     body: unitRows,
     theme: 'grid',
     headStyles: { 
@@ -150,8 +150,11 @@ const drawSubjectSyllabus = (
     currentY += 4;
   };
 
-  drawResourceSection('Recommended Text Books', syllabus.textBooks);
-  drawResourceSection('Reference Materials', syllabus.referenceBooks);
+  const textBooksTitle = syllabus.type === 'Lab/Sessional' ? 'Lab Manuals & Standards' : 'Recommended Text Books';
+  const refBooksTitle = syllabus.type === 'Lab/Sessional' ? 'Software / Equipment List' : 'Reference Materials';
+
+  drawResourceSection(textBooksTitle, syllabus.textBooks);
+  drawResourceSection(refBooksTitle, syllabus.referenceBooks);
   drawResourceSection('Digital Courses (NPTEL/SWAYAM)', syllabus.nptelLinks);
   drawResourceSection('Video Resources (YouTube)', syllabus.youtubeLinks);
 

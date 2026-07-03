@@ -1,6 +1,7 @@
 'use server';
 /**
  * @fileOverview Flow to generate full syllabus content using Gemini with Search Grounding.
+ * Handles both Theory (Units) and Lab/Sessional (Experiments) methodologies.
  */
 
 import { ai } from '@/ai/genkit';
@@ -11,15 +12,16 @@ const SyllabusInputSchema = z.object({
   title: z.string().describe('The official title of the academic course'),
   category: z.string().optional().describe('The credit category (e.g. DSC, DSE, VAC)'),
   credits: z.number().optional().describe('Total credits for the course'),
+  type: z.enum(['Theory', 'Lab/Sessional']).optional().describe('The methodology of the course'),
 });
 
 const SyllabusOutputSchema = z.object({
   units: z.array(z.object({
-    title: z.string().describe('Unit title'),
-    content: z.string().describe('Detailed unit content/topics'),
-    hours: z.number().describe('Suggested teaching hours for this unit'),
-    courseOutcome: z.string().describe('The primary learning outcome for this unit'),
-  })).length(5),
+    title: z.string().describe('Unit or Experiment title'),
+    content: z.string().describe('Detailed content, topics, or experiment procedure'),
+    hours: z.number().describe('Suggested teaching hours for this item'),
+    courseOutcome: z.string().describe('The learning outcome for this specific item'),
+  })),
   suggestedTextBooks: z.array(z.string()).describe('Standard textbooks with authors and editions'),
   suggestedReferences: z.array(z.string()).describe('Supplementary reference materials'),
 });
@@ -41,13 +43,22 @@ const syllabusPrompt = ai.definePrompt({
   Context:
   - Category: {{{category}}}
   - Target Credits: {{{credits}}}
+  - Methodology: {{{type}}}
   
-  Requirements:
-  1. Generate exactly 5 units that cover the core fundamentals to advanced topics.
-  2. For each unit, provide a specific title and a detailed block of topics (comma-separated).
-  3. Suggest teaching hours for each unit (usually 8-10 hours per unit for a 3-4 credit course).
-  4. Define a clear Course Outcome (CO) for each unit following Bloom's Taxonomy.
-  5. Suggest 3-5 authoritative Text Books and 3-5 Reference Books.
+  Requirements for Theory:
+  1. If methodology is "Theory", generate exactly 5 units.
+  2. For each unit, provide a specific title and a detailed block of topics.
+  3. Suggest teaching hours (usually 8-10 hours per unit).
+  
+  Requirements for Lab/Sessional:
+  1. If methodology is "Lab/Sessional", generate exactly 10 Experiments.
+  2. Label each item as "Experiment X: [Title]".
+  3. Content should describe the objective and list of equipment/software or procedure.
+  4. Suggest teaching hours (usually 2-3 hours per experiment).
+  
+  General Requirements:
+  1. Define clear Course Outcomes (CO) following Bloom's Taxonomy.
+  2. Suggest 3-5 authoritative Text Books and 3-5 Reference Books.
   
   Use Google Search to ensure the content reflects current industry standards and AICTE guidelines for 2024-25.`,
 });
