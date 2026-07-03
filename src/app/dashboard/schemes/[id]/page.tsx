@@ -84,23 +84,43 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const all = [...localSyllabi, ...poolSyllabi];
     
     all.forEach(s => {
-      const key = (s.isSlot || s.isOFESlot) ? s.id : (s.subjectCode || s.id);
+      const key = s.subjectCode || s.id;
       const existing = uniqueMap.get(key);
-      const isNewCourseOnSlot = existing && (existing.isSlot || existing.isOFESlot) && !(s.isSlot || s.isOFESlot);
       
-      if (!existing || s.schemeId === schemeId || isNewCourseOnSlot) {
+      const isSlot = s.isSlot || s.isOFESlot;
+      const hasContent = s.units && s.units.length > 0;
+      
+      if (!existing) {
+        uniqueMap.set(key, s);
+        return;
+      }
+
+      const existingIsSlot = existing.isSlot || existing.isOFESlot;
+      const existingHasContent = existing.units && existing.units.length > 0;
+
+      // Deduplication Priority:
+      // 1. Real subjects replace Slots with the same code
+      // 2. Subjects with defined content (units) replace empty records
+      // 3. Local scheme records replace pool records for the same key
+      let shouldReplace = false;
+      if (existingIsSlot && !isSlot) {
+        shouldReplace = true;
+      } else if (existingIsSlot === isSlot) {
+        if (!existingHasContent && hasContent) {
+          shouldReplace = true;
+        } else if (existingHasContent === hasContent) {
+          if (s.schemeId === schemeId && existing.schemeId !== schemeId) {
+            shouldReplace = true;
+          }
+        }
+      }
+      
+      if (shouldReplace) {
         uniqueMap.set(key, s);
       }
     });
 
-    const finalById = new Map<string, Syllabus>();
-    Array.from(uniqueMap.values()).forEach(s => {
-      if (!finalById.has(s.id) || s.schemeId === schemeId) {
-        finalById.set(s.id, s);
-      }
-    });
-
-    return Array.from(finalById.values()).sort((a, b) => {
+    return Array.from(uniqueMap.values()).sort((a, b) => {
       if ((a.semester || 1) !== (b.semester || 1)) {
         return (a.semester || 1) - (b.semester || 1);
       }
@@ -112,7 +132,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     if (profileLoading || !profile || !scheme || !program) return { 
       canEditScheme: false, 
       canDeleteSyllabus: (s: any) => false, 
-      canEditSyllabus: (s: any) => false 
+      canEditSyllabus: (s: any) => false,
+      isMonitor: false
     };
 
     if (profile.role === 'monitor') {
@@ -257,7 +278,22 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                 const semSyllabi = syllabi.filter(s => s.semester === sem && !s.isOFEContribution);
                 const groups: Record<string, Syllabus[]> = {};
                 const nonGrouped: Syllabus[] = [];
-                semSyllabi.forEach(s => s.electiveGroupId ? (groups[s.electiveGroupId] = [...(groups[s.electiveGroupId] || []), s]) : nonGrouped.push(s));
+                
+                semSyllabi.forEach(s => {
+                  if (s.electiveGroupId) {
+                    groups[s.electiveGroupId] = [...(groups[s.electiveGroupId] || []), s];
+                  } else {
+                    nonGrouped.push(s);
+                  }
+                });
+
+                // Suppress placeholder slots in elective groups if real courses exist
+                Object.keys(groups).forEach(groupId => {
+                  const hasRealMembers = groups[groupId].some(m => !m.isSlot && !m.isOFESlot);
+                  if (hasRealMembers) {
+                    groups[groupId] = groups[groupId].filter(m => !m.isSlot && !m.isOFESlot);
+                  }
+                });
 
                 const semTotal = [...Object.values(groups).map(g => g[0].credits || 0), ...nonGrouped.map(s => s.credits || 0)].reduce((a, b) => a + b, 0);
 
