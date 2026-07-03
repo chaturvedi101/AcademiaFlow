@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
@@ -156,16 +155,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     };
 
     const canDeleteSyllabus = (s: any) => {
-      if (!canEditSyllabus(s)) return false;
-      
-      // INSTITUTIONAL POLICY: BoS Members and BoS Convenors are NOT allowed to delete courses.
-      // Deletion authority is restricted to Faculty Deans and University-level Leadership.
-      if (profile.role === 'bos_member' || profile.role === 'bos_convenor') return false;
-
-      const isInstitutional = ['AEC', 'VAC', 'MDC'].includes(s?.creditCategory);
-      if (isInstitutional) return isGlobalAdmin; // Only Global Admin or Dean Academics for Institutional Pool
-      
-      return isGlobalAdmin || isProgramDean;
+      // INSTITUTIONAL POLICY: Authority to delete courses is strictly restricted 
+      // to University-level Leadership (Admin & Dean Academic).
+      // BoS Members, Convenors, and Faculty Deans are NOT allowed to delete courses.
+      return isGlobalAdmin;
     };
 
     return { canEditScheme, canDeleteSyllabus, canEditSyllabus, isMonitor: false };
@@ -234,7 +227,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const handleDeleteSyllabus = (id: string) => {
     const syllabusToDelete = localSyllabi.find(s => s.id === id);
     if (!syllabusToDelete || !permissions.canDeleteSyllabus(syllabusToDelete)) {
-      toast({ title: "Permission Denied", description: "You are not authorized to delete courses from the scheme.", variant: "destructive" });
+      toast({ title: "Permission Denied", description: "You are not authorized to delete courses from the scheme. This action is restricted to university-level leadership.", variant: "destructive" });
       return;
     }
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', id);
