@@ -1,8 +1,9 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
 import { useFirestore, useDoc, useCollection, useUser, useMemoFirebase } from "@/firebase";
-import { doc, collection, setDoc, deleteDoc, serverTimestamp, updateDoc, query, where, getDocs } from "firebase/firestore";
+import { doc, collection, setDoc, deleteDoc, serverTimestamp, updateDoc, query, where, onSnapshot, Unsubscribe } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -41,32 +42,51 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   useEffect(() => {
     if (!scheme) return;
 
-    const fetchPool = async () => {
-      setPoolLoading(true);
-      try {
-        const poolQuery = query(
-          collection(db, 'schemes'),
-          where('batchYear', '==', scheme.batchYear),
-          where('isCommonPoolScheme', '==', true)
-        );
-        const poolSnap = await getDocs(poolQuery);
-        
-        let allPoolSyllabi: Syllabus[] = [];
-        for (const poolDoc of poolSnap.docs) {
-          if (poolDoc.id === schemeId) continue;
-          const poolSyllabiSnap = await getDocs(collection(db, 'schemes', poolDoc.id, 'syllabi'));
-          const batchSyllabi = poolSyllabiSnap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus));
-          allPoolSyllabi = [...allPoolSyllabi, ...batchSyllabi];
-        }
-        setPoolSyllabi(allPoolSyllabi);
-      } catch (err) {
-        console.error("Institutional pool sync failed:", err);
-      } finally {
-        setPoolLoading(false);
-      }
-    };
+    setPoolLoading(true);
+    const poolQuery = query(
+      collection(db, 'schemes'),
+      where('batchYear', '==', scheme.batchYear),
+      where('isCommonPoolScheme', '==', true)
+    );
 
-    fetchPool();
+    let unsubSyllabi: Unsubscribe[] = [];
+
+    const unsubscribeSchemes = onSnapshot(poolQuery, (poolSnap) => {
+      // Clear previous pool syllabus listeners
+      unsubSyllabi.forEach(u => u());
+      unsubSyllabi = [];
+      
+      const poolSchemeIds = poolSnap.docs.map(d => d.id).filter(id => id !== schemeId);
+      
+      if (poolSchemeIds.length === 0) {
+        setPoolSyllabi([]);
+        setPoolLoading(false);
+        return;
+      }
+
+      // Map to store temporary syllabi per scheme to manage multi-scheme state
+      const syllabiByScheme: Record<string, Syllabus[]> = {};
+
+      poolSchemeIds.forEach(psId => {
+        const sRef = collection(db, 'schemes', psId, 'syllabi');
+        const u = onSnapshot(sRef, (sSnap) => {
+          syllabiByScheme[psId] = sSnap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus));
+          
+          // Flatten and update state
+          const allPool = Object.values(syllabiByScheme).flat();
+          setPoolSyllabi(allPool);
+          setPoolLoading(false);
+        }, (err) => {
+          console.error(`Pool sync failed for scheme ${psId}:`, err);
+        });
+        unsubSyllabi.push(u);
+      });
+    });
+
+    return () => {
+      unsubscribeSchemes();
+      unsubSyllabi.forEach(u => u());
+    };
   }, [db, scheme, schemeId]);
 
   const [isSyllabusDialogOpen, setIsSyllabusDialogOpen] = useState(false);
@@ -81,12 +101,21 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
   const syllabi = useMemo(() => {
     const uniqueMap = new Map<string, Syllabus>();
-    const all = [...localSyllabi, ...poolSyllabi];
     
-    all.forEach(s => {
+    // Process local syllabi first - they ALWAYS win for a specific branch scheme
+    localSyllabi.forEach(s => {
+      const key = s.subjectCode || s.id;
+      uniqueMap.set(key, s);
+    });
+
+    // Process pool syllabi - only add if they don't conflict with a local record or if they represent a required slot
+    poolSyllabi.forEach(s => {
       const key = s.subjectCode || s.id;
       const existing = uniqueMap.get(key);
       
+      // If local already has it, ignore the pool version
+      if (existing && existing.schemeId === schemeId) return;
+
       const isSlot = s.isSlot || s.isOFESlot;
       const hasContent = s.units && s.units.length > 0;
       
@@ -95,23 +124,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         return;
       }
 
-      const existingIsSlot = existing.isSlot || existing.isOFESlot;
+      // If existing is from a different pool scheme, choose the one with more content
       const existingHasContent = existing.units && existing.units.length > 0;
-
-      let shouldReplace = false;
-      if (existingIsSlot && !isSlot) {
-        shouldReplace = true;
-      } else if (existingIsSlot === isSlot) {
-        if (!existingHasContent && hasContent) {
-          shouldReplace = true;
-        } else if (existingHasContent === hasContent) {
-          if (s.schemeId === schemeId && existing.schemeId !== schemeId) {
-            shouldReplace = true;
-          }
-        }
-      }
-      
-      if (shouldReplace) {
+      if (!existingHasContent && hasContent) {
         uniqueMap.set(key, s);
       }
     });
@@ -168,7 +183,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       const cat = sub.creditCategory as keyof typeof dist;
       if (sub.isOFEContribution) return;
 
-      // Grouping bypass for core categories: DSC, PRJ and now SEC
+      // Grouping bypass for core categories: DSC, PRJ and SEC
       if (sub.electiveGroupId && !['DSC', 'PRJ', 'SEC'].includes(sub.creditCategory)) {
         if (!countedGroups.has(sub.electiveGroupId)) {
           dist[cat] = (dist[cat] || 0) + (sub.credits || 0);
@@ -206,7 +221,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       isOFESlot: data.creditCategory === 'OFE' ? (data.isOFESlot || false) : false 
     };
 
-    // SEC is now a core category and should not have a group ID
+    // SEC is a core category and should not have a group ID
     if (data.creditCategory === 'DSC' || data.creditCategory === 'PRJ' || data.creditCategory === 'SEC') {
       finalData.electiveGroupId = '';
     }
@@ -226,7 +241,14 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const syllabusToDelete = localSyllabi.find(s => s.id === id);
     if (!syllabusToDelete || !permissions.canDeleteSyllabus(syllabusToDelete)) return;
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', id);
-    deleteDoc(docRef);
+    deleteDoc(docRef).then(() => {
+      toast({ title: "Subject Deleted", description: "Record removed from local scheme." });
+    }).catch(err => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: docRef.path,
+        operation: 'delete'
+      }));
+    });
   };
 
   if (profileLoading || schemeLoading || syllabiLoading || poolLoading) {
@@ -278,7 +300,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             <TabsContent value="syllabi" className="mt-6 space-y-6">
               <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex gap-3 text-blue-800 text-xs mb-4">
                 <Info className="w-5 h-5 shrink-0" />
-                <p>Semester views combine branch-specific subjects (from your template) and Institutional Pool subjects (mandatory common courses). Only branch-specific subjects can be edited by departmental staff.</p>
+                <p>Semester views combine branch-specific subjects and Institutional Pool subjects. SEC, DSC, and PRJ are considered Core Subjects and will not be grouped into options.</p>
               </div>
 
               {Array.from({ length: program?.totalSemesters || 8 }, (_, i) => i + 1).map(sem => {
@@ -287,7 +309,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                 const nonGrouped: Syllabus[] = [];
                 
                 semSyllabi.forEach(s => {
-                  // SEC is now considered a non-grouped category
+                  // SEC is considered a non-grouped category
                   if (s.electiveGroupId && !['DSC', 'PRJ', 'SEC'].includes(s.creditCategory)) {
                     groups[s.electiveGroupId] = [...(groups[s.electiveGroupId] || []), s];
                   } else {
