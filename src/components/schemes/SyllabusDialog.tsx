@@ -112,12 +112,16 @@ export function SyllabusDialog({
     const t = Number(formData.tutorialCredits) || 0;
     const p = Number(formData.practicalCredits) || 0;
     
-    let creditTotal = l + t;
-    if (p === 1) creditTotal += 0.5;
-    else if (p === 2) creditTotal += 1;
-    else if (p === 3) creditTotal += 2;
-    else if (p === 4) creditTotal += 2;
-    else if (p > 4) creditTotal += p / 2;
+    let creditTotal = 0;
+    if (p > 0) {
+      if (p === 1) creditTotal = 0.5;
+      else if (p === 2) creditTotal = 1.0;
+      else if (p === 3) creditTotal = 2.0;
+      else if (p === 4) creditTotal = 2.0;
+      else creditTotal = p / 2;
+    } else {
+      creditTotal = l + t;
+    }
     
     setFormData(prev => ({ ...prev, credits: Number(creditTotal.toFixed(2)) }));
   }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits, formData.type]);
@@ -179,7 +183,8 @@ export function SyllabusDialog({
       let sequence = 1;
       let finalCode = '';
       
-      const yearUsedInSchemeSuffixes = new Set(
+      // Local Scheme Uniqueness Audit
+      const localUsedSuffixes = new Set(
         existingSyllabi
           .filter(s => s.id !== formData.id && s.semester && Math.ceil(s.semester/2) === year)
           .map(s => s.subjectCode.slice(-2))
@@ -187,12 +192,16 @@ export function SyllabusDialog({
 
       while (sequence < 100) {
         const seqStr = String(sequence).padStart(2, '0');
-        const candidate = `${prefix}${pedagogy}${pillar}${year}${seqStr}`;
+        const suffix = `${year}${seqStr}`;
+        const candidate = `${prefix}${pedagogy}${pillar}${suffix}`;
         
-        if (!yearUsedInSchemeSuffixes.has(seqStr)) {
-           const q = query(collectionGroup(db, 'syllabi'), where('subjectCode', '==', candidate));
+        if (!localUsedSuffixes.has(seqStr)) {
+           // Global Branch-Suffix Uniqueness Audit
+           const q = query(collectionGroup(db, 'syllabi'), where('subjectCode', '>=', prefix), where('subjectCode', '<=', prefix + '\uf8ff'));
            const snap = await getDocs(q);
-           if (snap.empty) {
+           const globalConflict = snap.docs.some(d => (d.data().subjectCode as string).endsWith(suffix));
+           
+           if (!globalConflict) {
              finalCode = candidate;
              break;
            }

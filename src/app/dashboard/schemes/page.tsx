@@ -67,13 +67,14 @@ export default function SchemesPage() {
   const isAdmin = profile?.role === 'admin';
 
   const calculateCredits = (l: number, t: number, p: number) => {
-    let total = l + t;
-    if (p === 1) total += 0.5;
-    else if (p === 2) total += 1;
-    else if (p === 3) total += 2;
-    else if (p === 4) total += 2;
-    else if (p > 4) total += p / 2;
-    return Number(total.toFixed(2));
+    if (p > 0) {
+      if (p === 1) return 0.5;
+      if (p === 2) return 1.0;
+      if (p === 3) return 2.0;
+      if (p === 4) return 2.0;
+      return Number((p / 2).toFixed(2));
+    }
+    return l + t;
   };
 
   const filteredSchemes = useMemo(() => {
@@ -141,7 +142,7 @@ export default function SchemesPage() {
       }
 
       const allSyllabiSnap = await getDocs(collectionGroup(db, 'syllabi'));
-      const globalUsedCodes = new Set(allSyllabiSnap.docs.map(d => d.data().subjectCode));
+      const globalUsedCodes = new Set(allSyllabiSnap.docs.map(d => d.data().subjectCode as string));
 
       await setDoc(schemeRef, {
         ...newScheme,
@@ -153,6 +154,7 @@ export default function SchemesPage() {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         isCommonPoolScheme: isCommonBos,
+        version: newScheme.version || 'v1.0'
       });
 
       const batch = writeBatch(db);
@@ -181,16 +183,20 @@ export default function SchemesPage() {
           while (sequence < 100) {
             const seqStr = String(sequence).padStart(2, '0');
             const suffix = `${year}${seqStr}`;
-            const candidate = `${baseBranch}${pedagogy}${pillar}${suffix}`;
             
-            if (!yearSet.has(seqStr) && !globalUsedCodes.has(candidate)) {
-              finalCode = candidate;
+            // Check if this suffix is already assigned to this branch globally
+            const globalConflict = Array.from(globalUsedCodes).some(code => 
+              code.startsWith(baseBranch) && code.endsWith(suffix)
+            );
+
+            if (!yearSet.has(seqStr) && !globalConflict) {
+              finalCode = `${baseBranch}${pedagogy}${pillar}${suffix}`;
               yearSet.add(seqStr);
               break;
             }
             sequence++;
           }
-          if (!finalCode) throw new Error(`Suffix range exhausted for Year ${year}`);
+          if (!finalCode) throw new Error(`Suffix range exhausted for Year ${year} in Branch ${baseBranch}`);
           return finalCode;
         };
 
@@ -362,7 +368,7 @@ export default function SchemesPage() {
             <div className="py-4 space-y-6">
               <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 text-[11px] text-primary flex gap-3">
                 <ShieldCheck className="w-5 h-5 shrink-0" />
-                <p><b>Auto-Coding Policy:</b> Branch Code replaces XX pattern. Suffixes (e.g., 101, 102) are audited for uniqueness within the Year. Sessional/Lab slots use 'P' pedagogy.</p>
+                <p><b>Auto-Coding Policy:</b> Branch Code replaces XX pattern. Suffixes (e.g., 101, 102) are audited for global uniqueness within the Branch. Sessional/Lab slots use 'P' pedagogy.</p>
               </div>
               <ScrollArea className="h-[400px] pr-4">
                 {Array.from({ length: selectedProgram?.totalSemesters || 8 }, (_, i) => i + 1).map(sem => (
