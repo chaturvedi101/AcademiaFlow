@@ -9,6 +9,16 @@ const PRIMARY_COLOR = [77, 26, 140]; // #4D1A8C
 const ACCENT_COLOR = [61, 143, 255]; // #3D8FFF
 
 /**
+ * Helper to clean titles for display in professional PDF
+ */
+const getCleanTitle = (sub: Partial<Syllabus>) => {
+  if (!sub.title || sub.title === 'Slot Placeholder' || sub.title === 'Institutional Pool Slot') {
+    return sub.creditCategory || 'N/A';
+  }
+  return sub.title;
+};
+
+/**
  * Helper to calculate deduplicated credits for a set of syllabi.
  * Groups non-core categories by electiveGroupId.
  */
@@ -50,12 +60,14 @@ const drawSubjectSyllabus = (
   const pageWidth = doc.internal.pageSize.getWidth();
   let currentY = startY;
 
+  const displayTitle = getCleanTitle(syllabus);
+
   // Subject Branding Strip
   doc.setFillColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
   doc.rect(15, currentY, pageWidth - 30, 10, 'F');
   doc.setTextColor(255);
   doc.setFontSize(11);
-  doc.text(`COURSE CODE: ${syllabus.subjectCode || 'CODE'} - ${syllabus.title?.toUpperCase() || 'TITLE'} (SLOT: ${syllabus.timetableSlot || 'N/A'})`, 20, currentY + 6.5);
+  doc.text(`COURSE CODE: ${syllabus.subjectCode || 'CODE'} - ${displayTitle.toUpperCase()} (SLOT: ${syllabus.timetableSlot || 'N/A'})`, 20, currentY + 6.5);
   currentY += 16;
 
   // Basic Info Grid
@@ -314,7 +326,7 @@ export const exportFullSchemeToPDF = (
     const body = semSubjects.map(s => [
       s.timetableSlot || '-',
       s.subjectCode || '',
-      s.title || '',
+      getCleanTitle(s),
       `${s.lectureCredits || 0}-${s.tutorialCredits || 0}-${s.practicalCredits || 0}`,
       s.creditCategory || '',
       s.credits || 0

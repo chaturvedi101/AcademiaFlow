@@ -409,6 +409,12 @@ function SubjectRow({ sub, currentSchemeId, schemeStatus, permissions, isOption,
   const canDelete = permissions.canDeleteSyllabus(sub);
   const isSlot = sub.isSlot || sub.isOFESlot;
   const isFromPool = sub.schemeId !== currentSchemeId;
+
+  // Cleanup title to avoid placeholder text
+  const displayTitle = (sub.title === 'Slot Placeholder' || sub.title === 'Institutional Pool Slot') 
+    ? sub.creditCategory 
+    : sub.title;
+
   return (
     <TableRow className={`group transition-colors ${isOption ? 'bg-muted/30' : ''} ${isFromPool ? 'bg-emerald-50/20' : ''}`}>
       <TableCell className="pl-6">
@@ -426,7 +432,7 @@ function SubjectRow({ sub, currentSchemeId, schemeStatus, permissions, isOption,
           <span className="flex items-center gap-2">
             {isSlot && <Globe className="w-3 h-3 text-blue-500" />} 
             {isFromPool && <Layers className="w-3 h-3 text-emerald-500" />} 
-            {sub.title} 
+            {displayTitle} 
             {isFromPool && <Badge variant="outline" className="text-[8px] bg-emerald-600 text-white border-none font-black tracking-tighter px-1.5 py-0.5 uppercase">Institutional</Badge>}
           </span>
           <span className="text-[10px] text-muted-foreground uppercase">{sub.type}</span>
