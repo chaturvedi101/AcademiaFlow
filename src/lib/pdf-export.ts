@@ -9,6 +9,32 @@ const PRIMARY_COLOR = [77, 26, 140]; // #4D1A8C
 const ACCENT_COLOR = [61, 143, 255]; // #3D8FFF
 
 /**
+ * Helper to calculate deduplicated credits for a set of syllabi.
+ * Groups non-core categories by electiveGroupId.
+ */
+const getDeduplicatedTotal = (items: Syllabus[]) => {
+  const countedGroups = new Set<string>();
+  let total = 0;
+
+  items.forEach(sub => {
+    // Subjects offered TO the pool are not counted in the branch's own degree requirements
+    if (sub.isOFEContribution) return;
+
+    // Grouping bypass for core categories: DSC, PRJ and SEC
+    const isCore = ['DSC', 'PRJ', 'SEC'].includes(sub.creditCategory);
+    if (sub.electiveGroupId && !isCore) {
+      if (!countedGroups.has(sub.electiveGroupId)) {
+        total += (sub.credits || 0);
+        countedGroups.add(sub.electiveGroupId);
+      }
+    } else {
+      total += (sub.credits || 0);
+    }
+  });
+  return total;
+};
+
+/**
  * Helper to draw a single subject's syllabus into an existing jsPDF instance.
  * Returns the final Y position.
  */
@@ -247,11 +273,12 @@ export const exportFullSchemeToPDF = (
 
   const categories = ['DSC', 'DSE', 'OFE', 'VAC', 'AEC', 'SEC', 'MDC', 'PRJ'];
   const distribution = categories.map(cat => {
-    const total = syllabi.filter(s => s.creditCategory === cat).reduce((acc, curr) => acc + (curr.credits || 0), 0);
+    const catSyllabi = syllabi.filter(s => s.creditCategory === cat);
+    const total = getDeduplicatedTotal(catSyllabi);
     return [cat, total];
   });
   
-  const grandTotal = syllabi.reduce((acc, curr) => acc + (curr.credits || 0), 0);
+  const grandTotal = getDeduplicatedTotal(syllabi);
   distribution.push(['GRAND TOTAL', grandTotal]);
 
   autoTable(doc, {
@@ -269,7 +296,7 @@ export const exportFullSchemeToPDF = (
 
   for (let sem = 1; sem <= (program.totalSemesters || 8); sem++) {
     const semSubjects = syllabi.filter(s => s.semester === sem && !s.isOFEContribution);
-    const semCredits = semSubjects.reduce((acc, curr) => acc + (curr.credits || 0), 0);
+    const semCredits = getDeduplicatedTotal(semSubjects);
 
     if (currentY > 230) {
       doc.addPage();
