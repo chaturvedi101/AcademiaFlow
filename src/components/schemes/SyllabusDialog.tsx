@@ -14,12 +14,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   BookOpen, Loader2, Plus, Clock, AlertTriangle, 
-  ShieldCheck, ChevronDown, ChevronUp, Trash2, Lock, CheckCircle2, ShieldAlert, Eye
+  ShieldCheck, ChevronDown, ChevronUp, Trash2, Lock, CheckCircle2, ShieldAlert, Eye, Sparkles, Wand2
 } from "lucide-react";
 import { Syllabus, CreditRules, UserProfile, CreditCategory, SubjectType, SyllabusUnit } from "@/lib/types";
 import { useFirestore } from "@/firebase";
 import { query, getDocs, collectionGroup, where } from "firebase/firestore";
 import { cn } from "@/lib/utils";
+import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
+import { useToast } from "@/hooks/use-toast";
 
 const PO_DEFINITIONS = [
   { code: 'PO1', title: 'Engineering Knowledge' },
@@ -66,12 +68,14 @@ export function SyllabusDialog({
   branchPrefix = 'XX'
 }: SyllabusDialogProps) {
   const db = useFirestore();
+  const { toast } = useToast();
 
   const [codeWarning, setCodeWarning] = useState<string | null>(null);
   const [conflictInfo, setConflictInfo] = useState<{ schemeId: string, title: string } | null>(null);
   const [isCheckingUniqueness, setIsCheckingUniqueness] = useState(false);
   const [isCodeUnique, setIsCodeUnique] = useState<boolean | null>(null);
   const [expandedUnits, setExpandedUnits] = useState<Record<string, boolean>>({});
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
 
   const [formData, setFormData] = useState<Partial<Syllabus>>({
     subjectCode: '', title: '', lectureCredits: 0, tutorialCredits: 0, practicalCredits: 0,
@@ -91,7 +95,6 @@ export function SyllabusDialog({
 
   useEffect(() => {
     if (open && syllabus) {
-      // Ensure at least 5 units exist for the user to fill
       const existingUnits = syllabus.units || [];
       let finalUnits = [...existingUnits];
       
@@ -123,7 +126,6 @@ export function SyllabusDialog({
       setConflictInfo(null);
       setIsCodeUnique(null);
       
-      // Default all units to expanded for easier data entry
       const initialExpanded: Record<string, boolean> = {};
       finalUnits.forEach(u => initialExpanded[u.id] = true);
       setExpandedUnits(initialExpanded);
@@ -184,64 +186,46 @@ export function SyllabusDialog({
     }
   };
 
-  useEffect(() => {
-    if (!open || !formData.creditCategory || !formData.semester || !formData.type) return;
-    if (formData.id && !formData.isSlot && !isAdmin) return;
-    if (isAdmin && formData.subjectCode && !formData.isSlot) return;
-
-    const generateCode = async () => {
-      const prefix = branchPrefix.substring(0, 2).toUpperCase();
-      const pedagogy = formData.type === 'Lab/Sessional' ? 'P' : (formData.creditCategory === 'PRJ' ? 'I' : 'L');
-      
-      const cat = formData.creditCategory;
-      let pillar = 'C';
-      if (cat === 'DSE' || cat === 'OFE') pillar = 'E';
-      else if (cat === 'SEC') pillar = 'S';
-      else if (cat === 'VAC') pillar = 'V';
-      else if (cat === 'AEC') pillar = 'A';
-      else if (cat === 'MDC') pillar = 'M';
-      else if (cat === 'PRJ') pillar = 'P';
-
-      const year = Math.ceil((formData.semester || 1) / 2);
-      let sequence = 1;
-      let finalCode = '';
-      
-      const localUsedSuffixes = new Set(
-        existingSyllabi
-          .filter(s => s.id !== formData.id && s.semester && Math.ceil(s.semester/2) === year)
-          .map(s => s.subjectCode.slice(-2))
-      );
-
-      while (sequence < 100) {
-        const seqStr = String(sequence).padStart(2, '0');
-        const suffix = `${year}${seqStr}`;
-        const candidate = `${prefix}${pedagogy}${pillar}${suffix}`;
-        
-        if (!localUsedSuffixes.has(seqStr)) {
-           const q = query(collectionGroup(db, 'syllabi'), where('subjectCode', '>=', prefix), where('subjectCode', '<=', prefix + '\uf8ff'));
-           const snap = await getDocs(q);
-           const globalConflict = snap.docs.some(d => (d.data().subjectCode as string).endsWith(suffix));
-           
-           if (!globalConflict) {
-             finalCode = candidate;
-             break;
-           }
-        }
-        sequence++;
-      }
-
-      if (finalCode && finalCode !== formData.subjectCode) {
-        setFormData(prev => ({ ...prev, subjectCode: finalCode }));
-        setIsCodeUnique(true);
-        setCodeWarning(null);
-        setConflictInfo(null);
-      }
-    };
-
-    if (!isAdmin || !formData.subjectCode || formData.isSlot) {
-       generateCode();
+  const handleAiGenerate = async () => {
+    if (!formData.title || formData.title === 'DSC' || formData.title === 'DSE') {
+      toast({ title: "Input Required", description: "Please enter a descriptive course title for the AI to research.", variant: "destructive" });
+      return;
     }
-  }, [formData.creditCategory, formData.type, formData.semester, open, db, branchPrefix, existingSyllabi, formData.id, isAdmin]);
+
+    setIsAiGenerating(true);
+    try {
+      const result = await generateSyllabusContent({
+        title: formData.title,
+        category: formData.creditCategory,
+        credits: formData.credits
+      });
+
+      const mappedUnits: SyllabusUnit[] = result.units.map(u => ({
+        id: Math.random().toString(36).substr(2, 9),
+        title: u.title,
+        content: u.content,
+        hours: u.hours,
+        courseOutcome: u.courseOutcome
+      }));
+
+      setFormData(prev => ({
+        ...prev,
+        units: mappedUnits,
+        textBooks: result.suggestedTextBooks,
+        referenceBooks: result.suggestedReferences
+      }));
+
+      const newExpanded: Record<string, boolean> = {};
+      mappedUnits.forEach(u => newExpanded[u.id] = true);
+      setExpandedUnits(newExpanded);
+
+      toast({ title: "Content Generated", description: "The AI has researched and drafted 5 units and resource lists. Please review and modify as needed." });
+    } catch (error: any) {
+      toast({ title: "Generation Failed", description: error.message, variant: "destructive" });
+    } finally {
+      setIsAiGenerating(false);
+    }
+  };
 
   const isAuthorized = useMemo(() => {
     if (!userProfile || userProfile.role === 'monitor') return false; 
@@ -262,9 +246,20 @@ export function SyllabusDialog({
               {isReadOnly ? <Eye className="w-6 h-6 text-muted-foreground" /> : <BookOpen className="w-6 h-6 text-primary" />} 
               {isReadOnly ? 'Subject Specification (Locked)' : 'Course Architect'}
             </div>
+            {!isReadOnly && (
+              <Button 
+                onClick={handleAiGenerate} 
+                disabled={isAiGenerating} 
+                variant="outline" 
+                className="gap-2 border-primary/20 hover:bg-primary/5 hover:text-primary animate-in fade-in slide-in-from-right-4"
+              >
+                {isAiGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-primary" />}
+                {isAiGenerating ? "Researching Content..." : "AI Syllabus Architect"}
+              </Button>
+            )}
           </DialogTitle>
           <DialogDescription>
-            {isAdmin ? 'System Admin View: Institutional auditing enabled.' : 'Institutional Course Architect. Categories and codes are restricted by jurisdiction.'}
+            {isAdmin ? 'System Admin View: Institutional auditing enabled.' : 'Institutional Course Architect. Use AI to research and draft content, then modify manually.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -488,10 +483,10 @@ export function SyllabusDialog({
            <Button variant="outline" onClick={() => onOpenChange(false)}>{isReadOnly ? 'Close' : 'Cancel'}</Button>
            {!isReadOnly && (
              <Button 
-               disabled={isCodeUnique === false || isCheckingUniqueness} 
+               disabled={isCodeUnique === false || isCheckingUniqueness || isAiGenerating} 
                onClick={() => { onSave(formData); onOpenChange(false); }}
              >
-               {isCheckingUniqueness ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+               {(isCheckingUniqueness || isAiGenerating) ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                Save Course Specification
              </Button>
            )}
