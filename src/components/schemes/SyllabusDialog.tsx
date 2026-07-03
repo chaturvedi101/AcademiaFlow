@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -10,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   BookOpen, Loader2, Plus, Clock, AlertTriangle, 
@@ -76,7 +77,7 @@ export function SyllabusDialog({
     subjectCode: '', title: '', lectureCredits: 0, tutorialCredits: 0, practicalCredits: 0,
     credits: 0, semester: 1, type: 'Theory', creditCategory: 'DSC', units: [],
     poMappings: {}, textBooks: [], referenceBooks: [], nptelLinks: [], youtubeLinks: [],
-    timetableSlot: ''
+    timetableSlot: '', electiveGroupId: ''
   });
 
   const isAdmin = userProfile?.role === 'admin';
@@ -87,7 +88,6 @@ export function SyllabusDialog({
   const visibleCategories = useMemo(() => {
     if (isGlobalAdmin) return ALL_CATEGORIES;
     if (isCommonBOS) return ['VAC', 'MDC', 'AEC', 'OFE'] as CreditCategory[];
-    // Branch BOS / Faculty Deans cannot see VAC, MDC, AEC
     return ['DSC', 'DSE', 'SEC', 'PRJ', 'OFE'] as CreditCategory[];
   }, [isGlobalAdmin, isCommonBOS]);
 
@@ -97,7 +97,7 @@ export function SyllabusDialog({
         subjectCode: '', title: '', lectureCredits: 0, tutorialCredits: 0, practicalCredits: 0,
         credits: 0, semester: 1, type: 'Theory', creditCategory: 'DSC', units: [],
         poMappings: {}, textBooks: [], referenceBooks: [], nptelLinks: [], youtubeLinks: [],
-        timetableSlot: '',
+        timetableSlot: '', electiveGroupId: '',
         ...syllabus 
       });
       setCodeWarning(null);
@@ -260,7 +260,7 @@ export function SyllabusDialog({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-2">
                       Subject Code 
@@ -311,6 +311,10 @@ export function SyllabusDialog({
                         <SelectItem value="Lab/Sessional">Lab/Sessional (P)</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Elective Group ID</Label>
+                    <Input disabled={isReadOnly} value={formData.electiveGroupId || ''} onChange={e => setFormData({...formData, electiveGroupId: e.target.value})} placeholder="e.g. Elective-I" />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Credits</Label>

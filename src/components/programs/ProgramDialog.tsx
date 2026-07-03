@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -88,7 +89,8 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
           ...s,
           lectureCredits: s.lectureCredits ?? 0,
           tutorialCredits: s.tutorialCredits ?? 0,
-          practicalCredits: s.practicalCredits ?? 0
+          practicalCredits: s.practicalCredits ?? 0,
+          electiveGroupId: s.electiveGroupId || ''
         }))
       });
     } else {
@@ -223,7 +225,8 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
       tutorialCredits: 1,
       practicalCredits: 0,
       subjectCode: '',
-      title: ''
+      title: '',
+      electiveGroupId: ''
     };
     newSlot.subjectCode = generateTemplateCode(newSlot);
     setFormData(prev => ({
@@ -425,7 +428,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
               <TabsContent value="template" className="mt-0 space-y-6">
                 <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex items-center gap-3 text-primary text-sm mb-6">
                   <Layers className="w-5 h-5 shrink-0" />
-                  <p>Standardized slots inherited by Schemes. Codes show pre-fill pattern (XX prefix). Sequence is auto-resolved during instantiation.</p>
+                  <p>Standardized slots inherited by Schemes. Codes show pre-fill pattern (XX prefix). <b>Elective Group ID</b> ensures credit consistency for pool options.</p>
                 </div>
                 <div className="space-y-8">
                   {Array.from({ length: formData.totalSemesters || 8 }, (_, i) => i + 1).map(sem => {
@@ -487,6 +490,10 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                               <div className="col-span-2 space-y-1">
                                 <Label className="text-[10px] uppercase font-bold">Pattern</Label>
                                 <Input disabled className="h-9 bg-muted/50 font-mono text-[10px]" value={slot.subjectCode || ''} />
+                              </div>
+                              <div className="col-span-2 space-y-1">
+                                <Label className="text-[10px] uppercase font-bold">Group ID</Label>
+                                <Input disabled={isReadOnly} placeholder="e.g. Elective-I" value={slot.electiveGroupId || ''} onChange={e => updateTemplateSlot(slot.id, { electiveGroupId: e.target.value })} className="h-9" />
                               </div>
                               <div className="col-span-2 space-y-1">
                                 <Label className="text-[10px] uppercase font-bold">Title</Label>

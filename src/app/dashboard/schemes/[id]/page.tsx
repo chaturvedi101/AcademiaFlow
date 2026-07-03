@@ -7,7 +7,7 @@ import { doc, collection, setDoc, deleteDoc, serverTimestamp, updateDoc, query, 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown, Globe, Layers, BookOpen, Eye, Clock } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
@@ -135,13 +135,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     const canDeleteSyllabus = (s: any) => {
       if (!canEditSyllabus(s)) return false;
-      
-      // Institutional rule: bos_member cannot delete, only convenors or higher
       if (profile.role === 'bos_member' && !isGlobalAdmin && !isProgramDean) return false;
-
       const isInstitutional = ['AEC', 'VAC', 'MDC'].includes(s?.creditCategory);
       if (isInstitutional) return isGlobalAdmin || (isCommonBOS && profile.role === 'bos_convenor');
-      
       return isGlobalAdmin || isProgramDean || myBranchRole === 'bos_convenor' || (scheme.isCommonPoolScheme && isCommonBOS && profile.role === 'bos_convenor');
     };
 
@@ -207,7 +203,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const handleDeleteSyllabus = (id: string) => {
     const syllabusToDelete = localSyllabi.find(s => s.id === id);
     if (!syllabusToDelete || !permissions.canDeleteSyllabus(syllabusToDelete)) return;
-    
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', id);
     deleteDoc(docRef);
   };
@@ -303,7 +298,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                                 <TableCell><Badge className="bg-accent text-white">{members[0].creditCategory}</Badge></TableCell>
                                 <TableCell className="text-center font-mono text-xs">{members[0].lectureCredits}-{members[0].tutorialCredits}-{members[0].practicalCredits}</TableCell>
                                 <TableCell className="text-right font-bold text-sm">{members[0].credits}</TableCell>
-                                <TableCell className="text-right pr-6">{permissions.canEditScheme && <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setActiveSubject({ semester: sem, electiveGroupId: groupId, creditCategory: members[0].creditCategory }); setIsSyllabusDialogOpen(true); }}><Plus className="w-3.5 h-3.5 mr-1" /> Add</Button>}</TableCell>
+                                <TableCell className="text-right pr-6">{permissions.canEditScheme && <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setActiveSubject({ semester: sem, electiveGroupId: groupId, creditCategory: members[0].creditCategory, type: members[0].type, credits: members[0].credits, lectureCredits: members[0].lectureCredits, tutorialCredits: members[0].tutorialCredits, practicalCredits: members[0].practicalCredits }); setIsSyllabusDialogOpen(true); }}><Plus className="w-3.5 h-3.5 mr-1" /> Add</Button>}</TableCell>
                               </TableRow>
                               {expandedGroups[groupId] && members.map(sub => <SubjectRow key={sub.id} sub={sub} currentSchemeId={schemeId} schemeStatus={scheme.status} permissions={permissions} isOption onEdit={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }} onDelete={() => handleDeleteSyllabus(sub.id)} />)}
                             </React.Fragment>

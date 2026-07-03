@@ -30,6 +30,7 @@ interface SlotConfig {
   isInherited?: boolean;
   subjectCode?: string;
   title?: string;
+  electiveGroupId?: string;
 }
 
 export default function SchemesPage() {
@@ -217,6 +218,7 @@ export default function SchemesPage() {
           lectureCredits: slot.lectureCredits,
           tutorialCredits: slot.tutorialCredits,
           practicalCredits: slot.practicalCredits,
+          electiveGroupId: slot.electiveGroupId || '',
           isSlot: true,
           units: [],
           poMappings: {},
@@ -242,11 +244,7 @@ export default function SchemesPage() {
 
     try {
       const schemeRef = doc(db, 'schemes', schemeId);
-      
-      // Note: Sub-collections like 'syllabi' should ideally be deleted here too, 
-      // but for a dev prototype, deleting the parent doc hides it from the UI.
       await deleteDoc(schemeRef);
-      
       toast({ title: "Scheme Deleted", description: "Institutional record removed successfully." });
     } catch (error: any) {
       toast({ title: "Deletion Failed", description: error.message, variant: "destructive" });
@@ -356,8 +354,9 @@ export default function SchemesPage() {
                         <div key={slot.id} className="grid grid-cols-12 gap-3 items-end border-b pb-4 last:border-0 last:pb-0">
                           <div className="col-span-2"><Label className="text-[10px] uppercase font-bold">Category</Label><div className="h-9 flex items-center px-3 bg-white border rounded text-[10px]">{slot.creditCategory}</div></div>
                           <div className="col-span-2"><Label className="text-[10px] uppercase font-bold">Method</Label><div className="h-9 flex items-center px-3 bg-white border rounded text-[10px]">{slot.type}</div></div>
-                          <div className="col-span-2"><Label className="text-[10px] uppercase font-bold">Credits</Label><div className="h-9 flex items-center justify-center bg-white border rounded text-[10px] font-bold">{slot.credits}</div></div>
-                          <div className="col-span-3"><Label className="text-[10px] uppercase font-bold">Code Pattern</Label><div className="h-9 flex items-center px-3 bg-muted border rounded text-[10px] font-mono">{slot.subjectCode?.replace('XX', 'BRANCH')}</div></div>
+                          <div className="col-span-1"><Label className="text-[10px] uppercase font-bold">Credits</Label><div className="h-9 flex items-center justify-center bg-white border rounded text-[10px] font-bold">{slot.credits}</div></div>
+                          <div className="col-span-2"><Label className="text-[10px] uppercase font-bold">Group ID</Label><div className="h-9 flex items-center px-3 bg-white border rounded text-[10px]">{slot.electiveGroupId || '-'}</div></div>
+                          <div className="col-span-2"><Label className="text-[10px] uppercase font-bold">Code Pattern</Label><div className="h-9 flex items-center px-3 bg-muted border rounded text-[10px] font-mono">{slot.subjectCode?.replace('XX', 'BRANCH')}</div></div>
                           <div className="col-span-3"><Label className="text-[10px] uppercase font-bold">Title</Label><Input value={slot.title || ''} onChange={e => updateSlot(slot.id, { title: e.target.value })} className="h-9" /></div>
                         </div>
                       ))}
