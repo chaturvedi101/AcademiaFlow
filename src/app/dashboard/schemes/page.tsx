@@ -186,7 +186,7 @@ export default function SchemesPage() {
             
             // Check if this suffix is already assigned to this branch globally
             const globalConflict = Array.from(globalUsedCodes).some(code => 
-              code.startsWith(baseBranch) && code.endsWith(suffix)
+              code.startsWith(baseBranch) && (code.endsWith(suffix) || code.includes(suffix + '.'))
             );
 
             if (!yearSet.has(seqStr) && !globalConflict) {
@@ -200,33 +200,66 @@ export default function SchemesPage() {
           return finalCode;
         };
 
-        const finalCode = generateUniqueCode(branchPrefix);
-        const slotId = `SLOT-${cat}-${slot.semester}-${slot.id}`;
-        const slotRef = doc(db, 'schemes', generatedCode, 'syllabi', slotId);
-        
-        batch.set(slotRef, {
-          id: slotId,
-          schemeId: generatedCode,
-          subjectCode: finalCode,
-          semester: slot.semester,
-          creditCategory: cat,
-          credits: slot.credits,
-          title: slot.title || `${cat} Slot`,
-          type: slot.type,
-          lectureCredits: slot.lectureCredits,
-          tutorialCredits: slot.tutorialCredits,
-          practicalCredits: slot.practicalCredits,
-          electiveGroupId: slot.electiveGroupId || '',
-          isSlot: true,
-          units: [],
-          poMappings: {},
-          textBooks: [],
-          referenceBooks: []
-        });
+        const isElective = !['DSC', 'PRJ', 'SEC'].includes(cat);
+        const baseUniqueCode = generateUniqueCode(branchPrefix);
+        const sharedGroupId = slot.electiveGroupId || `G-${slot.id}`;
+
+        if (isElective) {
+          // Provision 3 options for elective slots
+          for (let i = 1; i <= 3; i++) {
+            const optionCode = `${baseUniqueCode}.${i}`;
+            const slotId = `SLOT-${cat}-${slot.semester}-${slot.id}-${i}`;
+            const slotRef = doc(db, 'schemes', generatedCode, 'syllabi', slotId);
+            
+            batch.set(slotRef, {
+              id: slotId,
+              schemeId: generatedCode,
+              subjectCode: optionCode,
+              semester: slot.semester,
+              creditCategory: cat,
+              credits: slot.credits,
+              title: slot.title ? `${slot.title} (Option ${i})` : `${cat} Option ${i}`,
+              type: slot.type,
+              lectureCredits: slot.lectureCredits,
+              tutorialCredits: slot.tutorialCredits,
+              practicalCredits: slot.practicalCredits,
+              electiveGroupId: sharedGroupId,
+              isSlot: true,
+              units: [],
+              poMappings: {},
+              textBooks: [],
+              referenceBooks: []
+            });
+          }
+        } else {
+          // Standard single core slot
+          const slotId = `SLOT-${cat}-${slot.semester}-${slot.id}`;
+          const slotRef = doc(db, 'schemes', generatedCode, 'syllabi', slotId);
+          
+          batch.set(slotRef, {
+            id: slotId,
+            schemeId: generatedCode,
+            subjectCode: baseUniqueCode,
+            semester: slot.semester,
+            creditCategory: cat,
+            credits: slot.credits,
+            title: slot.title || `${cat} Slot`,
+            type: slot.type,
+            lectureCredits: slot.lectureCredits,
+            tutorialCredits: slot.tutorialCredits,
+            practicalCredits: slot.practicalCredits,
+            electiveGroupId: '', // Core slots never have groups
+            isSlot: true,
+            units: [],
+            poMappings: {},
+            textBooks: [],
+            referenceBooks: []
+          });
+        }
       }
 
       await batch.commit();
-      toast({ title: "Success", description: "Scheme initialized with branch-specific codes." });
+      toast({ title: "Success", description: "Scheme initialized with automated elective groups." });
       router.push(`/dashboard/schemes/${generatedCode}`);
     } catch (error: any) {
       toast({ title: "Failed", description: error.message, variant: "destructive" });
@@ -313,7 +346,7 @@ export default function SchemesPage() {
           <DialogHeader>
             <DialogTitle>{step === 1 ? 'Academic Identity' : 'Institutional Code Resolution'}</DialogTitle>
             <DialogDescription>
-              {step === 1 ? 'Select the program framework to instantiate a new curriculum scheme.' : 'Review auto-generated codes for template slots.'}
+              {step === 1 ? 'Select the program framework to instantiate a new curriculum scheme.' : 'Review auto-generated codes for template slots. Electives will automatically generate 3 options.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -368,7 +401,7 @@ export default function SchemesPage() {
             <div className="py-4 space-y-6">
               <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 text-[11px] text-primary flex gap-3">
                 <ShieldCheck className="w-5 h-5 shrink-0" />
-                <p><b>Auto-Coding Policy:</b> Branch Code replaces XX pattern. Suffixes (e.g., 101, 102) are audited for global uniqueness within the Branch. Sessional/Lab slots use 'P' pedagogy.</p>
+                <p><b>Auto-Coding Policy:</b> Branch Code replaces XX pattern. Suffixes (e.g., 101, 102) are audited for global uniqueness within the Branch. Sessional/Lab slots use 'P' pedagogy. <b>Elective slots provision three sub-options (.1, .2, .3).</b></p>
               </div>
               
               <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl flex gap-3 text-blue-800 text-[10px]">
