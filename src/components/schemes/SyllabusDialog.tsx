@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   BookOpen, Loader2, Plus, Clock, AlertTriangle, 
-  ShieldCheck, ChevronDown, ChevronUp, Trash2, Lock, CheckCircle2
+  ShieldCheck, ChevronDown, ChevronUp, Trash2, Lock, CheckCircle2, ShieldAlert
 } from "lucide-react";
 import { Syllabus, CreditRules, UserProfile, CreditCategory, SubjectType } from "@/lib/types";
 import { useFirestore } from "@/firebase";
@@ -78,6 +78,8 @@ export function SyllabusDialog({
     timetableSlot: ''
   });
 
+  const isAdmin = userProfile?.role === 'admin';
+
   useEffect(() => {
     if (open && syllabus) {
       setFormData({ 
@@ -111,40 +113,50 @@ export function SyllabusDialog({
   }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits, formData.type]);
 
   const checkCodeUniqueness = async (code: string) => {
-    if (!code || code === syllabus?.subjectCode) {
-      setIsCodeUnique(true);
+    if (!code) {
+      setIsCodeUnique(null);
       return;
     }
+    // If it's the same code as originally loaded, it's unique by definition (no change)
+    if (code === syllabus?.subjectCode) {
+      setIsCodeUnique(true);
+      setCodeWarning(null);
+      return;
+    }
+
     setIsCheckingUniqueness(true);
     try {
       const q = query(collectionGroup(db, 'syllabi'), where('subjectCode', '==', code));
       const snap = await getDocs(q);
       const exists = !snap.empty;
-      setIsCodeUnique(!exists);
+      
       if (exists) {
-        setCodeWarning(`Institutional violation: Subject code ${code} is already in use.`);
+        setIsCodeUnique(false);
+        setCodeWarning(`Institutional Conflict: Code ${code} is already registered in another scheme.`);
       } else {
+        setIsCodeUnique(true);
         setCodeWarning(null);
       }
     } catch (e) {
-      console.error("Code check failed:", e);
+      console.error("Uniqueness audit failed:", e);
     } finally {
       setIsCheckingUniqueness(false);
     }
   };
 
   useEffect(() => {
-    if (!open || !formData.creditCategory || !formData.semester || !formData.type) return;
-    if (formData.id && !formData.isSlot) return;
+    // Only auto-generate if it's a new subject or a slot conversion, and the user is NOT manually editing (i.e. if field is readonly)
+    if (!open || !formData.creditCategory || !formData.semester || !formData.type || !isAdmin) {
+       if (isAdmin && formData.subjectCode) return; // Don't overwrite if admin is typing
+    }
+
+    // Don't auto-generate if we are editing an existing real course (unless it's a slot)
+    if (formData.id && !formData.isSlot && !isAdmin) return;
 
     const generateCode = async () => {
-      // 1. Prefix: Actual Branch Code
       const prefix = branchPrefix.substring(0, 2).toUpperCase();
-
-      // 2. Pedagogy
       const pedagogy = formData.type === 'Lab/Sessional' ? 'P' : (formData.creditCategory === 'PRJ' ? 'I' : 'L');
-
-      // 3. Pillar
+      
       const cat = formData.creditCategory;
       let pillar = 'C';
       if (cat === 'DSE' || cat === 'OFE') pillar = 'E';
@@ -156,11 +168,10 @@ export function SyllabusDialog({
 
       const year = Math.ceil((formData.semester || 1) / 2);
 
-      // 4. Sequence resolution (ensure [YEAR][SEQUENCE] is unique in scheme & global)
       let sequence = 1;
       let finalCode = '';
       
-      const yearUsedInScheme = new Set(
+      const yearUsedInSchemeSuffixes = new Set(
         existingSyllabi
           .filter(s => s.id !== formData.id && s.semester && Math.ceil(s.semester/2) === year)
           .map(s => s.subjectCode.slice(-2))
@@ -170,11 +181,9 @@ export function SyllabusDialog({
         const seqStr = String(sequence).padStart(2, '0');
         const candidate = `${prefix}${pedagogy}${pillar}${year}${seqStr}`;
         
-        // Scheme uniqueness check
-        const isSchemeUnique = !yearUsedInScheme.has(seqStr);
-        
-        if (isSchemeUnique) {
-           // Global uniqueness check
+        // 1. Local Check
+        if (!yearUsedInSchemeSuffixes.has(seqStr)) {
+           // 2. Global University Check
            const q = query(collectionGroup(db, 'syllabi'), where('subjectCode', '==', candidate));
            const snap = await getDocs(q);
            if (snap.empty) {
@@ -188,21 +197,22 @@ export function SyllabusDialog({
       if (finalCode && finalCode !== formData.subjectCode) {
         setFormData(prev => ({ ...prev, subjectCode: finalCode }));
         setIsCodeUnique(true);
+        setCodeWarning(null);
       }
     };
 
-    generateCode();
-  }, [formData.creditCategory, formData.type, formData.semester, open, db, branchPrefix, existingSyllabi, formData.id]);
-
-  const isAdminOrDeanAcad = userProfile?.role === 'admin' || userProfile?.role === 'dean_academic';
+    if (!isAdmin || !formData.subjectCode) {
+       generateCode();
+    }
+  }, [formData.creditCategory, formData.type, formData.semester, open, db, branchPrefix, existingSyllabi, formData.id, isAdmin]);
 
   const isAuthorized = useMemo(() => {
     if (!userProfile || userProfile.role === 'monitor') return false; 
     const isInstitutional = ['AEC', 'VAC', 'MDC'].includes(formData.creditCategory || '');
     const isCommonBOS = userProfile.faculty === 'University-wide (Common BOS)';
-    if (isInstitutional) return isAdminOrDeanAcad || isCommonBOS;
+    if (isInstitutional) return isAdmin || isCommonBOS;
     return canEdit;
-  }, [userProfile, formData.creditCategory, canEdit, isAdminOrDeanAcad]);
+  }, [userProfile, formData.creditCategory, canEdit, isAdmin]);
 
   const isReadOnly = !isAuthorized;
 
@@ -217,7 +227,7 @@ export function SyllabusDialog({
             </div>
           </DialogTitle>
           <DialogDescription>
-            Configure institutional course identity. Codes are auto-calculated for [YEAR][SEQUENCE] unique suffixes.
+            {isAdmin ? 'System Admin View: Subject code editing authorized.' : 'Institutional Course Architect. Codes are auto-calculated and locked for integrity.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -252,11 +262,11 @@ export function SyllabusDialog({
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-2">
                       Subject Code 
-                      {!isAdminOrDeanAcad && <Lock className="w-3 h-3 text-amber-600" />}
+                      {!isAdmin && <Lock className="w-3 h-3 text-amber-600" />}
                     </Label>
                     <div className="relative">
                       <Input 
-                        disabled={!isAdminOrDeanAcad} 
+                        disabled={!isAdmin} 
                         value={formData.subjectCode || ''} 
                         onChange={e => {
                           const val = e.target.value.toUpperCase();
@@ -264,14 +274,20 @@ export function SyllabusDialog({
                           if (val.length >= 7) checkCodeUniqueness(val);
                         }}
                         className={cn(
-                          !isAdminOrDeanAcad && "bg-muted/50 cursor-not-allowed font-bold text-primary",
-                          isCodeUnique === false && "border-red-500 text-red-600 focus-visible:ring-red-500",
+                          !isAdmin && "bg-muted/50 cursor-not-allowed font-bold text-primary",
+                          isCodeUnique === false && "border-destructive text-destructive focus-visible:ring-destructive",
                           isCodeUnique === true && "border-emerald-500 text-emerald-600"
                         )}
                       />
                       {isCheckingUniqueness && <Loader2 className="absolute right-3 top-3 w-4 h-4 animate-spin opacity-50" />}
+                      {!isAdmin && <div className="absolute inset-0 z-20 cursor-not-allowed" title="Subject code generation is restricted to institutional logic." />}
                     </div>
-                    {codeWarning && <p className="text-[10px] font-bold text-red-600">{codeWarning}</p>}
+                    {codeWarning && (
+                      <div className="flex items-center gap-1.5 mt-1 text-destructive">
+                        <ShieldAlert className="w-3.5 h-3.5" />
+                        <p className="text-[10px] font-bold leading-tight">{codeWarning}</p>
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Methodology</Label>
@@ -405,7 +421,15 @@ export function SyllabusDialog({
         
         <DialogFooter className="p-6 border-t bg-background shrink-0">
            <Button variant="outline" onClick={() => onOpenChange(false)}>{isReadOnly ? 'Close' : 'Cancel'}</Button>
-           {!isReadOnly && <Button disabled={isCodeUnique === false} onClick={() => { onSave(formData); onOpenChange(false); }}>Save Course Specification</Button>}
+           {!isReadOnly && (
+             <Button 
+               disabled={isCodeUnique === false || isCheckingUniqueness} 
+               onClick={() => { onSave(formData); onOpenChange(false); }}
+             >
+               {isCheckingUniqueness ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+               Save Course Specification
+             </Button>
+           )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
