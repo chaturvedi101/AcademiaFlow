@@ -7,7 +7,7 @@ import { Scheme, Program, UserProfile, CreditCategory, Syllabus, SubjectType } f
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, BookOpen, Loader2, Calendar, FileText, ArrowRight, ShieldCheck, Hash, Trash2, ChevronLeft, GraduationCap, Building2 } from 'lucide-react';
+import { Plus, BookOpen, Loader2, Calendar, FileText, ArrowRight, ShieldCheck, Hash, Trash2, ChevronLeft, GraduationCap, Building2, Info, AlertTriangle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -370,24 +370,36 @@ export default function SchemesPage() {
                 <ShieldCheck className="w-5 h-5 shrink-0" />
                 <p><b>Auto-Coding Policy:</b> Branch Code replaces XX pattern. Suffixes (e.g., 101, 102) are audited for global uniqueness within the Branch. Sessional/Lab slots use 'P' pedagogy.</p>
               </div>
+              
+              <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl flex gap-3 text-blue-800 text-[10px]">
+                <Info className="w-4 h-4 shrink-0" />
+                <p>If a semester appears empty here, it means no branch-specific subjects are defined in the master template. Only Common Pool subjects (AEC/VAC/MDC) will appear in the final scheme for those semesters.</p>
+              </div>
+
               <ScrollArea className="h-[400px] pr-4">
-                {Array.from({ length: selectedProgram?.totalSemesters || 8 }, (_, i) => i + 1).map(sem => (
-                  <div key={sem} className="mb-6 border rounded-xl p-4 bg-muted/20">
-                    <h4 className="font-headline font-bold text-sm mb-4">Semester {sem}</h4>
-                    <div className="space-y-4">
-                      {semesterSlots.filter(s => s.semester === sem).map(slot => (
-                        <div key={slot.id} className="grid grid-cols-12 gap-3 items-end border-b pb-4 last:border-0 last:pb-0">
-                          <div className="col-span-2"><Label className="text-[10px] uppercase font-bold">Category</Label><div className="h-9 flex items-center px-3 bg-white border rounded text-[10px]">{slot.creditCategory}</div></div>
-                          <div className="col-span-2"><Label className="text-[10px] uppercase font-bold">Method</Label><div className="h-9 flex items-center px-3 bg-white border rounded text-[10px]">{slot.type}</div></div>
-                          <div className="col-span-1"><Label className="text-[10px] uppercase font-bold">Credits</Label><div className="h-9 flex items-center justify-center bg-white border rounded text-[10px] font-bold">{slot.credits}</div></div>
-                          <div className="col-span-2"><Label className="text-[10px] uppercase font-bold">Group ID</Label><div className="h-9 flex items-center px-3 bg-white border rounded text-[10px]">{slot.electiveGroupId || '-'}</div></div>
-                          <div className="col-span-2"><Label className="text-[10px] uppercase font-bold">Code Pattern</Label><div className="h-9 flex items-center px-3 bg-muted border rounded text-[10px] font-mono">{slot.subjectCode?.replace('XX', 'BRANCH')}</div></div>
-                          <div className="col-span-3"><Label className="text-[10px] uppercase font-bold">Title</Label><Input value={slot.title || ''} onChange={e => updateSlot(slot.id, { title: e.target.value })} className="h-9" /></div>
-                        </div>
-                      ))}
+                {Array.from({ length: selectedProgram?.totalSemesters || 8 }, (_, i) => i + 1).map(sem => {
+                  const slotsInSem = semesterSlots.filter(s => s.semester === sem);
+                  return (
+                    <div key={sem} className="mb-6 border rounded-xl p-4 bg-muted/20">
+                      <h4 className="font-headline font-bold text-sm mb-4 flex items-center justify-between">
+                         Semester {sem}
+                         {slotsInSem.length === 0 && <span className="text-[10px] font-normal text-muted-foreground italic">(No branch patterns defined)</span>}
+                      </h4>
+                      <div className="space-y-4">
+                        {slotsInSem.map(slot => (
+                          <div key={slot.id} className="grid grid-cols-12 gap-3 items-end border-b pb-4 last:border-0 last:pb-0">
+                            <div className="col-span-2"><Label className="text-[10px] uppercase font-bold">Category</Label><div className="h-9 flex items-center px-3 bg-white border rounded text-[10px]">{slot.creditCategory}</div></div>
+                            <div className="col-span-2"><Label className="text-[10px] uppercase font-bold">Method</Label><div className="h-9 flex items-center px-3 bg-white border rounded text-[10px]">{slot.type}</div></div>
+                            <div className="col-span-1"><Label className="text-[10px] uppercase font-bold">Credits</Label><div className="h-9 flex items-center justify-center bg-white border rounded text-[10px] font-bold">{slot.credits}</div></div>
+                            <div className="col-span-2"><Label className="text-[10px] uppercase font-bold">Group ID</Label><div className="h-9 flex items-center px-3 bg-white border rounded text-[10px]">{slot.electiveGroupId || '-'}</div></div>
+                            <div className="col-span-2"><Label className="text-[10px] uppercase font-bold">Code Pattern</Label><div className="h-9 flex items-center px-3 bg-muted border rounded text-[10px] font-mono">{slot.subjectCode?.replace('XX', 'BRANCH')}</div></div>
+                            <div className="col-span-3"><Label className="text-[10px] uppercase font-bold">Title</Label><Input value={slot.title || ''} onChange={e => updateSlot(slot.id, { title: e.target.value })} className="h-9" /></div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </ScrollArea>
             </div>
           )}
@@ -399,7 +411,7 @@ export default function SchemesPage() {
               </Button>
             ) : (
               <div className="flex gap-2">
-                <Button variant="ghost" onClick={() => setStep(1)}>Back</Button>
+                <Button variant="ghost" onClick={() => { setStep(1); setSemesterSlots([]); }}>Back</Button>
                 <Button onClick={handleCreateScheme} disabled={isCreating}>
                   {isCreating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <GraduationCap className="w-4 h-4 mr-2" />}
                   Instantiate Scheme

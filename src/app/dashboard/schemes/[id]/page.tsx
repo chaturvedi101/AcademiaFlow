@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown, Globe, Layers, BookOpen, Eye, Clock } from "lucide-react";
+import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown, Globe, Layers, BookOpen, Eye, Clock, Info } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile } from "@/lib/types";
@@ -274,6 +274,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
               <TabsTrigger value="contributions">Pool Contributions</TabsTrigger>
             </TabsList>
             <TabsContent value="syllabi" className="mt-6 space-y-6">
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex gap-3 text-blue-800 text-xs mb-4">
+                <Info className="w-5 h-5 shrink-0" />
+                <p>Semester views combine branch-specific subjects (from your template) and Institutional Pool subjects (mandatory common courses). Only branch-specific subjects can be edited by departmental staff.</p>
+              </div>
+
               {Array.from({ length: program?.totalSemesters || 8 }, (_, i) => i + 1).map(sem => {
                 const semSyllabi = syllabi.filter(s => s.semester === sem && !s.isOFEContribution);
                 const groups: Record<string, Syllabus[]> = {};
@@ -338,6 +343,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                               {expandedGroups[groupId] && members.map(sub => <SubjectRow key={sub.id} sub={sub} currentSchemeId={schemeId} schemeStatus={scheme.status} permissions={permissions} isOption onEdit={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }} onDelete={() => handleDeleteSyllabus(sub.id)} />)}
                             </React.Fragment>
                           ))}
+                          {semSyllabi.length === 0 && (
+                             <TableRow>
+                               <TableCell colSpan={7} className="text-center py-8 text-muted-foreground italic">No branch-specific patterns found for this semester.</TableCell>
+                             </TableRow>
+                          )}
                         </TableBody>
                         <TableFooter className="bg-muted/5"><TableRow><TableCell colSpan={5} className="pl-6 text-right font-bold text-xs">Total Semester Credits</TableCell><TableCell className="text-right font-bold text-primary text-base">{semTotal}</TableCell><TableCell className="pr-6"></TableCell></TableRow></TableFooter>
                       </Table>
@@ -400,16 +410,26 @@ function SubjectRow({ sub, currentSchemeId, schemeStatus, permissions, isOption,
       </TableCell>
       <TableCell className={`font-mono text-xs font-bold ${isSlot ? 'text-blue-600' : isFromPool ? 'text-emerald-700' : 'text-primary'}`}>{(isSlot && !sub.subjectCode) ? 'SLOT' : sub.subjectCode}</TableCell>
       <TableCell className="font-medium">
-        <div className="flex flex-col"><span className="flex items-center gap-2">{isSlot && <Globe className="w-3 h-3 text-blue-500" />} {isFromPool && <Layers className="w-3 h-3 text-emerald-500" />} {sub.title} {isFromPool && <Badge variant="outline" className="text-[8px] bg-white border-emerald-200 text-emerald-600">POOL</Badge>}</span><span className="text-[10px] text-muted-foreground uppercase">{isSlot ? 'Institutional Pool Slot' : sub.type}</span></div>
+        <div className="flex flex-col">
+          <span className="flex items-center gap-2">
+            {isSlot && <Globe className="w-3 h-3 text-blue-500" />} 
+            {isFromPool && <Layers className="w-3 h-3 text-emerald-500" />} 
+            {sub.title} 
+            {isFromPool && <Badge variant="outline" className="text-[8px] bg-emerald-600 text-white border-none font-black tracking-tighter px-1.5 py-0.5">INSTITUTIONAL POOL</Badge>}
+          </span>
+          <span className="text-[10px] text-muted-foreground uppercase">{isSlot ? 'Slot Placeholder' : sub.type}</span>
+        </div>
       </TableCell>
       <TableCell><Badge variant="secondary" className="text-[9px] font-bold">{sub.creditCategory}</Badge></TableCell>
       <TableCell className="text-center font-mono text-xs text-muted-foreground">{sub.lectureCredits}-{sub.tutorialCredits}-{sub.practicalCredits}</TableCell>
       <TableCell className="text-right font-bold text-sm">{sub.credits}</TableCell>
-      <TableCell className="text-right pr-6"><div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        {!isSlot && <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500" onClick={() => exportSyllabusToPDF(sub, 'Program', 'Branch', 'Year', schemeStatus)}><FileDown className="w-3.5 h-3.5" /></Button>}
-        {(canEdit || permissions.isMonitor) && <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={onEdit}>{canEdit ? <Edit3 className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}</Button>}
-        {canDelete && !isFromPool && <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={onDelete}><Trash2 className="w-3.5 h-3.5" /></Button>}
-      </div></TableCell>
+      <TableCell className="text-right pr-6">
+        <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {!isSlot && <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500" onClick={() => exportSyllabusToPDF(sub, 'Program', 'Branch', 'Year', schemeStatus)}><FileDown className="w-3.5 h-3.5" /></Button>}
+          {(canEdit || permissions.isMonitor) && <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={onEdit}>{canEdit ? <Edit3 className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}</Button>}
+          {canDelete && !isFromPool && <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={onDelete}><Trash2 className="w-3.5 h-3.5" /></Button>}
+        </div>
+      </TableCell>
     </TableRow>
   );
 }

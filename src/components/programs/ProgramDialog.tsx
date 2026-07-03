@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -153,9 +152,10 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
     
     const data = {
       ...formData,
-      totalSemesters: Number(formData.totalSemesters || 0),
+      totalSemesters: Number(formData.totalSemesters || 8),
       updatedAt: serverTimestamp(),
       createdAt: program?.createdAt || serverTimestamp(),
+      slotTemplate: formData.slotTemplate || []
     };
 
     setDoc(programRef, data, { merge: true })
@@ -269,7 +269,8 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
     }));
   };
 
-  const isReadOnly = isCommonBos;
+  const isAuthorized = isGlobalAdmin || (userProfile?.role === 'dean_faculty' && userProfile.faculty === program?.faculty);
+  const isReadOnly = !isAuthorized;
   const isFacultyDisabled = userProfile?.role === 'dean_faculty' || isReadOnly;
 
   return (
@@ -277,23 +278,23 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
       <DialogContent className="max-w-[95vw] lg:max-w-6xl h-[95vh] flex flex-col p-0 overflow-hidden shadow-2xl border-none">
         <DialogHeader className="p-6 border-b shrink-0 bg-background z-20">
           <DialogTitle className="font-headline text-2xl flex items-center gap-3">
-            {program ? 'Program Details' : 'New Program Definition'}
-            {isReadOnly && <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">View Only</Badge>}
+            {program ? 'Program Specification' : 'New Program Framework'}
+            {isReadOnly && <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 uppercase text-[10px] font-black">Institutional Lock</Badge>}
           </DialogTitle>
           <DialogDescription>
-            {isCommonBos 
-              ? 'Institutional program specifications. Editing restricted.'
-              : 'Configure program details, faculty association, and master credit patterns.'}
+            {isReadOnly 
+              ? 'Authorized institutional framework. Editing restricted to program owners.'
+              : 'Configure master templates and credit boundaries for institutional consistency.'}
           </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="basic" className="flex-1 flex flex-col min-h-0">
           <div className="px-6 border-b">
             <TabsList className="bg-transparent border-none gap-6 h-12">
-              <TabsTrigger value="basic" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">Basic Info</TabsTrigger>
-              <TabsTrigger value="branches" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">Branches</TabsTrigger>
-              <TabsTrigger value="rules" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">Credit Rules</TabsTrigger>
-              <TabsTrigger value="template" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">Master Slot Template</TabsTrigger>
+              <TabsTrigger value="basic" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">Identity</TabsTrigger>
+              <TabsTrigger value="branches" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">Jurisdiction</TabsTrigger>
+              <TabsTrigger value="rules" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">Audit Rules</TabsTrigger>
+              <TabsTrigger value="template" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">Master Patterns</TabsTrigger>
             </TabsList>
           </div>
 
@@ -302,16 +303,16 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
               <TabsContent value="basic" className="mt-0 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold">Program Name</Label>
+                    <Label className="text-xs font-bold uppercase text-muted-foreground">Institutional Name</Label>
                     <Input 
                       disabled={isReadOnly}
-                      placeholder="B.Tech in Engineering" 
+                      placeholder="e.g. B.Tech in Materials Engineering" 
                       value={formData.name || ''}
                       onChange={e => setFormData({ ...formData, name: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold">Assigned Faculty</Label>
+                    <Label className="text-xs font-bold uppercase text-muted-foreground">Assigned Faculty</Label>
                     <Select 
                       value={formData.faculty} 
                       onValueChange={(v: any) => setFormData({ ...formData, faculty: v })}
@@ -328,11 +329,11 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold">Program Code</Label>
-                    <Input disabled={isReadOnly} placeholder="BTECH" value={formData.code || ''} onChange={e => setFormData({ ...formData, code: e.target.value })} />
+                    <Label className="text-xs font-bold uppercase text-muted-foreground">Framework Code</Label>
+                    <Input disabled={isReadOnly} placeholder="BTECH-MT" value={formData.code || ''} onChange={e => setFormData({ ...formData, code: e.target.value.toUpperCase() })} />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold">Academic Level</Label>
+                    <Label className="text-xs font-bold uppercase text-muted-foreground">Academic Tier</Label>
                     <Select disabled={isReadOnly} value={formData.level || 'UG'} onValueChange={(v: any) => setFormData({ ...formData, level: v })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -345,41 +346,54 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Program Description</Label>
-                  <Textarea disabled={isReadOnly} placeholder="Briefly describe the program objectives..." value={formData.description || ''} onChange={e => setFormData({ ...formData, description: e.target.value })} />
+                  <Label className="text-xs font-bold uppercase text-muted-foreground">Degree Objectives</Label>
+                  <Textarea disabled={isReadOnly} placeholder="Official program description..." value={formData.description || ''} onChange={e => setFormData({ ...formData, description: e.target.value })} className="min-h-[100px]" />
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Total Semesters</Label>
-                  <Input disabled={isReadOnly} type="number" value={formData.totalSemesters ?? ''} onChange={e => setFormData({ ...formData, totalSemesters: parseInt(e.target.value) || 0 })} />
+                <div className="space-y-2 max-w-[200px]">
+                  <Label className="text-xs font-bold uppercase text-muted-foreground">Total Semesters</Label>
+                  <Input disabled={isReadOnly} type="number" value={formData.totalSemesters ?? 8} onChange={e => setFormData({ ...formData, totalSemesters: parseInt(e.target.value) || 8 })} />
                 </div>
               </TabsContent>
 
               <TabsContent value="branches" className="mt-0 space-y-6">
                 <div className="space-y-4">
-                  <Label className="text-sm font-semibold">Managed Branches & Prefixes</Label>
+                  <Label className="text-sm font-bold flex items-center gap-2"><Layers className="w-4 h-4 text-primary" /> Branch Registry</Label>
                   {!isReadOnly && (
-                    <div className="flex gap-2 items-end">
-                      <div className="grid gap-2 flex-1"><Input placeholder="Branch Name" value={newBranch} onChange={e => setNewBranch(e.target.value)} /></div>
-                      <div className="grid gap-2 w-32"><Input placeholder="Prefix" value={newPrefix} onChange={e => setNewPrefix(e.target.value.toUpperCase())} /></div>
-                      <Button type="button" onClick={addBranch} variant="secondary">Add</Button>
+                    <div className="flex gap-2 items-end p-4 bg-muted/20 rounded-xl border border-dashed">
+                      <div className="grid gap-1.5 flex-1">
+                        <Label className="text-[10px] uppercase">New Specialization</Label>
+                        <Input placeholder="Branch Name" value={newBranch} onChange={e => setNewBranch(e.target.value)} />
+                      </div>
+                      <div className="grid gap-1.5 w-32">
+                        <Label className="text-[10px] uppercase">Branch Code</Label>
+                        <Input placeholder="MT" value={newPrefix} onChange={e => setNewPrefix(e.target.value.toUpperCase())} maxLength={2} />
+                      </div>
+                      <Button type="button" onClick={addBranch} variant="secondary">Authorize Branch</Button>
                     </div>
                   )}
-                  {formData.branches && formData.branches.length > 0 && (
-                    <div className="border rounded-lg overflow-hidden">
-                      <Table>
-                        <TableHeader className="bg-muted/50"><TableRow><TableHead>Branch</TableHead><TableHead className="w-48">Prefix</TableHead>{!isReadOnly && <TableHead className="w-16"></TableHead>}</TableRow></TableHeader>
-                        <TableBody>
-                          {formData.branches.map(branch => (
-                            <TableRow key={branch}>
-                              <TableCell>{branch}</TableCell>
-                              <TableCell className="font-mono text-xs">{formData.branchPrefixes?.[branch]}</TableCell>
-                              {!isReadOnly && <TableCell><Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={() => removeBranch(branch)}><X className="w-4 h-4" /></Button></TableCell>}
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
+                  <div className="border rounded-xl overflow-hidden shadow-sm">
+                    <Table>
+                      <TableHeader className="bg-muted/50">
+                        <TableRow>
+                          <TableHead className="pl-6">Branch / Specialization</TableHead>
+                          <TableHead className="w-48">System Prefix</TableHead>
+                          {!isReadOnly && <TableHead className="w-16 pr-6"></TableHead>}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {formData.branches?.map(branch => (
+                          <TableRow key={branch}>
+                            <TableCell className="pl-6 font-medium">{branch}</TableCell>
+                            <TableCell className="font-mono font-bold text-primary">{formData.branchPrefixes?.[branch]}</TableCell>
+                            {!isReadOnly && <TableCell className="pr-6 text-right"><Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeBranch(branch)}><Trash2 className="w-4 h-4" /></Button></TableCell>}
+                          </TableRow>
+                        ))}
+                        {(!formData.branches || formData.branches.length === 0) && (
+                          <TableRow><TableCell colSpan={3} className="text-center py-12 text-muted-foreground italic">No branches defined for this framework.</TableCell></TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
               </TabsContent>
 
@@ -387,39 +401,56 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                 <div className="space-y-6">
                   <div className="p-4 bg-accent/5 rounded-xl border border-accent/10 flex items-center gap-3 text-accent text-sm">
                     <ShieldIcon className="w-5 h-5 shrink-0" />
-                    <p>Parameters defining institutional boundaries. Credits validated by Scheme Architect.</p>
+                    <p>Audit parameters defining degree boundaries. These rules are inherited by the Credit Validator in every scheme.</p>
                   </div>
-                  <div className="space-y-4">
-                    <h3 className="font-bold text-sm uppercase tracking-wider text-primary">Core Requirements</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                      <div className="space-y-2"><Label className="text-xs">DSC Min</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.dscMin ?? ''} onChange={e => updateRule('dscMin', e.target.value)} /></div>
-                      <div className="space-y-2"><Label className="text-xs">DSC Max</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.dscMax ?? ''} onChange={e => updateRule('dscMax', e.target.value)} /></div>
-                      <div className="space-y-2"><Label className="text-xs">Project Min</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.projectMin ?? ''} onChange={e => updateRule('projectMin', e.target.value)} /></div>
-                      <div className="space-y-2"><Label className="text-xs">Project Max</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.projectMax ?? ''} onChange={e => updateRule('projectMax', e.target.value)} /></div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                    <div className="space-y-6">
+                      <h3 className="font-bold text-xs uppercase tracking-wider text-primary border-l-4 border-primary pl-3">Core & Project Audits</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5"><Label className="text-[10px] uppercase font-bold">DSC Min</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.dscMin ?? ''} onChange={e => updateRule('dscMin', e.target.value)} /></div>
+                        <div className="space-y-1.5"><Label className="text-[10px] uppercase font-bold">DSC Max</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.dscMax ?? ''} onChange={e => updateRule('dscMax', e.target.value)} /></div>
+                        <div className="space-y-1.5"><Label className="text-[10px] uppercase font-bold">PRJ Min</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.projectMin ?? ''} onChange={e => updateRule('projectMin', e.target.value)} /></div>
+                        <div className="space-y-1.5"><Label className="text-[10px] uppercase font-bold">PRJ Max</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.projectMax ?? ''} onChange={e => updateRule('projectMax', e.target.value)} /></div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      <h3 className="font-bold text-xs uppercase tracking-wider text-primary border-l-4 border-primary pl-3">Elective Pool Bounds</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5"><Label className="text-[10px] uppercase font-bold">DSE Min</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.dseMin ?? ''} onChange={e => updateRule('dseMin', e.target.value)} /></div>
+                        <div className="space-y-1.5"><Label className="text-[10px] uppercase font-bold">DSE Max</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.dseMax ?? ''} onChange={e => updateRule('dseMax', e.target.value)} /></div>
+                        <div className="space-y-1.5"><Label className="text-[10px] uppercase font-bold">OFE Min</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.ofeMin ?? ''} onChange={e => updateRule('ofeMin', e.target.value)} /></div>
+                        <div className="space-y-1.5"><Label className="text-[10px] uppercase font-bold">OFE Max</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.ofeMax ?? ''} onChange={e => updateRule('ofeMax', e.target.value)} /></div>
+                      </div>
                     </div>
                   </div>
-                  <div className="space-y-4">
-                    <h3 className="font-bold text-sm uppercase tracking-wider text-primary">Elective Pools</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                      <div className="space-y-2"><Label className="text-xs">DSE Min</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.dseMin ?? ''} onChange={e => updateRule('dseMin', e.target.value)} /></div>
-                      <div className="space-y-2"><Label className="text-xs">DSE Max</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.dseMax ?? ''} onChange={e => updateRule('dseMax', e.target.value)} /></div>
-                      <div className="space-y-2"><Label className="text-xs">OFE Min</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.ofeMin ?? ''} onChange={e => updateRule('ofeMin', e.target.value)} /></div>
-                      <div className="space-y-2"><Label className="text-xs">OFE Max</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.ofeMax ?? ''} onChange={e => updateRule('ofeMax', e.target.value)} /></div>
+
+                  <div className="space-y-6">
+                    <h3 className="font-bold text-xs uppercase tracking-wider text-primary border-l-4 border-primary pl-3">Institutional Credit Targets (Fixed)</h3>
+                    <div className="grid grid-cols-4 gap-4">
+                      <div className="space-y-1.5"><Label className="text-[10px] uppercase font-bold">VAC (Value)</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.vacTotal ?? ''} onChange={e => updateRule('vacTotal', e.target.value)} /></div>
+                      <div className="space-y-1.5"><Label className="text-[10px] uppercase font-bold">AEC (Ability)</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.aecTotal ?? ''} onChange={e => updateRule('aecTotal', e.target.value)} /></div>
+                      <div className="space-y-1.5"><Label className="text-[10px] uppercase font-bold">SEC (Skill)</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.secTotal ?? ''} onChange={e => updateRule('secTotal', e.target.value)} /></div>
+                      <div className="space-y-1.5"><Label className="text-[10px] uppercase font-bold">MDC (Multi)</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.mdcTotal ?? ''} onChange={e => updateRule('mdcTotal', e.target.value)} /></div>
                     </div>
                   </div>
-                  <div className="space-y-4">
-                    <h3 className="font-bold text-sm uppercase tracking-wider text-primary">Institutional Targets (Fixed Cr)</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                      <div className="space-y-2"><Label className="text-xs">VAC Total</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.vacTotal ?? ''} onChange={e => updateRule('vacTotal', e.target.value)} /></div>
-                      <div className="space-y-2"><Label className="text-xs">AEC Total</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.aecTotal ?? ''} onChange={e => updateRule('aecTotal', e.target.value)} /></div>
-                      <div className="space-y-2"><Label className="text-xs">SEC Total</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.secTotal ?? ''} onChange={e => updateRule('secTotal', e.target.value)} /></div>
-                      <div className="space-y-2"><Label className="text-xs">MDC Total</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.mdcTotal ?? ''} onChange={e => updateRule('mdcTotal', e.target.value)} /></div>
-                    </div>
-                  </div>
-                  <div className="pt-6 border-t">
-                    <div className="flex items-center justify-between p-6 bg-primary/5 rounded-2xl border-2 border-primary/20">
-                      <div className="space-y-1"><Label className="text-lg font-bold text-primary">Degree Total</Label><p className="text-sm text-muted-foreground">RTU Degree Requirement.</p></div>
-                      <div className="w-48"><Input disabled={isReadOnly} type="number" className="text-2xl h-14 text-center font-black border-primary/30" value={formData.rules?.totalRequired ?? ''} onChange={e => updateRule('totalRequired', e.target.value)} /></div>
+
+                  <div className="pt-8">
+                    <div className="flex items-center justify-between p-8 bg-primary/5 rounded-2xl border-2 border-primary/20 shadow-inner">
+                      <div className="space-y-1.5">
+                        <Label className="text-xl font-headline font-bold text-primary">Degree Graduation Total</Label>
+                        <p className="text-sm text-muted-foreground">The exact total required for university accreditation.</p>
+                      </div>
+                      <div className="w-48">
+                        <Input 
+                          disabled={isReadOnly} 
+                          type="number" 
+                          className="text-3xl h-16 text-center font-black border-primary/30 bg-white" 
+                          value={formData.rules?.totalRequired ?? 160} 
+                          onChange={e => updateRule('totalRequired', e.target.value)} 
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -428,36 +459,42 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
               <TabsContent value="template" className="mt-0 space-y-6">
                 <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex items-center gap-3 text-primary text-sm mb-6">
                   <Layers className="w-5 h-5 shrink-0" />
-                  <p>Standardized slots inherited by Schemes. Codes show pre-fill pattern (XX prefix). <b>Elective Group ID</b> ensures credit consistency for pool options.</p>
+                  <p><b>Master Slot Patterns:</b> These slots are inherited by every branch scheme. Subjects will follow the <code>XX</code> pattern, which is auto-resolved to branch codes during instantiation.</p>
                 </div>
-                <div className="space-y-8">
+                <div className="space-y-10">
                   {Array.from({ length: formData.totalSemesters || 8 }, (_, i) => i + 1).map(sem => {
                     const slots = formData.slotTemplate?.filter(s => s.semester === sem) || [];
                     return (
-                      <div key={sem} className="border rounded-xl p-4 bg-muted/20">
-                        <div className="flex items-center justify-between mb-4"><h4 className="font-headline font-bold text-sm">Sem {sem} Patterns</h4>{!isReadOnly && <Button variant="outline" size="sm" onClick={() => addTemplateSlot(sem)} className="h-8 gap-2"><Plus className="w-3.5 h-3.5" /> Add Slot</Button>}</div>
-                        <div className="space-y-4">
+                      <div key={sem} className="border rounded-2xl p-6 bg-muted/10">
+                        <div className="flex items-center justify-between mb-6">
+                          <h4 className="font-headline font-bold text-lg flex items-center gap-2">
+                             <Badge variant="outline" className="h-6 w-6 rounded-full p-0 flex items-center justify-center font-bold">{sem}</Badge>
+                             Semester Patterns
+                          </h4>
+                          {!isReadOnly && <Button variant="outline" size="sm" onClick={() => addTemplateSlot(sem)} className="h-9 gap-2 shadow-sm"><Plus className="w-4 h-4" /> Define Slot</Button>}
+                        </div>
+                        <div className="space-y-6">
                           {slots.map(slot => (
-                            <div key={slot.id} className="grid grid-cols-12 gap-3 items-end border-b pb-4 last:border-0 last:pb-0">
+                            <div key={slot.id} className="grid grid-cols-12 gap-3 items-end border-b border-border/50 pb-6 last:border-0 last:pb-0 group">
                               <div className="col-span-2 space-y-1">
-                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Category</Label>
+                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Pool Category</Label>
                                 <Select disabled={isReadOnly} value={slot.creditCategory} onValueChange={(v: CreditCategory) => updateTemplateSlot(slot.id, { creditCategory: v })}>
-                                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                                  <SelectTrigger className="h-10 bg-white"><SelectValue /></SelectTrigger>
                                   <SelectContent>{visibleCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}</SelectContent>
                                 </Select>
                               </div>
                               <div className="col-span-2 space-y-1">
-                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Method</Label>
+                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Methodology</Label>
                                 <Select disabled={isReadOnly} value={slot.type} onValueChange={(v: SubjectType) => updateTemplateSlot(slot.id, { 
                                   type: v,
                                   practicalCredits: v === 'Theory' ? 0 : slot.practicalCredits,
                                   lectureCredits: v === 'Lab/Sessional' ? 0 : slot.lectureCredits,
                                   tutorialCredits: v === 'Lab/Sessional' ? 0 : slot.tutorialCredits
                                 })}>
-                                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                                  <SelectTrigger className="h-10 bg-white"><SelectValue /></SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="Theory">Theory</SelectItem>
-                                    <SelectItem value="Lab/Sessional">Lab</SelectItem>
+                                    <SelectItem value="Theory">Theory (L-T)</SelectItem>
+                                    <SelectItem value="Lab/Sessional">Lab (P)</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </div>
@@ -466,42 +503,58 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                                 <>
                                   <div className="col-span-1 space-y-1">
                                     <Label className="text-[10px] uppercase font-bold">L</Label>
-                                    <Input disabled={isReadOnly} type="number" value={slot.lectureCredits} onChange={e => updateTemplateSlot(slot.id, { lectureCredits: Number(e.target.value) })} className="h-9" />
+                                    <Input disabled={isReadOnly} type="number" value={slot.lectureCredits} onChange={e => updateTemplateSlot(slot.id, { lectureCredits: Number(e.target.value) })} className="h-10 text-center bg-white" />
                                   </div>
                                   <div className="col-span-1 space-y-1">
                                     <Label className="text-[10px] uppercase font-bold">T</Label>
-                                    <Input disabled={isReadOnly} type="number" value={slot.tutorialCredits} onChange={e => updateTemplateSlot(slot.id, { tutorialCredits: Number(e.target.value) })} className="h-9" />
+                                    <Input disabled={isReadOnly} type="number" value={slot.tutorialCredits} onChange={e => updateTemplateSlot(slot.id, { tutorialCredits: Number(e.target.value) })} className="h-10 text-center bg-white" />
                                   </div>
                                 </>
                               ) : (
                                 <div className="col-span-2 space-y-1">
-                                  <Label className="text-[10px] uppercase font-bold">P</Label>
-                                  <Input disabled={isReadOnly} type="number" value={slot.practicalCredits} onChange={e => updateTemplateSlot(slot.id, { practicalCredits: Number(e.target.value) })} className="h-9" />
+                                  <Label className="text-[10px] uppercase font-bold">P (Lab Hours)</Label>
+                                  <Input disabled={isReadOnly} type="number" value={slot.practicalCredits} onChange={e => updateTemplateSlot(slot.id, { practicalCredits: Number(e.target.value) })} className="h-10 text-center bg-white" />
                                 </div>
                               )}
 
                               <div className="col-span-1 space-y-1">
                                 <Label className="text-[10px] uppercase font-bold">Cr</Label>
-                                <div className="h-9 flex items-center justify-center bg-primary/5 rounded border border-primary/20 text-[10px] font-bold text-primary">
+                                <div className="h-10 flex items-center justify-center bg-primary/5 rounded-lg border border-primary/20 text-xs font-black text-primary">
                                   {slot.credits}
                                 </div>
                               </div>
                               
-                              <div className="col-span-2 space-y-1">
+                              <div className="col-span-1 space-y-1">
                                 <Label className="text-[10px] uppercase font-bold">Pattern</Label>
-                                <Input disabled className="h-9 bg-muted/50 font-mono text-[10px]" value={slot.subjectCode || ''} />
+                                <div className="h-10 flex items-center justify-center bg-muted/50 rounded-lg border font-mono text-[9px] font-bold text-muted-foreground uppercase px-2">
+                                  {slot.subjectCode || '??'}
+                                </div>
                               </div>
+
                               <div className="col-span-2 space-y-1">
-                                <Label className="text-[10px] uppercase font-bold">Group ID</Label>
-                                <Input disabled={isReadOnly} placeholder="e.g. Elective-I" value={slot.electiveGroupId || ''} onChange={e => updateTemplateSlot(slot.id, { electiveGroupId: e.target.value })} className="h-9" />
+                                <Label className="text-[10px] uppercase font-bold">Elective Group ID</Label>
+                                <Input disabled={isReadOnly} placeholder="e.g. Elective-I" value={slot.electiveGroupId || ''} onChange={e => updateTemplateSlot(slot.id, { electiveGroupId: e.target.value })} className="h-10 bg-white" />
                               </div>
+
                               <div className="col-span-2 space-y-1">
-                                <Label className="text-[10px] uppercase font-bold">Title</Label>
-                                <Input disabled={isReadOnly} value={slot.title || ''} onChange={e => updateTemplateSlot(slot.id, { title: e.target.value })} className="h-9" />
+                                <Label className="text-[10px] uppercase font-bold">Descriptive Title</Label>
+                                <Input disabled={isReadOnly} value={slot.title || ''} onChange={e => updateTemplateSlot(slot.id, { title: e.target.value })} className="h-10 bg-white" placeholder="e.g. Core Course III" />
                               </div>
-                              {!isReadOnly && <div className="col-span-1 pb-0.5"><Button variant="ghost" size="icon" className="h-9 w-9 text-red-400" onClick={() => removeTemplateSlot(slot.id)}><Trash2 className="w-4 h-4" /></Button></div>}
+
+                              {!isReadOnly && (
+                                <div className="col-span-1 pb-0.5">
+                                  <Button variant="ghost" size="icon" className="h-10 w-10 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeTemplateSlot(slot.id)}>
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              )}
                             </div>
                           ))}
+                          {slots.length === 0 && (
+                            <div className="py-8 text-center text-muted-foreground text-xs italic bg-white/50 rounded-xl border border-dashed">
+                              No patterns defined for Semester {sem}. Click "Define Slot" to begin.
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -512,8 +565,8 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
           </ScrollArea>
         </Tabs>
         <DialogFooter className="p-6 bg-muted/20 border-t shrink-0">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>{isReadOnly ? 'Close' : 'Cancel'}</Button>
-          {!isReadOnly && <Button onClick={handleSave}>Save Program Framework</Button>}
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="h-11 px-8">{isReadOnly ? 'Close Overview' : 'Cancel Changes'}</Button>
+          {!isReadOnly && <Button onClick={handleSave} className="h-11 px-8 shadow-lg">Save Program Framework</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>
