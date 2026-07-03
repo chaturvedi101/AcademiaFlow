@@ -1,7 +1,6 @@
+"use client";
 
-'use client';
-
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,6 +56,13 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
   
   const initialFaculty = userProfile?.role === 'dean_faculty' ? userProfile.faculty : FACULTIES[0];
   const isCommonBos = userProfile?.faculty === 'University-wide (Common BOS)';
+  const isGlobalAdmin = userProfile?.role === 'admin' || userProfile?.role === 'dean_academic';
+
+  const visibleCategories = useMemo(() => {
+    if (isGlobalAdmin) return ALL_CATEGORIES;
+    if (isCommonBos) return ['VAC', 'MDC', 'AEC', 'OFE'] as CreditCategory[];
+    return ['DSC', 'DSE', 'SEC', 'PRJ', 'OFE'] as CreditCategory[];
+  }, [isGlobalAdmin, isCommonBos]);
 
   const [formData, setFormData] = useState<Partial<Program>>({
     name: '',
@@ -243,8 +249,6 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
           const t = Number(updated.tutorialCredits) || 0;
           const p = Number(updated.practicalCredits) || 0;
           updated.credits = calculateCredits(l, t, p);
-          
-          // Re-generate the prefill pattern
           updated.subjectCode = generateTemplateCode(updated);
           
           return updated;
@@ -436,12 +440,17 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                                 <Label className="text-[10px] uppercase font-bold text-muted-foreground">Category</Label>
                                 <Select disabled={isReadOnly} value={slot.creditCategory} onValueChange={(v: CreditCategory) => updateTemplateSlot(slot.id, { creditCategory: v })}>
                                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                                  <SelectContent>{ALL_CATEGORIES.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}</SelectContent>
+                                  <SelectContent>{visibleCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}</SelectContent>
                                 </Select>
                               </div>
                               <div className="col-span-2 space-y-1">
                                 <Label className="text-[10px] uppercase font-bold text-muted-foreground">Method</Label>
-                                <Select disabled={isReadOnly} value={slot.type} onValueChange={(v: SubjectType) => updateTemplateSlot(slot.id, { type: v })}>
+                                <Select disabled={isReadOnly} value={slot.type} onValueChange={(v: SubjectType) => updateTemplateSlot(slot.id, { 
+                                  type: v,
+                                  practicalCredits: v === 'Theory' ? 0 : slot.practicalCredits,
+                                  lectureCredits: v === 'Lab/Sessional' ? 0 : slot.lectureCredits,
+                                  tutorialCredits: v === 'Lab/Sessional' ? 0 : slot.tutorialCredits
+                                })}>
                                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="Theory">Theory</SelectItem>
@@ -453,34 +462,34 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                               {slot.type === 'Theory' ? (
                                 <>
                                   <div className="col-span-1 space-y-1">
-                                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">L</Label>
+                                    <Label className="text-[10px] uppercase font-bold">L</Label>
                                     <Input disabled={isReadOnly} type="number" value={slot.lectureCredits} onChange={e => updateTemplateSlot(slot.id, { lectureCredits: Number(e.target.value) })} className="h-9" />
                                   </div>
                                   <div className="col-span-1 space-y-1">
-                                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">T</Label>
+                                    <Label className="text-[10px] uppercase font-bold">T</Label>
                                     <Input disabled={isReadOnly} type="number" value={slot.tutorialCredits} onChange={e => updateTemplateSlot(slot.id, { tutorialCredits: Number(e.target.value) })} className="h-9" />
                                   </div>
                                 </>
                               ) : (
                                 <div className="col-span-2 space-y-1">
-                                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">P</Label>
+                                  <Label className="text-[10px] uppercase font-bold">P</Label>
                                   <Input disabled={isReadOnly} type="number" value={slot.practicalCredits} onChange={e => updateTemplateSlot(slot.id, { practicalCredits: Number(e.target.value) })} className="h-9" />
                                 </div>
                               )}
 
                               <div className="col-span-1 space-y-1">
-                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Cr</Label>
+                                <Label className="text-[10px] uppercase font-bold">Cr</Label>
                                 <div className="h-9 flex items-center justify-center bg-primary/5 rounded border border-primary/20 text-[10px] font-bold text-primary">
                                   {slot.credits}
                                 </div>
                               </div>
                               
                               <div className="col-span-2 space-y-1">
-                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Pattern</Label>
+                                <Label className="text-[10px] uppercase font-bold">Pattern</Label>
                                 <Input disabled className="h-9 bg-muted/50 font-mono text-[10px]" value={slot.subjectCode || ''} />
                               </div>
                               <div className="col-span-2 space-y-1">
-                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Title</Label>
+                                <Label className="text-[10px] uppercase font-bold">Title</Label>
                                 <Input disabled={isReadOnly} value={slot.title || ''} onChange={e => updateTemplateSlot(slot.id, { title: e.target.value })} className="h-9" />
                               </div>
                               {!isReadOnly && <div className="col-span-1 pb-0.5"><Button variant="ghost" size="icon" className="h-9 w-9 text-red-400" onClick={() => removeTemplateSlot(slot.id)}><Trash2 className="w-4 h-4" /></Button></div>}

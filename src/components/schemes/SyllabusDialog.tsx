@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -15,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   BookOpen, Loader2, Plus, Clock, AlertTriangle, 
-  ShieldCheck, ChevronDown, ChevronUp, Trash2, Lock, CheckCircle2, ShieldAlert
+  ShieldCheck, ChevronDown, ChevronUp, Trash2, Lock, CheckCircle2, ShieldAlert, Eye
 } from "lucide-react";
 import { Syllabus, CreditRules, UserProfile, CreditCategory, SubjectType } from "@/lib/types";
 import { useFirestore } from "@/firebase";
@@ -36,6 +35,8 @@ const PO_DEFINITIONS = [
   { code: 'PO11', title: 'Project Management' },
   { code: 'PO12', title: 'Life-long Learning' },
 ];
+
+const ALL_CATEGORIES: CreditCategory[] = ['DSC', 'DSE', 'OFE', 'VAC', 'AEC', 'SEC', 'MDC', 'PRJ'];
 
 interface SyllabusDialogProps {
   open: boolean;
@@ -79,6 +80,16 @@ export function SyllabusDialog({
   });
 
   const isAdmin = userProfile?.role === 'admin';
+  const isDeanAcademic = userProfile?.role === 'dean_academic';
+  const isGlobalAdmin = isAdmin || isDeanAcademic;
+  const isCommonBOS = userProfile?.faculty === 'University-wide (Common BOS)';
+
+  const visibleCategories = useMemo(() => {
+    if (isGlobalAdmin) return ALL_CATEGORIES;
+    if (isCommonBOS) return ['VAC', 'MDC', 'AEC', 'OFE'] as CreditCategory[];
+    // Branch BOS / Faculty Deans cannot see VAC, MDC, AEC
+    return ['DSC', 'DSE', 'SEC', 'PRJ', 'OFE'] as CreditCategory[];
+  }, [isGlobalAdmin, isCommonBOS]);
 
   useEffect(() => {
     if (open && syllabus) {
@@ -117,7 +128,6 @@ export function SyllabusDialog({
       setIsCodeUnique(null);
       return;
     }
-    // If it's the same code as originally loaded, it's unique by definition (no change)
     if (code === syllabus?.subjectCode) {
       setIsCodeUnique(true);
       setCodeWarning(null);
@@ -145,13 +155,9 @@ export function SyllabusDialog({
   };
 
   useEffect(() => {
-    // Only auto-generate if it's a new subject or a slot conversion, and the user is NOT manually editing (i.e. if field is readonly)
-    if (!open || !formData.creditCategory || !formData.semester || !formData.type || !isAdmin) {
-       if (isAdmin && formData.subjectCode) return; // Don't overwrite if admin is typing
-    }
-
-    // Don't auto-generate if we are editing an existing real course (unless it's a slot)
+    if (!open || !formData.creditCategory || !formData.semester || !formData.type) return;
     if (formData.id && !formData.isSlot && !isAdmin) return;
+    if (isAdmin && formData.subjectCode && !formData.isSlot) return;
 
     const generateCode = async () => {
       const prefix = branchPrefix.substring(0, 2).toUpperCase();
@@ -167,7 +173,6 @@ export function SyllabusDialog({
       else if (cat === 'PRJ') pillar = 'P';
 
       const year = Math.ceil((formData.semester || 1) / 2);
-
       let sequence = 1;
       let finalCode = '';
       
@@ -181,9 +186,7 @@ export function SyllabusDialog({
         const seqStr = String(sequence).padStart(2, '0');
         const candidate = `${prefix}${pedagogy}${pillar}${year}${seqStr}`;
         
-        // 1. Local Check
         if (!yearUsedInSchemeSuffixes.has(seqStr)) {
-           // 2. Global University Check
            const q = query(collectionGroup(db, 'syllabi'), where('subjectCode', '==', candidate));
            const snap = await getDocs(q);
            if (snap.empty) {
@@ -201,7 +204,7 @@ export function SyllabusDialog({
       }
     };
 
-    if (!isAdmin || !formData.subjectCode) {
+    if (!isAdmin || !formData.subjectCode || formData.isSlot) {
        generateCode();
     }
   }, [formData.creditCategory, formData.type, formData.semester, open, db, branchPrefix, existingSyllabi, formData.id, isAdmin]);
@@ -209,10 +212,9 @@ export function SyllabusDialog({
   const isAuthorized = useMemo(() => {
     if (!userProfile || userProfile.role === 'monitor') return false; 
     const isInstitutional = ['AEC', 'VAC', 'MDC'].includes(formData.creditCategory || '');
-    const isCommonBOS = userProfile.faculty === 'University-wide (Common BOS)';
     if (isInstitutional) return isAdmin || isCommonBOS;
     return canEdit;
-  }, [userProfile, formData.creditCategory, canEdit, isAdmin]);
+  }, [userProfile, formData.creditCategory, canEdit, isAdmin, isCommonBOS]);
 
   const isReadOnly = !isAuthorized;
 
@@ -222,12 +224,12 @@ export function SyllabusDialog({
         <DialogHeader className="p-6 border-b shrink-0 bg-background z-10">
           <DialogTitle className="font-headline text-2xl flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <BookOpen className="w-6 h-6 text-primary" /> 
+              {isReadOnly ? <Eye className="w-6 h-6 text-muted-foreground" /> : <BookOpen className="w-6 h-6 text-primary" />} 
               {isReadOnly ? 'Subject Specification (Locked)' : 'Course Architect'}
             </div>
           </DialogTitle>
           <DialogDescription>
-            {isAdmin ? 'System Admin View: Subject code editing authorized.' : 'Institutional Course Architect. Codes are auto-calculated and locked for integrity.'}
+            {isAdmin ? 'System Admin View: Subject code editing authorized.' : 'Institutional Course Architect. Categories and codes are restricted by jurisdiction.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -248,7 +250,7 @@ export function SyllabusDialog({
                     <Select disabled={isReadOnly} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v})}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {['DSC','DSE','OFE','VAC','AEC','SEC','MDC','PRJ'].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        {visibleCategories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
@@ -280,7 +282,6 @@ export function SyllabusDialog({
                         )}
                       />
                       {isCheckingUniqueness && <Loader2 className="absolute right-3 top-3 w-4 h-4 animate-spin opacity-50" />}
-                      {!isAdmin && <div className="absolute inset-0 z-20 cursor-not-allowed" title="Subject code generation is restricted to institutional logic." />}
                     </div>
                     {codeWarning && (
                       <div className="flex items-center gap-1.5 mt-1 text-destructive">
@@ -295,9 +296,12 @@ export function SyllabusDialog({
                       disabled={isReadOnly} 
                       value={formData.type || 'Theory'} 
                       onValueChange={(v: SubjectType) => {
-                        const updates: Partial<Syllabus> = { type: v };
-                        if (v === 'Theory') { updates.practicalCredits = 0; }
-                        else { updates.lectureCredits = 0; updates.tutorialCredits = 0; }
+                        const updates: Partial<Syllabus> = { 
+                          type: v,
+                          practicalCredits: v === 'Theory' ? 0 : formData.practicalCredits,
+                          lectureCredits: v === 'Lab/Sessional' ? 0 : formData.lectureCredits,
+                          tutorialCredits: v === 'Lab/Sessional' ? 0 : formData.tutorialCredits
+                        };
                         setFormData({...formData, ...updates});
                       }}
                     >
