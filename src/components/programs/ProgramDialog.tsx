@@ -18,6 +18,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { X, Plus, Trash2, Layers, ShieldCheck as ShieldIcon } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { cn } from "@/lib/utils";
 
 interface ProgramDialogProps {
   open: boolean;
@@ -248,7 +249,8 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
             updated.tutorialCredits = 0;
           }
 
-          if (updates.creditCategory === 'DSC' || updates.creditCategory === 'PRJ') {
+          // Force clear Elective Group ID for Core categories
+          if (updated.creditCategory === 'DSC' || updated.creditCategory === 'PRJ') {
             updated.electiveGroupId = '';
           }
           
