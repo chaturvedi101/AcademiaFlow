@@ -3,7 +3,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
-import { collection, setDoc, doc, serverTimestamp, query, orderBy, getDoc, writeBatch, collectionGroup, where, getDocs } from 'firebase/firestore';
+import { collection, setDoc, doc, serverTimestamp, query, orderBy, getDoc, writeBatch, collectionGroup, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { Scheme, Program, UserProfile, CreditCategory, Syllabus, SubjectType } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -64,6 +64,7 @@ export default function SchemesPage() {
 
   const isCommonBos = profile?.faculty === 'University-wide (Common BOS)';
   const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile?.role || '');
+  const isAdmin = profile?.role === 'admin';
 
   const calculateCredits = (l: number, t: number, p: number) => {
     let total = l + t;
@@ -146,7 +147,6 @@ export default function SchemesPage() {
         return;
       }
 
-      // 1. Fetch Global Registry for collisions
       const allSyllabiSnap = await getDocs(collectionGroup(db, 'syllabi'));
       const globalUsedCodes = new Set(allSyllabiSnap.docs.map(d => d.data().subjectCode));
 
@@ -163,7 +163,7 @@ export default function SchemesPage() {
       });
 
       const batch = writeBatch(db);
-      const usedSuffixesInScheme = new Map<number, Set<string>>(); // Year -> Set of sequences (e.g. "01", "02")
+      const usedSuffixesInScheme = new Map<number, Set<string>>();
 
       for (const slot of semesterSlots) {
         const cat = slot.creditCategory;
@@ -187,10 +187,9 @@ export default function SchemesPage() {
 
           while (sequence < 100) {
             const seqStr = String(sequence).padStart(2, '0');
-            const suffix = `${year}${seqStr}`; // e.g. "101", "205"
+            const suffix = `${year}${seqStr}`;
             const candidate = `${baseBranch}${pedagogy}${pillar}${suffix}`;
             
-            // Uniqueness Check: 1. Within this specific scheme generation, 2. Global registry
             if (!yearSet.has(seqStr) && !globalUsedCodes.has(candidate)) {
               finalCode = candidate;
               yearSet.add(seqStr);
@@ -236,6 +235,24 @@ export default function SchemesPage() {
     }
   };
 
+  const handleDeleteScheme = async (schemeId: string) => {
+    if (!window.confirm("Are you sure you want to delete this draft scheme? All course content within this scheme will be permanently removed. This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      const schemeRef = doc(db, 'schemes', schemeId);
+      
+      // Note: Sub-collections like 'syllabi' should ideally be deleted here too, 
+      // but for a dev prototype, deleting the parent doc hides it from the UI.
+      await deleteDoc(schemeRef);
+      
+      toast({ title: "Scheme Deleted", description: "Institutional record removed successfully." });
+    } catch (error: any) {
+      toast({ title: "Deletion Failed", description: error.message, variant: "destructive" });
+    }
+  };
+
   if (schemesLoading) return <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
   return (
@@ -258,7 +275,20 @@ export default function SchemesPage() {
             <CardHeader className="pb-4">
               <div className="flex justify-between items-start mb-2">
                 <Badge variant="outline" className="bg-primary/5 text-primary border-none text-[10px]">{scheme.version}</Badge>
-                <Badge variant="secondary" className="bg-slate-100 text-slate-700 border-none font-medium text-[10px]">{scheme.status}</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="bg-slate-100 text-slate-700 border-none font-medium text-[10px]">{scheme.status}</Badge>
+                  {isAdmin && scheme.status === 'Draft' && (
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-6 w-6 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full"
+                      onClick={() => handleDeleteScheme(scheme.id)}
+                      title="Delete Draft Scheme"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+                </div>
               </div>
               <CardTitle className="font-headline text-lg group-hover:text-primary transition-colors">{programs.find(p => p.id === scheme.programId)?.name || 'Loading...'}</CardTitle>
               <CardDescription className="flex flex-col gap-1">
@@ -273,6 +303,13 @@ export default function SchemesPage() {
             </CardContent>
           </Card>
         ))}
+        {filteredSchemes.length === 0 && (
+          <div className="col-span-full py-20 flex flex-col items-center justify-center text-muted-foreground bg-muted/20 rounded-3xl border border-dashed">
+            <BookOpen className="w-12 h-12 mb-4 opacity-20" />
+            <p className="font-medium">No active schemes found.</p>
+            <p className="text-xs">Initialize a new scheme from the Program Catalog to begin.</p>
+          </div>
+        )}
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
