@@ -249,8 +249,8 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
             updated.tutorialCredits = 0;
           }
 
-          // Force clear Elective Group ID for Core categories
-          if (updated.creditCategory === 'DSC' || updated.creditCategory === 'PRJ') {
+          // Force clear Elective Group ID for Core categories (now including SEC)
+          if (updated.creditCategory === 'DSC' || updated.creditCategory === 'PRJ' || updated.creditCategory === 'SEC') {
             updated.electiveGroupId = '';
           }
           
@@ -465,7 +465,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
               <TabsContent value="template" className="mt-0 space-y-6">
                 <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex items-center gap-3 text-primary text-sm mb-6">
                   <Layers className="w-5 h-5 shrink-0" />
-                  <p><b>Master Slot Patterns:</b> These slots are inherited by every branch scheme. Subjects will follow the <code>XX</code> pattern, which is auto-resolved to branch codes during instantiation. <b>DSC and PRJ are Core Subjects and cannot be grouped.</b></p>
+                  <p><b>Master Slot Patterns:</b> These slots are inherited by every branch scheme. Subjects will follow the <code>XX</code> pattern, which is auto-resolved to branch codes during instantiation. <b>DSC, PRJ and SEC are Core Subjects and cannot be grouped.</b></p>
                 </div>
                 <div className="space-y-10">
                   {Array.from({ length: formData.totalSemesters || 8 }, (_, i) => i + 1).map(sem => {
@@ -481,7 +481,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                         </div>
                         <div className="space-y-6">
                           {slots.map(slot => {
-                            const isCoreSlot = slot.creditCategory === 'DSC' || slot.creditCategory === 'PRJ';
+                            const isCoreSlot = slot.creditCategory === 'DSC' || slot.creditCategory === 'PRJ' || slot.creditCategory === 'SEC';
                             return (
                               <div key={slot.id} className="grid grid-cols-12 gap-3 items-end border-b border-border/50 pb-6 last:border-0 last:pb-0 group">
                                 <div className="col-span-2 space-y-1">

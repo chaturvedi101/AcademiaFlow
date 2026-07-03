@@ -228,7 +228,7 @@ export function SyllabusDialog({
   }, [userProfile, formData.creditCategory, canEdit, isAdmin, isCommonBOS]);
 
   const isReadOnly = !isAuthorized;
-  const isCoreCategory = formData.creditCategory === 'DSC' || formData.creditCategory === 'PRJ';
+  const isCoreCategory = formData.creditCategory === 'DSC' || formData.creditCategory === 'PRJ' || formData.creditCategory === 'SEC';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -261,7 +261,7 @@ export function SyllabusDialog({
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Credit Category</Label>
                     <Select disabled={isReadOnly} value={formData.creditCategory} onValueChange={(v: any) => {
                       const updates: Partial<Syllabus> = { creditCategory: v };
-                      if (v === 'DSC' || v === 'PRJ') updates.electiveGroupId = '';
+                      if (v === 'DSC' || v === 'PRJ' || v === 'SEC') updates.electiveGroupId = '';
                       setFormData({...formData, ...updates});
                     }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>

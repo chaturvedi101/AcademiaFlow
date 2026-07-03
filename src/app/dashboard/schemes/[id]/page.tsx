@@ -168,7 +168,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       const cat = sub.creditCategory as keyof typeof dist;
       if (sub.isOFEContribution) return;
 
-      if (sub.electiveGroupId && !['DSC', 'PRJ'].includes(sub.creditCategory)) {
+      // Grouping bypass for core categories: DSC, PRJ and now SEC
+      if (sub.electiveGroupId && !['DSC', 'PRJ', 'SEC'].includes(sub.creditCategory)) {
         if (!countedGroups.has(sub.electiveGroupId)) {
           dist[cat] = (dist[cat] || 0) + (sub.credits || 0);
           dist.total += (sub.credits || 0);
@@ -205,7 +206,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       isOFESlot: data.creditCategory === 'OFE' ? (data.isOFESlot || false) : false 
     };
 
-    if (data.creditCategory === 'DSC' || data.creditCategory === 'PRJ') {
+    // SEC is now a core category and should not have a group ID
+    if (data.creditCategory === 'DSC' || data.creditCategory === 'PRJ' || data.creditCategory === 'SEC') {
       finalData.electiveGroupId = '';
     }
     
@@ -285,7 +287,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                 const nonGrouped: Syllabus[] = [];
                 
                 semSyllabi.forEach(s => {
-                  if (s.electiveGroupId && !['DSC', 'PRJ'].includes(s.creditCategory)) {
+                  // SEC is now considered a non-grouped category
+                  if (s.electiveGroupId && !['DSC', 'PRJ', 'SEC'].includes(s.creditCategory)) {
                     groups[s.electiveGroupId] = [...(groups[s.electiveGroupId] || []), s];
                   } else {
                     nonGrouped.push(s);
