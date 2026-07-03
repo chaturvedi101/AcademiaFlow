@@ -44,7 +44,7 @@ interface SyllabusDialogProps {
   existingSyllabi?: Syllabus[];
   onSave: (data: Partial<Syllabus>) => void;
   programName?: string;
-  branchName?: string;
+  branchPrefix?: string;
   canEdit?: boolean;
   canDelete?: boolean;
   currentSchemeId?: string;
@@ -62,7 +62,7 @@ export function SyllabusDialog({
   currentSchemeId,
   userProfile,
   existingSyllabi = [],
-  branchName = 'XX'
+  branchPrefix = 'XX'
 }: SyllabusDialogProps) {
   const db = useFirestore();
 
@@ -139,7 +139,7 @@ export function SyllabusDialog({
 
     const generateCode = async () => {
       // 1. Prefix: Actual Branch Code
-      const prefix = branchName.substring(0, 2).toUpperCase();
+      const prefix = branchPrefix.substring(0, 2).toUpperCase();
 
       // 2. Pedagogy
       const pedagogy = formData.type === 'Lab/Sessional' ? 'P' : (formData.creditCategory === 'PRJ' ? 'I' : 'L');
@@ -160,8 +160,11 @@ export function SyllabusDialog({
       let sequence = 1;
       let finalCode = '';
       
-      const qGlobal = query(collectionGroup(db, 'syllabi'), where('subjectCode', '==', 'placeholder')); // Will iterate
-      const yearUsedInScheme = new Set(existingSyllabi.filter(s => s.semester && Math.ceil(s.semester/2) === year).map(s => s.subjectCode.slice(-2)));
+      const yearUsedInScheme = new Set(
+        existingSyllabi
+          .filter(s => s.id !== formData.id && s.semester && Math.ceil(s.semester/2) === year)
+          .map(s => s.subjectCode.slice(-2))
+      );
 
       while (sequence < 100) {
         const seqStr = String(sequence).padStart(2, '0');
@@ -189,7 +192,7 @@ export function SyllabusDialog({
     };
 
     generateCode();
-  }, [formData.creditCategory, formData.type, formData.semester, open, db, branchName, existingSyllabi]);
+  }, [formData.creditCategory, formData.type, formData.semester, open, db, branchPrefix, existingSyllabi, formData.id]);
 
   const isAdminOrDeanAcad = userProfile?.role === 'admin' || userProfile?.role === 'dean_academic';
 
@@ -214,7 +217,7 @@ export function SyllabusDialog({
             </div>
           </DialogTitle>
           <DialogDescription>
-            Configure institutional course identity. codes are auto-calculated for [YEAR][SEQUENCE] unique suffixes.
+            Configure institutional course identity. Codes are auto-calculated for [YEAR][SEQUENCE] unique suffixes.
           </DialogDescription>
         </DialogHeader>
 

@@ -74,6 +74,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [activeSubject, setActiveSubject] = useState<Partial<Syllabus> | undefined>(undefined);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
+  const branchPrefix = useMemo(() => {
+    if (!scheme || !program) return 'XX';
+    if (scheme.isCommonPoolScheme) return 'GN';
+    return program.branchPrefixes?.[scheme.branch || ''] || scheme.branch?.substring(0, 2).toUpperCase() || 'XX';
+  }, [scheme, program]);
+
   const syllabi = useMemo(() => {
     const uniqueMap = new Map<string, Syllabus>();
     const all = [...localSyllabi, ...poolSyllabi];
@@ -334,7 +340,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         existingSyllabi={syllabi}
         onSave={handleSaveSyllabus}
         programName={program?.name}
-        branchName={scheme?.branch}
+        branchPrefix={branchPrefix}
         canEdit={permissions.canEditSyllabus(activeSubject)}
         canDelete={permissions.canDeleteSyllabus(activeSubject)}
         currentSchemeId={schemeId}
