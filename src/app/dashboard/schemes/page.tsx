@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -8,7 +7,7 @@ import { Scheme, Program, UserProfile, CreditCategory, Syllabus, SubjectType } f
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, BookOpen, Loader2, Calendar, FileText, ArrowRight, ShieldCheck, Hash, Trash2, ChevronLeft, GraduationCap } from 'lucide-react';
+import { Plus, BookOpen, Loader2, Calendar, FileText, ArrowRight, ShieldCheck, Hash, Trash2, ChevronLeft, GraduationCap, Building2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -76,13 +75,6 @@ export default function SchemesPage() {
     else if (p > 4) total += p / 2;
     return Number(total.toFixed(2));
   };
-
-  const visibleCategories = useMemo(() => {
-    const all = ['DSC', 'DSE', 'OFE', 'VAC', 'AEC', 'SEC', 'MDC', 'PRJ'] as CreditCategory[];
-    if (isGlobalAdmin) return all;
-    if (isCommonBos) return all.filter(c => ['VAC', 'AEC', 'MDC', 'OFE'].includes(c));
-    return all.filter(c => !['VAC', 'AEC', 'MDC'].includes(c));
-  }, [isCommonBos, isGlobalAdmin]);
 
   const filteredSchemes = useMemo(() => {
     if (!profile) return [];
@@ -325,6 +317,19 @@ export default function SchemesPage() {
                   <SelectContent>{availablePrograms.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
+
+              {selectedProgram && (
+                <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+                  <Label className="flex items-center gap-2">
+                    <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
+                    Assigned Faculty
+                  </Label>
+                  <div className="h-10 flex items-center px-3 bg-primary/5 border border-primary/20 rounded-md text-sm font-semibold text-primary">
+                    {selectedProgram.faculty}
+                  </div>
+                </div>
+              )}
+
               {!isCommonBos && selectedProgram?.branches?.length ? (
                 <div className="space-y-2">
                   <Label>Branch</Label>
@@ -334,6 +339,7 @@ export default function SchemesPage() {
                   </Select>
                 </div>
               ) : null}
+              
               <div className="space-y-2">
                 <Label>Batch Year</Label>
                 <Input placeholder="e.g., 2024-28" value={newScheme.batchYear} onChange={(e) => setNewScheme({...newScheme, batchYear: e.target.value})} />
