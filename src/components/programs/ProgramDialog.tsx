@@ -16,7 +16,7 @@ import { Program, CreditRules, FACULTIES, UserProfile, ProgramSlotTemplate, Cred
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { X, Plus, ShieldCheck, Trash2, Layers, ShieldCheck as ShieldIcon } from 'lucide-react';
+import { X, Plus, Trash2, Layers, ShieldCheck as ShieldIcon } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 
@@ -111,6 +111,27 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
     return Number(total.toFixed(2));
   };
 
+  const getPillar = (cat: CreditCategory) => {
+    switch(cat) {
+      case 'DSC': return 'C';
+      case 'DSE': return 'E';
+      case 'OFE': return 'E';
+      case 'SEC': return 'S';
+      case 'VAC': return 'V';
+      case 'AEC': return 'A';
+      case 'MDC': return 'M';
+      case 'PRJ': return 'P';
+      default: return 'C';
+    }
+  };
+
+  const generateTemplateCode = (slot: Partial<ProgramSlotTemplate>) => {
+    const p = slot.type === 'Lab/Sessional' ? 'P' : (slot.creditCategory === 'PRJ' ? 'I' : 'L');
+    const pillar = getPillar(slot.creditCategory || 'DSC');
+    const year = Math.ceil((slot.semester || 1) / 2);
+    return `XX${p}${pillar}${year}XX`;
+  };
+
   const handleSave = () => {
     if (isCommonBos) return;
 
@@ -189,15 +210,16 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
     const newSlot: ProgramSlotTemplate = {
       id: Math.random().toString(36).substr(2, 9),
       semester,
-      creditCategory: 'VAC',
-      credits: 2,
+      creditCategory: 'DSC',
+      credits: 4,
       type: 'Theory',
-      lectureCredits: 2,
-      tutorialCredits: 0,
+      lectureCredits: 3,
+      tutorialCredits: 1,
       practicalCredits: 0,
       subjectCode: '',
       title: ''
     };
+    newSlot.subjectCode = generateTemplateCode(newSlot);
     setFormData(prev => ({
       ...prev,
       slotTemplate: [...(prev.slotTemplate || []), newSlot]
@@ -210,7 +232,6 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
         if (s.id === id) {
           let updated = { ...s, ...updates };
           
-          // Enforce mutual exclusivity
           if (updates.type === 'Theory') {
             updated.practicalCredits = 0;
           } else if (updates.type === 'Lab/Sessional') {
@@ -218,12 +239,13 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
             updated.tutorialCredits = 0;
           }
           
-          // Recalculate credits if L, T, P or Type changed
           const l = Number(updated.lectureCredits) || 0;
           const t = Number(updated.tutorialCredits) || 0;
           const p = Number(updated.practicalCredits) || 0;
-          
           updated.credits = calculateCredits(l, t, p);
+          
+          // Re-generate the prefill pattern
+          updated.subjectCode = generateTemplateCode(updated);
           
           return updated;
         }
@@ -253,10 +275,8 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
           </DialogTitle>
           <DialogDescription>
             {isCommonBos 
-              ? 'Institutional program specifications. Editing restricted to faculty deans.'
-              : isFacultyDisabled 
-                ? `Configuring program for ${userProfile?.faculty}.`
-                : 'Configure program details, faculty association, and credit framework.'}
+              ? 'Institutional program specifications. Editing restricted.'
+              : 'Configure program details, faculty association, and master credit patterns.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -360,7 +380,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                 <div className="space-y-6">
                   <div className="p-4 bg-accent/5 rounded-xl border border-accent/10 flex items-center gap-3 text-accent text-sm">
                     <ShieldIcon className="w-5 h-5 shrink-0" />
-                    <p>Parameters defining institutional boundaries for all schemes. Credits validated by Scheme Architect.</p>
+                    <p>Parameters defining institutional boundaries. Credits validated by Scheme Architect.</p>
                   </div>
                   <div className="space-y-4">
                     <h3 className="font-bold text-sm uppercase tracking-wider text-primary">Core Requirements</h3>
@@ -401,14 +421,14 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
               <TabsContent value="template" className="mt-0 space-y-6">
                 <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex items-center gap-3 text-primary text-sm mb-6">
                   <Layers className="w-5 h-5 shrink-0" />
-                  <p>Standardized course slots (AEC, VAC, MDC, SEC) inherited by all Schemes. Credits are automatically calculated from L-T-P.</p>
+                  <p>Standardized slots inherited by Schemes. Codes show pre-fill pattern (XX prefix). Sequence is auto-resolved during instantiation.</p>
                 </div>
                 <div className="space-y-8">
                   {Array.from({ length: formData.totalSemesters || 8 }, (_, i) => i + 1).map(sem => {
                     const slots = formData.slotTemplate?.filter(s => s.semester === sem) || [];
                     return (
                       <div key={sem} className="border rounded-xl p-4 bg-muted/20">
-                        <div className="flex items-center justify-between mb-4"><h4 className="font-headline font-bold text-sm">Sem {sem} Standard Slots</h4>{!isReadOnly && <Button variant="outline" size="sm" onClick={() => addTemplateSlot(sem)} className="h-8 gap-2"><Plus className="w-3.5 h-3.5" /> Add Slot</Button>}</div>
+                        <div className="flex items-center justify-between mb-4"><h4 className="font-headline font-bold text-sm">Sem {sem} Patterns</h4>{!isReadOnly && <Button variant="outline" size="sm" onClick={() => addTemplateSlot(sem)} className="h-8 gap-2"><Plus className="w-3.5 h-3.5" /> Add Slot</Button>}</div>
                         <div className="space-y-4">
                           {slots.map(slot => (
                             <div key={slot.id} className="grid grid-cols-12 gap-3 items-end border-b pb-4 last:border-0 last:pb-0">
@@ -430,7 +450,6 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                                 </Select>
                               </div>
 
-                              {/* Methodology Aware LTP Inputs */}
                               {slot.type === 'Theory' ? (
                                 <>
                                   <div className="col-span-1 space-y-1">
@@ -444,21 +463,21 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                                 </>
                               ) : (
                                 <div className="col-span-2 space-y-1">
-                                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">P (Practical)</Label>
+                                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">P</Label>
                                   <Input disabled={isReadOnly} type="number" value={slot.practicalCredits} onChange={e => updateTemplateSlot(slot.id, { practicalCredits: Number(e.target.value) })} className="h-9" />
                                 </div>
                               )}
 
                               <div className="col-span-1 space-y-1">
                                 <Label className="text-[10px] uppercase font-bold text-muted-foreground">Cr</Label>
-                                <div className="h-9 flex items-center justify-center bg-primary/5 rounded border border-primary/20 text-xs font-bold text-primary">
+                                <div className="h-9 flex items-center justify-center bg-primary/5 rounded border border-primary/20 text-[10px] font-bold text-primary">
                                   {slot.credits}
                                 </div>
                               </div>
                               
                               <div className="col-span-2 space-y-1">
-                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Code</Label>
-                                <Input disabled={isReadOnly} placeholder="HS101" value={slot.subjectCode || ''} onChange={e => updateTemplateSlot(slot.id, { subjectCode: e.target.value.toUpperCase() })} className="h-9" />
+                                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Pattern</Label>
+                                <Input disabled className="h-9 bg-muted/50 font-mono text-[10px]" value={slot.subjectCode || ''} />
                               </div>
                               <div className="col-span-2 space-y-1">
                                 <Label className="text-[10px] uppercase font-bold text-muted-foreground">Title</Label>

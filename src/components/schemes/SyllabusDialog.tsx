@@ -61,7 +61,8 @@ export function SyllabusDialog({
   canEdit = true,
   currentSchemeId,
   userProfile,
-  existingSyllabi = []
+  existingSyllabi = [],
+  branchName = 'XX'
 }: SyllabusDialogProps) {
   const db = useFirestore();
 
@@ -121,7 +122,7 @@ export function SyllabusDialog({
       const exists = !snap.empty;
       setIsCodeUnique(!exists);
       if (exists) {
-        setCodeWarning(`Institutional violation: Subject code ${code} is already in use by another program.`);
+        setCodeWarning(`Institutional violation: Subject code ${code} is already in use.`);
       } else {
         setCodeWarning(null);
       }
@@ -133,24 +134,18 @@ export function SyllabusDialog({
   };
 
   useEffect(() => {
-    if (!open || !formData.creditCategory || !formData.semester) return;
+    if (!open || !formData.creditCategory || !formData.semester || !formData.type) return;
     if (formData.id && !formData.isSlot) return;
 
     const generateCode = async () => {
-      let prefix = 'GN'; 
+      // 1. Prefix: Actual Branch Code
+      const prefix = branchName.substring(0, 2).toUpperCase();
+
+      // 2. Pedagogy
+      const pedagogy = formData.type === 'Lab/Sessional' ? 'P' : (formData.creditCategory === 'PRJ' ? 'I' : 'L');
+
+      // 3. Pillar
       const cat = formData.creditCategory;
-      if (cat === 'AEC') prefix = 'AE';
-      else if (cat === 'MDC') prefix = 'MD';
-      else if (cat === 'VAC') prefix = 'VA';
-      else {
-        prefix = formData.subjectCode?.substring(0, 2) || 'CS';
-      }
-
-      let pedagogy = 'L';
-      if (cat === 'PRJ') pedagogy = 'I';
-      else if (formData.type === 'Lab/Sessional') pedagogy = 'P';
-
-      // Distinguish Pillar chars (C=DSC, S=SEC, V=VAC, A=AEC, M=MDC, E=Electives, P=Project)
       let pillar = 'C';
       if (cat === 'DSE' || cat === 'OFE') pillar = 'E';
       else if (cat === 'SEC') pillar = 'S';
@@ -161,19 +156,28 @@ export function SyllabusDialog({
 
       const year = Math.ceil((formData.semester || 1) / 2);
 
+      // 4. Sequence resolution (ensure [YEAR][SEQUENCE] is unique in scheme & global)
       let sequence = 1;
       let finalCode = '';
       
+      const qGlobal = query(collectionGroup(db, 'syllabi'), where('subjectCode', '==', 'placeholder')); // Will iterate
+      const yearUsedInScheme = new Set(existingSyllabi.filter(s => s.semester && Math.ceil(s.semester/2) === year).map(s => s.subjectCode.slice(-2)));
+
       while (sequence < 100) {
         const seqStr = String(sequence).padStart(2, '0');
         const candidate = `${prefix}${pedagogy}${pillar}${year}${seqStr}`;
         
-        const q = query(collectionGroup(db, 'syllabi'), where('subjectCode', '==', candidate));
-        const snap = await getDocs(q);
+        // Scheme uniqueness check
+        const isSchemeUnique = !yearUsedInScheme.has(seqStr);
         
-        if (snap.empty) {
-          finalCode = candidate;
-          break;
+        if (isSchemeUnique) {
+           // Global uniqueness check
+           const q = query(collectionGroup(db, 'syllabi'), where('subjectCode', '==', candidate));
+           const snap = await getDocs(q);
+           if (snap.empty) {
+             finalCode = candidate;
+             break;
+           }
         }
         sequence++;
       }
@@ -185,20 +189,15 @@ export function SyllabusDialog({
     };
 
     generateCode();
-  }, [formData.creditCategory, formData.type, formData.semester, open, db]);
+  }, [formData.creditCategory, formData.type, formData.semester, open, db, branchName, existingSyllabi]);
 
   const isAdminOrDeanAcad = userProfile?.role === 'admin' || userProfile?.role === 'dean_academic';
 
   const isAuthorized = useMemo(() => {
     if (!userProfile || userProfile.role === 'monitor') return false; 
-    
     const isInstitutional = ['AEC', 'VAC', 'MDC'].includes(formData.creditCategory || '');
     const isCommonBOS = userProfile.faculty === 'University-wide (Common BOS)';
-    
-    if (isInstitutional) {
-      return isAdminOrDeanAcad || isCommonBOS;
-    }
-    
+    if (isInstitutional) return isAdminOrDeanAcad || isCommonBOS;
     return canEdit;
   }, [userProfile, formData.creditCategory, canEdit, isAdminOrDeanAcad]);
 
@@ -212,15 +211,10 @@ export function SyllabusDialog({
             <div className="flex items-center gap-3">
               <BookOpen className="w-6 h-6 text-primary" /> 
               {isReadOnly ? 'Subject Specification (Locked)' : 'Course Architect'}
-              {isReadOnly && userProfile?.role === 'monitor' && (
-                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 gap-1">
-                  <ShieldCheck className="w-3 h-3" /> Monitoring Access
-                </Badge>
-              )}
             </div>
           </DialogTitle>
           <DialogDescription>
-            {isReadOnly ? 'University standard definition. Editing restricted.' : 'Configure institutional course identity and academic content.'}
+            Configure institutional course identity. codes are auto-calculated for [YEAR][SEQUENCE] unique suffixes.
           </DialogDescription>
         </DialogHeader>
 
@@ -273,10 +267,8 @@ export function SyllabusDialog({
                         )}
                       />
                       {isCheckingUniqueness && <Loader2 className="absolute right-3 top-3 w-4 h-4 animate-spin opacity-50" />}
-                      {!isCheckingUniqueness && isCodeUnique === true && <CheckCircle2 className="absolute right-3 top-3 w-4 h-4 text-emerald-500" />}
-                      {!isCheckingUniqueness && isCodeUnique === false && <AlertTriangle className="absolute right-3 top-3 w-4 h-4 text-red-500" />}
                     </div>
-                    {codeWarning && <p className="text-[10px] font-bold text-red-600 animate-pulse">{codeWarning}</p>}
+                    {codeWarning && <p className="text-[10px] font-bold text-red-600">{codeWarning}</p>}
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Methodology</Label>
@@ -285,12 +277,8 @@ export function SyllabusDialog({
                       value={formData.type || 'Theory'} 
                       onValueChange={(v: SubjectType) => {
                         const updates: Partial<Syllabus> = { type: v };
-                        if (v === 'Theory') {
-                          updates.practicalCredits = 0;
-                        } else {
-                          updates.lectureCredits = 0;
-                          updates.tutorialCredits = 0;
-                        }
+                        if (v === 'Theory') { updates.practicalCredits = 0; }
+                        else { updates.lectureCredits = 0; updates.tutorialCredits = 0; }
                         setFormData({...formData, ...updates});
                       }}
                     >
@@ -302,7 +290,7 @@ export function SyllabusDialog({
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Total Credits</Label>
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Credits</Label>
                     <div className="p-2 bg-primary/5 rounded font-bold text-center h-10 flex items-center justify-center text-primary border border-primary/20">
                       {formData.credits || 0} Cr
                     </div>
@@ -313,26 +301,26 @@ export function SyllabusDialog({
                     {formData.type === 'Theory' ? (
                       <>
                         <div className="space-y-1">
-                          <Label className="text-[10px] uppercase font-bold text-muted-foreground">L (Lecture)</Label>
+                          <Label className="text-[10px] uppercase font-bold">L (Lecture)</Label>
                           <Input type="number" disabled={isReadOnly} value={formData.lectureCredits || 0} onChange={e => setFormData({...formData, lectureCredits: Number(e.target.value)})} />
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-[10px] uppercase font-bold text-muted-foreground">T (Tutorial)</Label>
+                          <Label className="text-[10px] uppercase font-bold">T (Tutorial)</Label>
                           <Input type="number" disabled={isReadOnly} value={formData.tutorialCredits || 0} onChange={e => setFormData({...formData, tutorialCredits: Number(e.target.value)})} />
                         </div>
                       </>
                     ) : (
                       <div className="space-y-1 col-span-2">
-                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">P (Practical/Sessional)</Label>
+                        <Label className="text-[10px] uppercase font-bold">P (Practical)</Label>
                         <Input type="number" disabled={isReadOnly} value={formData.practicalCredits || 0} onChange={e => setFormData({...formData, practicalCredits: Number(e.target.value)})} />
                       </div>
                     )}
                     <div className="space-y-1">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Slot</Label>
+                      <Label className="text-[10px] uppercase font-bold">Slot</Label>
                       <Input disabled={isReadOnly} value={formData.timetableSlot || ''} onChange={e => setFormData({...formData, timetableSlot: e.target.value.toUpperCase()})} placeholder="1 or A" />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Semester</Label>
+                      <Label className="text-[10px] uppercase font-bold">Semester</Label>
                       <Input type="number" disabled={isReadOnly} value={formData.semester || 1} onChange={e => setFormData({...formData, semester: Number(e.target.value)})} />
                     </div>
                 </div>
@@ -342,13 +330,13 @@ export function SyllabusDialog({
                  {formData.units?.map((u, i) => (
                    <Card key={u.id} className="border-muted overflow-hidden">
                      <CardHeader 
-                      className="p-4 bg-muted/20 flex flex-row items-center justify-between cursor-pointer hover:bg-muted/30 transition-colors"
+                      className="p-4 bg-muted/20 flex flex-row items-center justify-between cursor-pointer"
                       onClick={() => setExpandedUnits(prev => ({ ...prev, [u.id]: !prev[u.id] }))}
                      >
                         <div className="flex items-center gap-3">
                           <Badge className="bg-primary/10 text-primary border-none">Unit {i+1}</Badge>
-                          <span className="font-bold truncate max-w-[400px]">{u.title || 'Untitled Unit'}</span>
-                          {expandedUnits[u.id] ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                          <span className="font-bold">{u.title || 'Untitled Unit'}</span>
+                          {expandedUnits[u.id] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                         </div>
                         <div className="flex items-center gap-4" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center gap-2">
