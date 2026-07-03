@@ -183,7 +183,6 @@ export function SyllabusDialog({
       let sequence = 1;
       let finalCode = '';
       
-      // Local Scheme Uniqueness Audit
       const localUsedSuffixes = new Set(
         existingSyllabi
           .filter(s => s.id !== formData.id && s.semester && Math.ceil(s.semester/2) === year)
@@ -196,7 +195,6 @@ export function SyllabusDialog({
         const candidate = `${prefix}${pedagogy}${pillar}${suffix}`;
         
         if (!localUsedSuffixes.has(seqStr)) {
-           // Global Branch-Suffix Uniqueness Audit
            const q = query(collectionGroup(db, 'syllabi'), where('subjectCode', '>=', prefix), where('subjectCode', '<=', prefix + '\uf8ff'));
            const snap = await getDocs(q);
            const globalConflict = snap.docs.some(d => (d.data().subjectCode as string).endsWith(suffix));
@@ -230,6 +228,7 @@ export function SyllabusDialog({
   }, [userProfile, formData.creditCategory, canEdit, isAdmin, isCommonBOS]);
 
   const isReadOnly = !isAuthorized;
+  const isCoreCategory = formData.creditCategory === 'DSC' || formData.creditCategory === 'PRJ';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -260,7 +259,11 @@ export function SyllabusDialog({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Credit Category</Label>
-                    <Select disabled={isReadOnly} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v})}>
+                    <Select disabled={isReadOnly} value={formData.creditCategory} onValueChange={(v: any) => {
+                      const updates: Partial<Syllabus> = { creditCategory: v };
+                      if (v === 'DSC' || v === 'PRJ') updates.electiveGroupId = '';
+                      setFormData({...formData, ...updates});
+                    }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {visibleCategories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -334,8 +337,16 @@ export function SyllabusDialog({
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Elective Group ID</Label>
-                    <Input disabled={isReadOnly} value={formData.electiveGroupId || ''} onChange={e => setFormData({...formData, electiveGroupId: e.target.value})} placeholder="e.g. Elective-I" />
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">
+                      {isCoreCategory ? 'Elective Pool ID (Locked)' : 'Elective Group ID'}
+                    </Label>
+                    <Input 
+                      disabled={isReadOnly || isCoreCategory} 
+                      value={isCoreCategory ? 'CORE SUBJECT' : (formData.electiveGroupId || '')} 
+                      onChange={e => setFormData({...formData, electiveGroupId: e.target.value})} 
+                      placeholder={isCoreCategory ? '' : "e.g. Elective-I"}
+                      className={isCoreCategory ? "bg-muted/50 font-medium" : ""}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Credits</Label>

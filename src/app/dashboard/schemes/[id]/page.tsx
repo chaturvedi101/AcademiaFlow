@@ -98,10 +98,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       const existingIsSlot = existing.isSlot || existing.isOFESlot;
       const existingHasContent = existing.units && existing.units.length > 0;
 
-      // Deduplication Priority:
-      // 1. Real subjects replace Slots with the same code
-      // 2. Subjects with defined content (units) replace empty records
-      // 3. Local scheme records replace pool records for the same key
       let shouldReplace = false;
       if (existingIsSlot && !isSlot) {
         shouldReplace = true;
@@ -172,7 +168,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       const cat = sub.creditCategory as keyof typeof dist;
       if (sub.isOFEContribution) return;
 
-      if (sub.electiveGroupId) {
+      if (sub.electiveGroupId && !['DSC', 'PRJ'].includes(sub.creditCategory)) {
         if (!countedGroups.has(sub.electiveGroupId)) {
           dist[cat] = (dist[cat] || 0) + (sub.credits || 0);
           dist.total += (sub.credits || 0);
@@ -208,6 +204,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       isSlot: data.isSlot || false,
       isOFESlot: data.creditCategory === 'OFE' ? (data.isOFESlot || false) : false 
     };
+
+    if (data.creditCategory === 'DSC' || data.creditCategory === 'PRJ') {
+      finalData.electiveGroupId = '';
+    }
     
     setDoc(docRef, finalData, { merge: true })
       .then(() => toast({ title: "Course Synchronized", description: `${finalData.subjectCode} registered.` }))
@@ -285,14 +285,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                 const nonGrouped: Syllabus[] = [];
                 
                 semSyllabi.forEach(s => {
-                  if (s.electiveGroupId) {
+                  if (s.electiveGroupId && !['DSC', 'PRJ'].includes(s.creditCategory)) {
                     groups[s.electiveGroupId] = [...(groups[s.electiveGroupId] || []), s];
                   } else {
                     nonGrouped.push(s);
                   }
                 });
 
-                // Suppress placeholder slots in elective groups if real courses exist
                 Object.keys(groups).forEach(groupId => {
                   const hasRealMembers = groups[groupId].some(m => !m.isSlot && !m.isOFESlot);
                   if (hasRealMembers) {
