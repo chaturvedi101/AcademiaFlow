@@ -16,7 +16,7 @@ import {
   BookOpen, Loader2, Plus, Clock, AlertTriangle, 
   ShieldCheck, ChevronDown, ChevronUp, Trash2, Lock, CheckCircle2, ShieldAlert, Eye
 } from "lucide-react";
-import { Syllabus, CreditRules, UserProfile, CreditCategory, SubjectType } from "@/lib/types";
+import { Syllabus, CreditRules, UserProfile, CreditCategory, SubjectType, SyllabusUnit } from "@/lib/types";
 import { useFirestore } from "@/firebase";
 import { query, getDocs, collectionGroup, where } from "firebase/firestore";
 import { cn } from "@/lib/utils";
@@ -91,21 +91,44 @@ export function SyllabusDialog({
 
   useEffect(() => {
     if (open && syllabus) {
+      // Ensure at least 5 units exist for the user to fill
+      const existingUnits = syllabus.units || [];
+      let finalUnits = [...existingUnits];
+      
+      const isMonitor = userProfile?.role === 'monitor';
+      const canCurrentlyEdit = canEdit && !isMonitor;
+
+      if (canCurrentlyEdit && finalUnits.length < 5) {
+        const needed = 5 - finalUnits.length;
+        const newUnits: SyllabusUnit[] = Array.from({ length: needed }).map(() => ({
+          id: Math.random().toString(36).substr(2, 9),
+          title: '',
+          content: '',
+          hours: 0,
+          courseOutcome: ''
+        }));
+        finalUnits = [...finalUnits, ...newUnits];
+      }
+
       setFormData({ 
         subjectCode: '', title: '', lectureCredits: 0, tutorialCredits: 0, practicalCredits: 0,
-        credits: 0, semester: 1, type: 'Theory', creditCategory: 'DSC', units: [],
+        credits: 0, semester: 1, type: 'Theory', creditCategory: 'DSC', 
         poMappings: {}, textBooks: [], referenceBooks: [], nptelLinks: [], youtubeLinks: [],
         timetableSlot: '', electiveGroupId: '',
-        ...syllabus 
+        ...syllabus,
+        units: finalUnits
       });
+
       setCodeWarning(null);
       setConflictInfo(null);
       setIsCodeUnique(null);
+      
+      // Default all units to expanded for easier data entry
       const initialExpanded: Record<string, boolean> = {};
-      syllabus.units?.forEach(u => initialExpanded[u.id] = true);
+      finalUnits.forEach(u => initialExpanded[u.id] = true);
       setExpandedUnits(initialExpanded);
     }
-  }, [open, syllabus]);
+  }, [open, syllabus, userProfile, canEdit]);
 
   useEffect(() => {
     const l = Number(formData.lectureCredits) || 0;
@@ -406,7 +429,9 @@ export function SyllabusDialog({
                               setFormData({ ...formData, units });
                             }} />
                           </div>
-                          {!isReadOnly && <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={() => setFormData(prev => ({...prev, units: prev.units?.filter(unit => unit.id !== u.id)}))}><Trash2 className="w-4 h-4" /></Button>}
+                          {!isReadOnly && formData.units && formData.units.length > 5 && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={() => setFormData(prev => ({...prev, units: prev.units?.filter(unit => unit.id !== u.id)}))}><Trash2 className="w-4 h-4" /></Button>
+                          )}
                         </div>
                      </CardHeader>
                      <CardContent className={cn("p-4 space-y-4", !expandedUnits[u.id] && "hidden")}>
@@ -418,7 +443,7 @@ export function SyllabusDialog({
                      </CardContent>
                    </Card>
                  ))}
-                 {!isReadOnly && <Button variant="outline" className="w-full border-dashed" onClick={() => setFormData(p => ({...p, units: [...(p.units||[]), {id:Math.random().toString(36).substr(2,9), title:'', content:'', hours:0, courseOutcome:''}]}))}><Plus className="w-4 h-4 mr-2" /> Add Unit</Button>}
+                 {!isReadOnly && <Button variant="outline" className="w-full border-dashed" onClick={() => setFormData(p => ({...p, units: [...(p.units||[]), {id:Math.random().toString(36).substr(2,9), title:'', content:'', hours:0, courseOutcome:''}]}))}><Plus className="w-4 h-4 mr-2" /> Add Additional Unit</Button>}
               </TabsContent>
 
               <TabsContent value="resources" className="space-y-8">
