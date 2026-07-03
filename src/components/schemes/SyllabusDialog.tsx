@@ -68,6 +68,7 @@ export function SyllabusDialog({
   const db = useFirestore();
 
   const [codeWarning, setCodeWarning] = useState<string | null>(null);
+  const [conflictInfo, setConflictInfo] = useState<{ schemeId: string, title: string } | null>(null);
   const [isCheckingUniqueness, setIsCheckingUniqueness] = useState(false);
   const [isCodeUnique, setIsCodeUnique] = useState<boolean | null>(null);
   const [expandedUnits, setExpandedUnits] = useState<Record<string, boolean>>({});
@@ -80,15 +81,13 @@ export function SyllabusDialog({
   });
 
   const isAdmin = userProfile?.role === 'admin';
-  const isDeanAcademic = userProfile?.role === 'dean_academic';
-  const isGlobalAdmin = isAdmin || isDeanAcademic;
   const isCommonBOS = userProfile?.faculty === 'University-wide (Common BOS)';
 
   const visibleCategories = useMemo(() => {
-    if (isGlobalAdmin) return ALL_CATEGORIES;
+    if (isAdmin || userProfile?.role === 'dean_academic') return ALL_CATEGORIES;
     if (isCommonBOS) return ['VAC', 'MDC', 'AEC', 'OFE'] as CreditCategory[];
     return ['DSC', 'DSE', 'SEC', 'PRJ', 'OFE'] as CreditCategory[];
-  }, [isGlobalAdmin, isCommonBOS]);
+  }, [isAdmin, userProfile, isCommonBOS]);
 
   useEffect(() => {
     if (open && syllabus) {
@@ -100,6 +99,7 @@ export function SyllabusDialog({
         ...syllabus 
       });
       setCodeWarning(null);
+      setConflictInfo(null);
       setIsCodeUnique(null);
       const initialExpanded: Record<string, boolean> = {};
       syllabus.units?.forEach(u => initialExpanded[u.id] = true);
@@ -125,11 +125,13 @@ export function SyllabusDialog({
   const checkCodeUniqueness = async (code: string) => {
     if (!code) {
       setIsCodeUnique(null);
+      setConflictInfo(null);
       return;
     }
     if (code === syllabus?.subjectCode) {
       setIsCodeUnique(true);
       setCodeWarning(null);
+      setConflictInfo(null);
       return;
     }
 
@@ -137,14 +139,16 @@ export function SyllabusDialog({
     try {
       const q = query(collectionGroup(db, 'syllabi'), where('subjectCode', '==', code));
       const snap = await getDocs(q);
-      const exists = !snap.empty;
       
-      if (exists) {
+      if (!snap.empty) {
+        const docData = snap.docs[0].data() as Syllabus;
         setIsCodeUnique(false);
-        setCodeWarning(`Institutional Conflict: Code ${code} is already registered in another scheme.`);
+        setCodeWarning(`Institutional Conflict: Code ${code} is already registered.`);
+        setConflictInfo({ schemeId: docData.schemeId, title: docData.title });
       } else {
         setIsCodeUnique(true);
         setCodeWarning(null);
+        setConflictInfo(null);
       }
     } catch (e) {
       console.error("Uniqueness audit failed:", e);
@@ -200,6 +204,7 @@ export function SyllabusDialog({
         setFormData(prev => ({ ...prev, subjectCode: finalCode }));
         setIsCodeUnique(true);
         setCodeWarning(null);
+        setConflictInfo(null);
       }
     };
 
@@ -228,7 +233,7 @@ export function SyllabusDialog({
             </div>
           </DialogTitle>
           <DialogDescription>
-            {isAdmin ? 'System Admin View: Subject code editing authorized.' : 'Institutional Course Architect. Categories and codes are restricted by jurisdiction.'}
+            {isAdmin ? 'System Admin View: Institutional auditing enabled.' : 'Institutional Course Architect. Categories and codes are restricted by jurisdiction.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -283,9 +288,17 @@ export function SyllabusDialog({
                       {isCheckingUniqueness && <Loader2 className="absolute right-3 top-3 w-4 h-4 animate-spin opacity-50" />}
                     </div>
                     {codeWarning && (
-                      <div className="flex items-center gap-1.5 mt-1 text-destructive">
-                        <ShieldAlert className="w-3.5 h-3.5" />
-                        <p className="text-[10px] font-bold leading-tight">{codeWarning}</p>
+                      <div className="flex flex-col gap-1 mt-1 p-2 bg-red-50 border border-red-100 rounded text-destructive">
+                        <p className="text-[10px] font-bold flex items-center gap-1">
+                          <ShieldAlert className="w-3 h-3" />
+                          {codeWarning}
+                        </p>
+                        {conflictInfo && (
+                          <>
+                            <p className="text-[9px] font-bold opacity-80 ml-4">Conflicting with: {conflictInfo.title}</p>
+                            <p className="text-[9px] font-mono opacity-60 ml-4">Scheme ID: {conflictInfo.schemeId}</p>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>

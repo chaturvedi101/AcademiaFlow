@@ -7,7 +7,7 @@ import { Scheme, Program, UserProfile, CreditCategory, Syllabus, SubjectType } f
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, BookOpen, Loader2, Calendar, FileText, ArrowRight, ShieldCheck, Hash, Trash2, ChevronLeft, GraduationCap, Building2 } from 'lucide-react';
+import { Plus, BookOpen, Loader2, Calendar, FileText, ArrowRight, ShieldCheck, Hash, Trash2, ChevronLeft, GraduationCap, Building2 } from 'lucide-center';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -303,47 +303,60 @@ export default function SchemesPage() {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className={step === 2 ? "max-w-5xl" : "max-w-md"}>
+        <DialogContent className={step === 2 ? "max-w-5xl" : "max-w-2xl"}>
           <DialogHeader>
             <DialogTitle>{step === 1 ? 'Academic Identity' : 'Institutional Code Resolution'}</DialogTitle>
+            <DialogDescription>
+              {step === 1 ? 'Select the program framework to instantiate a new curriculum scheme.' : 'Review auto-generated codes for template slots.'}
+            </DialogDescription>
           </DialogHeader>
 
           {step === 1 ? (
-            <div className="space-y-4 py-4">
+            <div className="space-y-6 py-4">
               <div className="space-y-2">
-                <Label>Program</Label>
+                <Label className="text-sm font-bold">1. Select Academic Program</Label>
                 <Select onValueChange={(v) => setNewScheme({...newScheme, programId: v, branch: ''})}>
-                  <SelectTrigger><SelectValue placeholder="Select program..." /></SelectTrigger>
-                  <SelectContent>{availablePrograms.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                  <SelectTrigger className="h-12"><SelectValue placeholder="Select program..." /></SelectTrigger>
+                  <SelectContent>
+                    {availablePrograms.map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name} ({p.code})</SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
               </div>
 
               {selectedProgram && (
-                <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
-                  <Label className="flex items-center gap-2">
-                    <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
-                    Assigned Faculty
-                  </Label>
-                  <div className="h-10 flex items-center px-3 bg-primary/5 border border-primary/20 rounded-md text-sm font-semibold text-primary">
-                    {selectedProgram.faculty}
+                <>
+                  <div className="space-y-2 p-4 bg-muted/30 rounded-lg border border-dashed animate-in fade-in slide-in-from-top-1">
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">2. Assigned Faculty (System Locked)</Label>
+                    <p className="text-sm font-semibold text-primary">{selectedProgram.faculty}</p>
                   </div>
-                </div>
-              )}
 
-              {!isCommonBos && selectedProgram?.branches?.length ? (
-                <div className="space-y-2">
-                  <Label>Branch</Label>
-                  <Select value={newScheme.branch} onValueChange={(v) => setNewScheme({...newScheme, branch: v})}>
-                    <SelectTrigger><SelectValue placeholder="Select branch..." /></SelectTrigger>
-                    <SelectContent>{selectedProgram.branches.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-              ) : null}
-              
-              <div className="space-y-2">
-                <Label>Batch Year</Label>
-                <Input placeholder="e.g., 2024-28" value={newScheme.batchYear} onChange={(e) => setNewScheme({...newScheme, batchYear: e.target.value})} />
-              </div>
+                  {!isCommonBos && selectedProgram?.branches?.length ? (
+                    <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+                      <Label className="text-sm font-bold">3. Select Specialization / Branch</Label>
+                      <Select value={newScheme.branch} onValueChange={(v) => setNewScheme({...newScheme, branch: v})}>
+                        <SelectTrigger className="h-12"><SelectValue placeholder="Select branch..." /></SelectTrigger>
+                        <SelectContent>
+                          {selectedProgram.branches.map(b => (
+                            <SelectItem key={b} value={b}>{b}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : null}
+                  
+                  <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+                    <Label className="text-sm font-bold">4. Batch Year</Label>
+                    <Input 
+                      placeholder="e.g., 2024-28" 
+                      className="h-12"
+                      value={newScheme.batchYear} 
+                      onChange={(e) => setNewScheme({...newScheme, batchYear: e.target.value})} 
+                    />
+                  </div>
+                </>
+              )}
             </div>
           ) : (
             <div className="py-4 space-y-6">
@@ -374,7 +387,19 @@ export default function SchemesPage() {
           )}
 
           <DialogFooter>
-            {step === 1 ? <Button onClick={() => setStep(2)} disabled={!newScheme.programId || !newScheme.batchYear}>Verify Suffixes <ArrowRight className="w-4 h-4 ml-2" /></Button> : <div className="flex gap-2"><Button variant="ghost" onClick={() => setStep(1)}>Back</Button><Button onClick={handleCreateScheme} disabled={isCreating}>{isCreating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <GraduationCap className="w-4 h-4 mr-2" />}Instantiate Scheme</Button></div>}
+            {step === 1 ? (
+              <Button onClick={() => setStep(2)} disabled={!newScheme.programId || !newScheme.batchYear}>
+                Verify Suffixes <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            ) : (
+              <div className="flex gap-2">
+                <Button variant="ghost" onClick={() => setStep(1)}>Back</Button>
+                <Button onClick={handleCreateScheme} disabled={isCreating}>
+                  {isCreating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <GraduationCap className="w-4 h-4 mr-2" />}
+                  Instantiate Scheme
+                </Button>
+              </div>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

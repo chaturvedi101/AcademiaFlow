@@ -225,7 +225,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             )}
           </div>
           <div className="flex flex-wrap items-center gap-3 text-muted-foreground text-sm">
-            <div className="flex items-center gap-1.5 font-mono text-primary font-bold"><Hash className="w-3.5 h-3.5" /> {scheme.schemeCode || 'N/A'}</div>
+            <div className="flex items-center gap.5 font-mono text-primary font-bold"><Hash className="w-3.5 h-3.5" /> {scheme.schemeCode || 'N/A'}</div>
             <span className="w-1 h-1 rounded-full bg-border"></span>
             <span>Branch: <span className="font-bold text-foreground">{scheme.branch || 'General'}</span></span>
             <span className="w-1 h-1 rounded-full bg-border"></span>
