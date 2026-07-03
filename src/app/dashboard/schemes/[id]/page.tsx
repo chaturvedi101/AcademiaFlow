@@ -52,7 +52,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     let unsubSyllabi: Unsubscribe[] = [];
 
     const unsubscribeSchemes = onSnapshot(poolQuery, (poolSnap) => {
-      // Clear previous pool syllabus listeners
       unsubSyllabi.forEach(u => u());
       unsubSyllabi = [];
       
@@ -64,15 +63,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         return;
       }
 
-      // Map to store temporary syllabi per scheme to manage multi-scheme state
       const syllabiByScheme: Record<string, Syllabus[]> = {};
 
       poolSchemeIds.forEach(psId => {
         const sRef = collection(db, 'schemes', psId, 'syllabi');
         const u = onSnapshot(sRef, (sSnap) => {
           syllabiByScheme[psId] = sSnap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus));
-          
-          // Flatten and update state
           const allPool = Object.values(syllabiByScheme).flat();
           setPoolSyllabi(allPool);
           setPoolLoading(false);
@@ -102,21 +98,17 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const syllabi = useMemo(() => {
     const uniqueMap = new Map<string, Syllabus>();
     
-    // Process local syllabi first - they ALWAYS win for a specific branch scheme
     localSyllabi.forEach(s => {
       const key = s.subjectCode || s.id;
       uniqueMap.set(key, s);
     });
 
-    // Process pool syllabi - only add if they don't conflict with a local record or if they represent a required slot
     poolSyllabi.forEach(s => {
       const key = s.subjectCode || s.id;
       const existing = uniqueMap.get(key);
       
-      // If local already has it, ignore the pool version
       if (existing && existing.schemeId === schemeId) return;
 
-      const isSlot = s.isSlot || s.isOFESlot;
       const hasContent = s.units && s.units.length > 0;
       
       if (!existing) {
@@ -124,7 +116,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         return;
       }
 
-      // If existing is from a different pool scheme, choose the one with more content
       const existingHasContent = existing.units && existing.units.length > 0;
       if (!existingHasContent && hasContent) {
         uniqueMap.set(key, s);
@@ -183,7 +174,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       const cat = sub.creditCategory as keyof typeof dist;
       if (sub.isOFEContribution) return;
 
-      // Grouping bypass for core categories: DSC, PRJ and SEC
       if (sub.electiveGroupId && !['DSC', 'PRJ', 'SEC'].includes(sub.creditCategory)) {
         if (!countedGroups.has(sub.electiveGroupId)) {
           dist[cat] = (dist[cat] || 0) + (sub.credits || 0);
@@ -221,7 +211,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       isOFESlot: data.creditCategory === 'OFE' ? (data.isOFESlot || false) : false 
     };
 
-    // SEC is a core category and should not have a group ID
     if (data.creditCategory === 'DSC' || data.creditCategory === 'PRJ' || data.creditCategory === 'SEC') {
       finalData.electiveGroupId = '';
     }
@@ -300,7 +289,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             <TabsContent value="syllabi" className="mt-6 space-y-6">
               <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex gap-3 text-blue-800 text-xs mb-4">
                 <Info className="w-5 h-5 shrink-0" />
-                <p>Semester views combine branch-specific subjects and Institutional Pool subjects. SEC, DSC, and PRJ are considered Core Subjects and will not be grouped into options.</p>
+                <p>Semester views combine branch-specific subjects and Institutional subjects. SEC, DSC, and PRJ are considered Core Subjects and will not be grouped into options.</p>
               </div>
 
               {Array.from({ length: program?.totalSemesters || 8 }, (_, i) => i + 1).map(sem => {
@@ -309,7 +298,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                 const nonGrouped: Syllabus[] = [];
                 
                 semSyllabi.forEach(s => {
-                  // SEC is considered a non-grouped category
                   if (s.electiveGroupId && !['DSC', 'PRJ', 'SEC'].includes(s.creditCategory)) {
                     groups[s.electiveGroupId] = [...(groups[s.electiveGroupId] || []), s];
                   } else {
@@ -439,9 +427,9 @@ function SubjectRow({ sub, currentSchemeId, schemeStatus, permissions, isOption,
             {isSlot && <Globe className="w-3 h-3 text-blue-500" />} 
             {isFromPool && <Layers className="w-3 h-3 text-emerald-500" />} 
             {sub.title} 
-            {isFromPool && <Badge variant="outline" className="text-[8px] bg-emerald-600 text-white border-none font-black tracking-tighter px-1.5 py-0.5">INSTITUTIONAL POOL</Badge>}
+            {isFromPool && <Badge variant="outline" className="text-[8px] bg-emerald-600 text-white border-none font-black tracking-tighter px-1.5 py-0.5 uppercase">Institutional</Badge>}
           </span>
-          <span className="text-[10px] text-muted-foreground uppercase">{isSlot ? 'Slot Placeholder' : sub.type}</span>
+          <span className="text-[10px] text-muted-foreground uppercase">{sub.type}</span>
         </div>
       </TableCell>
       <TableCell><Badge variant="secondary" className="text-[9px] font-bold">{sub.creditCategory}</Badge></TableCell>

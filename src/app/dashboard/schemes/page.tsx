@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -184,7 +185,6 @@ export default function SchemesPage() {
             const seqStr = String(sequence).padStart(2, '0');
             const suffix = `${year}${seqStr}`;
             
-            // Check if this suffix is already assigned to this branch globally
             const globalConflict = Array.from(globalUsedCodes).some(code => 
               code.startsWith(baseBranch) && (code.endsWith(suffix) || code.includes(suffix + '.'))
             );
@@ -205,7 +205,6 @@ export default function SchemesPage() {
         const sharedGroupId = slot.electiveGroupId || `G-${slot.id}`;
 
         if (isElective) {
-          // Provision 3 options for elective slots
           for (let i = 1; i <= 3; i++) {
             const optionCode = `${baseUniqueCode}.${i}`;
             const slotId = `SLOT-${cat}-${slot.semester}-${slot.id}-${i}`;
@@ -218,7 +217,7 @@ export default function SchemesPage() {
               semester: slot.semester,
               creditCategory: cat,
               credits: slot.credits,
-              title: slot.title ? `${slot.title} (Option ${i})` : `${cat} Option ${i}`,
+              title: slot.title ? `${slot.title} (Option ${i})` : `${cat} (Option ${i})`,
               type: slot.type,
               lectureCredits: slot.lectureCredits,
               tutorialCredits: slot.tutorialCredits,
@@ -232,7 +231,6 @@ export default function SchemesPage() {
             });
           }
         } else {
-          // Standard single core slot
           const slotId = `SLOT-${cat}-${slot.semester}-${slot.id}`;
           const slotRef = doc(db, 'schemes', generatedCode, 'syllabi', slotId);
           
@@ -243,12 +241,12 @@ export default function SchemesPage() {
             semester: slot.semester,
             creditCategory: cat,
             credits: slot.credits,
-            title: slot.title || `${cat} Slot`,
+            title: slot.title || `${cat}`,
             type: slot.type,
             lectureCredits: slot.lectureCredits,
             tutorialCredits: slot.tutorialCredits,
             practicalCredits: slot.practicalCredits,
-            electiveGroupId: '', // Core slots never have groups
+            electiveGroupId: '',
             isSlot: true,
             units: [],
             poMappings: {},
