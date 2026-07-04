@@ -381,6 +381,12 @@ export default function SchemesPage() {
 
           {step === 1 ? (
             <div className="space-y-6 py-4">
+              {isCommonBos && (
+                <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl flex gap-3 text-emerald-800 text-xs">
+                   <ShieldCheck className="w-5 h-5 shrink-0" />
+                   <p><b>Pool Mode:</b> You are creating an institutional subject pool for {profile?.faculty?.replace(' (Common BOS)', '')}. These subjects will be globally available to all departments in your vertical.</p>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label className="text-sm font-bold">1. Select Academic Program</Label>
                 <Select onValueChange={(v) => setNewScheme({...newScheme, programId: v, branch: ''})}>
@@ -486,3 +492,4 @@ export default function SchemesPage() {
     </div>
   );
 }
+

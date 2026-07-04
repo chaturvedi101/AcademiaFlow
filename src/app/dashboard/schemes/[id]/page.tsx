@@ -470,3 +470,4 @@ function SubjectRow({ sub, currentSchemeId, schemeStatus, permissions, isOption,
     </TableRow>
   );
 }
+
