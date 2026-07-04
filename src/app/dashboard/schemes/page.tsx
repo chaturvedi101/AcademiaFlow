@@ -101,7 +101,7 @@ export default function SchemesPage() {
 
     if (profile.role === 'dean_faculty') return schemes.filter(s => programs.find(p => p.id === s.programId)?.faculty === profile.faculty);
     const managed = profile.managedBranches || [];
-    return schemes.filter(s => s.isCommonPoolScheme || managed.some(m => m.programId === s.programId && m.branch === s.branch));
+    return schemes.filter(s => s.isCommonPoolScheme || managed.some(m => m.programId === s.programId && m.branch === m.branch));
   }, [schemes, profile, programs, isCommonBos]);
 
   const availablePrograms = useMemo(() => {
@@ -184,7 +184,7 @@ export default function SchemesPage() {
         createdBy: user?.uid || '',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        isCommonPoolScheme: Boolean(isCommonBos), // Explicitly cast to boolean to avoid undefined error
+        isCommonPoolScheme: Boolean(isCommonBos),
         version: newScheme.version || 'v1.0'
       });
 

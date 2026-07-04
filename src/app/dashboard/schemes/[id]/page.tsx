@@ -48,12 +48,14 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     // DETERMINISTIC POOL RESOLUTION:
     // If the program faculty or name suggests Management/BBA, pull from BBA Pool.
     // Otherwise, default to B.Tech Pool.
-    const isManagement = 
+    const isManagementVertical = 
       program.faculty.toLowerCase().includes('management') || 
+      program.faculty.toLowerCase().includes('bba') ||
       program.name.toLowerCase().includes('bba') ||
+      program.name.toLowerCase().includes('management') ||
       scheme.branch?.toLowerCase().includes('bba');
     
-    const targetPoolBranch = isManagement ? 'BBA (Common BOS) Pool' : 'B.Tech (Common BOS) Pool';
+    const targetPoolBranch = isManagementVertical ? 'BBA (Common BOS) Pool' : 'B.Tech (Common BOS) Pool';
 
     const poolQuery = query(
       collection(db, 'schemes'),
@@ -91,6 +93,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         });
         unsubSyllabi.push(u);
       });
+    }, (err) => {
+      console.error("Pool scheme discovery failed:", err);
+      setPoolLoading(false);
     });
 
     return () => {
@@ -470,4 +475,3 @@ function SubjectRow({ sub, currentSchemeId, schemeStatus, permissions, isOption,
     </TableRow>
   );
 }
-
