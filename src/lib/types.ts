@@ -10,7 +10,7 @@ export const FACULTIES = [
   "Faculty of Management Studies",
   "Faculty of Arts",
   "Faculty of Sciences",
-  "University-wide (Common BOS)",
+  "B.Tech (Common BOS)",
   "BBA (Common BOS)"
 ] as const;
 

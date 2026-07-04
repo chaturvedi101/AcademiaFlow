@@ -28,9 +28,25 @@ export default function DashboardPage() {
       return schemes;
     }
 
-    // Common BOS see everything
-    if (profile.faculty === 'University-wide (Common BOS)') {
-      return schemes;
+    // Common BOS Logic: Independence check
+    if (profile.faculty?.includes('(Common BOS)')) {
+      const isBTechBOS = profile.faculty === 'B.Tech (Common BOS)';
+      const isBBABOS = profile.faculty === 'BBA (Common BOS)';
+
+      return schemes.filter(s => {
+        const prog = programs.find(p => p.id === s.programId);
+        if (!prog) return false;
+
+        // BTech BOS sees Engineering programs
+        if (isBTechBOS) {
+           return prog.faculty.includes('Engineering') || s.isCommonPoolScheme;
+        }
+        // BBA BOS sees Management/BBA programs
+        if (isBBABOS) {
+           return prog.faculty.includes('Management') || prog.name.includes('BBA') || s.isCommonPoolScheme;
+        }
+        return false;
+      });
     }
 
     // Dean Faculty see schemes within their faculty
@@ -120,7 +136,7 @@ export default function DashboardPage() {
           <CardHeader><CardTitle className="font-headline">Quick Actions</CardTitle></CardHeader>
           <CardContent className="flex flex-col gap-3">
             {(['admin', 'dean_academic'].includes(profile?.role || '')) && <ActionLink href="/dashboard/schemes" label="Draft New Scheme" icon={<Plus className="w-4 h-4" />} />}
-            {profile?.role === 'bos_convenor' && profile?.faculty !== 'University-wide (Common BOS)' && <ActionLink href="/dashboard/team" label="Manage BoS Team" icon={<UserCircle className="w-4 h-4" />} />}
+            {profile?.role === 'bos_convenor' && profile?.faculty && !profile.faculty.includes('(Common BOS)') && <ActionLink href="/dashboard/team" label="Manage BoS Team" icon={<UserCircle className="w-4 h-4" />} />}
             {(['bos_convenor', 'admin'].includes(profile?.role || '')) && <ActionLink href="/dashboard/equivalence" label="Map Equivalence" icon={<Layers className="w-4 h-4" />} />}
             {(['dean_faculty', 'dean_academic', 'admin'].includes(profile?.role || '')) && <ActionLink href="/dashboard/approvals" label="Review Pending" icon={<FileCheck className="w-4 h-4" />} />}
             {profile?.role === 'monitor' && <ActionLink href="/dashboard/users" label="Authorize Staff" icon={<ShieldCheck className="w-4 h-4" />} />}

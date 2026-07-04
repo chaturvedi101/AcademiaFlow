@@ -1,13 +1,14 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
-import { collection, setDoc, doc, serverTimestamp, query, orderBy, getDoc, writeBatch, collectionGroup, where, getDocs, deleteDoc } from 'firebase/firestore';
-import { Scheme, Program, UserProfile, CreditCategory, Syllabus, SubjectType } from '@/lib/types';
+import { collection, setDoc, doc, serverTimestamp, query, orderBy, getDoc, writeBatch, collectionGroup, getDocs, deleteDoc } from 'firebase/firestore';
+import { Scheme, Program, UserProfile, CreditCategory, SubjectType } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, BookOpen, Loader2, Calendar, FileText, ArrowRight, ShieldCheck, Hash, Trash2, ChevronLeft, GraduationCap, Building2, Info, AlertTriangle } from 'lucide-react';
+import { Plus, BookOpen, Loader2, FileText, ArrowRight, ShieldCheck, Hash, Trash2, GraduationCap, Info } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -62,7 +63,7 @@ export default function SchemesPage() {
 
   const [semesterSlots, setSemesterSlots] = useState<SlotConfig[]>([]);
 
-  // Scale common BOS check to handle multiple program-specific common pools
+  // Common BOS Status
   const isCommonBos = profile?.faculty?.includes('(Common BOS)');
   const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile?.role || '');
   const isAdmin = profile?.role === 'admin';
@@ -80,7 +81,21 @@ export default function SchemesPage() {
 
   const filteredSchemes = useMemo(() => {
     if (!profile) return [];
-    if (profile.role === 'admin' || profile.role === 'dean_academic' || profile.role === 'monitor' || isCommonBos) return schemes;
+    if (profile.role === 'admin' || profile.role === 'dean_academic' || profile.role === 'monitor') return schemes;
+    
+    if (isCommonBos) {
+      const isBTechBOS = profile.faculty === 'B.Tech (Common BOS)';
+      const isBBABOS = profile.faculty === 'BBA (Common BOS)';
+
+      return schemes.filter(s => {
+        const prog = programs.find(p => p.id === s.programId);
+        if (!prog) return false;
+        if (isBTechBOS) return prog.faculty.includes('Engineering') || s.isCommonPoolScheme;
+        if (isBBABOS) return prog.faculty.includes('Management') || prog.name.includes('BBA') || s.isCommonPoolScheme;
+        return false;
+      });
+    }
+
     if (profile.role === 'dean_faculty') return schemes.filter(s => programs.find(p => p.id === s.programId)?.faculty === profile.faculty);
     const managed = profile.managedBranches || [];
     return schemes.filter(s => s.isCommonPoolScheme || managed.some(m => m.programId === s.programId && m.branch === s.branch));
@@ -88,7 +103,18 @@ export default function SchemesPage() {
 
   const availablePrograms = useMemo(() => {
     if (!profile) return [];
-    if (isGlobalAdmin || isCommonBos) return programs;
+    if (isGlobalAdmin) return programs;
+    
+    if (isCommonBos) {
+       const isBTechBOS = profile.faculty === 'B.Tech (Common BOS)';
+       const isBBABOS = profile.faculty === 'BBA (Common BOS)';
+       return programs.filter(p => {
+         if (isBTechBOS) return p.faculty.includes('Engineering');
+         if (isBBABOS) return p.faculty.includes('Management') || p.name.includes('BBA');
+         return false;
+       });
+    }
+
     if (profile.role === 'dean_faculty') return programs.filter(p => p.faculty === profile.faculty);
     const managedIds = new Set(profile.managedBranches?.map(b => b.programId) || []);
     return programs.filter(p => managedIds.has(p.id));
@@ -127,7 +153,7 @@ export default function SchemesPage() {
     if (!selectedProgram) return;
     setIsCreating(true);
 
-    const branchName = isCommonBos ? 'Institutional Common Pool' : newScheme.branch;
+    const branchName = isCommonBos ? `${profile?.faculty} Pool` : newScheme.branch;
     const branchPrefix = isCommonBos ? 'GN' : (selectedProgram.branchPrefixes?.[branchName] || branchName.substring(0, 2).toUpperCase());
     
     const creationYear = new Date().getFullYear();
@@ -142,7 +168,7 @@ export default function SchemesPage() {
         return;
       }
 
-      // Check global syllabi registry to ensure university-wide unique course codes
+      // University-wide uniqueness check
       const allSyllabiSnap = await getDocs(collectionGroup(db, 'syllabi'));
       const globalUsedCodes = new Set(allSyllabiSnap.docs.map(d => d.data().subjectCode as string));
 
@@ -186,7 +212,6 @@ export default function SchemesPage() {
             const seqStr = String(sequence).padStart(2, '0');
             const suffix = `${year}${seqStr}`;
             
-            // Check global conflict to ensure code is unique across all programs/boards
             const globalConflict = Array.from(globalUsedCodes).some(code => 
               code.startsWith(baseBranch) && (code.endsWith(suffix) || code.includes(suffix + '.'))
             );
@@ -207,7 +232,6 @@ export default function SchemesPage() {
         const sharedGroupId = slot.electiveGroupId || `G-${slot.id}`;
 
         if (isElective) {
-          // Automatic Triple-Option Provisioning for Electives
           for (let i = 1; i <= 3; i++) {
             const optionCode = `${baseUniqueCode}.${i}`;
             const slotId = `SLOT-${cat}-${slot.semester}-${slot.id}-${i}`;
@@ -260,7 +284,7 @@ export default function SchemesPage() {
       }
 
       await batch.commit();
-      toast({ title: "Success", description: "Scheme initialized with automated elective groups." });
+      toast({ title: "Success", description: `Scheme initialized for ${profile?.faculty}.` });
       router.push(`/dashboard/schemes/${generatedCode}`);
     } catch (error: any) {
       toast({ title: "Failed", description: error.message, variant: "destructive" });
@@ -294,7 +318,7 @@ export default function SchemesPage() {
         </div>
         {(isGlobalAdmin || isCommonBos) && (
           <Button onClick={() => { setStep(1); setIsDialogOpen(true); }} className="gap-2 shadow-lg">
-            <Plus className="w-4 h-4" /> {isCommonBos ? 'Define Common Pool' : 'New Scheme'}
+            <Plus className="w-4 h-4" /> {isCommonBos ? `Define ${profile?.faculty?.split(' ')[0]} Pool` : 'New Scheme'}
           </Button>
         )}
       </div>
