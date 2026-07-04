@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
@@ -151,12 +150,14 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       canDeleteSyllabus: (s: any) => false, 
       canEditSyllabus: (s: any) => false,
       isMonitor: false,
-      isSuperuser: false
+      isSuperuser: false,
+      isAdmin: false
     };
 
+    const isAdmin = profile.role === 'admin';
     const isSuperuser = ['admin', 'dean_academic'].includes(profile.role);
     if (profile.role === 'monitor') {
-      return { canEditScheme: false, canDeleteSyllabus: () => false, canEditSyllabus: () => false, isMonitor: true, isSuperuser: false };
+      return { canEditScheme: false, canDeleteSyllabus: () => false, canEditSyllabus: () => false, isMonitor: true, isSuperuser: false, isAdmin: false };
     }
 
     const isProgramDean = profile.role === 'dean_faculty' && profile.faculty === program.faculty;
@@ -182,7 +183,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       return false;
     };
 
-    return { canEditScheme, canDeleteSyllabus, canEditSyllabus, isMonitor: false, isSuperuser };
+    return { canEditScheme, canDeleteSyllabus, canEditSyllabus, isMonitor: false, isSuperuser, isAdmin };
   }, [profile, profileLoading, scheme, program]);
 
   const creditDistribution = useMemo(() => {
@@ -218,6 +219,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const handleResyncCodes = async () => {
+    if (!permissions.isAdmin) return;
     if (!window.confirm("This will systematically re-generate all Course Codes in this local scheme based on institutional patterns. Elective groups will share a base code with incrementing suffixes (.1, .2, .3). Proceed?")) return;
     
     setIsResyncing(true);
@@ -394,7 +396,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {permissions.canEditScheme && (
+          {permissions.isAdmin && (
             <Button variant="outline" onClick={handleResyncCodes} disabled={isResyncing} className="gap-2 border-accent/20 text-accent hover:bg-accent/5">
               {isResyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
               Resync Codes
