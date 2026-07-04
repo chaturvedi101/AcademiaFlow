@@ -145,6 +145,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile.role);
     const isProgramDean = profile.role === 'dean_faculty' && profile.faculty === program.faculty;
     const isCommonBOS = profile.faculty?.includes('(Common BOS)');
+    const isCommonBOSConvenor = isCommonBOS && profile.role === 'bos_convenor';
     const myBranchRole = profile.managedBranches?.find(m => m.programId === scheme.programId && m.branch === scheme.branch)?.role;
 
     const canEditScheme = isGlobalAdmin || isProgramDean || (scheme.isCommonPoolScheme ? isCommonBOS : myBranchRole === 'bos_convenor');
@@ -156,9 +157,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     };
 
     const canDeleteSyllabus = (s: any) => {
-      // INSTITUTIONAL POLICY: Authority to delete courses is strictly restricted 
-      // to University-level Leadership (Admin & Dean Academic).
-      return isGlobalAdmin;
+      // INSTITUTIONAL POLICY: Authority to delete courses is restricted to 
+      // University-level Leadership (Admin & Dean Academic) AND 
+      // Common BOS Convenors for their respective pools.
+      if (isGlobalAdmin) return true;
+      if (scheme.isCommonPoolScheme && isCommonBOSConvenor) return true;
+      return false;
     };
 
     return { canEditScheme, canDeleteSyllabus, canEditSyllabus, isMonitor: false };
@@ -227,7 +231,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const handleDeleteSyllabus = (id: string) => {
     const syllabusToDelete = localSyllabi.find(s => s.id === id);
     if (!syllabusToDelete || !permissions.canDeleteSyllabus(syllabusToDelete)) {
-      toast({ title: "Permission Denied", description: "You are not authorized to delete courses from the scheme. This action is restricted to university-level leadership.", variant: "destructive" });
+      toast({ title: "Permission Denied", description: "You are not authorized to delete courses. This action is restricted to university leadership or Common BOS Convenors.", variant: "destructive" });
       return;
     }
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', id);
