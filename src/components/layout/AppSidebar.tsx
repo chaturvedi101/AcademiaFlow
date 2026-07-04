@@ -60,7 +60,8 @@ export function AppSidebar() {
   const { data: profile, loading: profileLoading } = useDoc<UserProfile>(userDocRef);
 
   const role: UserRole = profile?.role || 'bos_convenor';
-  const isCommonBos = profile?.faculty === 'University-wide (Common BOS)';
+  // Common pools do not have localized teams, as they manage subjects university-wide or program-wide
+  const isCommonBos = profile?.faculty?.includes('(Common BOS)');
 
   const filteredNav = navigation.filter(item => {
     if (isCommonBos && item.name === 'My BoS Team') return false;

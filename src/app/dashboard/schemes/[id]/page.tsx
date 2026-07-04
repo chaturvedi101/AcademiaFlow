@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
@@ -143,7 +144,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile.role);
     const isProgramDean = profile.role === 'dean_faculty' && profile.faculty === program.faculty;
-    const isCommonBOS = profile.faculty === 'University-wide (Common BOS)';
+    const isCommonBOS = profile.faculty?.includes('(Common BOS)');
     const myBranchRole = profile.managedBranches?.find(m => m.programId === scheme.programId && m.branch === scheme.branch)?.role;
 
     const canEditScheme = isGlobalAdmin || isProgramDean || (scheme.isCommonPoolScheme ? isCommonBOS : myBranchRole === 'bos_convenor');
@@ -157,7 +158,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const canDeleteSyllabus = (s: any) => {
       // INSTITUTIONAL POLICY: Authority to delete courses is strictly restricted 
       // to University-level Leadership (Admin & Dean Academic).
-      // BoS Members, Convenors, and Faculty Deans are NOT allowed to delete courses.
       return isGlobalAdmin;
     };
 

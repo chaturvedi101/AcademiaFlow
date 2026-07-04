@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import Link from 'next/link';
+import Link from 'link';
 
 interface SlotConfig {
   id: string;
@@ -63,7 +63,8 @@ export default function SchemesPage() {
 
   const [semesterSlots, setSemesterSlots] = useState<SlotConfig[]>([]);
 
-  const isCommonBos = profile?.faculty === 'University-wide (Common BOS)';
+  // Scale common BOS check to handle multiple program-specific common pools
+  const isCommonBos = profile?.faculty?.includes('(Common BOS)');
   const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile?.role || '');
   const isAdmin = profile?.role === 'admin';
 
@@ -142,6 +143,7 @@ export default function SchemesPage() {
         return;
       }
 
+      // Check global syllabi registry to ensure university-wide unique course codes
       const allSyllabiSnap = await getDocs(collectionGroup(db, 'syllabi'));
       const globalUsedCodes = new Set(allSyllabiSnap.docs.map(d => d.data().subjectCode as string));
 
@@ -185,6 +187,7 @@ export default function SchemesPage() {
             const seqStr = String(sequence).padStart(2, '0');
             const suffix = `${year}${seqStr}`;
             
+            // Check global conflict to ensure code is unique across all programs/boards
             const globalConflict = Array.from(globalUsedCodes).some(code => 
               code.startsWith(baseBranch) && (code.endsWith(suffix) || code.includes(suffix + '.'))
             );
@@ -205,6 +208,7 @@ export default function SchemesPage() {
         const sharedGroupId = slot.electiveGroupId || `G-${slot.id}`;
 
         if (isElective) {
+          // Automatic Triple-Option Provisioning for Electives
           for (let i = 1; i <= 3; i++) {
             const optionCode = `${baseUniqueCode}.${i}`;
             const slotId = `SLOT-${cat}-${slot.semester}-${slot.id}-${i}`;

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -131,7 +132,7 @@ export default function UserManagementPage() {
         managedBranches: form.managedBranches
       };
 
-      if (form.role === 'dean_faculty' || form.faculty === 'University-wide (Common BOS)') {
+      if (form.role === 'dean_faculty' || form.faculty?.includes('(Common BOS)')) {
         updates.faculty = form.faculty || null;
       } else {
         updates.faculty = null;
@@ -172,7 +173,7 @@ export default function UserManagementPage() {
           managedBranches: form.managedBranches
         };
 
-        if (form.role === 'dean_faculty' || form.faculty === 'University-wide (Common BOS)') {
+        if (form.role === 'dean_faculty' || form.faculty?.includes('(Common BOS)')) {
           userData.faculty = form.faculty || null;
         }
 

@@ -10,7 +10,8 @@ export const FACULTIES = [
   "Faculty of Management Studies",
   "Faculty of Arts",
   "Faculty of Sciences",
-  "University-wide (Common BOS)"
+  "University-wide (Common BOS)",
+  "BBA (Common BOS)"
 ] as const;
 
 export type FacultyName = typeof FACULTIES[number];
