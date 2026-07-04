@@ -112,27 +112,30 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const syllabi = useMemo(() => {
     const uniqueMap = new Map<string, Syllabus>();
     
+    // 1. Initial Load from Local Branch Scheme
     localSyllabi.forEach(s => {
       const key = s.subjectCode || s.id;
       uniqueMap.set(key, s);
     });
 
-    poolSyllabi.forEach(s => {
-      const key = s.subjectCode || s.id;
+    // 2. Enrich with Content from Institutional Pool
+    poolSyllabi.forEach(poolSub => {
+      const key = poolSub.subjectCode || poolSub.id;
       const existing = uniqueMap.get(key);
       
-      if (existing && existing.schemeId === schemeId) return;
-
-      const hasContent = s.units && s.units.length > 0;
-      
+      // If we don't have this code locally, add it (e.g. newly created pool subject)
       if (!existing) {
-        uniqueMap.set(key, s);
+        uniqueMap.set(key, poolSub);
         return;
       }
 
-      const existingHasContent = existing.units && existing.units.length > 0;
-      if (!existingHasContent && hasContent) {
-        uniqueMap.set(key, s);
+      // If we have it locally, replace it ONLY if the pool version has syllabus content
+      // and the local version is just a placeholder (slot) or has no units.
+      const existingIsPlaceholder = existing.isSlot || existing.isOFESlot || !existing.units || existing.units.length === 0;
+      const poolHasContent = poolSub.units && poolSub.units.length > 0;
+
+      if (existingIsPlaceholder && poolHasContent) {
+        uniqueMap.set(key, poolSub);
       }
     });
 
@@ -176,7 +179,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     const canDeleteSyllabus = (s: any) => {
       if (isSuperuser) return true;
-      // Allow common pool convenors to delete subjects within their jurisdictional pools
       if (isCommonBOSConvenor && scheme.isCommonPoolScheme) {
         return profile.faculty === scheme.branch?.replace(' Pool', '');
       }
@@ -234,7 +236,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       const batch = writeBatch(db);
       const usedSuffixesInScheme = new Map<number, Set<string>>();
       
-      // Tracking maps for elective group consistency during resync
       const groupBaseCodes = new Map<string, string>();
       const groupCounters = new Map<string, number>();
 
@@ -248,7 +249,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         const isCore = ['DSC', 'PRJ', 'SEC'].includes(cat);
         const groupId = sub.electiveGroupId;
 
-        // Logic for group-aware code sharing (Electives only)
         if (!isCore && groupId && groupBaseCodes.has(groupId)) {
           const base = groupBaseCodes.get(groupId)!;
           const nextOption = (groupCounters.get(groupId) || 0) + 1;
@@ -261,7 +261,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           continue;
         }
 
-        // New code generation logic
         const pedagogy = sub.type === 'Lab/Sessional' ? 'P' : (cat === 'PRJ' ? 'I' : 'L');
         
         let pillar = 'C';
@@ -284,7 +283,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           const suffix = `${year}${seqStr}`;
           const candidateBase = `${branchPrefix}${pedagogy}${pillar}${suffix}`;
           
-          // Collision check against base codes OR suffixed options in global database
           const conflict = globalUsedCodes.has(candidateBase) || 
                            Array.from(globalUsedCodes).some(c => c.startsWith(candidateBase + '.'));
 
@@ -299,7 +297,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         if (baseCode) {
           let finalCode = baseCode;
           
-          // Initialize grouping for electives
           if (!isCore && groupId) {
             groupBaseCodes.set(groupId, baseCode);
             groupCounters.set(groupId, 1);
