@@ -91,9 +91,8 @@ export default function SchemesPage() {
 
       return schemes.filter(s => {
         const prog = programs.find(p => p.id === s.programId);
-        if (!prog) return false;
-        if (isBTechBOS) return prog.faculty.includes('Engineering') || (s.isCommonPoolScheme && s.branch === 'B.Tech (Common BOS) Pool');
-        if (isBBABOS) return (prog.faculty.includes('Management') || prog.name.includes('BBA')) || (s.isCommonPoolScheme && s.branch === 'BBA (Common BOS) Pool');
+        if (isBTechBOS) return (prog?.faculty.includes('Engineering')) || (s.isCommonPoolScheme && s.branch === 'B.Tech (Common BOS) Pool');
+        if (isBBABOS) return (prog?.faculty.includes('Management') || prog?.name.includes('BBA')) || (s.isCommonPoolScheme && s.branch === 'BBA (Common BOS) Pool');
         return false;
       });
     }
@@ -133,18 +132,17 @@ export default function SchemesPage() {
     return programs.filter(p => managedIds.has(p.id));
   }, [programs, profile, isGlobalAdmin, isCommonBos]);
 
-  // For Institutional mode, we pick the first selected program to load templates
   const templateProgram = programs.find(p => p.id === newScheme.programIds[0]);
 
   useEffect(() => {
-    if (templateProgram && step === 2) {
+    if (templateProgram && step === 2 && !newScheme.isInstitutional) {
       const template = templateProgram.slotTemplate || [];
       setSemesterSlots(template.map(t => ({
         ...t,
         isInherited: true
       })));
     }
-  }, [templateProgram, step]);
+  }, [templateProgram, step, newScheme.isInstitutional]);
 
   const updateSlot = (id: string, updates: Partial<SlotConfig>) => {
     setSemesterSlots(prev => prev.map(s => {
@@ -169,46 +167,36 @@ export default function SchemesPage() {
   };
 
   const handleCreateScheme = async () => {
-    if (newScheme.programIds.length === 0 || !newScheme.batchYear) {
-      toast({ title: "Validation Error", description: "At least one program and a Batch Year are required.", variant: "destructive" });
+    if (!newScheme.batchYear) {
+      toast({ title: "Validation Error", description: "Batch Year is required.", variant: "destructive" });
+      return;
+    }
+
+    if (!newScheme.isInstitutional && newScheme.programIds.length === 0) {
+      toast({ title: "Validation Error", description: "Select an Academic Program.", variant: "destructive" });
       return;
     }
     
     setIsCreating(true);
-    let createdCount = 0;
 
     try {
-      const allSyllabiSnap = await getDocs(collectionGroup(db, 'syllabi'));
-      const globalUsedCodes = new Set(allSyllabiSnap.docs.map(d => d.data().subjectCode as string));
       const creationYear = new Date().getFullYear();
 
-      for (const programId of newScheme.programIds) {
-        const selectedProgram = programs.find(p => p.id === programId);
-        if (!selectedProgram) continue;
-
-        let branchName = newScheme.branch;
-        let isInstitutional = false;
-
-        if (isGlobalAdmin && newScheme.isInstitutional) {
-          branchName = `${newScheme.poolVertical} (Common BOS) Pool`;
-          isInstitutional = true;
-        } else if (isCommonBos) {
-          branchName = `${profile?.faculty} Pool`;
-          isInstitutional = true;
-        }
-
-        const branchPrefix = isInstitutional ? 'GN' : (selectedProgram.branchPrefixes?.[branchName] || branchName.substring(0, 2).toUpperCase());
-        const generatedCode = `${selectedProgram.code}-${branchPrefix}-${creationYear}`;
-        const schemeRef = doc(db, 'schemes', generatedCode);
+      if (newScheme.isInstitutional) {
+        // Create ONE blank standalone pool
+        const verticalLabel = newScheme.poolVertical || (profile?.faculty?.includes('B.Tech') ? 'B.Tech' : 'BBA');
+        const branchName = `${verticalLabel} (Common BOS) Pool`;
+        const generatedCode = `${verticalLabel.toUpperCase()}-POOL-${newScheme.batchYear}`;
         
+        const schemeRef = doc(db, 'schemes', generatedCode);
         const existing = await getDoc(schemeRef);
+        
         if (existing.exists()) {
-          console.warn(`Scheme ${generatedCode} already exists. Skipping.`);
-          continue;
+          throw new Error(`Institutional Pool ${generatedCode} already exists.`);
         }
 
         await setDoc(schemeRef, {
-          programId: programId,
+          programId: 'INSTITUTIONAL',
           branch: branchName,
           batchYear: newScheme.batchYear,
           version: newScheme.version,
@@ -218,28 +206,58 @@ export default function SchemesPage() {
           createdBy: user?.uid || '',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
-          isCommonPoolScheme: Boolean(isInstitutional),
+          isCommonPoolScheme: true,
         });
 
-        const batch = writeBatch(db);
-        const usedSuffixesInScheme = new Map<number, Set<string>>();
+        toast({ title: "Pool Created", description: `Institutional standalone pool ${generatedCode} initialized.` });
+      } else {
+        // Batch instantiate standard program schemes
+        const allSyllabiSnap = await getDocs(collectionGroup(db, 'syllabi'));
+        const globalUsedCodes = new Set(allSyllabiSnap.docs.map(d => d.data().subjectCode as string));
 
-        for (const slot of semesterSlots) {
-          const cat = slot.creditCategory;
-          const pedagogy = slot.type === 'Lab/Sessional' ? 'P' : (cat === 'PRJ' ? 'I' : 'L');
+        for (const programId of newScheme.programIds) {
+          const selectedProgram = programs.find(p => p.id === programId);
+          if (!selectedProgram) continue;
+
+          const branchPrefix = selectedProgram.branchPrefixes?.[newScheme.branch] || newScheme.branch.substring(0, 2).toUpperCase();
+          const generatedCode = `${selectedProgram.code}-${branchPrefix}-${newScheme.batchYear}`;
+          const schemeRef = doc(db, 'schemes', generatedCode);
           
-          let pillar = 'C';
-          if (cat === 'DSE' || cat === 'OFE') pillar = 'E';
-          else if (cat === 'SEC') pillar = 'S';
-          else if (cat === 'VAC') pillar = 'V';
-          else if (cat === 'AEC') pillar = 'A';
-          else if (cat === 'MDC') pillar = 'M';
-          else if (cat === 'PRJ') pillar = 'P';
+          const existing = await getDoc(schemeRef);
+          if (existing.exists()) continue;
 
-          const year = Math.ceil(slot.semester / 2);
-          if (!usedSuffixesInScheme.has(year)) usedSuffixesInScheme.set(year, new Set());
+          await setDoc(schemeRef, {
+            programId: programId,
+            branch: newScheme.branch,
+            batchYear: newScheme.batchYear,
+            version: newScheme.version,
+            id: generatedCode,
+            schemeCode: generatedCode,
+            status: 'Draft',
+            createdBy: user?.uid || '',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            isCommonPoolScheme: false,
+          });
 
-          const generateUniqueCode = (baseBranch: string) => {
+          const batch = writeBatch(db);
+          const usedSuffixesInScheme = new Map<number, Set<string>>();
+
+          for (const slot of semesterSlots) {
+            const cat = slot.creditCategory;
+            const pedagogy = slot.type === 'Lab/Sessional' ? 'P' : (cat === 'PRJ' ? 'I' : 'L');
+            
+            let pillar = 'C';
+            if (cat === 'DSE' || cat === 'OFE') pillar = 'E';
+            else if (cat === 'SEC') pillar = 'S';
+            else if (cat === 'VAC') pillar = 'V';
+            else if (cat === 'AEC') pillar = 'A';
+            else if (cat === 'MDC') pillar = 'M';
+            else if (cat === 'PRJ') pillar = 'P';
+
+            const year = Math.ceil(slot.semester / 2);
+            if (!usedSuffixesInScheme.has(year)) usedSuffixesInScheme.set(year, new Set());
+
             let sequence = 1;
             let finalCode = '';
             const yearSet = usedSuffixesInScheme.get(year)!;
@@ -247,60 +265,23 @@ export default function SchemesPage() {
             while (sequence < 100) {
               const seqStr = String(sequence).padStart(2, '0');
               const suffix = `${year}${seqStr}`;
+              const candidate = `${branchPrefix}${pedagogy}${pillar}${suffix}`;
               
-              const globalConflict = Array.from(globalUsedCodes).some(code => 
-                code.startsWith(baseBranch) && (code.endsWith(suffix) || code.includes(suffix + '.'))
-              );
-
-              if (!yearSet.has(seqStr) && !globalConflict) {
-                finalCode = `${baseBranch}${pedagogy}${pillar}${suffix}`;
+              if (!yearSet.has(seqStr) && !globalUsedCodes.has(candidate)) {
+                finalCode = candidate;
                 yearSet.add(seqStr);
                 break;
               }
               sequence++;
             }
-            if (!finalCode) return `${baseBranch}${pedagogy}${pillar}${year}99`; // Fallback
-            return finalCode;
-          };
 
-          const isElective = !['DSC', 'PRJ', 'SEC'].includes(cat);
-          const baseUniqueCode = generateUniqueCode(branchPrefix);
-          const sharedGroupId = slot.electiveGroupId || `G-${slot.id}`;
-
-          if (isElective) {
-            for (let i = 1; i <= 3; i++) {
-              const optionCode = `${baseUniqueCode}.${i}`;
-              const slotId = `SLOT-${cat}-${slot.semester}-${slot.id}-${i}`;
-              const slotRef = doc(db, 'schemes', generatedCode, 'syllabi', slotId);
-              
-              batch.set(slotRef, {
-                id: slotId,
-                schemeId: generatedCode,
-                subjectCode: optionCode,
-                semester: slot.semester,
-                creditCategory: cat,
-                credits: slot.credits,
-                title: slot.title ? `${slot.title} (Option ${i})` : `${cat} (Option ${i})`,
-                type: slot.type,
-                lectureCredits: slot.lectureCredits,
-                tutorialCredits: slot.tutorialCredits,
-                practicalCredits: slot.practicalCredits,
-                electiveGroupId: sharedGroupId,
-                isSlot: true,
-                units: [],
-                poMappings: {},
-                textBooks: [],
-                referenceBooks: []
-              });
-            }
-          } else {
             const slotId = `SLOT-${cat}-${slot.semester}-${slot.id}`;
             const slotRef = doc(db, 'schemes', generatedCode, 'syllabi', slotId);
             
             batch.set(slotRef, {
               id: slotId,
               schemeId: generatedCode,
-              subjectCode: baseUniqueCode,
+              subjectCode: finalCode || 'XX',
               semester: slot.semester,
               creditCategory: cat,
               credits: slot.credits,
@@ -309,7 +290,6 @@ export default function SchemesPage() {
               lectureCredits: slot.lectureCredits,
               tutorialCredits: slot.tutorialCredits,
               practicalCredits: slot.practicalCredits,
-              electiveGroupId: '',
               isSlot: true,
               units: [],
               poMappings: {},
@@ -317,13 +297,11 @@ export default function SchemesPage() {
               referenceBooks: []
             });
           }
+          await batch.commit();
         }
-
-        await batch.commit();
-        createdCount++;
+        toast({ title: "Schemes Initialized", description: "Successfully created departmental academic schemes." });
       }
 
-      toast({ title: "Batch Process Complete", description: `Successfully initialized ${createdCount} institutional scheme(s).` });
       setIsDialogOpen(false);
       setStep(1);
       setNewScheme({ programIds: [], branch: '', batchYear: '', version: 'v1.0', isInstitutional: false, poolVertical: '' });
@@ -335,14 +313,12 @@ export default function SchemesPage() {
   };
 
   const handleDeleteScheme = async (schemeId: string) => {
-    if (!window.confirm("Are you sure you want to delete this draft scheme? All course content within this scheme will be permanently removed. This action cannot be undone.")) {
+    if (!window.confirm("Are you sure you want to delete this draft scheme? All course content will be lost.")) {
       return;
     }
-
     try {
-      const schemeRef = doc(db, 'schemes', schemeId);
-      await deleteDoc(schemeRef);
-      toast({ title: "Scheme Deleted", description: "Institutional record removed successfully." });
+      await deleteDoc(doc(db, 'schemes', schemeId));
+      toast({ title: "Scheme Deleted" });
     } catch (error: any) {
       toast({ title: "Deletion Failed", description: error.message, variant: "destructive" });
     }
@@ -359,7 +335,7 @@ export default function SchemesPage() {
         </div>
         {(isGlobalAdmin || isCommonBos) && (
           <Button onClick={() => { setStep(1); setIsDialogOpen(true); }} className="gap-2 shadow-lg">
-            <Plus className="w-4 h-4" /> {isCommonBos ? `Define ${profile?.faculty?.split(' ')[0]} Pool` : 'New Scheme'}
+            <Plus className="w-4 h-4" /> New Scheme
           </Button>
         )}
       </div>
@@ -373,19 +349,15 @@ export default function SchemesPage() {
                 <div className="flex items-center gap-2">
                   <Badge variant="secondary" className="bg-slate-100 text-slate-700 border-none font-medium text-[10px]">{scheme.status}</Badge>
                   {isAdmin && scheme.status === 'Draft' && (
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-6 w-6 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full"
-                      onClick={() => handleDeleteScheme(scheme.id)}
-                      title="Delete Draft Scheme"
-                    >
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-red-400 hover:text-red-600" onClick={() => handleDeleteScheme(scheme.id)}>
                       <Trash2 className="w-3.5 h-3.5" />
                     </Button>
                   )}
                 </div>
               </div>
-              <CardTitle className="font-headline text-lg group-hover:text-primary transition-colors">{programs.find(p => p.id === scheme.programId)?.name || 'Loading...'}</CardTitle>
+              <CardTitle className="font-headline text-lg group-hover:text-primary transition-colors">
+                {scheme.isCommonPoolScheme ? scheme.branch : (programs.find(p => p.id === scheme.programId)?.name || 'Loading...')}
+              </CardTitle>
               <CardDescription className="flex flex-col gap-1">
                 <div className="flex items-center gap-2 font-mono text-[10px] text-primary font-bold"><Hash className="w-3 h-3" /> {scheme.schemeCode}</div>
                 <div className="flex items-center gap-2"><FileText className="w-3.5 h-3.5" /><span>{scheme.branch || 'General'}</span></div>
@@ -402,7 +374,6 @@ export default function SchemesPage() {
           <div className="col-span-full py-20 flex flex-col items-center justify-center text-muted-foreground bg-muted/20 rounded-3xl border border-dashed">
             <BookOpen className="w-12 h-12 mb-4 opacity-20" />
             <p className="font-medium">No active schemes found.</p>
-            <p className="text-xs">Initialize a new scheme from the Program Catalog to begin.</p>
           </div>
         )}
       </div>
@@ -410,177 +381,90 @@ export default function SchemesPage() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className={step === 2 ? "max-w-5xl" : "max-w-2xl"}>
           <DialogHeader>
-            <DialogTitle>{step === 1 ? 'Academic Identity' : 'Institutional Code Resolution'}</DialogTitle>
+            <DialogTitle>Initialize Academic Identity</DialogTitle>
             <DialogDescription>
-              {step === 1 ? 'Select program frameworks to instantiate institutional curriculum pools.' : 'Review auto-generated codes for template slots. Electives will automatically generate 3 options.'}
+              Create standalone institutional pools or departmental schemes.
             </DialogDescription>
           </DialogHeader>
 
-          {step === 1 ? (
-            <div className="space-y-6 py-4">
-              {isGlobalAdmin && (
-                <div className="p-4 bg-muted/30 rounded-xl border border-dashed space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label className="font-bold flex items-center gap-2">
-                      <Layers className="w-4 h-4" /> Institutional Common Pool
-                    </Label>
-                    <Switch 
-                      checked={newScheme.isInstitutional} 
-                      onCheckedChange={(checked) => setNewScheme({...newScheme, isInstitutional: checked, branch: '', poolVertical: '', programIds: []})} 
-                    />
-                  </div>
-                  {newScheme.isInstitutional && (
-                    <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
-                      <Label className="text-[10px] uppercase font-bold">Select Vertical Pool</Label>
-                      <Select value={newScheme.poolVertical} onValueChange={(v: any) => setNewScheme({...newScheme, poolVertical: v, programIds: []})}>
-                        <SelectTrigger className="h-10"><SelectValue placeholder="Choose Pool..." /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="B.Tech">B.Tech (Engineering)</SelectItem>
-                          <SelectItem value="BBA">BBA (Management)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {isCommonBos && (
-                <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl flex gap-3 text-emerald-800 text-xs">
-                   <ShieldCheck className="w-5 h-5 shrink-0" />
-                   <p><b>Pool Mode:</b> You are creating an institutional subject pool for {profile?.faculty?.replace(' (Common BOS)', '')}. These subjects will be globally available to all departments in your vertical.</p>
-                </div>
-              )}
-              
-              <div className="space-y-4">
+          <div className="space-y-6 py-4">
+            {(isGlobalAdmin || isCommonBos) && (
+              <div className="p-4 bg-muted/30 rounded-xl border border-dashed space-y-4">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm font-bold">1. Select Academic Program(s)</Label>
-                  {newScheme.isInstitutional && availablePrograms.length > 0 && (
-                    <Button variant="link" size="sm" className="h-auto p-0 text-[10px] uppercase font-black" onClick={() => {
-                      const allIds = availablePrograms.map(p => p.id);
-                      setNewScheme(prev => ({ ...prev, programIds: prev.programIds.length === allIds.length ? [] : allIds }));
-                    }}>
-                      {newScheme.programIds.length === availablePrograms.length ? 'Deselect All' : 'Select All'}
-                    </Button>
-                  )}
+                  <Label className="font-bold flex items-center gap-2">
+                    <Layers className="w-4 h-4" /> Institutional Common Pool
+                  </Label>
+                  <Switch 
+                    checked={newScheme.isInstitutional} 
+                    onCheckedChange={(checked) => setNewScheme({...newScheme, isInstitutional: checked, programIds: [], poolVertical: ''})} 
+                  />
                 </div>
-
-                {newScheme.isInstitutional ? (
-                  <div className="border rounded-xl p-2 bg-muted/10">
-                    <ScrollArea className="h-[180px] px-3">
-                      <div className="space-y-2 py-2">
-                        {availablePrograms.length === 0 && <p className="text-center py-10 text-muted-foreground text-xs italic">No programs found for this vertical.</p>}
-                        {availablePrograms.map(p => (
-                          <div key={p.id} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-white transition-colors cursor-pointer" onClick={() => toggleProgram(p.id)}>
-                            <Checkbox checked={newScheme.programIds.includes(p.id)} />
-                            <div className="flex flex-col">
-                              <span className="text-xs font-bold">{p.name}</span>
-                              <span className="text-[10px] text-muted-foreground font-mono">{p.code}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
+                {newScheme.isInstitutional && (
+                  <div className="space-y-2">
+                    <Label className="text-[10px] uppercase font-bold">Target Vertical Pool</Label>
+                    <Select value={newScheme.poolVertical} onValueChange={(v: any) => setNewScheme({...newScheme, poolVertical: v})}>
+                      <SelectTrigger><SelectValue placeholder="Select Vertical..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="B.Tech">B.Tech (Engineering)</SelectItem>
+                        <SelectItem value="BBA">BBA (Management)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                ) : (
-                  <Select onValueChange={(v) => setNewScheme({...newScheme, programIds: [v], branch: ''})}>
-                    <SelectTrigger className="h-12"><SelectValue placeholder="Select program..." /></SelectTrigger>
-                    <SelectContent>
-                      {availablePrograms.map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.name} ({p.code})</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                 )}
               </div>
+            )}
 
-              {newScheme.programIds.length > 0 && (
-                <>
-                  <div className="space-y-2 p-4 bg-muted/30 rounded-lg border border-dashed animate-in fade-in slide-in-from-top-1">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">2. Institutional Vertical Assignment</Label>
-                    <p className="text-sm font-semibold text-primary">
-                      {newScheme.isInstitutional ? `${newScheme.poolVertical} Common Pool` : templateProgram?.faculty}
-                    </p>
-                  </div>
-
-                  {!newScheme.isInstitutional && !isCommonBos && templateProgram?.branches?.length ? (
-                    <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
-                      <Label className="text-sm font-bold">3. Select Specialization / Branch</Label>
-                      <Select value={newScheme.branch} onValueChange={(v) => setNewScheme({...newScheme, branch: v})}>
-                        <SelectTrigger className="h-12"><SelectValue placeholder="Select branch..." /></SelectTrigger>
-                        <SelectContent>
-                          {templateProgram.branches.map(b => (
-                            <SelectItem key={b} value={b}>{b}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  ) : null}
-                  
-                  <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
-                    <Label className="text-sm font-bold">4. Batch Year</Label>
-                    <Input 
-                      placeholder="e.g., 2024-28" 
-                      className="h-12"
-                      value={newScheme.batchYear} 
-                      onChange={(e) => setNewScheme({...newScheme, batchYear: e.target.value})} 
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-          ) : (
-            <div className="py-4 space-y-6">
-              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 text-[11px] text-primary flex gap-3">
-                <ShieldCheck className="w-5 h-5 shrink-0" />
-                <p><b>Auto-Coding Policy:</b> Branch Code replaces XX pattern. Suffixes (e.g., 101, 102) are audited for global uniqueness within the Branch. Sessional/Lab slots use 'P' pedagogy. <b>Elective slots provision three sub-options (.1, .2, .3).</b></p>
-              </div>
-              
-              <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl flex gap-3 text-blue-800 text-[10px]">
-                <Info className="w-4 h-4 shrink-0" />
-                <p>You are about to instantiate {newScheme.programIds.length} scheme(s). The patterns defined below will be applied to each program frameworks' common pool slots.</p>
-              </div>
-
-              <ScrollArea className="h-[400px] pr-4">
-                {Array.from({ length: templateProgram?.totalSemesters || 8 }, (_, i) => i + 1).map(sem => {
-                  const slotsInSem = semesterSlots.filter(s => s.semester === sem);
-                  return (
-                    <div key={sem} className="mb-6 border rounded-xl p-4 bg-muted/20">
-                      <h4 className="font-headline font-bold text-sm mb-4 flex items-center justify-between">
-                         Semester {sem}
-                         {slotsInSem.length === 0 && <span className="text-[10px] font-normal text-muted-foreground italic">(No branch patterns defined)</span>}
-                      </h4>
-                      <div className="space-y-4">
-                        {slotsInSem.map(slot => (
-                          <div key={slot.id} className="grid grid-cols-12 gap-3 items-end border-b pb-4 last:border-0 last:pb-0">
-                            <div className="col-span-2"><Label className="text-[10px] uppercase font-bold">Category</Label><div className="h-9 flex items-center px-3 bg-white border rounded text-[10px]">{slot.creditCategory}</div></div>
-                            <div className="col-span-2"><Label className="text-[10px] uppercase font-bold">Method</Label><div className="h-9 flex items-center px-3 bg-white border rounded text-[10px]">{slot.type}</div></div>
-                            <div className="col-span-1"><Label className="text-[10px] uppercase font-bold">Credits</Label><div className="h-9 flex items-center justify-center bg-white border rounded text-[10px] font-bold">{slot.credits}</div></div>
-                            <div className="col-span-2"><Label className="text-[10px] uppercase font-bold">Group ID</Label><div className="h-9 flex items-center px-3 bg-white border rounded text-[10px]">{slot.electiveGroupId || '-'}</div></div>
-                            <div className="col-span-2"><Label className="text-[10px] uppercase font-bold">Code Pattern</Label><div className="h-9 flex items-center px-3 bg-muted border rounded text-[10px] font-mono">{slot.subjectCode?.replace('XX', 'BRANCH')}</div></div>
-                            <div className="col-span-3"><Label className="text-[10px] uppercase font-bold">Title</Label><Input value={slot.title || ''} onChange={e => updateSlot(slot.id, { title: e.target.value })} className="h-9" /></div>
+            {!newScheme.isInstitutional && (
+              <>
+                <div className="space-y-4">
+                  <Label className="text-sm font-bold">Select Academic Program(s)</Label>
+                  <div className="border rounded-xl p-2 bg-muted/10">
+                    <ScrollArea className="h-[180px] px-3">
+                      {availablePrograms.map(p => (
+                        <div key={p.id} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-white cursor-pointer" onClick={() => toggleProgram(p.id)}>
+                          <Checkbox checked={newScheme.programIds.includes(p.id)} />
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold">{p.name}</span>
+                            <span className="text-[10px] text-muted-foreground font-mono">{p.code}</span>
                           </div>
+                        </div>
+                      ))}
+                    </ScrollArea>
+                  </div>
+                </div>
+
+                {newScheme.programIds.length > 0 && templateProgram?.branches?.length && (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-bold">Select Specialization / Branch</Label>
+                    <Select value={newScheme.branch} onValueChange={(v) => setNewScheme({...newScheme, branch: v})}>
+                      <SelectTrigger><SelectValue placeholder="Select branch..." /></SelectTrigger>
+                      <SelectContent>
+                        {templateProgram.branches.map(b => (
+                          <SelectItem key={b} value={b}>{b}</SelectItem>
                         ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </ScrollArea>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </>
+            )}
+            
+            <div className="space-y-2">
+              <Label className="text-sm font-bold">Batch Year</Label>
+              <Input placeholder="e.g., 2024" value={newScheme.batchYear} onChange={(e) => setNewScheme({...newScheme, batchYear: e.target.value})} />
             </div>
-          )}
+          </div>
 
           <DialogFooter>
-            {step === 1 ? (
-              <Button onClick={() => setStep(2)} disabled={newScheme.programIds.length === 0 || !newScheme.batchYear || (newScheme.isInstitutional && !newScheme.poolVertical)}>
-                Verify Templates <ArrowRight className="w-4 h-4 ml-2" />
+            {newScheme.isInstitutional ? (
+              <Button onClick={handleCreateScheme} disabled={isCreating || !newScheme.batchYear || !newScheme.poolVertical}>
+                {isCreating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+                Initialize Blank Pool
               </Button>
             ) : (
-              <div className="flex gap-2">
-                <Button variant="ghost" onClick={() => { setStep(1); setSemesterSlots([]); }}>Back</Button>
-                <Button onClick={handleCreateScheme} disabled={isCreating}>
-                  {isCreating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <GraduationCap className="w-4 h-4 mr-2" />}
-                  {newScheme.programIds.length > 1 ? `Instantiate Batch (${newScheme.programIds.length})` : 'Instantiate Scheme'}
-                </Button>
-              </div>
+              <Button onClick={() => setStep(2)} disabled={newScheme.programIds.length === 0 || !newScheme.batchYear || !newScheme.branch}>
+                Verify Template Patterns <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
             )}
           </DialogFooter>
         </DialogContent>
