@@ -7,13 +7,14 @@ import { Scheme, Program, UserProfile, CreditCategory, SubjectType } from '@/lib
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, BookOpen, Loader2, FileText, ArrowRight, ShieldCheck, Hash, Trash2, GraduationCap, Info, Layers } from 'lucide-react';
+import { Plus, BookOpen, Loader2, FileText, ArrowRight, ShieldCheck, Hash, Trash2, GraduationCap, Info, Layers, CheckCircle2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
@@ -55,7 +56,7 @@ export default function SchemesPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [step, setStep] = useState(1);
   const [newScheme, setNewScheme] = useState({
-    programId: '',
+    programIds: [] as string[],
     branch: '',
     batchYear: '',
     version: 'v1.0',
@@ -132,17 +133,18 @@ export default function SchemesPage() {
     return programs.filter(p => managedIds.has(p.id));
   }, [programs, profile, isGlobalAdmin, isCommonBos]);
 
-  const selectedProgram = programs.find(p => p.id === newScheme.programId);
+  // For Institutional mode, we pick the first selected program to load templates
+  const templateProgram = programs.find(p => p.id === newScheme.programIds[0]);
 
   useEffect(() => {
-    if (selectedProgram && step === 2) {
-      const template = selectedProgram.slotTemplate || [];
+    if (templateProgram && step === 2) {
+      const template = templateProgram.slotTemplate || [];
       setSemesterSlots(template.map(t => ({
         ...t,
         isInherited: true
       })));
     }
-  }, [selectedProgram, step]);
+  }, [templateProgram, step]);
 
   const updateSlot = (id: string, updates: Partial<SlotConfig>) => {
     setSemesterSlots(prev => prev.map(s => {
@@ -157,121 +159,157 @@ export default function SchemesPage() {
     }));
   };
 
+  const toggleProgram = (pid: string) => {
+    setNewScheme(prev => {
+      const ids = prev.programIds.includes(pid) 
+        ? prev.programIds.filter(id => id !== pid)
+        : [...prev.programIds, pid];
+      return { ...prev, programIds: ids };
+    });
+  };
+
   const handleCreateScheme = async () => {
-    if (!newScheme.programId || !newScheme.batchYear) {
-      toast({ title: "Validation Error", description: "Program and Batch are required.", variant: "destructive" });
+    if (newScheme.programIds.length === 0 || !newScheme.batchYear) {
+      toast({ title: "Validation Error", description: "At least one program and a Batch Year are required.", variant: "destructive" });
       return;
     }
-    if (!selectedProgram) return;
+    
     setIsCreating(true);
+    let createdCount = 0;
 
-    let branchName = newScheme.branch;
-    let isInstitutional = false;
-
-    if (isGlobalAdmin && newScheme.isInstitutional) {
-      branchName = `${newScheme.poolVertical} (Common BOS) Pool`;
-      isInstitutional = true;
-    } else if (isCommonBos) {
-      branchName = `${profile?.faculty} Pool`;
-      isInstitutional = true;
-    }
-
-    const branchPrefix = isInstitutional ? 'GN' : (selectedProgram.branchPrefixes?.[branchName] || branchName.substring(0, 2).toUpperCase());
-    
-    const creationYear = new Date().getFullYear();
-    const generatedCode = `${selectedProgram.code}-${branchPrefix}-${creationYear}`;
-    const schemeRef = doc(db, 'schemes', generatedCode);
-    
     try {
-      const existing = await getDoc(schemeRef);
-      if (existing.exists()) {
-        toast({ title: "Conflict", description: `Scheme ${generatedCode} already exists.`, variant: "destructive" });
-        setIsCreating(false);
-        return;
-      }
-
       const allSyllabiSnap = await getDocs(collectionGroup(db, 'syllabi'));
       const globalUsedCodes = new Set(allSyllabiSnap.docs.map(d => d.data().subjectCode as string));
+      const creationYear = new Date().getFullYear();
 
-      await setDoc(schemeRef, {
-        programId: newScheme.programId,
-        branch: branchName,
-        batchYear: newScheme.batchYear,
-        version: newScheme.version,
-        id: generatedCode,
-        schemeCode: generatedCode,
-        status: 'Draft',
-        createdBy: user?.uid || '',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        isCommonPoolScheme: isInstitutional,
-      });
+      for (const programId of newScheme.programIds) {
+        const selectedProgram = programs.find(p => p.id === programId);
+        if (!selectedProgram) continue;
 
-      const batch = writeBatch(db);
-      const usedSuffixesInScheme = new Map<number, Set<string>>();
+        let branchName = newScheme.branch;
+        let isInstitutional = false;
 
-      for (const slot of semesterSlots) {
-        const cat = slot.creditCategory;
-        const pedagogy = slot.type === 'Lab/Sessional' ? 'P' : (cat === 'PRJ' ? 'I' : 'L');
+        if (isGlobalAdmin && newScheme.isInstitutional) {
+          branchName = `${newScheme.poolVertical} (Common BOS) Pool`;
+          isInstitutional = true;
+        } else if (isCommonBos) {
+          branchName = `${profile?.faculty} Pool`;
+          isInstitutional = true;
+        }
+
+        const branchPrefix = isInstitutional ? 'GN' : (selectedProgram.branchPrefixes?.[branchName] || branchName.substring(0, 2).toUpperCase());
+        const generatedCode = `${selectedProgram.code}-${branchPrefix}-${creationYear}`;
+        const schemeRef = doc(db, 'schemes', generatedCode);
         
-        let pillar = 'C';
-        if (cat === 'DSE' || cat === 'OFE') pillar = 'E';
-        else if (cat === 'SEC') pillar = 'S';
-        else if (cat === 'VAC') pillar = 'V';
-        else if (cat === 'AEC') pillar = 'A';
-        else if (cat === 'MDC') pillar = 'M';
-        else if (cat === 'PRJ') pillar = 'P';
+        const existing = await getDoc(schemeRef);
+        if (existing.exists()) {
+          console.warn(`Scheme ${generatedCode} already exists. Skipping.`);
+          continue;
+        }
 
-        const year = Math.ceil(slot.semester / 2);
-        if (!usedSuffixesInScheme.has(year)) usedSuffixesInScheme.set(year, new Set());
+        await setDoc(schemeRef, {
+          programId: programId,
+          branch: branchName,
+          batchYear: newScheme.batchYear,
+          version: newScheme.version,
+          id: generatedCode,
+          schemeCode: generatedCode,
+          status: 'Draft',
+          createdBy: user?.uid || '',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          isCommonPoolScheme: Boolean(isInstitutional),
+        });
 
-        const generateUniqueCode = (baseBranch: string) => {
-          let sequence = 1;
-          let finalCode = '';
-          const yearSet = usedSuffixesInScheme.get(year)!;
+        const batch = writeBatch(db);
+        const usedSuffixesInScheme = new Map<number, Set<string>>();
 
-          while (sequence < 100) {
-            const seqStr = String(sequence).padStart(2, '0');
-            const suffix = `${year}${seqStr}`;
-            
-            const globalConflict = Array.from(globalUsedCodes).some(code => 
-              code.startsWith(baseBranch) && (code.endsWith(suffix) || code.includes(suffix + '.'))
-            );
+        for (const slot of semesterSlots) {
+          const cat = slot.creditCategory;
+          const pedagogy = slot.type === 'Lab/Sessional' ? 'P' : (cat === 'PRJ' ? 'I' : 'L');
+          
+          let pillar = 'C';
+          if (cat === 'DSE' || cat === 'OFE') pillar = 'E';
+          else if (cat === 'SEC') pillar = 'S';
+          else if (cat === 'VAC') pillar = 'V';
+          else if (cat === 'AEC') pillar = 'A';
+          else if (cat === 'MDC') pillar = 'M';
+          else if (cat === 'PRJ') pillar = 'P';
 
-            if (!yearSet.has(seqStr) && !globalConflict) {
-              finalCode = `${baseBranch}${pedagogy}${pillar}${suffix}`;
-              yearSet.add(seqStr);
-              break;
+          const year = Math.ceil(slot.semester / 2);
+          if (!usedSuffixesInScheme.has(year)) usedSuffixesInScheme.set(year, new Set());
+
+          const generateUniqueCode = (baseBranch: string) => {
+            let sequence = 1;
+            let finalCode = '';
+            const yearSet = usedSuffixesInScheme.get(year)!;
+
+            while (sequence < 100) {
+              const seqStr = String(sequence).padStart(2, '0');
+              const suffix = `${year}${seqStr}`;
+              
+              const globalConflict = Array.from(globalUsedCodes).some(code => 
+                code.startsWith(baseBranch) && (code.endsWith(suffix) || code.includes(suffix + '.'))
+              );
+
+              if (!yearSet.has(seqStr) && !globalConflict) {
+                finalCode = `${baseBranch}${pedagogy}${pillar}${suffix}`;
+                yearSet.add(seqStr);
+                break;
+              }
+              sequence++;
             }
-            sequence++;
-          }
-          if (!finalCode) throw new Error(`Suffix range exhausted for Year ${year} in Branch ${baseBranch}`);
-          return finalCode;
-        };
+            if (!finalCode) return `${baseBranch}${pedagogy}${pillar}${year}99`; // Fallback
+            return finalCode;
+          };
 
-        const isElective = !['DSC', 'PRJ', 'SEC'].includes(cat);
-        const baseUniqueCode = generateUniqueCode(branchPrefix);
-        const sharedGroupId = slot.electiveGroupId || `G-${slot.id}`;
+          const isElective = !['DSC', 'PRJ', 'SEC'].includes(cat);
+          const baseUniqueCode = generateUniqueCode(branchPrefix);
+          const sharedGroupId = slot.electiveGroupId || `G-${slot.id}`;
 
-        if (isElective) {
-          for (let i = 1; i <= 3; i++) {
-            const optionCode = `${baseUniqueCode}.${i}`;
-            const slotId = `SLOT-${cat}-${slot.semester}-${slot.id}-${i}`;
+          if (isElective) {
+            for (let i = 1; i <= 3; i++) {
+              const optionCode = `${baseUniqueCode}.${i}`;
+              const slotId = `SLOT-${cat}-${slot.semester}-${slot.id}-${i}`;
+              const slotRef = doc(db, 'schemes', generatedCode, 'syllabi', slotId);
+              
+              batch.set(slotRef, {
+                id: slotId,
+                schemeId: generatedCode,
+                subjectCode: optionCode,
+                semester: slot.semester,
+                creditCategory: cat,
+                credits: slot.credits,
+                title: slot.title ? `${slot.title} (Option ${i})` : `${cat} (Option ${i})`,
+                type: slot.type,
+                lectureCredits: slot.lectureCredits,
+                tutorialCredits: slot.tutorialCredits,
+                practicalCredits: slot.practicalCredits,
+                electiveGroupId: sharedGroupId,
+                isSlot: true,
+                units: [],
+                poMappings: {},
+                textBooks: [],
+                referenceBooks: []
+              });
+            }
+          } else {
+            const slotId = `SLOT-${cat}-${slot.semester}-${slot.id}`;
             const slotRef = doc(db, 'schemes', generatedCode, 'syllabi', slotId);
             
             batch.set(slotRef, {
               id: slotId,
               schemeId: generatedCode,
-              subjectCode: optionCode,
+              subjectCode: baseUniqueCode,
               semester: slot.semester,
               creditCategory: cat,
               credits: slot.credits,
-              title: slot.title ? `${slot.title} (Option ${i})` : `${cat} (Option ${i})`,
+              title: slot.title || `${cat}`,
               type: slot.type,
               lectureCredits: slot.lectureCredits,
               tutorialCredits: slot.tutorialCredits,
               practicalCredits: slot.practicalCredits,
-              electiveGroupId: sharedGroupId,
+              electiveGroupId: '',
               isSlot: true,
               units: [],
               poMappings: {},
@@ -279,37 +317,18 @@ export default function SchemesPage() {
               referenceBooks: []
             });
           }
-        } else {
-          const slotId = `SLOT-${cat}-${slot.semester}-${slot.id}`;
-          const slotRef = doc(db, 'schemes', generatedCode, 'syllabi', slotId);
-          
-          batch.set(slotRef, {
-            id: slotId,
-            schemeId: generatedCode,
-            subjectCode: baseUniqueCode,
-            semester: slot.semester,
-            creditCategory: cat,
-            credits: slot.credits,
-            title: slot.title || `${cat}`,
-            type: slot.type,
-            lectureCredits: slot.lectureCredits,
-            tutorialCredits: slot.tutorialCredits,
-            practicalCredits: slot.practicalCredits,
-            electiveGroupId: '',
-            isSlot: true,
-            units: [],
-            poMappings: {},
-            textBooks: [],
-            referenceBooks: []
-          });
         }
+
+        await batch.commit();
+        createdCount++;
       }
 
-      await batch.commit();
-      toast({ title: "Success", description: `Scheme initialized successfully.` });
-      router.push(`/dashboard/schemes/${generatedCode}`);
+      toast({ title: "Batch Process Complete", description: `Successfully initialized ${createdCount} institutional scheme(s).` });
+      setIsDialogOpen(false);
+      setStep(1);
+      setNewScheme({ programIds: [], branch: '', batchYear: '', version: 'v1.0', isInstitutional: false, poolVertical: '' });
     } catch (error: any) {
-      toast({ title: "Failed", description: error.message, variant: "destructive" });
+      toast({ title: "Operation Failed", description: error.message, variant: "destructive" });
     } finally {
       setIsCreating(false);
     }
@@ -393,7 +412,7 @@ export default function SchemesPage() {
           <DialogHeader>
             <DialogTitle>{step === 1 ? 'Academic Identity' : 'Institutional Code Resolution'}</DialogTitle>
             <DialogDescription>
-              {step === 1 ? 'Select the program framework to instantiate a new curriculum scheme.' : 'Review auto-generated codes for template slots. Electives will automatically generate 3 options.'}
+              {step === 1 ? 'Select program frameworks to instantiate institutional curriculum pools.' : 'Review auto-generated codes for template slots. Electives will automatically generate 3 options.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -407,13 +426,13 @@ export default function SchemesPage() {
                     </Label>
                     <Switch 
                       checked={newScheme.isInstitutional} 
-                      onCheckedChange={(checked) => setNewScheme({...newScheme, isInstitutional: checked, branch: '', poolVertical: ''})} 
+                      onCheckedChange={(checked) => setNewScheme({...newScheme, isInstitutional: checked, branch: '', poolVertical: '', programIds: []})} 
                     />
                   </div>
                   {newScheme.isInstitutional && (
                     <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
                       <Label className="text-[10px] uppercase font-bold">Select Vertical Pool</Label>
-                      <Select value={newScheme.poolVertical} onValueChange={(v: any) => setNewScheme({...newScheme, poolVertical: v})}>
+                      <Select value={newScheme.poolVertical} onValueChange={(v: any) => setNewScheme({...newScheme, poolVertical: v, programIds: []})}>
                         <SelectTrigger className="h-10"><SelectValue placeholder="Choose Pool..." /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="B.Tech">B.Tech (Engineering)</SelectItem>
@@ -432,32 +451,64 @@ export default function SchemesPage() {
                 </div>
               )}
               
-              <div className="space-y-2">
-                <Label className="text-sm font-bold">1. Select Academic Program</Label>
-                <Select onValueChange={(v) => setNewScheme({...newScheme, programId: v, branch: ''})}>
-                  <SelectTrigger className="h-12"><SelectValue placeholder="Select program..." /></SelectTrigger>
-                  <SelectContent>
-                    {availablePrograms.map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.name} ({p.code})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-bold">1. Select Academic Program(s)</Label>
+                  {newScheme.isInstitutional && availablePrograms.length > 0 && (
+                    <Button variant="link" size="sm" className="h-auto p-0 text-[10px] uppercase font-black" onClick={() => {
+                      const allIds = availablePrograms.map(p => p.id);
+                      setNewScheme(prev => ({ ...prev, programIds: prev.programIds.length === allIds.length ? [] : allIds }));
+                    }}>
+                      {newScheme.programIds.length === availablePrograms.length ? 'Deselect All' : 'Select All'}
+                    </Button>
+                  )}
+                </div>
+
+                {newScheme.isInstitutional ? (
+                  <div className="border rounded-xl p-2 bg-muted/10">
+                    <ScrollArea className="h-[180px] px-3">
+                      <div className="space-y-2 py-2">
+                        {availablePrograms.length === 0 && <p className="text-center py-10 text-muted-foreground text-xs italic">No programs found for this vertical.</p>}
+                        {availablePrograms.map(p => (
+                          <div key={p.id} className="flex items-center space-x-3 p-2 rounded-lg hover:bg-white transition-colors cursor-pointer" onClick={() => toggleProgram(p.id)}>
+                            <Checkbox checked={newScheme.programIds.includes(p.id)} />
+                            <div className="flex flex-col">
+                              <span className="text-xs font-bold">{p.name}</span>
+                              <span className="text-[10px] text-muted-foreground font-mono">{p.code}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                ) : (
+                  <Select onValueChange={(v) => setNewScheme({...newScheme, programIds: [v], branch: ''})}>
+                    <SelectTrigger className="h-12"><SelectValue placeholder="Select program..." /></SelectTrigger>
+                    <SelectContent>
+                      {availablePrograms.map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.name} ({p.code})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
-              {selectedProgram && (
+              {newScheme.programIds.length > 0 && (
                 <>
                   <div className="space-y-2 p-4 bg-muted/30 rounded-lg border border-dashed animate-in fade-in slide-in-from-top-1">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">2. Assigned Faculty (System Locked)</Label>
-                    <p className="text-sm font-semibold text-primary">{selectedProgram.faculty}</p>
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">2. Institutional Vertical Assignment</Label>
+                    <p className="text-sm font-semibold text-primary">
+                      {newScheme.isInstitutional ? `${newScheme.poolVertical} Common Pool` : templateProgram?.faculty}
+                    </p>
                   </div>
 
-                  {!newScheme.isInstitutional && !isCommonBos && selectedProgram?.branches?.length ? (
+                  {!newScheme.isInstitutional && !isCommonBos && templateProgram?.branches?.length ? (
                     <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
                       <Label className="text-sm font-bold">3. Select Specialization / Branch</Label>
                       <Select value={newScheme.branch} onValueChange={(v) => setNewScheme({...newScheme, branch: v})}>
                         <SelectTrigger className="h-12"><SelectValue placeholder="Select branch..." /></SelectTrigger>
                         <SelectContent>
-                          {selectedProgram.branches.map(b => (
+                          {templateProgram.branches.map(b => (
                             <SelectItem key={b} value={b}>{b}</SelectItem>
                           ))}
                         </SelectContent>
@@ -486,11 +537,11 @@ export default function SchemesPage() {
               
               <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl flex gap-3 text-blue-800 text-[10px]">
                 <Info className="w-4 h-4 shrink-0" />
-                <p>If a semester appears empty here, it means no branch-specific subjects are defined in the master template. Only Common Pool subjects (AEC/VAC/MDC) will appear in the final scheme for those semesters.</p>
+                <p>You are about to instantiate {newScheme.programIds.length} scheme(s). The patterns defined below will be applied to each program frameworks' common pool slots.</p>
               </div>
 
               <ScrollArea className="h-[400px] pr-4">
-                {Array.from({ length: selectedProgram?.totalSemesters || 8 }, (_, i) => i + 1).map(sem => {
+                {Array.from({ length: templateProgram?.totalSemesters || 8 }, (_, i) => i + 1).map(sem => {
                   const slotsInSem = semesterSlots.filter(s => s.semester === sem);
                   return (
                     <div key={sem} className="mb-6 border rounded-xl p-4 bg-muted/20">
@@ -519,15 +570,15 @@ export default function SchemesPage() {
 
           <DialogFooter>
             {step === 1 ? (
-              <Button onClick={() => setStep(2)} disabled={!newScheme.programId || !newScheme.batchYear || (newScheme.isInstitutional && !newScheme.poolVertical)}>
-                Verify Suffixes <ArrowRight className="w-4 h-4 ml-2" />
+              <Button onClick={() => setStep(2)} disabled={newScheme.programIds.length === 0 || !newScheme.batchYear || (newScheme.isInstitutional && !newScheme.poolVertical)}>
+                Verify Templates <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             ) : (
               <div className="flex gap-2">
                 <Button variant="ghost" onClick={() => { setStep(1); setSemesterSlots([]); }}>Back</Button>
                 <Button onClick={handleCreateScheme} disabled={isCreating}>
                   {isCreating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <GraduationCap className="w-4 h-4 mr-2" />}
-                  Instantiate Scheme
+                  {newScheme.programIds.length > 1 ? `Instantiate Batch (${newScheme.programIds.length})` : 'Instantiate Scheme'}
                 </Button>
               </div>
             )}
