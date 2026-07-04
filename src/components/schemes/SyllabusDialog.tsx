@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -84,17 +85,17 @@ export function SyllabusDialog({
     timetableSlot: '', electiveGroupId: ''
   });
 
-  const isAdmin = userProfile?.role === 'admin';
-  const isCommonBOS = userProfile?.faculty === 'University-wide (Common BOS)';
+  const isSuperuser = userProfile?.role === 'admin' || userProfile?.role === 'dean_academic';
+  const isCommonBOS = !!userProfile?.faculty?.includes('(Common BOS)');
 
   const itemLabel = formData.type === 'Lab/Sessional' ? 'Experiment' : 'Unit';
   const minItems = formData.type === 'Lab/Sessional' ? 8 : 5;
 
   const visibleCategories = useMemo(() => {
-    if (isAdmin || userProfile?.role === 'dean_academic') return ALL_CATEGORIES;
+    if (isSuperuser) return ALL_CATEGORIES;
     if (isCommonBOS) return ['VAC', 'MDC', 'AEC', 'OFE'] as CreditCategory[];
     return ['DSC', 'DSE', 'SEC', 'PRJ', 'OFE'] as CreditCategory[];
-  }, [isAdmin, userProfile, isCommonBOS]);
+  }, [isSuperuser, isCommonBOS]);
 
   useEffect(() => {
     if (open && syllabus) {
@@ -104,7 +105,6 @@ export function SyllabusDialog({
       const isMonitor = userProfile?.role === 'monitor';
       const canCurrentlyEdit = canEdit && !isMonitor;
       
-      // Determine initial target count based on methodology
       const targetCount = (syllabus.type === 'Lab/Sessional' || formData.type === 'Lab/Sessional') ? 8 : 5;
 
       if (canCurrentlyEdit && finalUnits.length < targetCount) {
@@ -138,7 +138,6 @@ export function SyllabusDialog({
     }
   }, [open, syllabus, userProfile, canEdit]);
 
-  // Adjust units if type changes manually
   useEffect(() => {
     if (open && formData.type) {
       const targetCount = formData.type === 'Lab/Sessional' ? 8 : 5;
@@ -257,10 +256,11 @@ export function SyllabusDialog({
 
   const isAuthorized = useMemo(() => {
     if (!userProfile || userProfile.role === 'monitor') return false; 
+    if (isSuperuser) return true;
     const isInstitutional = ['AEC', 'VAC', 'MDC'].includes(formData.creditCategory || '');
-    if (isInstitutional) return isAdmin || isCommonBOS;
+    if (isInstitutional) return isCommonBOS;
     return canEdit;
-  }, [userProfile, formData.creditCategory, canEdit, isAdmin, isCommonBOS]);
+  }, [userProfile, formData.creditCategory, canEdit, isSuperuser, isCommonBOS]);
 
   const isReadOnly = !isAuthorized;
   const isCoreCategory = formData.creditCategory === 'DSC' || formData.creditCategory === 'PRJ' || formData.creditCategory === 'SEC';
@@ -287,7 +287,7 @@ export function SyllabusDialog({
             )}
           </DialogTitle>
           <DialogDescription>
-            {isAdmin ? 'System Admin View: Institutional auditing enabled.' : 'Institutional Course Architect. Use AI to research and draft content, then modify manually.'}
+            {isSuperuser ? 'Superuser Access: Institutional auditing enabled.' : 'Institutional Course Architect. Use AI to research and draft content, then modify manually.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -326,11 +326,11 @@ export function SyllabusDialog({
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-2">
                       Subject Code 
-                      {!isAdmin && <Lock className="w-3 h-3 text-amber-600" />}
+                      {!isSuperuser && <Lock className="w-3 h-3 text-amber-600" />}
                     </Label>
                     <div className="relative">
                       <Input 
-                        disabled={!isAdmin} 
+                        disabled={!isSuperuser} 
                         value={formData.subjectCode || ''} 
                         onChange={e => {
                           const val = e.target.value.toUpperCase();
@@ -338,7 +338,7 @@ export function SyllabusDialog({
                           if (val.length >= 7) checkCodeUniqueness(val);
                         }}
                         className={cn(
-                          !isAdmin && "bg-muted/50 cursor-not-allowed font-bold text-primary",
+                          !isSuperuser && "bg-muted/50 cursor-not-allowed font-bold text-primary",
                           isCodeUnique === false && "border-destructive text-destructive focus-visible:ring-destructive",
                           isCodeUnique === true && "border-emerald-500 text-emerald-600"
                         )}

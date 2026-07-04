@@ -40,14 +40,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [poolLoading, setPoolLoading] = useState(false);
 
   useEffect(() => {
-    // We must wait for BOTH the scheme and its program to load to determine the correct pool jurisdiction
     if (!scheme || !program) return;
 
     setPoolLoading(true);
 
-    // DETERMINISTIC POOL RESOLUTION:
-    // If the program faculty or name suggests Management/BBA, pull from BBA Pool.
-    // Otherwise, default to B.Tech Pool.
     const isManagementVertical = 
       program.faculty.toLowerCase().includes('management') || 
       program.faculty.toLowerCase().includes('bba') ||
@@ -70,7 +66,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       unsubSyllabi.forEach(u => u());
       unsubSyllabi = [];
       
-      // Filter out self if this is already the pool scheme being viewed
       const poolSchemeIds = poolSnap.docs.map(d => d.id).filter(id => id !== schemeId);
       
       if (poolSchemeIds.length === 0) {
@@ -154,29 +149,32 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       canEditScheme: false, 
       canDeleteSyllabus: (s: any) => false, 
       canEditSyllabus: (s: any) => false,
-      isMonitor: false
+      isMonitor: false,
+      isSuperuser: false
     };
 
+    const isSuperuser = ['admin', 'dean_academic'].includes(profile.role);
     if (profile.role === 'monitor') {
-      return { canEditScheme: false, canDeleteSyllabus: () => false, canEditSyllabus: () => false, isMonitor: true };
+      return { canEditScheme: false, canDeleteSyllabus: () => false, canEditSyllabus: () => false, isMonitor: true, isSuperuser: false };
     }
 
-    const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile.role);
     const isProgramDean = profile.role === 'dean_faculty' && profile.faculty === program.faculty;
     const isCommonBOS = !!profile.faculty?.includes('(Common BOS)');
     const isCommonBOSConvenor = isCommonBOS && profile.role === 'bos_convenor';
     const myBranchRole = profile.managedBranches?.find(m => m.programId === scheme.programId && m.branch === scheme.branch)?.role;
 
-    const canEditScheme = isGlobalAdmin || isProgramDean || (scheme.isCommonPoolScheme ? isCommonBOS : myBranchRole === 'bos_convenor');
+    // Admin/Dean can edit EVERYTHING
+    const canEditScheme = isSuperuser || isProgramDean || (scheme.isCommonPoolScheme ? isCommonBOS : myBranchRole === 'bos_convenor');
 
     const canEditSyllabus = (s: any) => {
+      if (isSuperuser) return true;
       const isInstitutional = ['AEC', 'VAC', 'MDC'].includes(s?.creditCategory);
-      if (isInstitutional) return isGlobalAdmin || isCommonBOS;
-      return isGlobalAdmin || isProgramDean || !!myBranchRole || canEditScheme;
+      if (isInstitutional) return isCommonBOS;
+      return isProgramDean || !!myBranchRole || canEditScheme;
     };
 
     const canDeleteSyllabus = (s: any) => {
-      if (isGlobalAdmin) return true;
+      if (isSuperuser) return true;
       // Allow deletion if it's a common pool and the user is the convenor of THAT specific common pool
       if (scheme.isCommonPoolScheme && isCommonBOSConvenor) {
         return profile.faculty === scheme.branch?.replace(' Pool', '');
@@ -184,7 +182,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       return false;
     };
 
-    return { canEditScheme, canDeleteSyllabus, canEditSyllabus, isMonitor: false };
+    return { canEditScheme, canDeleteSyllabus, canEditSyllabus, isMonitor: false, isSuperuser };
   }, [profile, profileLoading, scheme, program]);
 
   const creditDistribution = useMemo(() => {
@@ -295,7 +293,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="outline" onClick={() => exportFullSchemeToPDF(scheme, program!, syllabi)}><FileText className="w-4 h-4 mr-2" /> Structure</Button>
           <Button variant="outline" onClick={() => exportCompleteSyllabusToPDF(scheme, program!, syllabi)}><BookOpen className="w-4 h-4 mr-2" /> Syllabus Book</Button>
-          {permissions.canEditScheme && scheme.status === 'Draft' && (
+          {permissions.canEditScheme && (scheme.status === 'Draft' || permissions.isSuperuser) && (
             <Button className="gap-2 shadow-lg" disabled={!isSchemeValid} onClick={() => handleUpdateScheme({ status: 'Pending Dean' })}>
               <Send className="w-4 h-4" /> Submit
             </Button>
@@ -434,7 +432,6 @@ function SubjectRow({ sub, currentSchemeId, schemeStatus, permissions, isOption,
   const isSlot = sub.isSlot || sub.isOFESlot;
   const isFromPool = sub.schemeId !== currentSchemeId;
 
-  // Institutional Title Cleanup Logic
   const displayTitle = (sub.title === 'Slot Placeholder' || sub.title === 'Institutional Pool Slot') 
     ? sub.creditCategory 
     : sub.title;
