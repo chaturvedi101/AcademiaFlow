@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -80,7 +79,7 @@ export default function SchemesPage() {
   };
 
   const filteredSchemes = useMemo(() => {
-    if (!profile) return [];
+    if (!profile || !programs.length) return [];
     if (profile.role === 'admin' || profile.role === 'dean_academic' || profile.role === 'monitor') return schemes;
     
     if (isCommonBos) {
@@ -100,8 +99,20 @@ export default function SchemesPage() {
     }
 
     if (profile.role === 'dean_faculty') return schemes.filter(s => programs.find(p => p.id === s.programId)?.faculty === profile.faculty);
+    
+    // Branch BOS: See their branches AND only THEIR relevant common pool
     const managed = profile.managedBranches || [];
-    return schemes.filter(s => s.isCommonPoolScheme || managed.some(m => m.programId === s.programId && m.branch === m.branch));
+    const isManagementVertical = managed.some(m => {
+      const p = programs.find(prog => prog.id === m.programId);
+      return p?.faculty.includes('Management') || p?.name.includes('BBA');
+    });
+
+    const targetPoolName = isManagementVertical ? 'BBA (Common BOS) Pool' : 'B.Tech (Common BOS) Pool';
+
+    return schemes.filter(s => 
+      (s.isCommonPoolScheme && s.branch === targetPoolName) || 
+      managed.some(m => m.programId === s.programId && m.branch === s.branch)
+    );
   }, [schemes, profile, programs, isCommonBos]);
 
   const availablePrograms = useMemo(() => {

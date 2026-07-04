@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo } from 'react';
@@ -57,10 +56,17 @@ export default function DashboardPage() {
       });
     }
 
-    // Branch BOS (and BoS Members) see their managed branches AND common pool
+    // Branch BOS: See their branches AND only THEIR relevant common pool
     const managed = profile.managedBranches || [];
+    const isManagementVertical = managed.some(m => {
+      const p = programs.find(prog => prog.id === m.programId);
+      return p?.faculty.includes('Management') || p?.name.includes('BBA');
+    });
+
+    const targetPoolName = isManagementVertical ? 'BBA (Common BOS) Pool' : 'B.Tech (Common BOS) Pool';
+
     return schemes.filter(s => 
-      s.isCommonPoolScheme || 
+      (s.isCommonPoolScheme && s.branch === targetPoolName) || 
       managed.some(m => m.programId === s.programId && m.branch === s.branch)
     );
   }, [schemes, profile, programs]);
