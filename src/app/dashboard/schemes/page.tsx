@@ -7,11 +7,12 @@ import { Scheme, Program, UserProfile, CreditCategory, SubjectType } from '@/lib
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, BookOpen, Loader2, FileText, ArrowRight, ShieldCheck, Hash, Trash2, GraduationCap, Info } from 'lucide-react';
+import { Plus, BookOpen, Loader2, FileText, ArrowRight, ShieldCheck, Hash, Trash2, GraduationCap, Info, Layers } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -57,12 +58,13 @@ export default function SchemesPage() {
     programId: '',
     branch: '',
     batchYear: '',
-    version: 'v1.0'
+    version: 'v1.0',
+    isInstitutional: false,
+    poolVertical: '' as 'B.Tech' | 'BBA' | ''
   });
 
   const [semesterSlots, setSemesterSlots] = useState<SlotConfig[]>([]);
 
-  // Institutional Logic: Identify if user is part of a Common BOS
   const isCommonBos = profile?.faculty ? profile.faculty.includes('(Common BOS)') : false;
   const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile?.role || '');
   const isAdmin = profile?.role === 'admin';
@@ -89,10 +91,7 @@ export default function SchemesPage() {
       return schemes.filter(s => {
         const prog = programs.find(p => p.id === s.programId);
         if (!prog) return false;
-        
-        // BTech BOS sees Engineering + THEIR pool
         if (isBTechBOS) return prog.faculty.includes('Engineering') || (s.isCommonPoolScheme && s.branch === 'B.Tech (Common BOS) Pool');
-        // BBA BOS sees Management + THEIR pool
         if (isBBABOS) return (prog.faculty.includes('Management') || prog.name.includes('BBA')) || (s.isCommonPoolScheme && s.branch === 'BBA (Common BOS) Pool');
         return false;
       });
@@ -100,7 +99,6 @@ export default function SchemesPage() {
 
     if (profile.role === 'dean_faculty') return schemes.filter(s => programs.find(p => p.id === s.programId)?.faculty === profile.faculty);
     
-    // Branch BOS: See their branches AND only THEIR relevant common pool
     const managed = profile.managedBranches || [];
     const isManagementVertical = managed.some(m => {
       const p = programs.find(prog => prog.id === m.programId);
@@ -167,8 +165,18 @@ export default function SchemesPage() {
     if (!selectedProgram) return;
     setIsCreating(true);
 
-    const branchName = isCommonBos ? `${profile?.faculty} Pool` : newScheme.branch;
-    const branchPrefix = isCommonBos ? 'GN' : (selectedProgram.branchPrefixes?.[branchName] || branchName.substring(0, 2).toUpperCase());
+    let branchName = newScheme.branch;
+    let isInstitutional = false;
+
+    if (isGlobalAdmin && newScheme.isInstitutional) {
+      branchName = `${newScheme.poolVertical} (Common BOS) Pool`;
+      isInstitutional = true;
+    } else if (isCommonBos) {
+      branchName = `${profile?.faculty} Pool`;
+      isInstitutional = true;
+    }
+
+    const branchPrefix = isInstitutional ? 'GN' : (selectedProgram.branchPrefixes?.[branchName] || branchName.substring(0, 2).toUpperCase());
     
     const creationYear = new Date().getFullYear();
     const generatedCode = `${selectedProgram.code}-${branchPrefix}-${creationYear}`;
@@ -182,21 +190,21 @@ export default function SchemesPage() {
         return;
       }
 
-      // University-wide uniqueness check
       const allSyllabiSnap = await getDocs(collectionGroup(db, 'syllabi'));
       const globalUsedCodes = new Set(allSyllabiSnap.docs.map(d => d.data().subjectCode as string));
 
       await setDoc(schemeRef, {
-        ...newScheme,
-        id: generatedCode,
+        programId: newScheme.programId,
         branch: branchName,
+        batchYear: newScheme.batchYear,
+        version: newScheme.version,
+        id: generatedCode,
         schemeCode: generatedCode,
         status: 'Draft',
         createdBy: user?.uid || '',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        isCommonPoolScheme: Boolean(isCommonBos),
-        version: newScheme.version || 'v1.0'
+        isCommonPoolScheme: isInstitutional,
       });
 
       const batch = writeBatch(db);
@@ -246,7 +254,6 @@ export default function SchemesPage() {
         const sharedGroupId = slot.electiveGroupId || `G-${slot.id}`;
 
         if (isElective) {
-          // Triple-option generation policy
           for (let i = 1; i <= 3; i++) {
             const optionCode = `${baseUniqueCode}.${i}`;
             const slotId = `SLOT-${cat}-${slot.semester}-${slot.id}-${i}`;
@@ -299,7 +306,7 @@ export default function SchemesPage() {
       }
 
       await batch.commit();
-      toast({ title: "Success", description: `Scheme initialized for ${profile?.faculty}.` });
+      toast({ title: "Success", description: `Scheme initialized successfully.` });
       router.push(`/dashboard/schemes/${generatedCode}`);
     } catch (error: any) {
       toast({ title: "Failed", description: error.message, variant: "destructive" });
@@ -392,12 +399,39 @@ export default function SchemesPage() {
 
           {step === 1 ? (
             <div className="space-y-6 py-4">
+              {isGlobalAdmin && (
+                <div className="p-4 bg-muted/30 rounded-xl border border-dashed space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="font-bold flex items-center gap-2">
+                      <Layers className="w-4 h-4" /> Institutional Common Pool
+                    </Label>
+                    <Switch 
+                      checked={newScheme.isInstitutional} 
+                      onCheckedChange={(checked) => setNewScheme({...newScheme, isInstitutional: checked, branch: '', poolVertical: ''})} 
+                    />
+                  </div>
+                  {newScheme.isInstitutional && (
+                    <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+                      <Label className="text-[10px] uppercase font-bold">Select Vertical Pool</Label>
+                      <Select value={newScheme.poolVertical} onValueChange={(v: any) => setNewScheme({...newScheme, poolVertical: v})}>
+                        <SelectTrigger className="h-10"><SelectValue placeholder="Choose Pool..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="B.Tech">B.Tech (Engineering)</SelectItem>
+                          <SelectItem value="BBA">BBA (Management)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {isCommonBos && (
                 <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl flex gap-3 text-emerald-800 text-xs">
                    <ShieldCheck className="w-5 h-5 shrink-0" />
                    <p><b>Pool Mode:</b> You are creating an institutional subject pool for {profile?.faculty?.replace(' (Common BOS)', '')}. These subjects will be globally available to all departments in your vertical.</p>
                 </div>
               )}
+              
               <div className="space-y-2">
                 <Label className="text-sm font-bold">1. Select Academic Program</Label>
                 <Select onValueChange={(v) => setNewScheme({...newScheme, programId: v, branch: ''})}>
@@ -417,7 +451,7 @@ export default function SchemesPage() {
                     <p className="text-sm font-semibold text-primary">{selectedProgram.faculty}</p>
                   </div>
 
-                  {!isCommonBos && selectedProgram?.branches?.length ? (
+                  {!newScheme.isInstitutional && !isCommonBos && selectedProgram?.branches?.length ? (
                     <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
                       <Label className="text-sm font-bold">3. Select Specialization / Branch</Label>
                       <Select value={newScheme.branch} onValueChange={(v) => setNewScheme({...newScheme, branch: v})}>
@@ -485,7 +519,7 @@ export default function SchemesPage() {
 
           <DialogFooter>
             {step === 1 ? (
-              <Button onClick={() => setStep(2)} disabled={!newScheme.programId || !newScheme.batchYear}>
+              <Button onClick={() => setStep(2)} disabled={!newScheme.programId || !newScheme.batchYear || (newScheme.isInstitutional && !newScheme.poolVertical)}>
                 Verify Suffixes <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             ) : (
