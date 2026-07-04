@@ -175,7 +175,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     const canDeleteSyllabus = (s: any) => {
       if (isSuperuser) return true;
-      if (scheme.isCommonPoolScheme && isCommonBOSConvenor) {
+      // Allow common pool convenors to delete subjects within their jurisdictional pools
+      if (isCommonBOSConvenor && scheme.isCommonPoolScheme) {
         return profile.faculty === scheme.branch?.replace(' Pool', '');
       }
       return false;
@@ -217,7 +218,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const handleResyncCodes = async () => {
-    if (!window.confirm("This will systematically re-generate all Course Codes in this local scheme based on institutional patterns. Proceed?")) return;
+    if (!window.confirm("This will systematically re-generate all Course Codes in this local scheme based on institutional patterns. Elective groups will share a base code with incrementing suffixes (.1, .2, .3). Proceed?")) return;
     
     setIsResyncing(true);
     try {
@@ -230,6 +231,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
       const batch = writeBatch(db);
       const usedSuffixesInScheme = new Map<number, Set<string>>();
+      
+      // Tracking maps for elective group consistency during resync
+      const groupBaseCodes = new Map<string, string>();
+      const groupCounters = new Map<string, number>();
 
       const sortedLocal = [...localSyllabi].sort((a, b) => {
         if (a.semester !== b.semester) return a.semester - b.semester;
@@ -238,6 +243,23 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
       for (const sub of sortedLocal) {
         const cat = sub.creditCategory as CreditCategory;
+        const isCore = ['DSC', 'PRJ', 'SEC'].includes(cat);
+        const groupId = sub.electiveGroupId;
+
+        // Logic for group-aware code sharing (Electives only)
+        if (!isCore && groupId && groupBaseCodes.has(groupId)) {
+          const base = groupBaseCodes.get(groupId)!;
+          const nextOption = (groupCounters.get(groupId) || 0) + 1;
+          groupCounters.set(groupId, nextOption);
+          
+          batch.update(doc(db, 'schemes', schemeId, 'syllabi', sub.id), {
+            subjectCode: `${base}.${nextOption}`,
+            updatedAt: serverTimestamp()
+          });
+          continue;
+        }
+
+        // New code generation logic
         const pedagogy = sub.type === 'Lab/Sessional' ? 'P' : (cat === 'PRJ' ? 'I' : 'L');
         
         let pillar = 'C';
@@ -251,29 +273,37 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         const year = Math.ceil(sub.semester / 2);
         if (!usedSuffixesInScheme.has(year)) usedSuffixesInScheme.set(year, new Set());
 
-        const isElective = !['DSC', 'PRJ', 'SEC'].includes(cat);
-        const groupSuffix = sub.subjectCode?.includes('.') ? sub.subjectCode.split('.').pop() : '1';
-
         let sequence = 1;
-        let finalCode = '';
+        let baseCode = '';
         const yearSet = usedSuffixesInScheme.get(year)!;
 
         while (sequence < 100) {
           const seqStr = String(sequence).padStart(2, '0');
           const suffix = `${year}${seqStr}`;
+          const candidateBase = `${branchPrefix}${pedagogy}${pillar}${suffix}`;
           
-          const baseCode = `${branchPrefix}${pedagogy}${pillar}${suffix}`;
-          const conflict = globalUsedCodes.has(baseCode) || Array.from(globalUsedCodes).some(c => c.startsWith(baseCode + '.'));
+          // Collision check against base codes OR suffixed options in global database
+          const conflict = globalUsedCodes.has(candidateBase) || 
+                           Array.from(globalUsedCodes).some(c => c.startsWith(candidateBase + '.'));
 
           if (!yearSet.has(seqStr) && !conflict) {
-            finalCode = isElective ? `${baseCode}.${groupSuffix}` : baseCode;
+            baseCode = candidateBase;
             yearSet.add(seqStr);
             break;
           }
           sequence++;
         }
 
-        if (finalCode) {
+        if (baseCode) {
+          let finalCode = baseCode;
+          
+          // Initialize grouping for electives
+          if (!isCore && groupId) {
+            groupBaseCodes.set(groupId, baseCode);
+            groupCounters.set(groupId, 1);
+            finalCode = `${baseCode}.1`;
+          }
+
           batch.update(doc(db, 'schemes', schemeId, 'syllabi', sub.id), {
             subjectCode: finalCode,
             updatedAt: serverTimestamp()
@@ -282,7 +312,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       }
 
       await batch.commit();
-      toast({ title: "Codes Resynced", description: "All local course codes have been systematically updated." });
+      toast({ title: "Codes Resynced", description: "All local course codes have been systematically updated with elective grouping logic." });
     } catch (error: any) {
       toast({ title: "Resync Failed", description: error.message, variant: "destructive" });
     } finally {
