@@ -63,8 +63,8 @@ export default function SchemesPage() {
 
   const [semesterSlots, setSemesterSlots] = useState<SlotConfig[]>([]);
 
-  // Common BOS Status
-  const isCommonBos = profile?.faculty?.includes('(Common BOS)');
+  // Institutional Logic: Identify if user is part of a Common BOS
+  const isCommonBos = !!profile?.faculty?.includes('(Common BOS)');
   const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile?.role || '');
   const isAdmin = profile?.role === 'admin';
 
@@ -184,7 +184,7 @@ export default function SchemesPage() {
         createdBy: user?.uid || '',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        isCommonPoolScheme: isCommonBos,
+        isCommonPoolScheme: isCommonBos, // Cast to boolean to avoid undefined error in Firestore
         version: newScheme.version || 'v1.0'
       });
 
@@ -235,6 +235,7 @@ export default function SchemesPage() {
         const sharedGroupId = slot.electiveGroupId || `G-${slot.id}`;
 
         if (isElective) {
+          // Triple-option generation policy
           for (let i = 1; i <= 3; i++) {
             const optionCode = `${baseUniqueCode}.${i}`;
             const slotId = `SLOT-${cat}-${slot.semester}-${slot.id}-${i}`;

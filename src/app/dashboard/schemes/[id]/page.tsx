@@ -144,7 +144,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile.role);
     const isProgramDean = profile.role === 'dean_faculty' && profile.faculty === program.faculty;
-    const isCommonBOS = profile.faculty?.includes('(Common BOS)');
+    const isCommonBOS = !!profile.faculty?.includes('(Common BOS)');
     const isCommonBOSConvenor = isCommonBOS && profile.role === 'bos_convenor';
     const myBranchRole = profile.managedBranches?.find(m => m.programId === scheme.programId && m.branch === scheme.branch)?.role;
 
@@ -415,7 +415,7 @@ function SubjectRow({ sub, currentSchemeId, schemeStatus, permissions, isOption,
   const isSlot = sub.isSlot || sub.isOFESlot;
   const isFromPool = sub.schemeId !== currentSchemeId;
 
-  // Cleanup title to avoid placeholder text
+  // Institutional Title Cleanup Logic
   const displayTitle = (sub.title === 'Slot Placeholder' || sub.title === 'Institutional Pool Slot') 
     ? sub.creditCategory 
     : sub.title;
