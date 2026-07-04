@@ -40,13 +40,25 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [poolLoading, setPoolLoading] = useState(false);
 
   useEffect(() => {
-    if (!scheme) return;
+    // We must wait for BOTH the scheme and its program to load to determine the correct pool jurisdiction
+    if (!scheme || !program) return;
 
     setPoolLoading(true);
+
+    // DETERMINISTIC POOL RESOLUTION:
+    // If the program is Management/BBA, it pulls from the BBA Pool.
+    // Otherwise, it defaults to the B.Tech (legacy university) Pool.
+    const isManagementProgram = program.faculty === 'Faculty of Management Studies' || 
+                                program.name.includes('BBA') || 
+                                scheme.branch === 'BBA (Common BOS) Pool';
+    
+    const targetPoolBranch = isManagementProgram ? 'BBA (Common BOS) Pool' : 'B.Tech (Common BOS) Pool';
+
     const poolQuery = query(
       collection(db, 'schemes'),
       where('batchYear', '==', scheme.batchYear),
-      where('isCommonPoolScheme', '==', true)
+      where('isCommonPoolScheme', '==', true),
+      where('branch', '==', targetPoolBranch)
     );
 
     let unsubSyllabi: Unsubscribe[] = [];
@@ -55,6 +67,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       unsubSyllabi.forEach(u => u());
       unsubSyllabi = [];
       
+      // Filter out self if this is a pool scheme
       const poolSchemeIds = poolSnap.docs.map(d => d.id).filter(id => id !== schemeId);
       
       if (poolSchemeIds.length === 0) {
@@ -83,7 +96,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       unsubscribeSchemes();
       unsubSyllabi.forEach(u => u());
     };
-  }, [db, scheme, schemeId]);
+  }, [db, scheme, program, schemeId]);
 
   const [isSyllabusDialogOpen, setIsSyllabusDialogOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Partial<Syllabus> | undefined>(undefined);
@@ -157,10 +170,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     };
 
     const canDeleteSyllabus = (s: any) => {
-      // INSTITUTIONAL POLICY: Authority to delete courses is restricted to 
-      // University-level Leadership (Admin & Dean Academic) AND 
-      // Common BOS Convenors for their respective pools.
       if (isGlobalAdmin) return true;
+      // Allow deletion if it's a common pool and the user is the convenor of THAT common pool
       if (scheme.isCommonPoolScheme && isCommonBOSConvenor) return true;
       return false;
     };
