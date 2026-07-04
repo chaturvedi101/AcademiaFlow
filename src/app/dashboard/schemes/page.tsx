@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -16,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import Link from 'link';
+import Link from 'next/link';
 
 interface SlotConfig {
   id: string;
