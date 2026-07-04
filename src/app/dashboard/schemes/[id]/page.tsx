@@ -3,16 +3,16 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { useFirestore, useDoc, useCollection, useUser, useMemoFirebase } from "@/firebase";
-import { doc, collection, setDoc, deleteDoc, serverTimestamp, updateDoc, query, where, onSnapshot, Unsubscribe } from "firebase/firestore";
+import { doc, collection, setDoc, deleteDoc, serverTimestamp, updateDoc, query, where, onSnapshot, Unsubscribe, collectionGroup, getDocs, writeBatch } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown, Globe, Layers, BookOpen, Eye, Clock, Info } from "lucide-react";
+import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown, Globe, Layers, BookOpen, Eye, Clock, Info, RefreshCw } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
-import { Syllabus, Scheme, Program, UserProfile } from "@/lib/types";
+import { Syllabus, Scheme, Program, UserProfile, CreditCategory } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
@@ -38,6 +38,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
   const [poolSyllabi, setPoolSyllabi] = useState<Syllabus[]>([]);
   const [poolLoading, setPoolLoading] = useState(false);
+  const [isResyncing, setIsResyncing] = useState(false);
 
   useEffect(() => {
     if (!scheme || !program) return;
@@ -163,7 +164,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const isCommonBOSConvenor = isCommonBOS && profile.role === 'bos_convenor';
     const myBranchRole = profile.managedBranches?.find(m => m.programId === scheme.programId && m.branch === scheme.branch)?.role;
 
-    // Admin/Dean can edit EVERYTHING
     const canEditScheme = isSuperuser || isProgramDean || (scheme.isCommonPoolScheme ? isCommonBOS : myBranchRole === 'bos_convenor');
 
     const canEditSyllabus = (s: any) => {
@@ -175,7 +175,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     const canDeleteSyllabus = (s: any) => {
       if (isSuperuser) return true;
-      // Allow deletion if it's a common pool and the user is the convenor of THAT specific common pool
       if (scheme.isCommonPoolScheme && isCommonBOSConvenor) {
         return profile.faculty === scheme.branch?.replace(' Pool', '');
       }
@@ -215,6 +214,80 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const handleUpdateScheme = (updates: Partial<Scheme>) => {
     if (!permissions.canEditScheme) return;
     updateDoc(schemeRef, { ...updates, updatedAt: serverTimestamp() });
+  };
+
+  const handleResyncCodes = async () => {
+    if (!window.confirm("This will systematically re-generate all Course Codes in this local scheme based on institutional patterns. Proceed?")) return;
+    
+    setIsResyncing(true);
+    try {
+      const allSyllabiSnap = await getDocs(collectionGroup(db, 'syllabi'));
+      const globalUsedCodes = new Set(
+        allSyllabiSnap.docs
+          .filter(d => d.ref.parent.parent?.id !== schemeId)
+          .map(d => d.data().subjectCode as string)
+      );
+
+      const batch = writeBatch(db);
+      const usedSuffixesInScheme = new Map<number, Set<string>>();
+
+      const sortedLocal = [...localSyllabi].sort((a, b) => {
+        if (a.semester !== b.semester) return a.semester - b.semester;
+        return a.creditCategory.localeCompare(b.creditCategory);
+      });
+
+      for (const sub of sortedLocal) {
+        const cat = sub.creditCategory as CreditCategory;
+        const pedagogy = sub.type === 'Lab/Sessional' ? 'P' : (cat === 'PRJ' ? 'I' : 'L');
+        
+        let pillar = 'C';
+        if (cat === 'DSE' || cat === 'OFE') pillar = 'E';
+        else if (cat === 'SEC') pillar = 'S';
+        else if (cat === 'VAC') pillar = 'V';
+        else if (cat === 'AEC') pillar = 'A';
+        else if (cat === 'MDC') pillar = 'M';
+        else if (cat === 'PRJ') pillar = 'P';
+
+        const year = Math.ceil(sub.semester / 2);
+        if (!usedSuffixesInScheme.has(year)) usedSuffixesInScheme.set(year, new Set());
+
+        const isElective = !['DSC', 'PRJ', 'SEC'].includes(cat);
+        const groupSuffix = sub.subjectCode?.includes('.') ? sub.subjectCode.split('.').pop() : '1';
+
+        let sequence = 1;
+        let finalCode = '';
+        const yearSet = usedSuffixesInScheme.get(year)!;
+
+        while (sequence < 100) {
+          const seqStr = String(sequence).padStart(2, '0');
+          const suffix = `${year}${seqStr}`;
+          
+          const baseCode = `${branchPrefix}${pedagogy}${pillar}${suffix}`;
+          const conflict = globalUsedCodes.has(baseCode) || Array.from(globalUsedCodes).some(c => c.startsWith(baseCode + '.'));
+
+          if (!yearSet.has(seqStr) && !conflict) {
+            finalCode = isElective ? `${baseCode}.${groupSuffix}` : baseCode;
+            yearSet.add(seqStr);
+            break;
+          }
+          sequence++;
+        }
+
+        if (finalCode) {
+          batch.update(doc(db, 'schemes', schemeId, 'syllabi', sub.id), {
+            subjectCode: finalCode,
+            updatedAt: serverTimestamp()
+          });
+        }
+      }
+
+      await batch.commit();
+      toast({ title: "Codes Resynced", description: "All local course codes have been systematically updated." });
+    } catch (error: any) {
+      toast({ title: "Resync Failed", description: error.message, variant: "destructive" });
+    } finally {
+      setIsResyncing(false);
+    }
   };
 
   const handleSaveSyllabus = async (data: Partial<Syllabus>) => {
@@ -291,6 +364,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          {permissions.canEditScheme && (
+            <Button variant="outline" onClick={handleResyncCodes} disabled={isResyncing} className="gap-2 border-accent/20 text-accent hover:bg-accent/5">
+              {isResyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              Resync Codes
+            </Button>
+          )}
           <Button variant="outline" onClick={() => exportFullSchemeToPDF(scheme, program!, syllabi)}><FileText className="w-4 h-4 mr-2" /> Structure</Button>
           <Button variant="outline" onClick={() => exportCompleteSyllabusToPDF(scheme, program!, syllabi)}><BookOpen className="w-4 h-4 mr-2" /> Syllabus Book</Button>
           {permissions.canEditScheme && (scheme.status === 'Draft' || permissions.isSuperuser) && (
