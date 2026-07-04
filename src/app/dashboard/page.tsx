@@ -37,13 +37,13 @@ export default function DashboardPage() {
         const prog = programs.find(p => p.id === s.programId);
         if (!prog) return false;
 
-        // BTech BOS sees Engineering programs
+        // BTech BOS sees Engineering programs + THEIR common pool
         if (isBTechBOS) {
-           return prog.faculty.includes('Engineering') || s.isCommonPoolScheme;
+           return prog.faculty.includes('Engineering') || (s.isCommonPoolScheme && s.branch === 'B.Tech (Common BOS) Pool');
         }
-        // BBA BOS sees Management/BBA programs
+        // BBA BOS sees Management/BBA programs + THEIR common pool
         if (isBBABOS) {
-           return prog.faculty.includes('Management') || prog.name.includes('BBA') || s.isCommonPoolScheme;
+           return (prog.faculty.includes('Management') || prog.name.includes('BBA')) || (s.isCommonPoolScheme && s.branch === 'BBA (Common BOS) Pool');
         }
         return false;
       });
