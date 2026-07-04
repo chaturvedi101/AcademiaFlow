@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -195,7 +194,7 @@ export function SyllabusDialog({
       if (!snap.empty) {
         const docData = snap.docs[0].data() as Syllabus;
         setIsCodeUnique(false);
-        setCodeWarning(`Institutional Conflict: Code ${code} is already registered.`);
+        setCodeWarning(`Institutional Conflict: Code ${code} already registered.`);
         setConflictInfo({ schemeId: docData.schemeId, title: docData.title });
       } else {
         setIsCodeUnique(true);
@@ -203,7 +202,7 @@ export function SyllabusDialog({
         setConflictInfo(null);
       }
     } catch (e) {
-      console.error("Uniqueness audit failed:", e);
+      console.error("Audit failed:", e);
     } finally {
       setIsCheckingUniqueness(false);
     }
@@ -211,7 +210,7 @@ export function SyllabusDialog({
 
   const handleAiGenerate = async () => {
     if (!formData.title || formData.title === 'DSC' || formData.title === 'DSE') {
-      toast({ title: "Input Required", description: "Please enter a descriptive course title for the AI to research.", variant: "destructive" });
+      toast({ title: "Input Required", description: "Enter a descriptive course title.", variant: "destructive" });
       return;
     }
 
@@ -243,12 +242,9 @@ export function SyllabusDialog({
       mappedUnits.forEach(u => newExpanded[u.id] = true);
       setExpandedUnits(newExpanded);
 
-      toast({ 
-        title: "Content Generated", 
-        description: `The AI has researched and drafted ${mappedUnits.length} ${formData.type === 'Lab/Sessional' ? 'experiments' : 'units'}. Please review and modify.` 
-      });
+      toast({ title: "Generated", description: "AI content researched and applied." });
     } catch (error: any) {
-      toast({ title: "Generation Failed", description: error.message, variant: "destructive" });
+      toast({ title: "Failed", description: error.message, variant: "destructive" });
     } finally {
       setIsAiGenerating(false);
     }
@@ -275,19 +271,14 @@ export function SyllabusDialog({
               {isReadOnly ? 'Subject Specification (Locked)' : 'Course Architect'}
             </div>
             {!isReadOnly && (
-              <Button 
-                onClick={handleAiGenerate} 
-                disabled={isAiGenerating} 
-                variant="outline" 
-                className="gap-2 border-primary/20 hover:bg-primary/5 hover:text-primary animate-in fade-in slide-in-from-right-4"
-              >
+              <Button onClick={handleAiGenerate} disabled={isAiGenerating} variant="outline" className="gap-2">
                 {isAiGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-primary" />}
-                {isAiGenerating ? "Researching Content..." : "AI Syllabus Architect"}
+                {isAiGenerating ? "Generating..." : "AI Architect"}
               </Button>
             )}
           </DialogTitle>
           <DialogDescription>
-            {isSuperuser ? 'Superuser Access: Institutional auditing enabled.' : 'Institutional Course Architect. Use AI to research and draft content, then modify manually.'}
+            Configure subject content and institutional identifiers.
           </DialogDescription>
         </DialogHeader>
 
@@ -326,39 +317,24 @@ export function SyllabusDialog({
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-2">
                       Subject Code 
-                      {!isSuperuser && <Lock className="w-3 h-3 text-amber-600" />}
+                      {!isSuperuser && !isCommonBOS && <Lock className="w-3 h-3 text-amber-600" />}
                     </Label>
                     <div className="relative">
                       <Input 
-                        disabled={!isSuperuser} 
+                        disabled={!isSuperuser && !isCommonBOS} 
                         value={formData.subjectCode || ''} 
                         onChange={e => {
                           const val = e.target.value.toUpperCase();
                           setFormData({...formData, subjectCode: val});
-                          if (val.length >= 7) checkCodeUniqueness(val);
+                          if (val.length >= 5) checkCodeUniqueness(val);
                         }}
                         className={cn(
-                          !isSuperuser && "bg-muted/50 cursor-not-allowed font-bold text-primary",
-                          isCodeUnique === false && "border-destructive text-destructive focus-visible:ring-destructive",
+                          isCodeUnique === false && "border-destructive text-destructive",
                           isCodeUnique === true && "border-emerald-500 text-emerald-600"
                         )}
                       />
                       {isCheckingUniqueness && <Loader2 className="absolute right-3 top-3 w-4 h-4 animate-spin opacity-50" />}
                     </div>
-                    {codeWarning && (
-                      <div className="flex flex-col gap-1 mt-1 p-2 bg-red-50 border border-red-100 rounded text-destructive">
-                        <p className="text-[10px] font-bold flex items-center gap-1">
-                          <ShieldAlert className="w-3 h-3" />
-                          {codeWarning}
-                        </p>
-                        {conflictInfo && (
-                          <>
-                            <p className="text-[9px] font-bold opacity-80 ml-4">Conflicting with: {conflictInfo.title}</p>
-                            <p className="text-[9px] font-mono opacity-60 ml-4">Scheme ID: {conflictInfo.schemeId}</p>
-                          </>
-                        )}
-                      </div>
-                    )}
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Methodology</Label>
@@ -378,7 +354,7 @@ export function SyllabusDialog({
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Theory">Theory (L-T)</SelectItem>
-                        <SelectItem value="Lab/Sessional">Lab/Sessional (P)</SelectItem>
+                        <SelectItem value="Lab/Sessional">Lab (P)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -390,7 +366,6 @@ export function SyllabusDialog({
                       disabled={isReadOnly || isCoreCategory} 
                       value={isCoreCategory ? 'CORE SUBJECT' : (formData.electiveGroupId || '')} 
                       onChange={e => setFormData({...formData, electiveGroupId: e.target.value})} 
-                      placeholder={isCoreCategory ? '' : "e.g. Elective-I"}
                       className={isCoreCategory ? "bg-muted/50 font-medium" : ""}
                     />
                   </div>
@@ -465,20 +440,18 @@ export function SyllabusDialog({
                            <div className="space-y-2"><Label className="text-[10px] font-bold uppercase">Outcome</Label><Input disabled={isReadOnly} value={u.courseOutcome || ''} onChange={e => { const units = [...(formData.units || [])]; units[i] = { ...units[i], courseOutcome: e.target.value }; setFormData({ ...formData, units }); }} /></div>
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-[10px] font-bold uppercase">
-                            {formData.type === 'Lab/Sessional' ? 'Experiment Procedure / Details' : 'Unit Topics'}
-                          </Label>
+                          <Label className="text-[10px] font-bold uppercase">Details</Label>
                           <Textarea disabled={isReadOnly} value={u.content || ''} onChange={e => { const units = [...(formData.units || [])]; units[i] = { ...units[i], content: e.target.value }; setFormData({ ...formData, units }); }} className="min-h-[120px]" />
                         </div>
                      </CardContent>
                    </Card>
                  ))}
-                 {!isReadOnly && <Button variant="outline" className="w-full border-dashed" onClick={() => setFormData(p => ({...p, units: [...(p.units||[]), {id:Math.random().toString(36).substr(2,9), title:'', content:'', hours:0, courseOutcome:''}]}))}><Plus className="w-4 h-4 mr-2" /> Add Additional {itemLabel}</Button>}
+                 {!isReadOnly && <Button variant="outline" className="w-full border-dashed" onClick={() => setFormData(p => ({...p, units: [...(p.units||[]), {id:Math.random().toString(36).substr(2,9), title:'', content:'', hours:0, courseOutcome:''}]}))}><Plus className="w-4 h-4 mr-2" /> Add {itemLabel}</Button>}
               </TabsContent>
 
               <TabsContent value="resources" className="space-y-8">
-                 <ResourceSection title={formData.type === 'Lab/Sessional' ? "Lab Manuals & Standards" : "Text Books"} items={formData.textBooks||[]} onUpdate={(idx: number, v: string) => {const a=[...formData.textBooks!]; a[idx]=v; setFormData({...formData, textBooks:a})}} onAdd={() => setFormData({...formData, textBooks:[...(formData.textBooks||[]), '']})} onRemove={(idx: number) => setFormData({...formData, textBooks: formData.textBooks?.filter((_, i) => i !== idx)})} disabled={isReadOnly} />
-                 <ResourceSection title={formData.type === 'Lab/Sessional' ? "Software / Equipment List" : "Reference Books"} items={formData.referenceBooks||[]} onUpdate={(idx: number, v: string) => {const a=[...formData.referenceBooks!]; a[idx]=v; setFormData({...formData, referenceBooks:a})}} onAdd={() => setFormData({...formData, referenceBooks:[...(formData.referenceBooks||[]), '']})} onRemove={(idx: number) => setFormData({...formData, referenceBooks: formData.referenceBooks?.filter((_, i) => i !== idx)})} disabled={isReadOnly} />
+                 <ResourceSection title={formData.type === 'Lab/Sessional' ? "Lab Manuals" : "Text Books"} items={formData.textBooks||[]} onUpdate={(idx: number, v: string) => {const a=[...formData.textBooks!]; a[idx]=v; setFormData({...formData, textBooks:a})}} onAdd={() => setFormData({...formData, textBooks:[...(formData.textBooks||[]), '']})} onRemove={(idx: number) => setFormData({...formData, textBooks: formData.textBooks?.filter((_, i) => i !== idx)})} disabled={isReadOnly} />
+                 <ResourceSection title={formData.type === 'Lab/Sessional' ? "Equipment" : "References"} items={formData.referenceBooks||[]} onUpdate={(idx: number, v: string) => {const a=[...formData.referenceBooks!]; a[idx]=v; setFormData({...formData, referenceBooks:a})}} onAdd={() => setFormData({...formData, referenceBooks:[...(formData.referenceBooks||[]), '']})} onRemove={(idx: number) => setFormData({...formData, referenceBooks: formData.referenceBooks?.filter((_, i) => i !== idx)})} disabled={isReadOnly} />
               </TabsContent>
 
               <TabsContent value="mapping">
@@ -486,7 +459,7 @@ export function SyllabusDialog({
                    <Table>
                      <TableHeader className="bg-muted/50">
                        <TableRow>
-                         <TableHead className="w-20">{formData.type === 'Lab/Sessional' ? 'Exp' : 'CO'}</TableHead>
+                         <TableHead className="w-20">Outcome</TableHead>
                          {PO_DEFINITIONS.map(po => <TableHead key={po.code} className="text-center font-mono text-[10px]">{po.code}</TableHead>)}
                        </TableRow>
                      </TableHeader>
@@ -522,7 +495,7 @@ export function SyllabusDialog({
                onClick={() => { onSave(formData); onOpenChange(false); }}
              >
                {(isCheckingUniqueness || isAiGenerating) ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-               Save {formData.type === 'Lab/Sessional' ? 'Practical' : 'Course'} Specification
+               Save Subject
              </Button>
            )}
         </DialogFooter>
