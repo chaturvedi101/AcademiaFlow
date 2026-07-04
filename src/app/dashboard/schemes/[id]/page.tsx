@@ -46,13 +46,14 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     setPoolLoading(true);
 
     // DETERMINISTIC POOL RESOLUTION:
-    // If the program is Management/BBA, it pulls from the BBA Pool.
-    // Otherwise, it defaults to the B.Tech (legacy university) Pool.
-    const isManagementProgram = program.faculty === 'Faculty of Management Studies' || 
-                                program.name.includes('BBA') || 
-                                scheme.branch === 'BBA (Common BOS) Pool';
+    // If the program faculty or name suggests Management/BBA, pull from BBA Pool.
+    // Otherwise, default to B.Tech Pool.
+    const isManagement = 
+      program.faculty.toLowerCase().includes('management') || 
+      program.name.toLowerCase().includes('bba') ||
+      scheme.branch?.toLowerCase().includes('bba');
     
-    const targetPoolBranch = isManagementProgram ? 'BBA (Common BOS) Pool' : 'B.Tech (Common BOS) Pool';
+    const targetPoolBranch = isManagement ? 'BBA (Common BOS) Pool' : 'B.Tech (Common BOS) Pool';
 
     const poolQuery = query(
       collection(db, 'schemes'),
@@ -67,7 +68,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       unsubSyllabi.forEach(u => u());
       unsubSyllabi = [];
       
-      // Filter out self if this is a pool scheme
+      // Filter out self if this is already the pool scheme being viewed
       const poolSchemeIds = poolSnap.docs.map(d => d.id).filter(id => id !== schemeId);
       
       if (poolSchemeIds.length === 0) {
@@ -171,8 +172,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     const canDeleteSyllabus = (s: any) => {
       if (isGlobalAdmin) return true;
-      // Allow deletion if it's a common pool and the user is the convenor of THAT common pool
-      if (scheme.isCommonPoolScheme && isCommonBOSConvenor) return true;
+      // Allow deletion if it's a common pool and the user is the convenor of THAT specific common pool
+      if (scheme.isCommonPoolScheme && isCommonBOSConvenor) {
+        return profile.faculty === scheme.branch?.replace(' Pool', '');
+      }
       return false;
     };
 
@@ -242,7 +245,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const handleDeleteSyllabus = (id: string) => {
     const syllabusToDelete = localSyllabi.find(s => s.id === id);
     if (!syllabusToDelete || !permissions.canDeleteSyllabus(syllabusToDelete)) {
-      toast({ title: "Permission Denied", description: "You are not authorized to delete courses. This action is restricted to university leadership or Common BOS Convenors.", variant: "destructive" });
+      toast({ title: "Permission Denied", description: "You are not authorized to delete courses. This action is restricted to university leadership or the authorized Common BOS Convenor.", variant: "destructive" });
       return;
     }
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', id);
