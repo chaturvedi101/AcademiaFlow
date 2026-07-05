@@ -124,12 +124,55 @@ export default function SchemesPage() {
 
         toast({ title: "Pool Created", description: `${branchName} initialized.` });
       } else {
-        // Standard program creation (logic omitted for brevity but maintained from previous prompts)
-        // ... (This part would handle standard program instantiation as in your current file)
+        // Standard program creation (batch)
+        if (newScheme.programIds.length === 0 || !newScheme.branch) {
+          toast({ title: "Validation Error", description: "Programs and Branch name are required.", variant: "destructive" });
+          setIsCreating(false);
+          return;
+        }
+
+        const batch = writeBatch(db);
+        for (const pid of newScheme.programIds) {
+          const program = programs.find(p => p.id === pid);
+          if (!program) continue;
+          
+          const codePrefix = program.branchPrefixes?.[newScheme.branch] || pid.substring(0, 3).toUpperCase();
+          const sid = `${pid.toUpperCase()}-${codePrefix}-${newScheme.batchYear}`;
+          
+          batch.set(doc(db, 'schemes', sid), {
+            programId: pid,
+            branch: newScheme.branch,
+            batchYear: newScheme.batchYear,
+            version: newScheme.version,
+            id: sid,
+            schemeCode: sid,
+            status: 'Draft',
+            createdBy: user?.uid || '',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+
+          // Pattern Copy Logic
+          if (program.slotTemplate) {
+            program.slotTemplate.forEach(slot => {
+              const syllId = Math.random().toString(36).substr(2, 9);
+              batch.set(doc(db, 'schemes', sid, 'syllabi', syllId), {
+                ...slot,
+                id: syllId,
+                schemeId: sid,
+                isSlot: true,
+                updatedAt: serverTimestamp()
+              });
+            });
+          }
+        }
+        await batch.commit();
+        toast({ title: "Schemes Created", description: `${newScheme.programIds.length} frameworks initialized.` });
       }
 
       setIsDialogOpen(false);
       setNewScheme({ programIds: [], branch: '', batchYear: '', version: 'v1.0', isInstitutional: false, poolType: 'Vertical', poolVertical: '', committeeName: '' });
+      setStep(1);
     } catch (error: any) {
       toast({ title: "Operation Failed", description: error.message, variant: "destructive" });
     } finally {
@@ -237,6 +280,40 @@ export default function SchemesPage() {
               )}
             </div>
 
+            {!newScheme.isInstitutional && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-bold">Select Academic Program(s)</Label>
+                  <ScrollArea className="h-48 border rounded-lg p-4 bg-white">
+                    <div className="space-y-3">
+                      {programs.map(p => (
+                        <div key={p.id} className="flex items-center space-x-3">
+                          <Checkbox 
+                            id={p.id} 
+                            checked={newScheme.programIds.includes(p.id)}
+                            onCheckedChange={(checked) => {
+                              const ids = checked 
+                                ? [...newScheme.programIds, p.id] 
+                                : newScheme.programIds.filter(id => id !== p.id);
+                              setNewScheme({...newScheme, programIds: ids});
+                            }}
+                          />
+                          <label htmlFor={p.id} className="text-sm cursor-pointer">
+                            <span className="font-bold text-primary mr-2">{p.code}</span>
+                            {p.name}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-bold">Branch Name (Common for selected programs)</Label>
+                  <Input placeholder="e.g. Civil Engineering" value={newScheme.branch} onChange={e => setNewScheme({...newScheme, branch: e.target.value})} />
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label className="text-sm font-bold">Batch Year</Label>
               <Input placeholder="e.g. 2024" value={newScheme.batchYear} onChange={e => setNewScheme({...newScheme, batchYear: e.target.value})} />
@@ -246,7 +323,7 @@ export default function SchemesPage() {
           <DialogFooter>
             <Button onClick={handleCreateScheme} disabled={isCreating || !newScheme.batchYear || (newScheme.isInstitutional && !newScheme.poolVertical && !newScheme.committeeName)}>
               {isCreating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
-              Initialize Blank Pool
+              {newScheme.isInstitutional ? "Initialize Blank Pool" : "Instantiate Schemes"}
             </Button>
           </DialogFooter>
         </DialogContent>
