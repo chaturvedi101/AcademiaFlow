@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
@@ -8,10 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown, Globe, Layers, BookOpen, Eye, Clock, Info, RefreshCw } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Send, Trash2, Edit3, Loader2, FileText, Hash, FileDown, ChevronRight, ChevronDown, Globe, Layers, BookOpen, Eye, Clock, Info, RefreshCw, CheckCircle2 } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
-import { Syllabus, Scheme, Program, UserProfile, CreditCategory } from "@/lib/types";
+import { Syllabus, Scheme, Program, UserProfile, CreditCategory, SubmissionScope } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
@@ -38,6 +41,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [poolSyllabi, setPoolSyllabi] = useState<Syllabus[]>([]);
   const [poolLoading, setPoolLoading] = useState(false);
   const [isResyncing, setIsResyncing] = useState(false);
+  const [isSubmissionDialogOpen, setIsSubmissionDialogOpen] = useState(false);
+  const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
 
   useEffect(() => {
     if (!scheme) return;
@@ -214,12 +219,34 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const isSchemeValid = useMemo(() => {
     if (scheme?.isCommonPoolScheme) return true; // Pools don't have a rigid credit total requirement
     if (!program?.rules) return false;
+    
+    // Yearly phased validation logic
+    if (selectedScope === 'Year 1') {
+      const year1Syllabi = syllabi.filter(s => s.semester <= 2 && !s.isOFEContribution);
+      return year1Syllabi.length > 0 && year1Syllabi.every(s => !s.isSlot && (s.units?.length || 0) > 0);
+    }
+    if (selectedScope === 'Year 2') {
+      const year2Syllabi = syllabi.filter(s => s.semester <= 4 && !s.isOFEContribution);
+      return year2Syllabi.length > 0 && year2Syllabi.every(s => !s.isSlot && (s.units?.length || 0) > 0);
+    }
+    if (selectedScope === 'Year 3') {
+      const year3Syllabi = syllabi.filter(s => s.semester <= 6 && !s.isOFEContribution);
+      return year3Syllabi.length > 0 && year3Syllabi.every(s => !s.isSlot && (s.units?.length || 0) > 0);
+    }
+
+    // Complete Validation
     return creditDistribution.total === program.rules.totalRequired;
-  }, [creditDistribution, program?.rules, scheme]);
+  }, [creditDistribution, program?.rules, scheme, selectedScope, syllabi]);
 
   const handleUpdateScheme = (updates: Partial<Scheme>) => {
     if (!permissions.canEditScheme) return;
     updateDoc(schemeRef, { ...updates, updatedAt: serverTimestamp() });
+  };
+
+  const handleSubmitScheme = () => {
+    handleUpdateScheme({ status: 'Pending Dean', submissionScope: selectedScope });
+    setIsSubmissionDialogOpen(false);
+    toast({ title: "Scheme Submitted", description: `Framework submitted for approval with scope: ${selectedScope}` });
   };
 
   const handleResyncCodes = async () => {
@@ -386,7 +413,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             <span className="w-1 h-1 rounded-full bg-border"></span>
             <span>Batch: {scheme.batchYear}</span>
             <span className="w-1 h-1 rounded-full bg-border"></span>
-            <Badge variant="secondary" className="bg-amber-100 text-amber-700">{scheme.status}</Badge>
+            <Badge variant="secondary" className="bg-amber-100 text-amber-700">{scheme.status} {scheme.submissionScope ? `(${scheme.submissionScope})` : ''}</Badge>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -399,8 +426,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           <Button variant="outline" onClick={() => exportFullSchemeToPDF(scheme, program!, syllabi)}><FileText className="w-4 h-4 mr-2" /> Structure</Button>
           <Button variant="outline" onClick={() => exportCompleteSyllabusToPDF(scheme, program!, syllabi)}><BookOpen className="w-4 h-4 mr-2" /> Syllabus Book</Button>
           {permissions.canEditScheme && (scheme.status === 'Draft' || permissions.isSuperuser) && (
-            <Button className="gap-2 shadow-lg" disabled={!isSchemeValid} onClick={() => handleUpdateScheme({ status: 'Pending Dean' })}>
-              <Send className="w-4 h-4" /> Submit
+            <Button className="gap-2 shadow-lg" onClick={() => setIsSubmissionDialogOpen(true)}>
+              <Send className="w-4 h-4" /> Submit Framework
             </Button>
           )}
         </div>
@@ -525,6 +552,51 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           <div className="space-y-6"><CreditValidator currentCredits={creditDistribution} rules={program?.rules} /></div>
         )}
       </div>
+
+      <Dialog open={isSubmissionDialogOpen} onOpenChange={setIsSubmissionDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Academic Submission Policy</DialogTitle>
+            <DialogDescription>
+              Select the scope of your current submission. If the full 4-year scheme is not ready, you may submit yearly frameworks for immediate implementation.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase text-muted-foreground">Phased Implementation Scope</label>
+              <Select value={selectedScope} onValueChange={(v: SubmissionScope) => setSelectedScope(v)}>
+                <SelectTrigger className="h-12">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Year 1">First Year Finalization (Sems 1-2)</SelectItem>
+                  <SelectItem value="Year 2">Up to Second Year (Sems 1-4)</SelectItem>
+                  <SelectItem value="Year 3">Up to Third Year (Sems 1-6)</SelectItem>
+                  <SelectItem value="Complete">Complete Degree Structure (Sems 1-8)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {!isSchemeValid && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex gap-3 text-[11px] text-amber-800 leading-tight">
+                <Clock className="w-4 h-4 shrink-0 mt-0.5" />
+                <p>Your current structure does not meet the requirements for <b>{selectedScope}</b>. Ensure all relevant semesters have finalized subjects and proper credit counts.</p>
+              </div>
+            )}
+            {isSchemeValid && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex gap-3 text-[11px] text-emerald-800 leading-tight">
+                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                <p>Curriculum structure validated for <b>{selectedScope}</b>. Proceeding to {profile?.role === 'dean_faculty' ? 'Dean approval' : 'university-wide review'}.</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSubmissionDialogOpen(false)}>Cancel</Button>
+            <Button disabled={!isSchemeValid} onClick={handleSubmitScheme} className="gap-2">
+              <Send className="w-4 h-4" /> Finalize & Submit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <SyllabusDialog 
         open={isSyllabusDialogOpen} 

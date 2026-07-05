@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { CheckCircle, Eye, Loader2, FileCheck, Clock } from 'lucide-react';
+import { CheckCircle, Eye, Loader2, FileCheck, Clock, Layers } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -89,6 +89,7 @@ export default function ApprovalsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="pl-6">Program & Batch</TableHead>
+                <TableHead>Submission Scope</TableHead>
                 <TableHead>Faculty</TableHead>
                 <TableHead>Version</TableHead>
                 <TableHead className="text-right pr-6">Actions</TableHead>
@@ -101,12 +102,18 @@ export default function ApprovalsPage() {
                   <TableRow key={scheme.id}>
                     <TableCell className="pl-6">
                       <div className="space-y-1">
-                        <p className="font-bold">{program?.name}</p>
+                        <p className="font-bold">{program?.name || scheme.branch}</p>
                         <p className="text-xs text-muted-foreground">Batch: {scheme.batchYear}</p>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="text-[10px]">{program?.faculty}</Badge>
+                      <Badge variant="outline" className="gap-1 bg-accent/5 text-accent border-accent/20">
+                        <Layers className="w-3 h-3" />
+                        {scheme.submissionScope || 'Complete'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-[10px]">{program?.faculty || 'Institutional Pool'}</Badge>
                     </TableCell>
                     <TableCell>{scheme.version}</TableCell>
                     <TableCell className="text-right pr-6">
@@ -126,7 +133,7 @@ export default function ApprovalsPage() {
               })}
               {filteredSchemes.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
                     <FileCheck className="w-12 h-12 mx-auto mb-4 opacity-10" />
                     <p>No schemes currently pending your approval.</p>
                   </TableCell>

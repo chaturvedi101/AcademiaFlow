@@ -1,3 +1,4 @@
+
 'use client';
 
 import jsPDF from 'jspdf';
@@ -214,8 +215,16 @@ export const exportCompleteSyllabusToPDF = (
   doc.text(`Batch: ${scheme.batchYear}`, pageWidth / 2, 135, { align: 'center' });
   doc.text(`Framework: RTU-NEP 2020 Compliance`, pageWidth / 2, 145, { align: 'center' });
   
+  if (scheme.submissionScope && scheme.submissionScope !== 'Complete') {
+    doc.setTextColor(ACCENT_COLOR[0], ACCENT_COLOR[1], ACCENT_COLOR[2]);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`PHASED IMPLEMENTATION: ${scheme.submissionScope.toUpperCase()} ONLY`, pageWidth / 2, 155, { align: 'center' });
+    doc.setTextColor(100);
+    doc.setFont('helvetica', 'normal');
+  }
+
   doc.setFontSize(10);
-  doc.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth / 2, 160, { align: 'center' });
+  doc.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth / 2, 170, { align: 'center' });
 
   const sortedSyllabi = [...syllabi].sort((a, b) => {
     if (a.semester !== b.semester) return a.semester - b.semester;
@@ -274,7 +283,7 @@ export const exportFullSchemeToPDF = (
   doc.text(`${program.name?.toUpperCase()}`, pageWidth / 2, 35, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.text(`Branch: ${scheme.branch || 'General'} | Batch: ${scheme.batchYear}`, pageWidth / 2, 41, { align: 'center' });
-  doc.text(`Scheme Status: ${scheme.status} | Version: ${scheme.version}`, pageWidth / 2, 47, { align: 'center' });
+  doc.text(`Status: ${scheme.status} ${scheme.submissionScope ? `(${scheme.submissionScope})` : ''} | Version: ${scheme.version}`, pageWidth / 2, 47, { align: 'center' });
 
   doc.setDrawColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
   doc.setLineWidth(0.5);

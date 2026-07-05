@@ -34,6 +34,8 @@ export interface UserProfile {
 
 export type SchemeStatus = 'Draft' | 'Pending Dean' | 'Pending Academics' | 'Approved';
 
+export type SubmissionScope = 'Year 1' | 'Year 2' | 'Year 3' | 'Complete';
+
 export type SubjectType = 'Theory' | 'Lab/Sessional';
 
 export type CreditCategory = 'DSC' | 'DSE' | 'OFE' | 'VAC' | 'AEC' | 'SEC' | 'MDC' | 'PRJ';
@@ -98,6 +100,7 @@ export interface Scheme {
   branch?: string;
   batchYear: string;
   status: SchemeStatus;
+  submissionScope?: SubmissionScope;
   version: string;
   createdBy: string;
   createdAt: any;
