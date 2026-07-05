@@ -1,5 +1,5 @@
 
-export type UserRole = 'bos_convenor' | 'bos_member' | 'dean_faculty' | 'dean_academic' | 'admin' | 'monitor';
+export type UserRole = 'bos_convenor' | 'bos_member' | 'dean_faculty' | 'dean_academic' | 'admin' | 'monitor' | 'committee_convenor';
 
 export const FACULTIES = [
   "Faculty of Built Environment",
@@ -11,7 +11,12 @@ export const FACULTIES = [
   "Faculty of Arts",
   "Faculty of Sciences",
   "B.Tech (Common BOS)",
-  "BBA (Common BOS)"
+  "BBA (Common BOS)",
+  "Course Committee - Mathematics",
+  "Course Committee - Physics",
+  "Course Committee - Chemistry",
+  "Course Committee - Humanities",
+  "Course Committee - Basic Sciences"
 ] as const;
 
 export type FacultyName = typeof FACULTIES[number];
@@ -19,7 +24,7 @@ export type FacultyName = typeof FACULTIES[number];
 export interface ManagedBranch {
   programId: string;
   branch: string;
-  role: 'bos_convenor' | 'bos_member';
+  role: 'bos_convenor' | 'bos_member' | 'committee_convenor';
 }
 
 export interface UserProfile {
@@ -27,7 +32,7 @@ export interface UserProfile {
   email: string;
   displayName: string;
   role: UserRole;
-  faculty?: FacultyName; // Assigned faculty for dean_faculty or common_bos roles
+  faculty?: FacultyName; // Assigned faculty for dean_faculty, common_bos, or committee roles
   managedBranches?: ManagedBranch[];
   createdAt?: any;
 }
@@ -109,6 +114,7 @@ export interface Scheme {
   exitOptions: string[];
   abcEnabled: boolean;
   isCommonPoolScheme?: boolean; // Flag to indicate if this is the institutional common course scheme
+  isCommitteePool?: boolean; // Flag to indicate if this is a specialized Course Committee pool
 }
 
 export interface SyllabusSubUnit {
