@@ -17,9 +17,9 @@ const SyllabusInputSchema = z.object({
 
 const SyllabusOutputSchema = z.object({
   units: z.array(z.object({
-    title: z.string().describe('Unit or Experiment title'),
-    content: z.string().describe('Detailed content, topics, or experiment procedure'),
-    hours: z.number().describe('Suggested teaching hours for this item'),
+    title: z.string().describe('Unit title or Experiment name (e.g. Experiment 1: Title)'),
+    content: z.string().describe('Detailed content, topics, or experiment procedure/objective'),
+    hours: z.number().describe('Suggested teaching hours for this specific unit or experiment'),
     courseOutcome: z.string().describe('The learning outcome for this specific item'),
   })),
   suggestedTextBooks: z.array(z.string()).describe('Standard textbooks with authors and editions'),
@@ -51,8 +51,8 @@ const syllabusPrompt = ai.definePrompt({
   3. Suggest teaching hours (usually 8-10 hours per unit).
   
   Requirements for Lab/Sessional:
-  1. If methodology is "Lab/Sessional", generate exactly 10 Experiments.
-  2. Label each item as "Experiment X: [Title]".
+  1. If methodology is "Lab/Sessional", generate at least 8 to 10 Experiments.
+  2. Label each item as "Experiment X: [Title]" (e.g. Experiment 1: Synthesis of...).
   3. Content should describe the objective and list of equipment/software or procedure.
   4. Suggest teaching hours (usually 2-3 hours per experiment).
   

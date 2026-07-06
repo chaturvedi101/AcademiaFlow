@@ -122,6 +122,8 @@ export function SyllabusDialog({
   };
 
   const isAuthorized = isSuperuser || isCommonBOS || isCommitteeConvenor || canEdit;
+  const isLab = formData.type === 'Lab/Sessional';
+  const unitLabel = isLab ? 'Experiment' : 'Unit';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -129,7 +131,7 @@ export function SyllabusDialog({
         <DialogHeader className="p-6 border-b shrink-0 bg-background z-10">
           <DialogTitle className="font-headline text-2xl flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {formData.type === 'Lab/Sessional' ? <FlaskConical className="w-6 h-6 text-accent" /> : <BookOpen className="w-6 h-6 text-primary" />} 
+              {isLab ? <FlaskConical className="w-6 h-6 text-accent" /> : <BookOpen className="w-6 h-6 text-primary" />} 
               Course Architect
             </div>
             <div className="flex gap-2">
@@ -226,22 +228,22 @@ export function SyllabusDialog({
                       onClick={() => setExpandedUnits(prev => ({ ...prev, [u.id]: !prev[u.id] }))}
                      >
                         <div className="flex items-center gap-3">
-                          <Badge className="bg-primary/10 text-primary border-none">Unit {i+1}</Badge>
-                          <span className="font-bold">{u.title || "Untitled Unit"}</span>
+                          <Badge className="bg-primary/10 text-primary border-none">{unitLabel} {i+1}</Badge>
+                          <span className="font-bold">{u.title || `Untitled ${unitLabel}`}</span>
                           {expandedUnits[u.id] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                         </div>
                      </CardHeader>
                      <CardContent className={cn("p-4 space-y-4", !expandedUnits[u.id] && "hidden")}>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                           <div className="space-y-2"><Label>Title</Label><Input disabled={!isAuthorized} value={u.title || ''} onChange={e => { const units = [...(formData.units || [])]; units[i].title = e.target.value; setFormData({ ...formData, units }); }} /></div>
-                           <div className="space-y-2"><Label>Hours</Label><Input type="number" disabled={!isAuthorized} value={u.hours || 0} onChange={e => { const units = [...(formData.units || [])]; units[i].hours = Number(e.target.value); setFormData({ ...formData, units }); }} /></div>
+                           <div className="space-y-2"><Label>{unitLabel} Title</Label><Input disabled={!isAuthorized} value={u.title || ''} onChange={e => { const units = [...(formData.units || [])]; units[i].title = e.target.value; setFormData({ ...formData, units }); }} /></div>
+                           <div className="space-y-2"><Label>Teaching Hours</Label><Input type="number" disabled={!isAuthorized} value={u.hours || 0} onChange={e => { const units = [...(formData.units || [])]; units[i].hours = Number(e.target.value); setFormData({ ...formData, units }); }} /></div>
                         </div>
                         <div className="space-y-2">
-                          <Label>Syllabus Content</Label>
+                          <Label>{isLab ? 'Experiment Details' : 'Unit Topics'}</Label>
                           <Textarea disabled={!isAuthorized} value={u.content || ''} onChange={e => { const units = [...(formData.units || [])]; units[i].content = e.target.value; setFormData({ ...formData, units }); }} className="min-h-[120px]" />
                         </div>
                         <div className="space-y-2">
-                          <Label>Unit Learning Outcome</Label>
+                          <Label>{unitLabel} Learning Outcome</Label>
                           <Input disabled={!isAuthorized} value={u.courseOutcome || ''} onChange={e => { const units = [...(formData.units || [])]; units[i].courseOutcome = e.target.value; setFormData({ ...formData, units }); }} placeholder="The student will be able to..." />
                         </div>
                      </CardContent>
@@ -249,7 +251,7 @@ export function SyllabusDialog({
                  ))}
                  {isAuthorized && (
                    <Button variant="outline" className="w-full border-dashed h-12" onClick={() => setFormData(p => ({...p, units: [...(p.units||[]), {id:Math.random().toString(36).substr(2,9), title:'', content:'', hours:0, courseOutcome:''}]}))}>
-                     <Plus className="w-4 h-4 mr-2" /> Add Course Unit
+                     <Plus className="w-4 h-4 mr-2" /> Add {unitLabel}
                    </Button>
                  )}
               </TabsContent>
@@ -257,7 +259,7 @@ export function SyllabusDialog({
               <TabsContent value="resources" className="space-y-8">
                  <div className="space-y-4">
                     <Label className="font-bold text-primary flex items-center gap-2">
-                      <BookOpen className="w-4 h-4" /> Reference Text Books
+                      <BookOpen className="w-4 h-4" /> {isLab ? 'Lab Manuals & Standard Codes' : 'Reference Text Books'}
                     </Label>
                     {formData.textBooks?.map((it, i) => (
                       <div key={i} className="flex gap-2">
@@ -265,7 +267,7 @@ export function SyllabusDialog({
                         {isAuthorized && <Button variant="ghost" size="icon" onClick={() => setFormData({...formData, textBooks: formData.textBooks?.filter((_, idx) => idx !== i)})}><Trash2 className="w-4 h-4 text-red-400" /></Button>}
                       </div>
                     ))}
-                    {isAuthorized && <Button variant="ghost" size="sm" onClick={() => setFormData({...formData, textBooks: [...(formData.textBooks||[]), '']})} className="text-primary"><Plus className="w-3.5 h-3.5 mr-1" /> Add Reference</Button>}
+                    {isAuthorized && <Button variant="ghost" size="sm" onClick={() => setFormData({...formData, textBooks: [...(formData.textBooks||[]), '']})} className="text-primary"><Plus className="w-3.5 h-3.5 mr-1" /> Add Entry</Button>}
                  </div>
               </TabsContent>
 
