@@ -17,6 +17,7 @@ import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile, SubmissionScope } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { exportFullSchemeToPDF, exportCompleteSyllabusToPDF } from "@/lib/pdf-export";
+import { cn } from "@/lib/utils";
 
 export default function SchemeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: schemeId } = React.use(params);
