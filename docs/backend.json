@@ -10,7 +10,7 @@
         "email": { "type": "string", "format": "email" },
         "role": {
           "type": "string",
-          "enum": ["bos_convenor", "bos_member", "dean_faculty", "dean_academic", "admin", "monitor"]
+          "enum": ["bos_convenor", "bos_member", "dean_faculty", "dean_academic", "admin", "monitor", "committee_convenor"]
         },
         "faculty": {
           "type": "string",
@@ -24,7 +24,12 @@
             "Faculty of Arts",
             "Faculty of Sciences",
             "B.Tech (Common BOS)",
-            "BBA (Common BOS)"
+            "BBA (Common BOS)",
+            "Course Committee - Mathematics",
+            "Course Committee - Physics",
+            "Course Committee - Chemistry",
+            "Course Committee - Humanities",
+            "Course Committee - Basic Sciences"
           ]
         },
         "managedBranches": {
@@ -77,7 +82,8 @@
         "batchYear": { "type": "string" },
         "status": { "type": "string" },
         "version": { "type": "string" },
-        "isCommonPoolScheme": { "type": "boolean" }
+        "isVerticalPool": { "type": "boolean" },
+        "isCommitteePool": { "type": "boolean" }
       },
       "required": ["schemeCode", "programId", "batchYear", "status"]
     }
