@@ -105,17 +105,20 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const syllabi = useMemo(() => {
     if (!scheme) return [];
 
-    // Deduplicate Pool Syllabi by Code to prevent double-rendering if a subject is in multiple pools
+    // Deduplicate Pool Syllabi by Code to prevent double-rendering
     const uniquePoolSyllabi = poolSyllabi.reduce((acc, current) => {
+      if (!current.subjectCode) return acc;
       const exists = acc.find(p => p.subjectCode === current.subjectCode);
-      if (!exists && current.subjectCode) acc.push(current);
+      if (!exists) acc.push(current);
       return acc;
     }, [] as Syllabus[]);
 
+    // 1. Resolve local subjects (bringing authoritative content if code matches or linked)
     const resolvedLocal = localSyllabi.map(local => {
       let parent = local.followedFromId ? uniquePoolSyllabi.find(p => p.id === local.followedFromId) : null;
       
-      if (!parent && local.subjectCode && !local.subjectCode.includes('XX')) {
+      // Implicit resolution by code (if not a generic placeholder XX code)
+      if (!parent && local.subjectCode && !local.subjectCode.startsWith('XX')) {
         parent = uniquePoolSyllabi.find(p => p.subjectCode === local.subjectCode);
       }
 
@@ -139,11 +142,15 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       return local;
     });
 
-    const isBTechVertical = program?.faculty?.includes('Engineering') || program?.name?.includes('B.Tech');
+    const isBTechVertical = program?.faculty?.includes('Engineering') || program?.name?.includes('B.Tech') || scheme.branch?.includes('B.Tech');
     
+    let finalSet = [...resolvedLocal];
+
     if (isBTechVertical) {
+      // 2. Add remaining subjects from vertical pool that are NOT already represented in local slots
       const inheritedFromPool = uniquePoolSyllabi
-        .filter(p => (p as any).fromVerticalPool && !resolvedLocal.some(l => l.subjectCode === p.subjectCode))
+        .filter(p => (p as any).fromVerticalPool)
+        .filter(p => !resolvedLocal.some(l => l.subjectCode === p.subjectCode))
         .map(p => ({
           ...p,
           isStandardized: true,
@@ -151,13 +158,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           isInherited: true
         }));
       
-      return [...resolvedLocal, ...inheritedFromPool].sort((a, b) => {
-        if ((a.semester || 1) !== (b.semester || 1)) return (a.semester || 1) - (b.semester || 1);
-        return (a.subjectCode || "").localeCompare(b.subjectCode || "");
-      });
+      finalSet = [...finalSet, ...inheritedFromPool];
     }
 
-    return resolvedLocal.sort((a, b) => {
+    // Final sorting by Semester and Code
+    return finalSet.sort((a, b) => {
       if ((a.semester || 1) !== (b.semester || 1)) return (a.semester || 1) - (b.semester || 1);
       return (a.subjectCode || "").localeCompare(b.subjectCode || "");
     });
