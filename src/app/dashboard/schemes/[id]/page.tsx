@@ -42,12 +42,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [isSubmissionDialogOpen, setIsSubmissionDialogOpen] = useState(false);
   const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
 
-  // DISCOVERY ENGINE: Pull data from institutional pools (Committee & Relevant Vertical Only)
+  // DISCOVERY ENGINE: Robust identification of Institutional Pools (Vertical & Committee)
   useEffect(() => {
     if (!scheme) return;
     setPoolLoading(true);
 
-    // Find all schemes for the same batch to discover pools
     const poolQuery = query(
       collection(db, 'schemes'),
       where('batchYear', '==', scheme.batchYear)
@@ -59,22 +58,25 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       unsubSyllabi.forEach(u => u());
       unsubSyllabi = [];
       
-      const isEngineering = program?.faculty?.includes('Engineering') || scheme.branch?.includes('B.Tech') || scheme.schemeCode?.includes('BTECH');
-      const isManagement = program?.faculty?.includes('Management') || scheme.branch?.includes('BBA') || scheme.schemeCode?.includes('BBA');
+      const isEngineering = program?.faculty?.includes('Engineering') || 
+                          scheme.branch?.includes('B.Tech') || 
+                          scheme.schemeCode?.includes('BTECH') ||
+                          program?.name?.includes('B.Tech');
+
+      const isManagement = program?.faculty?.includes('Management') || 
+                         scheme.branch?.includes('BBA') || 
+                         scheme.schemeCode?.includes('BBA') ||
+                         program?.name?.includes('BBA');
 
       const poolSchemeIds = snap.docs
         .filter(d => d.id !== schemeId)
         .filter(d => {
           const data = d.data();
-          // Include specialized Course Committees
           if (data.isCommitteePool) return true;
           
-          // Include the VERTICAL-SPECIFIC common pool (B.Tech Pool)
           if (data.isVerticalPool) {
-            // Enhanced matching: look for "B.Tech" in branch name or B.TECH in ID pattern
             const isBTechPool = data.branch?.includes('B.Tech') || d.id.includes('B.TECH-POOL');
             const isBBAPool = data.branch?.includes('BBA') || d.id.includes('BBA-POOL');
-
             if (isEngineering && isBTechPool) return true;
             if (isManagement && isBBAPool) return true;
           }
@@ -108,6 +110,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           if (loadedPoolCount >= poolSchemeIds.length) {
             setPoolLoading(false);
           }
+        }, (err) => {
+          console.error("Syllabi listener failed:", err);
+          loadedPoolCount++;
+          if (loadedPoolCount >= poolSchemeIds.length) setPoolLoading(false);
         });
         unsubSyllabi.push(u);
       });
@@ -125,17 +131,15 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [isSyllabusDialogOpen, setIsSyllabusDialogOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Partial<Syllabus> | undefined>(undefined);
 
-  // VERTICAL INHERITANCE & RESOLUTION ENGINE (STRICT DEDUPLICATION)
+  // RESOLUTION & MERGE ENGINE
   const syllabi = useMemo(() => {
     if (!scheme) return [];
 
-    // 1. Resolve local subjects (bringing authoritative content if code matches or linked)
+    // 1. Process departmental slots (Resolving Code Match or Link)
     const resolvedLocal = localSyllabi.map(local => {
-      // Find parent by explicit link OR by Subject Code match
       let parent = local.followedFromId ? poolSyllabi.find(p => p.id === local.followedFromId) : null;
       
       if (!parent && local.subjectCode && !local.subjectCode.startsWith('XX')) {
-        // Prefer Course Committee match, then Vertical Pool
         parent = poolSyllabi.find(p => p.subjectCode === local.subjectCode && !(p as any).fromVerticalPool) || 
                  poolSyllabi.find(p => p.subjectCode === local.subjectCode);
       }
@@ -160,12 +164,14 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       return local;
     });
 
-    const isBTechVertical = program?.faculty?.includes('Engineering') || program?.name?.includes('B.Tech') || scheme.branch?.includes('B.Tech') || scheme.schemeCode?.includes('BTECH');
+    const isBTechVertical = program?.faculty?.includes('Engineering') || 
+                           program?.name?.includes('B.Tech') || 
+                           scheme.branch?.includes('B.Tech') || 
+                           scheme.schemeCode?.includes('BTECH');
     
-    // 2. Add remaining subjects from vertical pool that are NOT already represented in local slots
+    // 2. Add subjects from vertical pool not already present (Automatic Injection)
     let inheritedFromPool: any[] = [];
     if (isBTechVertical) {
-      // Deduplicate vertical pool subjects by subjectCode before merging
       const poolMap = new Map<string, any>();
       poolSyllabi.filter(p => (p as any).fromVerticalPool).forEach(p => {
         if (!poolMap.has(p.subjectCode)) {
@@ -183,10 +189,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         }));
     }
 
-    const finalSet = [...resolvedLocal, ...inheritedFromPool];
-
-    // Final sorting by Semester and Code
-    return finalSet.sort((a, b) => {
+    return [...resolvedLocal, ...inheritedFromPool].sort((a, b) => {
       if ((a.semester || 1) !== (b.semester || 1)) return (a.semester || 1) - (b.semester || 1);
       return (a.subjectCode || "").localeCompare(b.subjectCode || "");
     });
@@ -284,10 +287,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             <h1 className="text-3xl font-headline font-bold">{scheme.branch || program?.name}</h1>
             {scheme.isVerticalPool && <Badge className="bg-emerald-100 text-emerald-700">VERTICAL POOL</Badge>}
             {scheme.isCommitteePool && <Badge className="bg-blue-100 text-blue-700">COMMITTEE POOL</Badge>}
-            {inheritedCount > 0 && !scheme.isVerticalPool && !scheme.isCommitteePool && (
+            {inheritedCount > 0 && (
               <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1.5 py-1 px-3">
-                <Layers className="w-3 h-3" />
-                {inheritedCount} Inherited Subjects
+                <ShieldCheck className="w-3 h-3" />
+                {inheritedCount} Pool Subjects Linked
               </Badge>
             )}
           </div>
