@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Send, Edit3, Loader2, FileText, BookOpen, Eye, Link as LinkIcon, CheckCircle2, Layers, ShieldCheck } from "lucide-react";
+import { Plus, Send, Edit3, Loader2, FileText, BookOpen, Eye, Link as LinkIcon, CheckCircle2, Layers, ShieldCheck, Info } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile, SubmissionScope } from "@/lib/types";
@@ -182,6 +182,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     });
   }, [localSyllabi, poolSyllabi, scheme, program]);
 
+  const inheritedCount = useMemo(() => syllabi.filter(s => (s as any).isInherited).length, [syllabi]);
+
   const permissions = useMemo(() => {
     if (profileLoading || !profile || !scheme) return { 
       canEditScheme: false, canDeleteSyllabus: (s: any) => false, canEditSyllabus: (s: any) => false,
@@ -272,6 +274,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             <h1 className="text-3xl font-headline font-bold">{scheme.branch || program?.name}</h1>
             {scheme.isVerticalPool && <Badge className="bg-emerald-100 text-emerald-700">VERTICAL POOL</Badge>}
             {scheme.isCommitteePool && <Badge className="bg-blue-100 text-blue-700">COMMITTEE POOL</Badge>}
+            {inheritedCount > 0 && !scheme.isVerticalPool && !scheme.isCommitteePool && (
+              <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1.5 py-1 px-3">
+                <Layers className="w-3 h-3" />
+                {inheritedCount} Inherited Subjects
+              </Badge>
+            )}
           </div>
           <div className="flex items-center gap-3 text-muted-foreground text-sm">
             <span className="font-mono font-bold">{scheme.schemeCode}</span>

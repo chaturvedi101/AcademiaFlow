@@ -86,6 +86,8 @@ export default function SchemesPage() {
     setIsCreating(true);
 
     try {
+      const batch = writeBatch(db);
+
       if (newScheme.isPoolScheme) {
         let branchName = '';
         let generatedCode = '';
@@ -107,7 +109,7 @@ export default function SchemesPage() {
         
         if (existing.exists()) throw new Error(`Pool ${generatedCode} already exists.`);
 
-        await setDoc(schemeRef, {
+        batch.set(schemeRef, {
           programId: 'INSTITUTIONAL',
           branch: branchName,
           batchYear: newScheme.batchYear,
@@ -122,7 +124,36 @@ export default function SchemesPage() {
           isCommitteePool: isCommittee
         });
 
-        toast({ title: "Pool Created", description: `${branchName} initialized.` });
+        // SEED STANDARD INSTITUTIONAL SUBJECTS FOR B.TECH VERTICAL
+        if (newScheme.poolType === 'Vertical' && newScheme.poolVertical === 'B.Tech') {
+           const standardSlots = [
+             { code: 'AEC261', title: 'Technical Communication', cat: 'AEC', sem: 1, credits: 2, type: 'Theory', l: 2, t: 0, p: 0 },
+             { code: 'VAC261', title: 'Environmental Science', cat: 'VAC', sem: 2, credits: 2, type: 'Theory', l: 2, t: 0, p: 0 },
+             { code: 'MDC261', title: 'Introduction to Economics', cat: 'MDC', sem: 3, credits: 3, type: 'Theory', l: 3, t: 0, p: 0 },
+             { code: 'MDC262', title: 'Sustainable Engineering', cat: 'MDC', sem: 4, credits: 3, type: 'Theory', l: 3, t: 0, p: 0 }
+           ];
+
+           standardSlots.forEach(slot => {
+             const syllId = Math.random().toString(36).substr(2, 9);
+             batch.set(doc(db, 'schemes', generatedCode, 'syllabi', syllId), {
+               id: syllId,
+               schemeId: generatedCode,
+               subjectCode: slot.code,
+               title: slot.title,
+               creditCategory: slot.cat,
+               semester: slot.sem,
+               credits: slot.credits,
+               type: slot.type,
+               lectureCredits: slot.l,
+               tutorialCredits: slot.t,
+               practicalCredits: slot.p,
+               updatedAt: serverTimestamp()
+             });
+           });
+        }
+
+        await batch.commit();
+        toast({ title: "Pool Created", description: `${branchName} initialized with standard slots.` });
       } else {
         // Standard program creation (batch)
         if (newScheme.programIds.length === 0 || !newScheme.branch) {
@@ -130,8 +161,6 @@ export default function SchemesPage() {
           setIsCreating(false);
           return;
         }
-
-        const batch = writeBatch(db);
 
         // INSTITUTIONAL AUTOMATION: Ensure the Vertical Pool exists for this batch if creating B.Tech schemes
         const isBTechVertical = newScheme.programIds.some(pid => {
