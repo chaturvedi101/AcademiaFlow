@@ -10,4 +10,4 @@ runConfig:
   memory: 512Mi
   cpu: 1
   # Allows one instance to handle up to 80 concurrent users
-  concurrency: 80
+  concurrency: 50
