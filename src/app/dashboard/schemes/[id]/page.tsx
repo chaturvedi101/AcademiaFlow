@@ -47,10 +47,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     if (!scheme) return;
     setPoolLoading(true);
 
+    // Find all schemes for the same batch to discover pools
     const poolQuery = query(
       collection(db, 'schemes'),
-      where('batchYear', '==', scheme.batchYear),
-      where('status', 'in', ['Draft', 'Pending Dean', 'Pending Academics', 'Approved'])
+      where('batchYear', '==', scheme.batchYear)
     );
 
     let unsubSyllabi: Unsubscribe[] = [];
@@ -59,20 +59,24 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       unsubSyllabi.forEach(u => u());
       unsubSyllabi = [];
       
-      const isEngineering = program?.faculty?.includes('Engineering') || scheme.branch?.includes('B.Tech');
-      const isManagement = program?.faculty?.includes('Management') || scheme.branch?.includes('BBA');
+      const isEngineering = program?.faculty?.includes('Engineering') || scheme.branch?.includes('B.Tech') || scheme.schemeCode?.includes('BTECH');
+      const isManagement = program?.faculty?.includes('Management') || scheme.branch?.includes('BBA') || scheme.schemeCode?.includes('BBA');
 
       const poolSchemeIds = snap.docs
         .filter(d => d.id !== schemeId)
         .filter(d => {
           const data = d.data();
-          // Always include Course Committees
+          // Include specialized Course Committees
           if (data.isCommitteePool) return true;
           
-          // Only include the VERTICAL-SPECIFIC common pool (e.g. B.Tech Pool)
+          // Include the VERTICAL-SPECIFIC common pool (B.Tech Pool)
           if (data.isVerticalPool) {
-            if (isEngineering && data.branch === 'B.Tech (Common BOS) Pool') return true;
-            if (isManagement && data.branch === 'BBA (Common BOS) Pool') return true;
+            // Enhanced matching: look for "B.Tech" in branch name or B.TECH in ID pattern
+            const isBTechPool = data.branch?.includes('B.Tech') || d.id.includes('B.TECH-POOL');
+            const isBBAPool = data.branch?.includes('BBA') || d.id.includes('BBA-POOL');
+
+            if (isEngineering && isBTechPool) return true;
+            if (isManagement && isBBAPool) return true;
           }
           return false;
         })
@@ -85,6 +89,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       }
 
       const syllabiByScheme: Record<string, Syllabus[]> = {};
+      let loadedPoolCount = 0;
 
       poolSchemeIds.forEach(psId => {
         const sRef = collection(db, 'schemes', psId, 'syllabi');
@@ -95,9 +100,14 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             parentPoolId: psId,
             fromVerticalPool: snap.docs.find(doc => doc.id === psId)?.data().isVerticalPool
           } as any));
+          
+          loadedPoolCount++;
           const allPool = Object.values(syllabiByScheme).flat();
           setPoolSyllabi(allPool);
-          setPoolLoading(false);
+          
+          if (loadedPoolCount >= poolSchemeIds.length) {
+            setPoolLoading(false);
+          }
         });
         unsubSyllabi.push(u);
       });
@@ -121,9 +131,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     // 1. Resolve local subjects (bringing authoritative content if code matches or linked)
     const resolvedLocal = localSyllabi.map(local => {
+      // Find parent by explicit link OR by Subject Code match
       let parent = local.followedFromId ? poolSyllabi.find(p => p.id === local.followedFromId) : null;
       
-      // Implicit resolution by code (if not a generic placeholder XX code)
       if (!parent && local.subjectCode && !local.subjectCode.startsWith('XX')) {
         // Prefer Course Committee match, then Vertical Pool
         parent = poolSyllabi.find(p => p.subjectCode === local.subjectCode && !(p as any).fromVerticalPool) || 
@@ -150,12 +160,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       return local;
     });
 
-    const isBTechVertical = program?.faculty?.includes('Engineering') || program?.name?.includes('B.Tech') || scheme.branch?.includes('B.Tech');
+    const isBTechVertical = program?.faculty?.includes('Engineering') || program?.name?.includes('B.Tech') || scheme.branch?.includes('B.Tech') || scheme.schemeCode?.includes('BTECH');
     
     // 2. Add remaining subjects from vertical pool that are NOT already represented in local slots
     let inheritedFromPool: any[] = [];
     if (isBTechVertical) {
-      // Use a Map to deduplicate vertical pool subjects by subjectCode before merging
+      // Deduplicate vertical pool subjects by subjectCode before merging
       const poolMap = new Map<string, any>();
       poolSyllabi.filter(p => (p as any).fromVerticalPool).forEach(p => {
         if (!poolMap.has(p.subjectCode)) {
