@@ -44,11 +44,11 @@ export default function DashboardPage() {
 
         // BTech BOS sees Engineering programs + THEIR common pool
         if (isBTechBOS) {
-           return prog.faculty.includes('Engineering') || (s.isCommonPoolScheme && s.branch === 'B.Tech (Common BOS) Pool');
+           return prog.faculty.includes('Engineering') || (s.isVerticalPool && s.branch === 'B.Tech (Common BOS) Pool');
         }
         // BBA BOS sees Management/BBA programs + THEIR common pool
         if (isBBABOS) {
-           return (prog.faculty.includes('Management') || prog.name.includes('BBA')) || (s.isCommonPoolScheme && s.branch === 'BBA (Common BOS) Pool');
+           return (prog.faculty.includes('Management') || prog.name.includes('BBA')) || (s.isVerticalPool && s.branch === 'BBA (Common BOS) Pool');
         }
         return false;
       });
@@ -72,7 +72,7 @@ export default function DashboardPage() {
     const targetPoolName = isManagementVertical ? 'BBA (Common BOS) Pool' : 'B.Tech (Common BOS) Pool';
 
     return schemes.filter(s => 
-      (s.isCommonPoolScheme && s.branch === targetPoolName) || 
+      (s.isVerticalPool && s.branch === targetPoolName) || 
       managed.some(m => m.programId === s.programId && m.branch === s.branch)
     );
   }, [schemes, profile, programs]);
@@ -131,7 +131,7 @@ export default function DashboardPage() {
                     batch={scheme.batchYear} 
                     status={scheme.status} 
                     code={scheme.schemeCode}
-                    isCommon={scheme.isCommonPoolScheme}
+                    isVertical={scheme.isVerticalPool}
                     isCommittee={scheme.isCommitteePool}
                   />
                 );
@@ -176,14 +176,14 @@ function StatsCard({ title, value, trend, icon, variant = 'default' }: any) {
   );
 }
 
-function SchemeRow({ id, name, batch, status, code, isCommon, isCommittee }: any) {
+function SchemeRow({ id, name, batch, status, code, isVertical, isCommittee }: any) {
   const statusColors: any = { 'Draft': 'bg-slate-100 text-slate-700', 'Pending Dean': 'bg-amber-100 text-amber-700', 'Pending Academics': 'bg-blue-100 text-blue-700', 'Approved': 'bg-emerald-100 text-emerald-700' };
   return (
-    <Link href={`/dashboard/schemes/${id}`} className={`flex items-center justify-between p-4 rounded-lg border border-border/50 hover:bg-muted/20 transition-colors ${isCommon ? 'bg-emerald-50/10 border-emerald-100' : isCommittee ? 'bg-blue-50/10 border-blue-100' : ''}`}>
+    <Link href={`/dashboard/schemes/${id}`} className={`flex items-center justify-between p-4 rounded-lg border border-border/50 hover:bg-muted/20 transition-colors ${isVertical ? 'bg-emerald-50/10 border-emerald-100' : isCommittee ? 'bg-blue-50/10 border-blue-100' : ''}`}>
       <div className="space-y-1">
         <div className="flex items-center gap-2">
           <p className="font-medium text-sm">{name}</p>
-          {isCommon && <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 text-[8px] uppercase font-bold">VERTICAL POOL</Badge>}
+          {isVertical && <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 text-[8px] uppercase font-bold">VERTICAL POOL</Badge>}
           {isCommittee && <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-[8px] uppercase font-bold">COMMITTEE POOL</Badge>}
         </div>
         <div className="flex items-center gap-2">
