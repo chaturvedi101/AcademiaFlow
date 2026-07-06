@@ -46,12 +46,12 @@ const syllabusPrompt = ai.definePrompt({
   - Methodology: {{{type}}}
   
   Requirements for Theory:
-  1. If methodology is "Theory", generate exactly 5 units.
+  1. If methodology is "Theory", generate AT LEAST 5 units (5-6 is ideal).
   2. For each unit, provide a specific title and a detailed block of topics.
   3. Suggest teaching hours (usually 8-10 hours per unit).
   
   Requirements for Lab/Sessional:
-  1. If methodology is "Lab/Sessional", generate at least 8 to 10 Experiments.
+  1. If methodology is "Lab/Sessional", generate AT LEAST 8 experiments (8-12 is ideal).
   2. Label each item as "Experiment X: [Title]" (e.g. Experiment 1: Synthesis of...).
   3. Content should describe the objective and list of equipment/software or procedure.
   4. Suggest teaching hours (usually 2-3 hours per experiment).
