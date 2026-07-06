@@ -129,17 +129,17 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         if (parent) {
           return {
             ...local,
-            // Inherit standard identity & content
+            // Inherit standard identity, credits & content
             title: parent.title,
             subjectCode: parent.subjectCode,
-            units: parent.units,
-            textBooks: parent.textBooks,
-            referenceBooks: parent.referenceBooks,
             lectureCredits: parent.lectureCredits,
             tutorialCredits: parent.tutorialCredits,
             practicalCredits: parent.practicalCredits,
             credits: parent.credits,
             type: parent.type,
+            units: parent.units,
+            textBooks: parent.textBooks,
+            referenceBooks: parent.referenceBooks,
             isLinkedToParent: true // Custom flag for UI
           };
         }
