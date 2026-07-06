@@ -129,8 +129,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         if (parent) {
           return {
             ...local,
-            // Inherit standard content
+            // Inherit standard identity & content
             title: parent.title,
+            subjectCode: parent.subjectCode,
             units: parent.units,
             textBooks: parent.textBooks,
             referenceBooks: parent.referenceBooks,

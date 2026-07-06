@@ -186,26 +186,31 @@ export default function EquivalencePage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {childSyllabi.filter(s => s.followedFromId).map(s => (
-                  <TableRow key={s.id}>
-                    <TableCell className="pl-6">
-                      <p className="font-bold text-sm">{s.subjectCode}</p>
-                      <p className="text-xs text-muted-foreground">{s.title}</p>
-                    </TableCell>
-                    <TableCell><ArrowRight className="w-4 h-4 text-primary opacity-30" /></TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
-                        {s.followedFromId}
-                      </Badge>
-                      <p className="text-[10px] mt-1 text-muted-foreground italic">Standardized Content</p>
-                    </TableCell>
-                    <TableCell className="text-right pr-6">
-                      <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => handleUnlink(s.id)}>
-                        <Unlink className="w-4 h-4 mr-2" /> Sever Link
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {childSyllabi.filter(s => s.followedFromId).map(s => {
+                  const parentInfo = parentSyllabi.find(p => p.id === s.followedFromId);
+                  return (
+                    <TableRow key={s.id}>
+                      <TableCell className="pl-6">
+                        <p className="font-bold text-sm">{s.subjectCode}</p>
+                        <p className="text-xs text-muted-foreground">{s.title}</p>
+                      </TableCell>
+                      <TableCell><ArrowRight className="w-4 h-4 text-primary opacity-30" /></TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                          {parentInfo?.subjectCode || 'Linked Parent'}
+                        </Badge>
+                        <p className="text-[10px] mt-1 text-muted-foreground italic">
+                          {parentInfo?.title || 'Standardized Content'}
+                        </p>
+                      </TableCell>
+                      <TableCell className="text-right pr-6">
+                        <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => handleUnlink(s.id)}>
+                          <Unlink className="w-4 h-4 mr-2" /> Sever Link
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
                 {childSyllabi.filter(s => s.followedFromId).length === 0 && (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center py-20 text-muted-foreground italic">
