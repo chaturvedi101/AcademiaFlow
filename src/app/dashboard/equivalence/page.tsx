@@ -1,18 +1,18 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Layers, ArrowRight, Info, Plus, Trash2, ShieldAlert } from "lucide-react";
+import { Layers, ArrowRight, Info, Link as LinkIcon, Unlink, ShieldAlert, Loader2, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useUser, useDoc, useFirestore } from "@/firebase";
-import { doc } from "firebase/firestore";
-import { UserProfile } from "@/lib/types";
+import { useUser, useDoc, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
+import { doc, collection, query, where, updateDoc, serverTimestamp, getDocs } from "firebase/firestore";
+import { UserProfile, Scheme, Syllabus } from "@/lib/types";
 import Link from "next/link";
 
 export default function EquivalencePage() {
@@ -20,101 +20,199 @@ export default function EquivalencePage() {
   const db = useFirestore();
   const { toast } = useToast();
   
-  const userDocRef = useMemo(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
+  const userDocRef = useMemoFirebase(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
   const { data: profile } = useDoc<UserProfile>(userDocRef);
 
-  const [mappings, setMappings] = useState<any[]>([]);
-  const [selection, setSelection] = useState({ oldSub: "", newSub: "" });
+  const [parentSchemeId, setParentSchemeId] = useState("");
+  const [childSchemeId, setChildSchemeId] = useState("");
+  const [parentSyllabusId, setParentSyllabusId] = useState("");
+  const [childSyllabusId, setChildSyllabusId] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const isBoS = profile?.role === 'bos_member' || profile?.role === 'bos_convenor';
-  const isAdmin = profile?.role === 'admin' || profile?.role === 'dean_academic';
+  const { data: allSchemes, loading: schemesLoading } = useCollection<Scheme>(
+    useMemoFirebase(() => collection(db, 'schemes'), [db])
+  );
 
-  const oldSubjects = [
-    { id: 'o1', code: 'CS101', title: 'Programming Fundamentals', sem: 1, type: 'Theory' },
-    { id: 'o2', code: 'CS102L', title: 'Programming Lab', sem: 1, type: 'Practical' },
-    { id: 'o3', code: 'EC201', title: 'Digital Electronics', sem: 3, type: 'Theory' },
-  ];
+  const [childSyllabi, setChildSyllabi] = useState<Syllabus[]>([]);
+  const [parentSyllabi, setParentSyllabi] = useState<Syllabus[]>([]);
 
-  const newSubjects = [
-    { id: 'n1', code: 'CSE1101', title: 'Intro to Programming', sem: 1, type: 'Theory' },
-    { id: 'n2', code: 'CSE1102L', title: 'Data Structures Lab', sem: 1, type: 'Practical' },
-    { id: 'n3', code: 'CSE1301', title: 'Advanced Digital Logic', sem: 3, type: 'Theory' },
-  ];
+  // Filter schemes
+  const committeePools = useMemo(() => allSchemes.filter(s => s.isCommitteePool), [allSchemes]);
+  const branchSchemes = useMemo(() => allSchemes.filter(s => !s.isCommitteePool && !s.isCommonPoolScheme), [allSchemes]);
 
-  const handleAddMapping = () => {
-    const oldS = oldSubjects.find(s => s.id === selection.oldSub);
-    const newS = newSubjects.find(s => s.id === selection.newSub);
-    if (!oldS || !newS) return;
-    if (oldS.type === 'Practical') {
-       toast({ title: "Mapping Violation", description: "Theory only.", variant: "destructive" });
-       return;
+  // Load Syllabi for selected schemes
+  useEffect(() => {
+    if (childSchemeId) {
+      getDocs(collection(db, 'schemes', childSchemeId, 'syllabi')).then(snap => {
+        setChildSyllabi(snap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus)));
+      });
     }
-    if (oldS.sem !== newS.sem) {
-       toast({ title: "Mapping Violation", description: "Semesters must match.", variant: "destructive" });
-       return;
+  }, [childSchemeId, db]);
+
+  useEffect(() => {
+    if (parentSchemeId) {
+      getDocs(collection(db, 'schemes', parentSchemeId, 'syllabi')).then(snap => {
+        setParentSyllabi(snap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus)));
+      });
     }
-    setMappings([...mappings, { id: Math.random(), oldS, newS }]);
-    setSelection({ oldSub: "", newSub: "" });
-    toast({ title: "Mapping Created", description: "Subject equivalence registered." });
+  }, [parentSchemeId, db]);
+
+  const handleLinkCourses = async () => {
+    if (!childSyllabusId || !parentSyllabusId) return;
+    setIsProcessing(true);
+    
+    const childRef = doc(db, 'schemes', childSchemeId, 'syllabi', childSyllabusId);
+    const parent = parentSyllabi.find(s => s.id === parentSyllabusId);
+
+    try {
+      await updateDoc(childRef, {
+        followedFromId: parentSyllabusId,
+        parentSchemeId: parentSchemeId,
+        updatedAt: serverTimestamp()
+      });
+      toast({ title: "Equivalence Established", description: "Child course is now following the Committee parent." });
+      setChildSyllabusId("");
+      // Refresh local list
+      setChildSyllabi(prev => prev.map(s => s.id === childSyllabusId ? { ...s, followedFromId: parentSyllabusId } : s));
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Linking Failed", description: e.message });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  if (profile?.role === 'bos_member') {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 space-y-4">
-        <ShieldAlert className="w-12 h-12 text-red-600" />
-        <h2 className="text-2xl font-bold">Access Restricted</h2>
-        <Button asChild variant="outline"><Link href="/dashboard">Return</Link></Button>
-      </div>
-    );
-  }
+  const handleUnlink = async (syllabusId: string) => {
+    setIsProcessing(true);
+    const childRef = doc(db, 'schemes', childSchemeId, 'syllabi', syllabusId);
+    try {
+      await updateDoc(childRef, {
+        followedFromId: null,
+        parentSchemeId: null,
+        updatedAt: serverTimestamp()
+      });
+      setChildSyllabi(prev => prev.map(s => s.id === syllabusId ? { ...s, followedFromId: undefined } : s));
+      toast({ title: "Equivalence Removed" });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'dean_academic';
+
+  if (schemesLoading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin w-8 h-8 text-primary" /></div>;
 
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-headline font-bold">Scheme Transition Management</h1>
-        <p className="text-muted-foreground">Map historical subjects to the new NEP 2020 structure.</p>
+        <h1 className="text-3xl font-headline font-bold">Institutional Equivalence Manager</h1>
+        <p className="text-muted-foreground">Map departmental subjects to authoritative Course Committee standards (Parent-Child linking).</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <Card className="lg:col-span-1 h-fit">
-          <CardHeader><CardTitle className="text-xl">Create Mapping</CardTitle></CardHeader>
+        <Card className="lg:col-span-1 h-fit shadow-lg border-primary/10">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <LinkIcon className="w-5 h-5 text-primary" /> Establish Standard
+            </CardTitle>
+            <CardDescription>Select a branch course to inherit from a committee parent.</CardDescription>
+          </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-3">
-              <Label>Old Subject</Label>
-              <Select value={selection.oldSub} onValueChange={v => setSelection({...selection, oldSub: v})}>
-                <SelectTrigger className="h-12"><SelectValue placeholder="Select..." /></SelectTrigger>
-                <SelectContent>{oldSubjects.map(s => <SelectItem key={s.id} value={s.id}>{s.code} - {s.title}</SelectItem>)}</SelectContent>
-              </Select>
+            <div className="space-y-4 p-4 bg-muted/30 rounded-xl">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold uppercase">1. Select Target Branch Scheme</Label>
+                <Select value={childSchemeId} onValueChange={setChildSchemeId}>
+                  <SelectTrigger><SelectValue placeholder="Choose Branch..." /></SelectTrigger>
+                  <SelectContent>
+                    {branchSchemes.map(s => <SelectItem key={s.id} value={s.id}>{s.branch} ({s.batchYear})</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold uppercase">2. Select Target Subject (Child)</Label>
+                <Select value={childSyllabusId} onValueChange={setChildSyllabusId} disabled={!childSchemeId}>
+                  <SelectTrigger><SelectValue placeholder="Choose Subject..." /></SelectTrigger>
+                  <SelectContent>
+                    {childSyllabi.map(s => <SelectItem key={s.id} value={s.id}>{s.subjectCode} - {s.title}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="space-y-3">
-              <Label>New Subject</Label>
-              <Select value={selection.newSub} onValueChange={v => setSelection({...selection, newSub: v})}>
-                <SelectTrigger className="h-12"><SelectValue placeholder="Select..." /></SelectTrigger>
-                <SelectContent>{newSubjects.map(s => <SelectItem key={s.id} value={s.id}>{s.code} - {s.title}</SelectItem>)}</SelectContent>
-              </Select>
+
+            <div className="flex justify-center py-2"><ArrowRight className="w-6 h-6 text-muted-foreground rotate-90 lg:rotate-0" /></div>
+
+            <div className="space-y-4 p-4 bg-primary/5 rounded-xl border border-primary/10">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold uppercase text-primary">3. Select Source Committee Pool</Label>
+                <Select value={parentSchemeId} onValueChange={setParentSchemeId}>
+                  <SelectTrigger className="bg-white"><SelectValue placeholder="Choose Committee..." /></SelectTrigger>
+                  <SelectContent>
+                    {committeePools.map(s => <SelectItem key={s.id} value={s.id}>{s.branch}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold uppercase text-primary">4. Select Standard Subject (Parent)</Label>
+                <Select value={parentSyllabusId} onValueChange={setParentSyllabusId} disabled={!parentSchemeId}>
+                  <SelectTrigger className="bg-white"><SelectValue placeholder="Choose Standard..." /></SelectTrigger>
+                  <SelectContent>
+                    {parentSyllabi.map(s => <SelectItem key={s.id} value={s.id}>{s.subjectCode} - {s.title}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <Button className="w-full h-12" onClick={handleAddMapping}><Plus className="w-4 h-4 mr-2" /> Register Equivalence</Button>
+
+            <Button className="w-full h-12 gap-2 shadow-lg" onClick={handleLinkCourses} disabled={!childSyllabusId || !parentSyllabusId || isProcessing}>
+              {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+              Register Parent-Child Link
+            </Button>
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2 shadow-md">
-          <CardHeader><CardTitle className="text-xl">Equivalence Registry</CardTitle></CardHeader>
+        <Card className="lg:col-span-2 shadow-sm border-none bg-white">
+          <CardHeader className="bg-muted/10 border-b">
+            <CardTitle className="text-lg">Equivalence Registry</CardTitle>
+            <CardDescription>Courses following committee standards in {allSchemes.find(s => s.id === childSchemeId)?.branch || 'Selected Scheme'}</CardDescription>
+          </CardHeader>
           <CardContent className="p-0">
             <Table>
-              <TableHeader><TableRow><TableHead className="pl-6">Old Subject</TableHead><TableHead></TableHead><TableHead>New Subject</TableHead>{isAdmin && <TableHead className="text-right pr-6">Action</TableHead>}</TableRow></TableHeader>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-6">Branch Subject (Child)</TableHead>
+                  <TableHead></TableHead>
+                  <TableHead>Committee Standard (Parent)</TableHead>
+                  <TableHead className="text-right pr-6">Action</TableHead>
+                </TableRow>
+              </TableHeader>
               <TableBody>
-                {mappings.map(m => (
-                  <TableRow key={m.id}>
-                    <TableCell className="pl-6"><p className="font-bold text-sm">{m.oldS.code}</p><Badge variant="outline">Sem {m.oldS.sem}</Badge></TableCell>
-                    <TableCell><ArrowRight className="w-4 h-4 text-accent" /></TableCell>
-                    <TableCell><p className="font-bold text-sm">{m.newS.code}</p><Badge variant="outline">Sem {m.newS.sem}</Badge></TableCell>
-                    {isAdmin && (
-                      <TableCell className="text-right pr-6">
-                        <Button variant="ghost" size="icon" className="text-red-400" onClick={() => setMappings(mappings.filter(x => x.id !== m.id))}><Trash2 className="w-4 h-4" /></Button>
-                      </TableCell>
-                    )}
+                {childSyllabi.filter(s => s.followedFromId).map(s => (
+                  <TableRow key={s.id}>
+                    <TableCell className="pl-6">
+                      <p className="font-bold text-sm">{s.subjectCode}</p>
+                      <p className="text-xs text-muted-foreground">{s.title}</p>
+                    </TableCell>
+                    <TableCell><ArrowRight className="w-4 h-4 text-primary opacity-30" /></TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                        {s.followedFromId}
+                      </Badge>
+                      <p className="text-[10px] mt-1 text-muted-foreground italic">Standardized Content</p>
+                    </TableCell>
+                    <TableCell className="text-right pr-6">
+                      <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => handleUnlink(s.id)}>
+                        <Unlink className="w-4 h-4 mr-2" /> Sever Link
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
+                {childSyllabi.filter(s => s.followedFromId).length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center py-20 text-muted-foreground italic">
+                      No parent-child equivalences registered for this scheme.
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </CardContent>
