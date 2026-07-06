@@ -132,6 +132,30 @@ export default function SchemesPage() {
         }
 
         const batch = writeBatch(db);
+
+        // INSTITUTIONAL AUTOMATION: Ensure the Vertical Pool exists for this batch if creating B.Tech schemes
+        const isBTechVertical = newScheme.programIds.some(pid => {
+          const p = programs.find(prog => prog.id === pid);
+          return p?.faculty?.includes('Engineering') || p?.name?.includes('B.Tech');
+        });
+
+        if (isBTechVertical) {
+          const poolId = `B.TECH-POOL-${newScheme.batchYear}`;
+          batch.set(doc(db, 'schemes', poolId), {
+            programId: 'INSTITUTIONAL',
+            branch: 'B.Tech (Common BOS) Pool',
+            batchYear: newScheme.batchYear,
+            version: 'v1.0',
+            id: poolId,
+            schemeCode: poolId,
+            status: 'Draft',
+            createdBy: user?.uid || '',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            isCommonPoolScheme: true
+          }, { merge: true });
+        }
+
         for (const pid of newScheme.programIds) {
           const program = programs.find(p => p.id === pid);
           if (!program) continue;

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -101,6 +102,14 @@ export function SyllabusDialog({
 
   // DISCOVERY: Fetch syllabi from selected pool
   useEffect(() => {
+    // AUTO-SELECTION FOR B.TECH VERTICAL: If this is an engineering scheme, pre-select the B.Tech Pool
+    if (!selectedPoolId && poolSchemes.length > 0) {
+      const btechPool = poolSchemes.find(p => p.id.startsWith('B.TECH-POOL'));
+      if (btechPool) {
+        setSelectedPoolId(btechPool.id);
+      }
+    }
+
     if (!selectedPoolId) {
       setAvailablePoolSyllabi([]);
       return;
@@ -110,7 +119,7 @@ export function SyllabusDialog({
       setAvailablePoolSyllabi(snap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus)));
       setIsPoolLoading(false);
     });
-  }, [db, selectedPoolId]);
+  }, [db, selectedPoolId, poolSchemes]);
 
   const calculateCredits = (l: number, t: number, p: number) => {
     let total = l + t;
