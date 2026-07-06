@@ -81,7 +81,7 @@ export function SyllabusDialog({
     }
   }, [open, syllabus]);
 
-  // DISCOVERY: Find all Institutional Pools for this batch
+  // DISCOVERY: Find all Institutional Pools (Vertical or Committee) for this batch
   useEffect(() => {
     if (!open || !batchYear) return;
     
@@ -94,7 +94,7 @@ export function SyllabusDialog({
       const snap = await getDocs(q);
       const pools = snap.docs
         .map(d => ({ ...d.data(), id: d.id } as Scheme))
-        .filter(s => s.isCommitteePool || s.isCommonPoolScheme);
+        .filter(s => s.isCommitteePool || s.isVerticalPool);
       setPoolSchemes(pools);
     };
     fetchPools();
@@ -232,7 +232,7 @@ export function SyllabusDialog({
                       <SelectContent>
                         {poolSchemes.map(p => (
                           <SelectItem key={p.id} value={p.id}>
-                            {p.branch} {p.isCommonPoolScheme ? '(Vertical)' : '(Committee)'}
+                            {p.branch} {p.isVerticalPool ? '(Vertical)' : '(Committee)'}
                           </SelectItem>
                         ))}
                       </SelectContent>

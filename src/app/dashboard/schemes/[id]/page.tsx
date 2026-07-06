@@ -42,7 +42,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [isSubmissionDialogOpen, setIsSubmissionDialogOpen] = useState(false);
   const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
 
-  // DISCOVERY ENGINE: Pull data from institutional pools (Committee & Relevant Vertical)
+  // DISCOVERY ENGINE: Pull data from institutional pools (Committee & Relevant Vertical Only)
   useEffect(() => {
     if (!scheme) return;
     setPoolLoading(true);
@@ -69,8 +69,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           // Always include Course Committees
           if (data.isCommitteePool) return true;
           
-          // Only include the VERTICAL-SPECIFIC common pool
-          if (data.isCommonPoolScheme) {
+          // Only include the VERTICAL-SPECIFIC common pool (e.g. B.Tech Pool)
+          if (data.isVerticalPool) {
             if (isEngineering && data.branch === 'B.Tech (Common BOS) Pool') return true;
             if (isManagement && data.branch === 'BBA (Common BOS) Pool') return true;
           }
@@ -93,7 +93,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             ...d.data(), 
             id: d.id, 
             parentPoolId: psId,
-            fromVerticalPool: snap.docs.find(doc => doc.id === psId)?.data().isCommonPoolScheme
+            fromVerticalPool: snap.docs.find(doc => doc.id === psId)?.data().isVerticalPool
           } as any));
           const allPool = Object.values(syllabiByScheme).flat();
           setPoolSyllabi(allPool);
@@ -154,7 +154,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     if (isBTechVertical) {
       // 2. Add remaining subjects from vertical pool that are NOT already represented in local slots
-      // This prevents the "added twice" issue
+      // This prevents the "added twice" issue by checking subjectCode
       const inheritedFromPool = poolSyllabi
         .filter(p => (p as any).fromVerticalPool)
         .filter(p => !resolvedLocal.some(l => l.subjectCode === p.subjectCode))
@@ -189,7 +189,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const isMyCommittee = profile.role === 'committee_convenor' && profile.faculty === scheme.branch;
 
     const myBranchRole = profile.managedBranches?.find(m => m.programId === scheme.programId && m.branch === scheme.branch)?.role;
-    const canEditScheme = isSuperuser || isProgramDean || isMyCommittee || (scheme.isCommonPoolScheme ? isCommonBOS : myBranchRole === 'bos_convenor');
+    const canEditScheme = isSuperuser || isProgramDean || isMyCommittee || (scheme.isVerticalPool ? isCommonBOS : myBranchRole === 'bos_convenor');
 
     const canEditSyllabus = (s: any) => {
       if (isSuperuser) return true;
@@ -229,7 +229,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   }, [syllabi]);
 
   const isSchemeValid = useMemo(() => {
-    if (scheme?.isCommonPoolScheme || scheme?.isCommitteePool) return true; 
+    if (scheme?.isVerticalPool || scheme?.isCommitteePool) return true; 
     if (!program?.rules) return false;
     
     if (selectedScope === 'Year 1') return syllabi.some(s => s.semester === 1) && syllabi.some(s => s.semester === 2);
@@ -263,7 +263,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         <div className="space-y-1">
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-headline font-bold">{scheme.branch || program?.name}</h1>
-            {scheme.isCommonPoolScheme && <Badge className="bg-emerald-100 text-emerald-700">VERTICAL POOL</Badge>}
+            {scheme.isVerticalPool && <Badge className="bg-emerald-100 text-emerald-700">VERTICAL POOL</Badge>}
             {scheme.isCommitteePool && <Badge className="bg-blue-100 text-blue-700">COMMITTEE POOL</Badge>}
           </div>
           <div className="flex items-center gap-3 text-muted-foreground text-sm">
@@ -274,7 +274,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => exportFullSchemeToPDF(scheme, program!, syllabi)}><FileText className="w-4 h-4 mr-2" /> Structure</Button>
-          <Button variant="outline" onClick={() => exportCompleteSyllabusToPDF(scheme, program!, syllabi)}><BookOpen className="w-4 h-4 mr-2" /> Book</Button>
+          <Button variant="outline" onClick={() => exportCompleteSyllabusToPDF(scheme, program!, syllabi)}><BookOpen className="w-4 h-4 mr-2" /> Book</BookOpen>
           {permissions.canEditScheme && <Button onClick={() => setIsSubmissionDialogOpen(true)}>Submit Scheme</Button>}
         </div>
       </div>
@@ -373,7 +373,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           </Tabs>
         </div>
         <div className="space-y-6">
-          {!scheme.isCommonPoolScheme && !scheme.isCommitteePool && (
+          {!scheme.isVerticalPool && !scheme.isCommitteePool && (
             <CreditValidator currentCredits={creditDistribution} rules={program?.rules} />
           )}
         </div>

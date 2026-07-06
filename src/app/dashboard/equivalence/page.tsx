@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -35,13 +36,13 @@ export default function EquivalencePage() {
   const [childSyllabi, setChildSyllabi] = useState<Syllabus[]>([]);
   const [parentSyllabi, setParentSyllabi] = useState<Syllabus[]>([]);
 
-  // Parent Pools: Both specialized Course Committees and Vertical Common Pools (AEC/VAC/MDC)
+  // Parent Pools: Both specialized Course Committees and Vertical Pools (B.Tech/BBA)
   const authoritativePools = useMemo(() => 
-    allSchemes.filter(s => s.isCommitteePool || s.isCommonPoolScheme), 
+    allSchemes.filter(s => s.isCommitteePool || s.isVerticalPool), 
   [allSchemes]);
   
   const branchSchemes = useMemo(() => {
-    const base = allSchemes.filter(s => !s.isCommitteePool && !s.isCommonPoolScheme);
+    const base = allSchemes.filter(s => !s.isCommitteePool && !s.isVerticalPool);
     
     // Admins and Dean Academic can see everything
     if (profile?.role === 'admin' || profile?.role === 'dean_academic') {
@@ -117,7 +118,7 @@ export default function EquivalencePage() {
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-headline font-bold">Institutional Equivalence Manager</h1>
-        <p className="text-muted-foreground">Map branch subjects to authoritative Course Committee or Common BOS standards.</p>
+        <p className="text-muted-foreground">Map branch subjects to authoritative Course Committee or Vertical Pool standards.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -155,13 +156,13 @@ export default function EquivalencePage() {
 
             <div className="space-y-4 p-4 bg-primary/5 rounded-xl border border-primary/10">
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase text-primary">3. Source Authority Pool (Parent)</Label>
+                <Label className="text-[10px] uppercase font-bold text-primary">3. Source Authority Pool (Parent)</Label>
                 <Select value={parentSchemeId} onValueChange={setParentSchemeId}>
                   <SelectTrigger className="bg-white"><SelectValue placeholder="Choose Authority..." /></SelectTrigger>
                   <SelectContent>
                     {authoritativePools.map(s => (
                       <SelectItem key={s.id} value={s.id}>
-                        {s.branch} {s.isCommonPoolScheme ? '(Vertical)' : '(Committee)'}
+                        {s.branch} {s.isVerticalPool ? '(Vertical)' : '(Committee)'}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -169,7 +170,7 @@ export default function EquivalencePage() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase text-primary">4. Standard Authoritative Course (Parent)</Label>
+                <Label className="text-[10px] uppercase font-bold text-primary">4. Standard Authoritative Course (Parent)</Label>
                 <Select value={parentSyllabusId} onValueChange={setParentSyllabusId} disabled={!parentSchemeId}>
                   <SelectTrigger className="bg-white"><SelectValue placeholder="Choose Course..." /></SelectTrigger>
                   <SelectContent>

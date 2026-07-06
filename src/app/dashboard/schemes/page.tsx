@@ -46,7 +46,7 @@ export default function SchemesPage() {
     branch: '',
     batchYear: '',
     version: 'v1.0',
-    isInstitutional: false,
+    isPoolScheme: false,
     poolType: 'Vertical' as 'Vertical' | 'Committee',
     poolVertical: '' as 'B.Tech' | 'BBA' | '',
     committeeName: '' as string
@@ -86,7 +86,7 @@ export default function SchemesPage() {
     setIsCreating(true);
 
     try {
-      if (newScheme.isInstitutional) {
+      if (newScheme.isPoolScheme) {
         let branchName = '';
         let generatedCode = '';
         let isCommittee = false;
@@ -118,7 +118,7 @@ export default function SchemesPage() {
           createdBy: user?.uid || '',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
-          isCommonPoolScheme: !isCommittee,
+          isVerticalPool: !isCommittee,
           isCommitteePool: isCommittee
         });
 
@@ -152,7 +152,7 @@ export default function SchemesPage() {
             createdBy: user?.uid || '',
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
-            isCommonPoolScheme: true
+            isVerticalPool: true
           }, { merge: true });
         }
 
@@ -195,7 +195,7 @@ export default function SchemesPage() {
       }
 
       setIsDialogOpen(false);
-      setNewScheme({ programIds: [], branch: '', batchYear: '', version: 'v1.0', isInstitutional: false, poolType: 'Vertical', poolVertical: '', committeeName: '' });
+      setNewScheme({ programIds: [], branch: '', batchYear: '', version: 'v1.0', isPoolScheme: false, poolType: 'Vertical', poolVertical: '', committeeName: '' });
       setStep(1);
     } catch (error: any) {
       toast({ title: "Operation Failed", description: error.message, variant: "destructive" });
@@ -222,12 +222,12 @@ export default function SchemesPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredSchemes.map((scheme) => (
-          <Card key={scheme.id} className={`hover:shadow-md transition-shadow group relative overflow-hidden ${scheme.isCommonPoolScheme ? 'border-emerald-200 bg-emerald-50/20' : scheme.isCommitteePool ? 'border-blue-200 bg-blue-50/20' : ''}`}>
+          <Card key={scheme.id} className={`hover:shadow-md transition-shadow group relative overflow-hidden ${scheme.isVerticalPool ? 'border-emerald-200 bg-emerald-50/20' : scheme.isCommitteePool ? 'border-blue-200 bg-blue-50/20' : ''}`}>
             <CardHeader className="pb-4">
               <div className="flex justify-between items-start mb-2">
                 <Badge variant="outline" className="text-[10px]">{scheme.version}</Badge>
                 {scheme.isCommitteePool && <Badge className="bg-blue-100 text-blue-700 border-none font-black text-[8px] uppercase">Committee Pool</Badge>}
-                {scheme.isCommonPoolScheme && <Badge className="bg-emerald-100 text-emerald-700 border-none font-black text-[8px] uppercase">Vertical Pool</Badge>}
+                {scheme.isVerticalPool && <Badge className="bg-emerald-100 text-emerald-700 border-none font-black text-[8px] uppercase">Vertical Pool</Badge>}
               </div>
               <CardTitle className="font-headline text-lg group-hover:text-primary transition-colors">
                 {scheme.branch || (programs.find(p => p.id === scheme.programId)?.name || 'Scheme')}
@@ -257,15 +257,15 @@ export default function SchemesPage() {
             <div className="p-4 bg-muted/30 rounded-xl border border-dashed space-y-4">
               <div className="flex items-center justify-between">
                 <Label className="font-bold flex items-center gap-2">
-                  <Layers className="w-4 h-4" /> Vertical Common Pool
+                  <Layers className="w-4 h-4" /> Vertical or Committee Pool
                 </Label>
                 <Switch 
-                  checked={newScheme.isInstitutional} 
-                  onCheckedChange={(checked) => setNewScheme({...newScheme, isInstitutional: checked})} 
+                  checked={newScheme.isPoolScheme} 
+                  onCheckedChange={(checked) => setNewScheme({...newScheme, isPoolScheme: checked})} 
                 />
               </div>
               
-              {newScheme.isInstitutional && (
+              {newScheme.isPoolScheme && (
                 <div className="space-y-4 pt-2 border-t mt-2">
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold">Pool Type</Label>
@@ -304,7 +304,7 @@ export default function SchemesPage() {
               )}
             </div>
 
-            {!newScheme.isInstitutional && (
+            {!newScheme.isPoolScheme && (
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-bold">Select Academic Program(s)</Label>
@@ -345,9 +345,9 @@ export default function SchemesPage() {
           </div>
 
           <DialogFooter>
-            <Button onClick={handleCreateScheme} disabled={isCreating || !newScheme.batchYear || (newScheme.isInstitutional && !newScheme.poolVertical && !newScheme.committeeName)}>
+            <Button onClick={handleCreateScheme} disabled={isCreating || !newScheme.batchYear || (newScheme.isPoolScheme && !newScheme.poolVertical && !newScheme.committeeName)}>
               {isCreating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
-              {newScheme.isInstitutional ? "Initialize Pool" : "Instantiate Schemes"}
+              {newScheme.isPoolScheme ? "Initialize Pool" : "Instantiate Schemes"}
             </Button>
           </DialogFooter>
         </DialogContent>

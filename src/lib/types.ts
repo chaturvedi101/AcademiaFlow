@@ -113,7 +113,7 @@ export interface Scheme {
   hasMultipleExits: boolean;
   exitOptions: string[];
   abcEnabled: boolean;
-  isCommonPoolScheme?: boolean; // Flag to indicate if this is the institutional common course scheme
+  isVerticalPool?: boolean; // Flag to indicate if this is a vertical-specific course pool (e.g. B.Tech Pool)
   isCommitteePool?: boolean; // Flag to indicate if this is a specialized Course Committee pool
 }
 
@@ -159,12 +159,15 @@ export interface Syllabus {
   creditCategory: CreditCategory;
   isCommonCourse?: boolean;
   followedFromId?: string;
+  parentSchemeId?: string;
   electiveGroupId?: string; // e.g. "Elective-I"
   electiveGroupName?: string; // e.g. "Cloud Computing Pool"
   isOFESlot?: boolean; // True if this is just a placeholder slot in a scheme
   isOFEContribution?: boolean; // True if this is a course offered by this branch to the global pool
   isSlot?: boolean; // Generic flag for a pre-defined locked slot
   timetableSlot?: string; // e.g. "1", "2" for Theory or "A", "B" for Practical
+  isStandardized?: boolean;
+  standardizedFrom?: string;
 }
 
 export interface AuditLog {
