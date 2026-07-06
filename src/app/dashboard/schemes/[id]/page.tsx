@@ -42,7 +42,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [isSubmissionDialogOpen, setIsSubmissionDialogOpen] = useState(false);
   const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
 
-  // DISCOVERY ENGINE: Pull data from institutional pools (Common & Committee)
+  // DISCOVERY ENGINE: Pull data from institutional pools (Committee & Relevant Vertical)
   useEffect(() => {
     if (!scheme) return;
     setPoolLoading(true);
@@ -59,9 +59,23 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       unsubSyllabi.forEach(u => u());
       unsubSyllabi = [];
       
+      const isEngineering = program?.faculty?.includes('Engineering') || scheme.branch?.includes('B.Tech');
+      const isManagement = program?.faculty?.includes('Management') || scheme.branch?.includes('BBA');
+
       const poolSchemeIds = snap.docs
         .filter(d => d.id !== schemeId)
-        .filter(d => d.data().isCommonPoolScheme || d.data().isCommitteePool)
+        .filter(d => {
+          const data = d.data();
+          // Always include Course Committees
+          if (data.isCommitteePool) return true;
+          
+          // Only include the VERTICAL-SPECIFIC common pool
+          if (data.isCommonPoolScheme) {
+            if (isEngineering && data.branch === 'B.Tech (Common BOS) Pool') return true;
+            if (isManagement && data.branch === 'BBA (Common BOS) Pool') return true;
+          }
+          return false;
+        })
         .map(d => d.id);
       
       if (poolSchemeIds.length === 0) {
@@ -96,30 +110,22 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       unsubscribeSchemes();
       unsubSyllabi.forEach(u => u());
     };
-  }, [db, scheme, schemeId]);
+  }, [db, scheme, schemeId, program]);
 
   const [isSyllabusDialogOpen, setIsSyllabusDialogOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Partial<Syllabus> | undefined>(undefined);
 
-  // VERTICAL INHERITANCE & RESOLUTION ENGINE
+  // VERTICAL INHERITANCE & RESOLUTION ENGINE (STRICT DEDUPLICATION)
   const syllabi = useMemo(() => {
     if (!scheme) return [];
 
-    // Deduplicate Pool Syllabi by Code to prevent double-rendering
-    const uniquePoolSyllabi = poolSyllabi.reduce((acc, current) => {
-      if (!current.subjectCode) return acc;
-      const exists = acc.find(p => p.subjectCode === current.subjectCode);
-      if (!exists) acc.push(current);
-      return acc;
-    }, [] as Syllabus[]);
-
     // 1. Resolve local subjects (bringing authoritative content if code matches or linked)
     const resolvedLocal = localSyllabi.map(local => {
-      let parent = local.followedFromId ? uniquePoolSyllabi.find(p => p.id === local.followedFromId) : null;
+      let parent = local.followedFromId ? poolSyllabi.find(p => p.id === local.followedFromId) : null;
       
       // Implicit resolution by code (if not a generic placeholder XX code)
       if (!parent && local.subjectCode && !local.subjectCode.startsWith('XX')) {
-        parent = uniquePoolSyllabi.find(p => p.subjectCode === local.subjectCode);
+        parent = poolSyllabi.find(p => p.subjectCode === local.subjectCode);
       }
 
       if (parent) {
@@ -148,7 +154,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     if (isBTechVertical) {
       // 2. Add remaining subjects from vertical pool that are NOT already represented in local slots
-      const inheritedFromPool = uniquePoolSyllabi
+      // This prevents the "added twice" issue
+      const inheritedFromPool = poolSyllabi
         .filter(p => (p as any).fromVerticalPool)
         .filter(p => !resolvedLocal.some(l => l.subjectCode === p.subjectCode))
         .map(p => ({

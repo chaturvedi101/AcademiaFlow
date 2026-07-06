@@ -227,7 +227,7 @@ export default function SchemesPage() {
               <div className="flex justify-between items-start mb-2">
                 <Badge variant="outline" className="text-[10px]">{scheme.version}</Badge>
                 {scheme.isCommitteePool && <Badge className="bg-blue-100 text-blue-700 border-none font-black text-[8px] uppercase">Committee Pool</Badge>}
-                {scheme.isCommonPoolScheme && <Badge className="bg-emerald-100 text-emerald-700 border-none font-black text-[8px] uppercase">Common Pool</Badge>}
+                {scheme.isCommonPoolScheme && <Badge className="bg-emerald-100 text-emerald-700 border-none font-black text-[8px] uppercase">Vertical Pool</Badge>}
               </div>
               <CardTitle className="font-headline text-lg group-hover:text-primary transition-colors">
                 {scheme.branch || (programs.find(p => p.id === scheme.programId)?.name || 'Scheme')}
@@ -257,7 +257,7 @@ export default function SchemesPage() {
             <div className="p-4 bg-muted/30 rounded-xl border border-dashed space-y-4">
               <div className="flex items-center justify-between">
                 <Label className="font-bold flex items-center gap-2">
-                  <Layers className="w-4 h-4" /> Centralized Repository Pool
+                  <Layers className="w-4 h-4" /> Vertical Common Pool
                 </Label>
                 <Switch 
                   checked={newScheme.isInstitutional} 
@@ -268,11 +268,11 @@ export default function SchemesPage() {
               {newScheme.isInstitutional && (
                 <div className="space-y-4 pt-2 border-t mt-2">
                   <div className="space-y-2">
-                    <Label className="text-[10px] uppercase font-bold">Pool Hierarchy</Label>
+                    <Label className="text-[10px] uppercase font-bold">Pool Type</Label>
                     <Select value={newScheme.poolType} onValueChange={(v: any) => setNewScheme({...newScheme, poolType: v})}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Vertical">Institutional Vertical (B.Tech/BBA)</SelectItem>
+                        <SelectItem value="Vertical">Vertical Common Pool (B.Tech/BBA)</SelectItem>
                         <SelectItem value="Committee">Course Committee (Math/Physics/etc.)</SelectItem>
                       </SelectContent>
                     </Select>
@@ -347,7 +347,7 @@ export default function SchemesPage() {
           <DialogFooter>
             <Button onClick={handleCreateScheme} disabled={isCreating || !newScheme.batchYear || (newScheme.isInstitutional && !newScheme.poolVertical && !newScheme.committeeName)}>
               {isCreating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
-              {newScheme.isInstitutional ? "Initialize Blank Pool" : "Instantiate Schemes"}
+              {newScheme.isInstitutional ? "Initialize Pool" : "Instantiate Schemes"}
             </Button>
           </DialogFooter>
         </DialogContent>
