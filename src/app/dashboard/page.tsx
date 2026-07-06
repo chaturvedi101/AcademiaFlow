@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo } from 'react';
@@ -25,6 +26,11 @@ export default function DashboardPage() {
     // Admins, Dean Academic, and Monitors see everything
     if (profile.role === 'admin' || profile.role === 'dean_academic' || profile.role === 'monitor') {
       return schemes;
+    }
+
+    // Committee Convenors: see their pools
+    if (profile.role === 'committee_convenor') {
+      return schemes.filter(s => s.isCommitteePool && s.branch === profile.faculty);
     }
 
     // Common BOS Logic: Independence check
@@ -126,6 +132,7 @@ export default function DashboardPage() {
                     status={scheme.status} 
                     code={scheme.schemeCode}
                     isCommon={scheme.isCommonPoolScheme}
+                    isCommittee={scheme.isCommitteePool}
                   />
                 );
               })}
@@ -141,7 +148,7 @@ export default function DashboardPage() {
         <Card className="shadow-sm">
           <CardHeader><CardTitle className="font-headline">Quick Actions</CardTitle></CardHeader>
           <CardContent className="flex flex-col gap-3">
-            {(['admin', 'dean_academic'].includes(profile?.role || '')) && <ActionLink href="/dashboard/schemes" label="Draft New Scheme" icon={<Plus className="w-4 h-4" />} />}
+            {(['admin', 'dean_academic', 'committee_convenor'].includes(profile?.role || '')) && <ActionLink href="/dashboard/schemes" label="Manage Pool" icon={<Plus className="w-4 h-4" />} />}
             {profile?.role === 'bos_convenor' && profile?.faculty && !profile.faculty.includes('(Common BOS)') && <ActionLink href="/dashboard/team" label="Manage BoS Team" icon={<UserCircle className="w-4 h-4" />} />}
             {(['bos_convenor', 'admin'].includes(profile?.role || '')) && <ActionLink href="/dashboard/equivalence" label="Map Equivalence" icon={<Layers className="w-4 h-4" />} />}
             {(['dean_faculty', 'dean_academic', 'admin'].includes(profile?.role || '')) && <ActionLink href="/dashboard/approvals" label="Review Pending" icon={<FileCheck className="w-4 h-4" />} />}
@@ -169,14 +176,15 @@ function StatsCard({ title, value, trend, icon, variant = 'default' }: any) {
   );
 }
 
-function SchemeRow({ id, name, batch, status, code, isCommon }: any) {
+function SchemeRow({ id, name, batch, status, code, isCommon, isCommittee }: any) {
   const statusColors: any = { 'Draft': 'bg-slate-100 text-slate-700', 'Pending Dean': 'bg-amber-100 text-amber-700', 'Pending Academics': 'bg-blue-100 text-blue-700', 'Approved': 'bg-emerald-100 text-emerald-700' };
   return (
-    <Link href={`/dashboard/schemes/${id}`} className={`flex items-center justify-between p-4 rounded-lg border border-border/50 hover:bg-muted/20 transition-colors ${isCommon ? 'bg-emerald-50/10 border-emerald-100' : ''}`}>
+    <Link href={`/dashboard/schemes/${id}`} className={`flex items-center justify-between p-4 rounded-lg border border-border/50 hover:bg-muted/20 transition-colors ${isCommon ? 'bg-emerald-50/10 border-emerald-100' : isCommittee ? 'bg-blue-50/10 border-blue-100' : ''}`}>
       <div className="space-y-1">
         <div className="flex items-center gap-2">
           <p className="font-medium text-sm">{name}</p>
-          {isCommon && <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 text-[8px] uppercase font-bold">POOL</Badge>}
+          {isCommon && <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 text-[8px] uppercase font-bold">VERTICAL POOL</Badge>}
+          {isCommittee && <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-[8px] uppercase font-bold">COMMITTEE POOL</Badge>}
         </div>
         <div className="flex items-center gap-2">
            <p className="text-[10px] text-muted-foreground uppercase font-bold">Batch: {batch}</p>
