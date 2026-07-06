@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -58,6 +57,7 @@ export function SyllabusDialog({
   const [expandedUnits, setExpandedUnits] = useState<Record<string, boolean>>({});
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [isPulling, setIsPulling] = useState(false);
+  const [isLoadingSyllabi, setIsLoadingSyllabi] = useState(false);
   
   // Committee Pull State
   const [committeeSchemes, setCommitteeSchemes] = useState<Scheme[]>([]);
@@ -94,9 +94,15 @@ export function SyllabusDialog({
   // Fetch Committee Pools for current batch
   useEffect(() => {
     if (open && batchYear) {
-      const q = query(collection(db, 'schemes'), where('isCommitteePool', '==', true), where('batchYear', '==', batchYear));
+      const q = query(
+        collection(db, 'schemes'), 
+        where('isCommitteePool', '==', true), 
+        where('batchYear', '==', batchYear)
+      );
       getDocs(q).then(snap => {
         setCommitteeSchemes(snap.docs.map(d => ({ ...d.data(), id: d.id } as Scheme)));
+      }).catch(err => {
+        console.error("Failed to fetch committees:", err);
       });
     }
   }, [open, batchYear, db]);
@@ -104,10 +110,19 @@ export function SyllabusDialog({
   // Fetch Syllabi for selected committee pool
   useEffect(() => {
     if (selectedCommitteeId) {
+      setIsLoadingSyllabi(true);
+      setSelectedPoolSubjectId(''); // Reset selection when pool changes
       const q = collection(db, 'schemes', selectedCommitteeId, 'syllabi');
       getDocs(q).then(snap => {
         setCommitteeSyllabi(snap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus)));
+        setIsLoadingSyllabi(false);
+      }).catch(err => {
+        console.error("Failed to fetch committee syllabi:", err);
+        setIsLoadingSyllabi(false);
       });
+    } else {
+      setCommitteeSyllabi([]);
+      setSelectedPoolSubjectId('');
     }
   }, [selectedCommitteeId, db]);
 
@@ -135,6 +150,23 @@ export function SyllabusDialog({
     setIsPulling(false);
   };
 
+  const calculateCredits = (l: number, t: number, p: number) => {
+    let total = l + t;
+    if (p === 1) total += 0.5;
+    else if (p === 2) total += 1;
+    else if (p === 3) total += 2;
+    else if (p === 4) total += 2;
+    else if (p > 4) total += p / 2;
+    return Number(total.toFixed(2));
+  };
+
+  useEffect(() => {
+    const l = Number(formData.lectureCredits) || 0;
+    const t = Number(formData.tutorialCredits) || 0;
+    const p = Number(formData.practicalCredits) || 0;
+    setFormData(prev => ({ ...prev, credits: calculateCredits(l, t, p) }));
+  }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits]);
+
   const handleAiGenerate = async () => {
     if (!formData.title) return;
     setIsAiGenerating(true);
@@ -151,6 +183,7 @@ export function SyllabusDialog({
         textBooks: result.suggestedTextBooks,
         referenceBooks: result.suggestedReferences
       }));
+      toast({ title: "AI Generation Complete" });
     } catch (e: any) {
       toast({ variant: "destructive", title: "AI Error", description: e.message });
     } finally {
@@ -176,6 +209,9 @@ export function SyllabusDialog({
               </Button>
             </div>
           </DialogTitle>
+          <DialogDescription>
+            Authorized syllabus management module. Use specialized pools for foundational courses.
+          </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="flex-1 w-full min-h-0 bg-muted/5">
@@ -196,20 +232,36 @@ export function SyllabusDialog({
                         <SelectTrigger className="h-10 bg-white"><SelectValue placeholder="Committees (Math, Physics...)" /></SelectTrigger>
                         <SelectContent>
                           {committeeSchemes.map(s => <SelectItem key={s.id} value={s.id}>{s.branch}</SelectItem>)}
+                          {committeeSchemes.length === 0 && <div className="p-2 text-xs text-muted-foreground text-center">No committees found for {batchYear}</div>}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="md:col-span-6 space-y-1">
                       <Label className="text-[10px] uppercase font-bold text-blue-600">Available Pooled Subjects</Label>
-                      <Select value={selectedPoolSubjectId} onValueChange={setSelectedPoolSubjectId} disabled={!selectedCommitteeId}>
-                        <SelectTrigger className="h-10 bg-white"><SelectValue placeholder="Choose subject..." /></SelectTrigger>
+                      <Select 
+                        value={selectedPoolSubjectId} 
+                        onValueChange={setSelectedPoolSubjectId} 
+                        disabled={!selectedCommitteeId || isLoadingSyllabi}
+                      >
+                        <SelectTrigger className="h-10 bg-white">
+                          <SelectValue placeholder={isLoadingSyllabi ? "Loading repository..." : "Choose subject..."} />
+                        </SelectTrigger>
                         <SelectContent>
-                          {committeeSyllabi.map(s => <SelectItem key={s.id} value={s.id}>{s.subjectCode} - {s.title}</SelectItem>)}
+                          {committeeSyllabi.map(s => (
+                            <SelectItem key={s.id} value={s.id}>
+                              <span className="font-bold">{s.subjectCode}</span> - {s.title}
+                            </SelectItem>
+                          ))}
+                          {selectedCommitteeId && !isLoadingSyllabi && committeeSyllabi.length === 0 && (
+                            <div className="p-4 text-center text-xs text-muted-foreground italic">
+                              This pool is currently empty.
+                            </div>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="md:col-span-2">
-                      <Button onClick={handlePullFromPool} disabled={!selectedPoolSubjectId || isPulling} className="w-full h-10 gap-2 bg-blue-600 hover:bg-blue-700">
+                      <Button onClick={handlePullFromPool} disabled={!selectedPoolSubjectId || isPulling} className="w-full h-10 gap-2 bg-blue-600 hover:bg-blue-700 shadow-md">
                         {isPulling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Layers className="w-4 h-4" />} Pull Course
                       </Button>
                     </div>
@@ -239,14 +291,20 @@ export function SyllabusDialog({
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Course Title</Label>
-                    <Input disabled={!isAuthorized} value={formData.title || ''} onChange={e => setFormData({...formData, title: e.target.value})} />
+                    <Input disabled={!isAuthorized} value={formData.title || ''} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="e.g. Engineering Mathematics-I" />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Subject Code</Label>
-                    <Input disabled={!isSuperuser && !isCommonBOS && !isCommitteeConvenor} value={formData.subjectCode || ''} onChange={e => setFormData({...formData, subjectCode: e.target.value.toUpperCase()})} />
+                    <Input 
+                      disabled={!isSuperuser && !isCommonBOS && !isCommitteeConvenor} 
+                      value={formData.subjectCode || ''} 
+                      onChange={e => setFormData({...formData, subjectCode: e.target.value.toUpperCase()})} 
+                      placeholder="e.g. MALT101"
+                      className="font-mono font-bold text-primary"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Methodology</Label>
@@ -268,7 +326,7 @@ export function SyllabusDialog({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white border rounded-xl">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white border rounded-xl shadow-inner">
                   <div className="space-y-1">
                     <Label className="text-[10px] uppercase font-bold">L (Lecture)</Label>
                     <Input type="number" disabled={!isAuthorized} value={formData.lectureCredits || 0} onChange={e => setFormData({...formData, lectureCredits: Number(e.target.value)})} />
@@ -286,9 +344,9 @@ export function SyllabusDialog({
 
               <TabsContent value="syllabus" className="space-y-6">
                  {formData.units?.map((u, i) => (
-                   <Card key={u.id} className="border-muted overflow-hidden">
+                   <Card key={u.id} className="border-muted overflow-hidden shadow-sm">
                      <CardHeader 
-                      className="p-4 bg-muted/20 flex flex-row items-center justify-between cursor-pointer"
+                      className="p-4 bg-muted/20 flex flex-row items-center justify-between cursor-pointer hover:bg-muted/30 transition-colors"
                       onClick={() => setExpandedUnits(prev => ({ ...prev, [u.id]: !prev[u.id] }))}
                      >
                         <div className="flex items-center gap-3">
@@ -306,31 +364,46 @@ export function SyllabusDialog({
                           <Label>Syllabus Content</Label>
                           <Textarea disabled={!isAuthorized} value={u.content || ''} onChange={e => { const units = [...(formData.units || [])]; units[i].content = e.target.value; setFormData({ ...formData, units }); }} className="min-h-[120px]" />
                         </div>
+                        <div className="space-y-2">
+                          <Label>Unit Learning Outcome</Label>
+                          <Input disabled={!isAuthorized} value={u.courseOutcome || ''} onChange={e => { const units = [...(formData.units || [])]; units[i].courseOutcome = e.target.value; setFormData({ ...formData, units }); }} placeholder="The student will be able to..." />
+                        </div>
                      </CardContent>
                    </Card>
                  ))}
-                 <Button variant="outline" className="w-full border-dashed" onClick={() => setFormData(p => ({...p, units: [...(p.units||[]), {id:Math.random().toString(36).substr(2,9), title:'', content:'', hours:0, courseOutcome:''}]}))}><Plus className="w-4 h-4 mr-2" /> Add Course Unit</Button>
+                 {isAuthorized && (
+                   <Button variant="outline" className="w-full border-dashed h-12" onClick={() => setFormData(p => ({...p, units: [...(p.units||[]), {id:Math.random().toString(36).substr(2,9), title:'', content:'', hours:0, courseOutcome:''}]}))}>
+                     <Plus className="w-4 h-4 mr-2" /> Add Course Unit
+                   </Button>
+                 )}
               </TabsContent>
 
               <TabsContent value="resources" className="space-y-8">
                  <div className="space-y-4">
-                    <Label className="font-bold text-primary">Reference Text Books</Label>
+                    <Label className="font-bold text-primary flex items-center gap-2">
+                      <BookOpen className="w-4 h-4" /> Reference Text Books
+                    </Label>
                     {formData.textBooks?.map((it, i) => (
                       <div key={i} className="flex gap-2">
-                        <Input value={it} disabled={!isAuthorized} onChange={e => { const a=[...formData.textBooks!]; a[i]=e.target.value; setFormData({...formData, textBooks:a}) }} />
-                        <Button variant="ghost" size="icon" onClick={() => setFormData({...formData, textBooks: formData.textBooks?.filter((_, idx) => idx !== i)})}><Trash2 className="w-4 h-4 text-red-400" /></Button>
+                        <Input value={it} disabled={!isAuthorized} onChange={e => { const a=[...formData.textBooks!]; a[i]=e.target.value; setFormData({...formData, textBooks:a}) }} placeholder="Author, Title, Edition, Publisher" />
+                        {isAuthorized && <Button variant="ghost" size="icon" onClick={() => setFormData({...formData, textBooks: formData.textBooks?.filter((_, idx) => idx !== i)})}><Trash2 className="w-4 h-4 text-red-400" /></Button>}
                       </div>
                     ))}
-                    <Button variant="ghost" size="sm" onClick={() => setFormData({...formData, textBooks: [...(formData.textBooks||[]), '']})}><Plus className="w-3.5 h-3.5 mr-1" /> Add Reference</Button>
+                    {isAuthorized && <Button variant="ghost" size="sm" onClick={() => setFormData({...formData, textBooks: [...(formData.textBooks||[]), '']})} className="text-primary"><Plus className="w-3.5 h-3.5 mr-1" /> Add Reference</Button>}
                  </div>
+              </TabsContent>
+
+              <TabsContent value="mapping" className="p-8 text-center text-muted-foreground italic bg-white rounded-xl border border-dashed">
+                 <ShieldCheck className="w-12 h-12 mx-auto mb-4 opacity-10" />
+                 <p>Advanced Outcome Mapping (PO/PSO) is under systematic implementation.</p>
               </TabsContent>
             </Tabs>
           </div>
         </ScrollArea>
         
-        <DialogFooter className="p-6 border-t bg-background shrink-0">
-           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-           <Button onClick={() => { onSave(formData); onOpenChange(false); }}>Save Subject Specification</Button>
+        <DialogFooter className="p-6 border-t bg-background shrink-0 shadow-lg">
+           <Button variant="outline" onClick={() => onOpenChange(false)} className="h-11 px-6">Cancel</Button>
+           <Button onClick={() => { onSave(formData); onOpenChange(false); }} className="h-11 px-8 shadow-md">Save Subject Specification</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
