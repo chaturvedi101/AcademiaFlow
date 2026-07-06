@@ -79,7 +79,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             ...d.data(), 
             id: d.id, 
             parentPoolId: psId,
-            // Mark source for vertical inheritance
             fromVerticalPool: snap.docs.find(doc => doc.id === psId)?.data().isCommonPoolScheme
           } as any));
           const allPool = Object.values(syllabiByScheme).flat();
@@ -106,13 +105,18 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const syllabi = useMemo(() => {
     if (!scheme) return [];
 
+    // Deduplicate Pool Syllabi by Code to prevent double-rendering if a subject is in multiple pools
+    const uniquePoolSyllabi = poolSyllabi.reduce((acc, current) => {
+      const exists = acc.find(p => p.subjectCode === current.subjectCode);
+      if (!exists && current.subjectCode) acc.push(current);
+      return acc;
+    }, [] as Syllabus[]);
+
     const resolvedLocal = localSyllabi.map(local => {
-      // 1. Resolve Explicit Link (followedFromId)
-      let parent = local.followedFromId ? poolSyllabi.find(p => p.id === local.followedFromId) : null;
+      let parent = local.followedFromId ? uniquePoolSyllabi.find(p => p.id === local.followedFromId) : null;
       
-      // 2. Resolve Implicit Match (Pull by Code)
       if (!parent && local.subjectCode && !local.subjectCode.includes('XX')) {
-        parent = poolSyllabi.find(p => p.subjectCode === local.subjectCode);
+        parent = uniquePoolSyllabi.find(p => p.subjectCode === local.subjectCode);
       }
 
       if (parent) {
@@ -135,12 +139,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       return local;
     });
 
-    // 3. VERTICAL INHERITANCE: Automatically bring courses from the B.Tech/BBA Common Pool
-    // if they are not already in the local list and belong to the vertical.
     const isBTechVertical = program?.faculty?.includes('Engineering') || program?.name?.includes('B.Tech');
     
     if (isBTechVertical) {
-      const inheritedFromPool = poolSyllabi
+      const inheritedFromPool = uniquePoolSyllabi
         .filter(p => (p as any).fromVerticalPool && !resolvedLocal.some(l => l.subjectCode === p.subjectCode))
         .map(p => ({
           ...p,
@@ -180,12 +182,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const canEditSyllabus = (s: any) => {
       if (isSuperuser) return true;
       if (isMyCommittee) return true;
-      if (s?.isInherited) return false; // Cannot edit auto-inherited subjects from the branch
+      if (s?.isInherited) return false;
       return isProgramDean || !!myBranchRole || canEditScheme;
     };
 
     const canDeleteSyllabus = (s: any) => {
-      if (s?.isInherited) return false; // Cannot delete auto-inherited subjects
+      if (s?.isInherited) return false;
       return isSuperuser || isMyCommittee || canEditScheme;
     };
 
