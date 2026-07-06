@@ -40,7 +40,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [isSubmissionDialogOpen, setIsSubmissionDialogOpen] = useState(false);
   const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
 
-  // DISCOVERY ENGINE: Pull data from B.Tech/BBA Common Pools + All Committee Pools
+  // DISCOVERY ENGINE: Pull data from institutional pools (Common & Committee)
   useEffect(() => {
     if (!scheme) return;
     setPoolLoading(true);
@@ -119,7 +119,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           textBooks: parent.textBooks,
           referenceBooks: parent.referenceBooks,
           isStandardized: true,
-          standardizedFrom: parent.followedFromId ? 'Linked' : 'Code Match'
+          standardizedFrom: local.followedFromId ? 'Equivalence Link' : 'Code Match'
         };
       }
 
@@ -239,10 +239,19 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             <TabsContent value="syllabi" className="mt-6 space-y-6">
               {Array.from({ length: scheme.isCommitteePool ? 1 : (program?.totalSemesters || 8) }, (_, i) => i + 1).map(sem => {
                 const semSyllabi = syllabi.filter(s => (scheme.isCommitteePool ? true : s.semester === sem));
+                const semTotalCredits = semSyllabi.reduce((sum, s) => sum + (s.credits || 0), 0);
+
                 return (
                   <Card key={sem} className="shadow-sm border-none overflow-hidden">
                     <CardHeader className="bg-muted/20 py-4 px-6 flex flex-row items-center justify-between">
-                      <CardTitle className="text-lg">{scheme.isCommitteePool ? 'Course Registry' : `Semester ${sem}`}</CardTitle>
+                      <div className="flex items-center gap-4">
+                        <CardTitle className="text-lg">{scheme.isCommitteePool ? 'Course Registry' : `Semester ${sem}`}</CardTitle>
+                        {!scheme.isCommitteePool && (
+                          <Badge variant="secondary" className="bg-white/50 text-primary border-primary/20">
+                            Total: {semTotalCredits} Credits
+                          </Badge>
+                        )}
+                      </div>
                       {permissions.canEditScheme && (
                         <Button size="sm" variant="outline" onClick={() => { setActiveSubject({ semester: sem }); setIsSyllabusDialogOpen(true); }}>
                           <Plus className="w-4 h-4 mr-2" /> Add Subject
@@ -294,6 +303,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                               </TableCell>
                             </TableRow>
                           ))}
+                          {semSyllabi.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={6} className="text-center py-8 text-muted-foreground italic">
+                                No subjects added for this semester.
+                              </TableCell>
+                            </TableRow>
+                          )}
                         </TableBody>
                       </Table>
                     </CardContent>
