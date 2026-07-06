@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -38,7 +37,21 @@ export default function EquivalencePage() {
 
   // Filter schemes
   const committeePools = useMemo(() => allSchemes.filter(s => s.isCommitteePool), [allSchemes]);
-  const branchSchemes = useMemo(() => allSchemes.filter(s => !s.isCommitteePool && !s.isCommonPoolScheme), [allSchemes]);
+  
+  const branchSchemes = useMemo(() => {
+    const base = allSchemes.filter(s => !s.isCommitteePool && !s.isCommonPoolScheme);
+    
+    // Admins and Dean Academic can see everything
+    if (profile?.role === 'admin' || profile?.role === 'dean_academic') {
+      return base;
+    }
+
+    // BoS Convenors can only see schemes they manage
+    const managed = profile?.managedBranches || [];
+    return base.filter(s => 
+      managed.some(m => m.programId === s.programId && m.branch === s.branch && m.role === 'bos_convenor')
+    );
+  }, [allSchemes, profile]);
 
   // Load Syllabi for selected schemes
   useEffect(() => {
@@ -62,7 +75,6 @@ export default function EquivalencePage() {
     setIsProcessing(true);
     
     const childRef = doc(db, 'schemes', childSchemeId, 'syllabi', childSyllabusId);
-    const parent = parentSyllabi.find(s => s.id === parentSyllabusId);
 
     try {
       await updateDoc(childRef, {
@@ -97,8 +109,6 @@ export default function EquivalencePage() {
     }
   };
 
-  const isAdmin = profile?.role === 'admin' || profile?.role === 'dean_academic';
-
   if (schemesLoading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin w-8 h-8 text-primary" /></div>;
 
   return (
@@ -119,7 +129,7 @@ export default function EquivalencePage() {
           <CardContent className="space-y-6">
             <div className="space-y-4 p-4 bg-muted/30 rounded-xl">
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase">1. Select Target Branch Scheme</Label>
+                <Label className="text-[10px] font-bold uppercase">1. Select Target Branch Scheme (Child)</Label>
                 <Select value={childSchemeId} onValueChange={setChildSchemeId}>
                   <SelectTrigger><SelectValue placeholder="Choose Branch..." /></SelectTrigger>
                   <SelectContent>
@@ -143,7 +153,7 @@ export default function EquivalencePage() {
 
             <div className="space-y-4 p-4 bg-primary/5 rounded-xl border border-primary/10">
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase text-primary">3. Select Source Committee Pool</Label>
+                <Label className="text-[10px] font-bold uppercase text-primary">3. Select Source Committee Pool (Parent)</Label>
                 <Select value={parentSchemeId} onValueChange={setParentSchemeId}>
                   <SelectTrigger className="bg-white"><SelectValue placeholder="Choose Committee..." /></SelectTrigger>
                   <SelectContent>
@@ -173,7 +183,7 @@ export default function EquivalencePage() {
         <Card className="lg:col-span-2 shadow-sm border-none bg-white">
           <CardHeader className="bg-muted/10 border-b">
             <CardTitle className="text-lg">Equivalence Registry</CardTitle>
-            <CardDescription>Courses following committee standards in {allSchemes.find(s => s.id === childSchemeId)?.branch || 'Selected Scheme'}</CardDescription>
+            <CardDescription>Courses following committee standards in {branchSchemes.find(s => s.id === childSchemeId)?.branch || 'Selected Scheme'}</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
