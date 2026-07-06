@@ -125,7 +125,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       
       // Implicit resolution by code (if not a generic placeholder XX code)
       if (!parent && local.subjectCode && !local.subjectCode.startsWith('XX')) {
-        parent = poolSyllabi.find(p => p.subjectCode === local.subjectCode);
+        // Prefer Course Committee match, then Vertical Pool
+        parent = poolSyllabi.find(p => p.subjectCode === local.subjectCode && !(p as any).fromVerticalPool) || 
+                 poolSyllabi.find(p => p.subjectCode === local.subjectCode);
       }
 
       if (parent) {
@@ -150,13 +152,18 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     const isBTechVertical = program?.faculty?.includes('Engineering') || program?.name?.includes('B.Tech') || scheme.branch?.includes('B.Tech');
     
-    let finalSet = [...resolvedLocal];
-
+    // 2. Add remaining subjects from vertical pool that are NOT already represented in local slots
+    let inheritedFromPool: any[] = [];
     if (isBTechVertical) {
-      // 2. Add remaining subjects from vertical pool that are NOT already represented in local slots
-      // This prevents the "added twice" issue by checking subjectCode
-      const inheritedFromPool = poolSyllabi
-        .filter(p => (p as any).fromVerticalPool)
+      // Use a Map to deduplicate vertical pool subjects by subjectCode before merging
+      const poolMap = new Map<string, any>();
+      poolSyllabi.filter(p => (p as any).fromVerticalPool).forEach(p => {
+        if (!poolMap.has(p.subjectCode)) {
+          poolMap.set(p.subjectCode, p);
+        }
+      });
+
+      inheritedFromPool = Array.from(poolMap.values())
         .filter(p => !resolvedLocal.some(l => l.subjectCode === p.subjectCode))
         .map(p => ({
           ...p,
@@ -164,9 +171,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           standardizedFrom: 'Vertical Pool (Auto)',
           isInherited: true
         }));
-      
-      finalSet = [...finalSet, ...inheritedFromPool];
     }
+
+    const finalSet = [...resolvedLocal, ...inheritedFromPool];
 
     // Final sorting by Semester and Code
     return finalSet.sort((a, b) => {
@@ -274,7 +281,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => exportFullSchemeToPDF(scheme, program!, syllabi)}><FileText className="w-4 h-4 mr-2" /> Structure</Button>
-          <Button variant="outline" onClick={() => exportCompleteSyllabusToPDF(scheme, program!, syllabi)}><BookOpen className="w-4 h-4 mr-2" /> Book</BookOpen>
+          <Button variant="outline" onClick={() => exportCompleteSyllabusToPDF(scheme, program!, syllabi)}><BookOpen className="w-4 h-4 mr-2" /> Book</Button>
           {permissions.canEditScheme && <Button onClick={() => setIsSubmissionDialogOpen(true)}>Submit Scheme</Button>}
         </div>
       </div>
