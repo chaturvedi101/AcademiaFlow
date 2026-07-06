@@ -56,15 +56,7 @@ export function SyllabusDialog({
 
   const [expandedUnits, setExpandedUnits] = useState<Record<string, boolean>>({});
   const [isAiGenerating, setIsAiGenerating] = useState(false);
-  const [isPulling, setIsPulling] = useState(false);
-  const [isLoadingSyllabi, setIsLoadingSyllabi] = useState(false);
   
-  // Committee Pull State
-  const [committeeSchemes, setCommitteeSchemes] = useState<Scheme[]>([]);
-  const [selectedCommitteeId, setSelectedCommitteeId] = useState<string>('');
-  const [committeeSyllabi, setCommitteeSyllabi] = useState<Syllabus[]>([]);
-  const [selectedPoolSubjectId, setSelectedPoolSubjectId] = useState<string>('');
-
   const [formData, setFormData] = useState<Partial<Syllabus>>({
     subjectCode: '', title: '', lectureCredits: 0, tutorialCredits: 0, practicalCredits: 0,
     credits: 0, semester: 1, type: 'Theory', creditCategory: 'DSC', units: [],
@@ -85,70 +77,8 @@ export function SyllabusDialog({
         timetableSlot: '', electiveGroupId: '',
         ...syllabus
       });
-      setSelectedCommitteeId('');
-      setCommitteeSyllabi([]);
-      setSelectedPoolSubjectId('');
     }
   }, [open, syllabus]);
-
-  // Fetch Committee Pools for current batch
-  useEffect(() => {
-    if (open && batchYear) {
-      const q = query(
-        collection(db, 'schemes'), 
-        where('isCommitteePool', '==', true), 
-        where('batchYear', '==', batchYear)
-      );
-      getDocs(q).then(snap => {
-        setCommitteeSchemes(snap.docs.map(d => ({ ...d.data(), id: d.id } as Scheme)));
-      }).catch(err => {
-        console.error("Failed to fetch committees:", err);
-      });
-    }
-  }, [open, batchYear, db]);
-
-  // Fetch Syllabi for selected committee pool
-  useEffect(() => {
-    if (selectedCommitteeId) {
-      setIsLoadingSyllabi(true);
-      setSelectedPoolSubjectId(''); // Reset selection when pool changes
-      const q = collection(db, 'schemes', selectedCommitteeId, 'syllabi');
-      getDocs(q).then(snap => {
-        setCommitteeSyllabi(snap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus)));
-        setIsLoadingSyllabi(false);
-      }).catch(err => {
-        console.error("Failed to fetch committee syllabi:", err);
-        setIsLoadingSyllabi(false);
-      });
-    } else {
-      setCommitteeSyllabi([]);
-      setSelectedPoolSubjectId('');
-    }
-  }, [selectedCommitteeId, db]);
-
-  const handlePullFromPool = () => {
-    const pooled = committeeSyllabi.find(s => s.id === selectedPoolSubjectId);
-    if (!pooled) return;
-
-    setIsPulling(true);
-    setFormData(prev => ({
-      ...prev,
-      subjectCode: pooled.subjectCode,
-      title: pooled.title,
-      type: pooled.type,
-      lectureCredits: pooled.lectureCredits,
-      tutorialCredits: pooled.tutorialCredits,
-      practicalCredits: pooled.practicalCredits,
-      credits: pooled.credits,
-      units: pooled.units || [],
-      textBooks: pooled.textBooks || [],
-      referenceBooks: pooled.referenceBooks || [],
-      poMappings: pooled.poMappings || {}
-    }));
-    
-    toast({ title: "Course Imported", description: `Data pulled from ${pooled.subjectCode}.` });
-    setIsPulling(false);
-  };
 
   const calculateCredits = (l: number, t: number, p: number) => {
     let total = l + t;
@@ -210,66 +140,12 @@ export function SyllabusDialog({
             </div>
           </DialogTitle>
           <DialogDescription>
-            Authorized syllabus management module. Use specialized pools for foundational courses.
+            Authorized syllabus management module. Use specialized pools for foundational courses via the Equivalence Manager.
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="flex-1 w-full min-h-0 bg-muted/5">
           <div className="p-6 space-y-8">
-            {/* COMMITTEE PULL MODULE */}
-            {!isCommonBOS && !isCommitteeConvenor && (
-              <Card className="border-blue-200 bg-blue-50/20 shadow-sm">
-                <CardHeader className="py-3 px-4">
-                  <CardTitle className="text-sm font-bold flex items-center gap-2 text-blue-800">
-                    <Download className="w-4 h-4" /> Import from specialized Course Committee Pool
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="py-0 px-4 pb-4">
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-                    <div className="md:col-span-4 space-y-1">
-                      <Label className="text-[10px] uppercase font-bold text-blue-600">Select Committee Pool</Label>
-                      <Select value={selectedCommitteeId} onValueChange={setSelectedCommitteeId}>
-                        <SelectTrigger className="h-10 bg-white"><SelectValue placeholder="Committees (Math, Physics...)" /></SelectTrigger>
-                        <SelectContent>
-                          {committeeSchemes.map(s => <SelectItem key={s.id} value={s.id}>{s.branch}</SelectItem>)}
-                          {committeeSchemes.length === 0 && <div className="p-2 text-xs text-muted-foreground text-center">No committees found for {batchYear}</div>}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="md:col-span-6 space-y-1">
-                      <Label className="text-[10px] uppercase font-bold text-blue-600">Available Pooled Subjects</Label>
-                      <Select 
-                        value={selectedPoolSubjectId} 
-                        onValueChange={setSelectedPoolSubjectId} 
-                        disabled={!selectedCommitteeId || isLoadingSyllabi}
-                      >
-                        <SelectTrigger className="h-10 bg-white">
-                          <SelectValue placeholder={isLoadingSyllabi ? "Loading repository..." : "Choose subject..."} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {committeeSyllabi.map(s => (
-                            <SelectItem key={s.id} value={s.id}>
-                              <span className="font-bold">{s.subjectCode}</span> - {s.title}
-                            </SelectItem>
-                          ))}
-                          {selectedCommitteeId && !isLoadingSyllabi && committeeSyllabi.length === 0 && (
-                            <div className="p-4 text-center text-xs text-muted-foreground italic">
-                              This pool is currently empty.
-                            </div>
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="md:col-span-2">
-                      <Button onClick={handlePullFromPool} disabled={!selectedPoolSubjectId || isPulling} className="w-full h-10 gap-2 bg-blue-600 hover:bg-blue-700 shadow-md">
-                        {isPulling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Layers className="w-4 h-4" />} Pull Course
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
             <Tabs defaultValue="basic">
               <TabsList className="grid w-full grid-cols-4 mb-8">
                 <TabsTrigger value="basic">Identity</TabsTrigger>
