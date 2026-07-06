@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
@@ -11,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Send, Edit3, Loader2, FileText, BookOpen, Eye, Link as LinkIcon, CheckCircle2 } from "lucide-react";
+import { Plus, Send, Edit3, Loader2, FileText, BookOpen, Eye, Link as LinkIcon, CheckCircle2, Layers } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile, SubmissionScope } from "@/lib/types";
@@ -46,7 +45,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     if (!scheme) return;
     setPoolLoading(true);
 
-    // Query all institutional pools (Common & Committee) for this specific batch year
     const poolQuery = query(
       collection(db, 'schemes'),
       where('batchYear', '==', scheme.batchYear),
@@ -75,7 +73,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       poolSchemeIds.forEach(psId => {
         const sRef = collection(db, 'schemes', psId, 'syllabi');
         const u = onSnapshot(sRef, (sSnap) => {
-          syllabiByScheme[psId] = sSnap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus));
+          syllabiByScheme[psId] = sSnap.docs.map(d => ({ ...d.data(), id: d.id, parentPoolId: psId } as Syllabus));
           const allPool = Object.values(syllabiByScheme).flat();
           setPoolSyllabi(allPool);
           setPoolLoading(false);
@@ -103,7 +101,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       let parent = local.followedFromId ? poolSyllabi.find(p => p.id === local.followedFromId) : null;
       
       // 2. Resolve Implicit Match (Pull by Code)
-      // If not explicitly linked, try to match by subject code (ignoring patterns like XX)
       if (!parent && local.subjectCode && !local.subjectCode.includes('XX')) {
         parent = poolSyllabi.find(p => p.subjectCode === local.subjectCode);
       }
@@ -111,7 +108,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       if (parent) {
         return {
           ...local,
-          // Inherit authoritative identity and pedagogy
           title: parent.title,
           subjectCode: parent.subjectCode,
           lectureCredits: parent.lectureCredits,
@@ -122,7 +118,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           units: parent.units,
           textBooks: parent.textBooks,
           referenceBooks: parent.referenceBooks,
-          isStandardized: true, // Internal flag for UI
+          isStandardized: true,
           standardizedFrom: parent.followedFromId ? 'Linked' : 'Code Match'
         };
       }
@@ -153,8 +149,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const canEditSyllabus = (s: any) => {
       if (isSuperuser) return true;
       if (isMyCommittee) return true;
-      // Standardized courses (Linked or matched by code) cannot be edited locally in branch schemes
-      if (s?.isStandardized) return false;
       return isProgramDean || !!myBranchRole || canEditScheme;
     };
 
@@ -189,7 +183,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     if (scheme?.isCommonPoolScheme || scheme?.isCommitteePool) return true; 
     if (!program?.rules) return false;
     
-    // Check if relevant semesters are populated for phased submission
     if (selectedScope === 'Year 1') return syllabi.some(s => s.semester === 1) && syllabi.some(s => s.semester === 2);
     if (selectedScope === 'Year 2') return syllabi.some(s => s.semester === 4);
     if (selectedScope === 'Year 3') return syllabi.some(s => s.semester === 6);
@@ -284,7 +277,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                               <TableCell className="text-right pr-6">
                                 <div className="flex justify-end items-center gap-2">
                                   {sub.isStandardized && (
-                                    <Badge variant="outline" className="bg-emerald-50 text-emerald-700 gap-1 border-emerald-200">
+                                    <Badge variant="outline" className="bg-emerald-50 text-emerald-700 gap-1 border-emerald-200" title={`Following authoritative standard via ${sub.standardizedFrom}`}>
                                       <CheckCircle2 className="w-3 h-3" /> Standardized
                                     </Badge>
                                   )}
