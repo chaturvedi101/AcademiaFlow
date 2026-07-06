@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
@@ -10,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Send, Edit3, Loader2, FileText, BookOpen, Eye, Link as LinkIcon, CheckCircle2, Layers } from "lucide-react";
+import { Plus, Send, Edit3, Loader2, FileText, BookOpen, Eye, Link as LinkIcon, CheckCircle2, Layers, ShieldCheck } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile, SubmissionScope } from "@/lib/types";
@@ -73,7 +74,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       poolSchemeIds.forEach(psId => {
         const sRef = collection(db, 'schemes', psId, 'syllabi');
         const u = onSnapshot(sRef, (sSnap) => {
-          syllabiByScheme[psId] = sSnap.docs.map(d => ({ ...d.data(), id: d.id, parentPoolId: psId } as Syllabus));
+          syllabiByScheme[psId] = sSnap.docs.map(d => ({ 
+            ...d.data(), 
+            id: d.id, 
+            parentPoolId: psId,
+            // Mark source for vertical inheritance
+            fromVerticalPool: snap.docs.find(doc => doc.id === psId)?.data().isCommonPoolScheme
+          } as any));
           const allPool = Object.values(syllabiByScheme).flat();
           setPoolSyllabi(allPool);
           setPoolLoading(false);
@@ -94,9 +101,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [isSyllabusDialogOpen, setIsSyllabusDialogOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Partial<Syllabus> | undefined>(undefined);
 
-  // RESOLUTION ENGINE: Handles explicit linking AND implicit "Pull by Code"
+  // VERTICAL INHERITANCE & RESOLUTION ENGINE
   const syllabi = useMemo(() => {
-    return localSyllabi.map(local => {
+    if (!scheme) return [];
+
+    const resolvedLocal = localSyllabi.map(local => {
       // 1. Resolve Explicit Link (followedFromId)
       let parent = local.followedFromId ? poolSyllabi.find(p => p.id === local.followedFromId) : null;
       
@@ -122,13 +131,34 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           standardizedFrom: local.followedFromId ? 'Equivalence Link' : 'Code Match'
         };
       }
-
       return local;
-    }).sort((a, b) => {
+    });
+
+    // 3. VERTICAL INHERITANCE: Automatically bring courses from the B.Tech/BBA Common Pool
+    // if they are not already in the local list and belong to the vertical.
+    const isBTechVertical = program?.faculty?.includes('Engineering') || program?.name?.includes('B.Tech');
+    
+    if (isBTechVertical) {
+      const inheritedFromPool = poolSyllabi
+        .filter(p => (p as any).fromVerticalPool && !resolvedLocal.some(l => l.subjectCode === p.subjectCode))
+        .map(p => ({
+          ...p,
+          isStandardized: true,
+          standardizedFrom: 'Vertical Pool (Auto)',
+          isInherited: true
+        }));
+      
+      return [...resolvedLocal, ...inheritedFromPool].sort((a, b) => {
+        if ((a.semester || 1) !== (b.semester || 1)) return (a.semester || 1) - (b.semester || 1);
+        return (a.subjectCode || "").localeCompare(b.subjectCode || "");
+      });
+    }
+
+    return resolvedLocal.sort((a, b) => {
       if ((a.semester || 1) !== (b.semester || 1)) return (a.semester || 1) - (b.semester || 1);
       return (a.subjectCode || "").localeCompare(b.subjectCode || "");
     });
-  }, [localSyllabi, poolSyllabi]);
+  }, [localSyllabi, poolSyllabi, scheme, program]);
 
   const permissions = useMemo(() => {
     if (profileLoading || !profile || !scheme) return { 
@@ -149,10 +179,14 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const canEditSyllabus = (s: any) => {
       if (isSuperuser) return true;
       if (isMyCommittee) return true;
+      if (s?.isInherited) return false; // Cannot edit auto-inherited subjects from the branch
       return isProgramDean || !!myBranchRole || canEditScheme;
     };
 
-    const canDeleteSyllabus = (s: any) => isSuperuser || isMyCommittee || canEditScheme;
+    const canDeleteSyllabus = (s: any) => {
+      if (s?.isInherited) return false; // Cannot delete auto-inherited subjects
+      return isSuperuser || isMyCommittee || canEditScheme;
+    };
 
     return { canEditScheme, canDeleteSyllabus, canEditSyllabus, isMonitor: false, isSuperuser };
   }, [profile, profileLoading, scheme, program]);
@@ -286,8 +320,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                               <TableCell className="text-right pr-6">
                                 <div className="flex justify-end items-center gap-2">
                                   {sub.isStandardized && (
-                                    <Badge variant="outline" className="bg-emerald-50 text-emerald-700 gap-1 border-emerald-200" title={`Following authoritative standard via ${sub.standardizedFrom}`}>
-                                      <CheckCircle2 className="w-3 h-3" /> Standardized
+                                    <Badge variant="outline" className={cn(
+                                      "gap-1 border-emerald-200",
+                                      (sub as any).isInherited ? "bg-primary/5 text-primary border-primary/20" : "bg-emerald-50 text-emerald-700"
+                                    )} title={`Following authoritative standard via ${sub.standardizedFrom}`}>
+                                      {(sub as any).isInherited ? <ShieldCheck className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
+                                      {(sub as any).isInherited ? "Institutional" : "Standardized"}
                                     </Badge>
                                   )}
                                   {permissions.canEditSyllabus(sub) ? (
