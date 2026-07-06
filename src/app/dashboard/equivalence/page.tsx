@@ -35,8 +35,10 @@ export default function EquivalencePage() {
   const [childSyllabi, setChildSyllabi] = useState<Syllabus[]>([]);
   const [parentSyllabi, setParentSyllabi] = useState<Syllabus[]>([]);
 
-  // Filter schemes
-  const committeePools = useMemo(() => allSchemes.filter(s => s.isCommitteePool), [allSchemes]);
+  // Parent Pools: Both specialized Course Committees and Vertical Common Pools (AEC/VAC/MDC)
+  const authoritativePools = useMemo(() => 
+    allSchemes.filter(s => s.isCommitteePool || s.isCommonPoolScheme), 
+  [allSchemes]);
   
   const branchSchemes = useMemo(() => {
     const base = allSchemes.filter(s => !s.isCommitteePool && !s.isCommonPoolScheme);
@@ -82,7 +84,7 @@ export default function EquivalencePage() {
         parentSchemeId: parentSchemeId,
         updatedAt: serverTimestamp()
       });
-      toast({ title: "Equivalence Established", description: "Child course is now following the Committee parent." });
+      toast({ title: "Equivalence Established", description: "Departmental course is now linked to standard parent." });
       setChildSyllabusId("");
       // Refresh local list
       setChildSyllabi(prev => prev.map(s => s.id === childSyllabusId ? { ...s, followedFromId: parentSyllabusId } : s));
@@ -115,21 +117,21 @@ export default function EquivalencePage() {
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-headline font-bold">Institutional Equivalence Manager</h1>
-        <p className="text-muted-foreground">Map departmental subjects to authoritative Course Committee standards (Parent-Child linking).</p>
+        <p className="text-muted-foreground">Map branch subjects to authoritative Course Committee or Common BOS standards.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <Card className="lg:col-span-1 h-fit shadow-lg border-primary/10">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <LinkIcon className="w-5 h-5 text-primary" /> Establish Standard
+              <LinkIcon className="w-5 h-5 text-primary" /> Standard Assignment
             </CardTitle>
-            <CardDescription>Select a branch course to inherit from a committee parent.</CardDescription>
+            <CardDescription>Link a branch course to inherit from a specialized pool.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-4 p-4 bg-muted/30 rounded-xl">
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase">1. Select Target Branch Scheme (Child)</Label>
+                <Label className="text-[10px] font-bold uppercase">1. Target Departmental Scheme (Child)</Label>
                 <Select value={childSchemeId} onValueChange={setChildSchemeId}>
                   <SelectTrigger><SelectValue placeholder="Choose Branch..." /></SelectTrigger>
                   <SelectContent>
@@ -139,11 +141,11 @@ export default function EquivalencePage() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase">2. Select Target Subject (Child)</Label>
+                <Label className="text-[10px] font-bold uppercase">2. Target Subject Slot (Child)</Label>
                 <Select value={childSyllabusId} onValueChange={setChildSyllabusId} disabled={!childSchemeId}>
-                  <SelectTrigger><SelectValue placeholder="Choose Subject..." /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Choose Slot..." /></SelectTrigger>
                   <SelectContent>
-                    {childSyllabi.map(s => <SelectItem key={s.id} value={s.id}>{s.subjectCode} - {s.title}</SelectItem>)}
+                    {childSyllabi.map(s => <SelectItem key={s.id} value={s.id}>{s.subjectCode} - {s.title || 'Untitled Slot'}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -153,19 +155,23 @@ export default function EquivalencePage() {
 
             <div className="space-y-4 p-4 bg-primary/5 rounded-xl border border-primary/10">
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase text-primary">3. Select Source Committee Pool (Parent)</Label>
+                <Label className="text-[10px] font-bold uppercase text-primary">3. Source Authority Pool (Parent)</Label>
                 <Select value={parentSchemeId} onValueChange={setParentSchemeId}>
-                  <SelectTrigger className="bg-white"><SelectValue placeholder="Choose Committee..." /></SelectTrigger>
+                  <SelectTrigger className="bg-white"><SelectValue placeholder="Choose Authority..." /></SelectTrigger>
                   <SelectContent>
-                    {committeePools.map(s => <SelectItem key={s.id} value={s.id}>{s.branch}</SelectItem>)}
+                    {authoritativePools.map(s => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.branch} {s.isCommonPoolScheme ? '(Vertical)' : '(Committee)'}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase text-primary">4. Select Standard Subject (Parent)</Label>
+                <Label className="text-[10px] font-bold uppercase text-primary">4. Standard Authoritative Course (Parent)</Label>
                 <Select value={parentSyllabusId} onValueChange={setParentSyllabusId} disabled={!parentSchemeId}>
-                  <SelectTrigger className="bg-white"><SelectValue placeholder="Choose Standard..." /></SelectTrigger>
+                  <SelectTrigger className="bg-white"><SelectValue placeholder="Choose Course..." /></SelectTrigger>
                   <SelectContent>
                     {parentSyllabi.map(s => <SelectItem key={s.id} value={s.id}>{s.subjectCode} - {s.title}</SelectItem>)}
                   </SelectContent>
@@ -183,7 +189,7 @@ export default function EquivalencePage() {
         <Card className="lg:col-span-2 shadow-sm border-none bg-white">
           <CardHeader className="bg-muted/10 border-b">
             <CardTitle className="text-lg">Equivalence Registry</CardTitle>
-            <CardDescription>Courses following committee standards in {branchSchemes.find(s => s.id === childSchemeId)?.branch || 'Selected Scheme'}</CardDescription>
+            <CardDescription>Courses following institutional standards in {branchSchemes.find(s => s.id === childSchemeId)?.branch || 'Selected Scheme'}</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
@@ -191,7 +197,7 @@ export default function EquivalencePage() {
                 <TableRow>
                   <TableHead className="pl-6">Branch Subject (Child)</TableHead>
                   <TableHead></TableHead>
-                  <TableHead>Committee Standard (Parent)</TableHead>
+                  <TableHead>Authoritative Parent</TableHead>
                   <TableHead className="text-right pr-6">Action</TableHead>
                 </TableRow>
               </TableHeader>
