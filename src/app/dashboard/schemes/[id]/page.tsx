@@ -46,7 +46,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
   useEffect(() => {
     if (!scheme) return;
-    if (scheme.isCommonPoolScheme) return; // Pools don't inherit from other pools
+    // Pools (Common Vertical or Horizontal Committee) don't inherit from other pools
+    if (scheme.isCommonPoolScheme || scheme.isCommitteePool) return; 
 
     setPoolLoading(true);
 
@@ -112,6 +113,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const branchPrefix = useMemo(() => {
     if (!scheme) return 'XX';
     if (scheme.isCommonPoolScheme) return 'GN';
+    if (scheme.isCommitteePool) {
+      // Extract prefix from branch name (e.g. Mathematics -> MA)
+      const parts = scheme.branch?.split('-') || [];
+      const name = parts[parts.length - 1]?.trim().toUpperCase() || 'CM';
+      return name.substring(0, 2);
+    }
     if (!program) return 'XX';
     return program.branchPrefixes?.[scheme.branch || ''] || scheme.branch?.substring(0, 2).toUpperCase() || 'XX';
   }, [scheme, program]);
@@ -126,7 +133,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     });
 
     // 2. Enrich with Content from Institutional Pool (only for departmental schemes)
-    if (scheme && !scheme.isCommonPoolScheme) {
+    // skip enrichment for ALL types of pools (Common and Committee)
+    if (scheme && !scheme.isCommonPoolScheme && !scheme.isCommitteePool) {
       poolSyllabi.forEach(poolSub => {
         const key = poolSub.subjectCode || poolSub.id;
         const existing = uniqueMap.get(key);
@@ -172,12 +180,17 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const isProgramDean = profile.role === 'dean_faculty' && program && profile.faculty === program.faculty;
     const isCommonBOS = !!profile.faculty?.includes('(Common BOS)');
     const isCommonBOSConvenor = isCommonBOS && profile.role === 'bos_convenor';
+    
+    // Committee Check
+    const isMyCommittee = profile.role === 'committee_convenor' && profile.faculty === scheme.branch;
+
     const myBranchRole = profile.managedBranches?.find(m => m.programId === scheme.programId && m.branch === scheme.branch)?.role;
 
-    const canEditScheme = isSuperuser || isProgramDean || (scheme.isCommonPoolScheme ? isCommonBOS : myBranchRole === 'bos_convenor');
+    const canEditScheme = isSuperuser || isProgramDean || isMyCommittee || (scheme.isCommonPoolScheme ? isCommonBOS : myBranchRole === 'bos_convenor');
 
     const canEditSyllabus = (s: any) => {
       if (isSuperuser) return true;
+      if (isMyCommittee) return true;
       const isInstitutional = ['AEC', 'VAC', 'MDC'].includes(s?.creditCategory);
       if (isInstitutional && scheme.isCommonPoolScheme) return isCommonBOS;
       return isProgramDean || !!myBranchRole || canEditScheme;
@@ -185,6 +198,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     const canDeleteSyllabus = (s: any) => {
       if (isSuperuser) return true;
+      if (isMyCommittee) return true;
       if (isCommonBOSConvenor && scheme.isCommonPoolScheme) {
         return profile.faculty === scheme.branch?.replace(' Pool', '');
       }
@@ -217,7 +231,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   }, [syllabi]);
 
   const isSchemeValid = useMemo(() => {
-    if (scheme?.isCommonPoolScheme) return true; // Pools don't have a rigid credit total requirement
+    if (scheme?.isCommonPoolScheme || scheme?.isCommitteePool) return true; // Pools are not rigid degree structures
     if (!program?.rules) return false;
     
     // Yearly phased validation logic
@@ -404,8 +418,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-headline font-bold">{scheme.isCommonPoolScheme ? scheme.branch : (program?.name || 'Academic Layout')}</h1>
+            <h1 className="text-3xl font-headline font-bold">{scheme.isCommonPoolScheme || scheme.isCommitteePool ? scheme.branch : (program?.name || 'Academic Layout')}</h1>
             {scheme.isCommonPoolScheme && <Badge className="bg-emerald-100 text-emerald-700 border-none font-bold">INSTITUTIONAL POOL</Badge>}
+            {scheme.isCommitteePool && <Badge className="bg-blue-100 text-blue-700 border-none font-bold uppercase tracking-tight">Committee Pool</Badge>}
             <Badge variant="outline" className="bg-primary/10 text-primary border-none font-medium">{scheme.version}</Badge>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-muted-foreground text-sm">
@@ -437,8 +452,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         <div className="md:col-span-3 space-y-6">
           <Tabs defaultValue="syllabi" className="w-full">
             <TabsList className="bg-white border p-1 h-12 w-full justify-start gap-2">
-              <TabsTrigger value="syllabi">Course Structure</TabsTrigger>
-              {!scheme.isCommonPoolScheme && <TabsTrigger value="contributions">Pool Contributions</TabsTrigger>}
+              <TabsTrigger value="syllabi">{scheme.isCommitteePool ? 'Pool Subjects' : 'Course Structure'}</TabsTrigger>
+              {!scheme.isCommonPoolScheme && !scheme.isCommitteePool && <TabsTrigger value="contributions">Pool Contributions</TabsTrigger>}
             </TabsList>
             <TabsContent value="syllabi" className="mt-6 space-y-6">
               {scheme.isCommonPoolScheme && (
@@ -447,9 +462,15 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                   <p><b>Institutional Repository Mode:</b> Add universal subjects here. These will be automatically injected into departmental schemes based on credit slots and category matches.</p>
                 </div>
               )}
+              {scheme.isCommitteePool && (
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex gap-3 text-blue-800 text-xs mb-4">
+                  <Info className="w-5 h-5 shrink-0" />
+                  <p><b>Course Committee Repository:</b> Define foundational courses here. These subjects can be explicitly pulled by Branch Boards of Study using the "Import from Committee" module in their schemes.</p>
+                </div>
+              )}
 
-              {Array.from({ length: program?.totalSemesters || 8 }, (_, i) => i + 1).map(sem => {
-                const semSyllabi = syllabi.filter(s => s.semester === sem && !s.isOFEContribution);
+              {Array.from({ length: scheme.isCommitteePool ? 1 : (program?.totalSemesters || 8) }, (_, i) => i + 1).map(sem => {
+                const semSyllabi = syllabi.filter(s => (scheme.isCommitteePool ? true : s.semester === sem) && !s.isOFEContribution);
                 const groups: Record<string, Syllabus[]> = {};
                 const nonGrouped: Syllabus[] = [];
                 
@@ -473,7 +494,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                 return (
                   <Card key={sem} className="shadow-sm border-none bg-white overflow-hidden">
                     <CardHeader className="flex flex-row items-center justify-between bg-muted/20 py-4 px-6">
-                      <CardTitle className="text-lg font-headline">Semester {sem}</CardTitle>
+                      <CardTitle className="text-lg font-headline">{scheme.isCommitteePool ? 'Committee Offerings' : `Semester ${sem}`}</CardTitle>
                       {permissions.canEditScheme && (
                         <Button size="sm" variant="outline" className="gap-2 h-9 rounded-lg" onClick={() => { setActiveSubject({ semester: sem }); setIsSyllabusDialogOpen(true); }}>
                           <Plus className="w-4 h-4" /> Add Subject
@@ -513,11 +534,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                           ))}
                           {semSyllabi.length === 0 && (
                              <TableRow>
-                               <TableCell colSpan={7} className="text-center py-8 text-muted-foreground italic">No patterns defined for this semester.</TableCell>
+                               <TableCell colSpan={7} className="text-center py-8 text-muted-foreground italic">No patterns defined for this repository.</TableCell>
                              </TableRow>
                           )}
                         </TableBody>
-                        {!scheme.isCommonPoolScheme && (
+                        {!scheme.isCommonPoolScheme && !scheme.isCommitteePool && (
                           <TableFooter className="bg-muted/5">
                             <TableRow>
                               <TableCell colSpan={5} className="pl-6 text-right font-bold text-xs">Total Semester Credits</TableCell>
@@ -532,7 +553,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                 );
               })}
             </TabsContent>
-            {!scheme.isCommonPoolScheme && (
+            {!scheme.isCommonPoolScheme && !scheme.isCommitteePool && (
               <TabsContent value="contributions" className="mt-6">
                 <Card><CardHeader><CardTitle className="text-lg">Offered to University Pool</CardTitle></CardHeader><CardContent className="p-0">
                   <Table>
@@ -548,7 +569,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             )}
           </Tabs>
         </div>
-        {!scheme.isCommonPoolScheme && (
+        {!scheme.isCommonPoolScheme && !scheme.isCommitteePool && (
           <div className="space-y-6"><CreditValidator currentCredits={creditDistribution} rules={program?.rules} /></div>
         )}
       </div>
@@ -604,7 +625,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         syllabus={activeSubject}
         existingSyllabi={syllabi}
         onSave={handleSaveSyllabus}
-        programName={scheme.isCommonPoolScheme ? scheme.branch : program?.name}
+        programName={scheme.isCommonPoolScheme || scheme.isCommitteePool ? scheme.branch : program?.name}
         branchPrefix={branchPrefix}
         canEdit={permissions.canEditSyllabus(activeSubject)}
         canDelete={permissions.canDeleteSyllabus(activeSubject)}
