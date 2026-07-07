@@ -42,7 +42,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // INSTITUTIONAL KNOWLEDGE ACCUMULATOR: Proactively fetch potential parents from the entire batch year
   useEffect(() => {
     if (!scheme) return;
     setParentsLoading(true);
@@ -56,7 +55,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const syllabiMap = new Map<string, Syllabus[]>();
 
     const unsubPools = onSnapshot(poolsQuery, (snap) => {
-      // Clear previous pool listeners when batch schemes change
       activeUnsubs.forEach(u => u());
       activeUnsubs = [];
       syllabiMap.clear();
@@ -85,8 +83,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           } as Syllabus));
           
           syllabiMap.set(ps.id, fetched);
-          
-          // Flatten map into a single list of parent subjects
           const allFlattened: Syllabus[] = [];
           syllabiMap.forEach(list => allFlattened.push(...list));
           setAllParentSyllabi(allFlattened);
@@ -110,7 +106,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [isSyllabusDialogOpen, setIsSyllabusDialogOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Partial<Syllabus> | undefined>(undefined);
 
-  // VIRTUAL CHILD RESOLUTION: Merge parent content while keeping local code and semester context
   const syllabi = useMemo(() => {
     if (!scheme) return [];
 
@@ -145,8 +140,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const permissions = useMemo(() => {
     const isAdmin = profile?.role === 'admin';
     const isSuper = isAdmin || profile?.role === 'dean_academic';
-    
-    // Authorization for BoS Convenors, BoS Members, and specialized Committee heads
     const canEditScheme = isSuper || 
       (['bos_convenor', 'bos_member'].includes(profile?.role || '') && profile?.managedBranches?.some(m => m.programId === scheme?.programId && m.branch === scheme?.branch)) ||
       (profile?.role === 'committee_convenor' && scheme?.isCommitteePool && scheme?.branch === profile.faculty);
@@ -155,11 +148,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       isAdmin,
       isSuper,
       canEditScheme,
-      canDeleteCourse: isAdmin, // Strict: only admin can delete subjects
+      canDeleteCourse: isAdmin,
       canEditSyllabus: (s: Partial<Syllabus> | undefined) => {
         if (!s) return false;
         if (isSuper) return true;
-        // Institutional standards and virtual mirrors are read-only to branch personnel
         if (s.followedFromId || (s as any).isInherited) return false;
         return canEditScheme;
       }
@@ -168,10 +160,24 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
   const creditDistribution = useMemo(() => {
     const dist = { DSC: 0, DSE: 0, OFE: 0, VAC: 0, AEC: 0, SEC: 0, MDC: 0, PRJ: 0, total: 0 };
+    const processedGroups = new Map<string, number>();
+
     syllabi.forEach(sub => {
       const cat = sub.creditCategory as keyof typeof dist;
-      if (cat in dist) dist[cat] += (sub.credits || 0);
-      dist.total += (sub.credits || 0);
+      if (!(cat in dist)) return;
+
+      const isCore = ['DSC', 'PRJ', 'SEC'].includes(cat);
+      if (!isCore && sub.electiveGroupId) {
+        const groupKey = `${cat}-${sub.electiveGroupId}`;
+        if (!processedGroups.has(groupKey)) {
+          dist[cat] += (sub.credits || 0);
+          dist.total += (sub.credits || 0);
+          processedGroups.set(groupKey, sub.credits || 0);
+        }
+      } else {
+        dist[cat] += (sub.credits || 0);
+        dist.total += (sub.credits || 0);
+      }
     });
     return dist;
   }, [syllabi]);
@@ -180,79 +186,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     if (scheme?.isVerticalPool || scheme?.isCommitteePool) return true; 
     if (!program?.rules) return false;
     if (selectedScope === 'Year 1') return syllabi.some(s => s.semester === 1) && syllabi.some(s => s.semester === 2);
-    return creditDistribution.total === program.rules.totalRequired;
+    return Math.abs(creditDistribution.total - program.rules.totalRequired) < 0.1;
   }, [creditDistribution, program?.rules, scheme, selectedScope, syllabi]);
-
-  const generateInstitutionalCode = (sub: Partial<Syllabus>, branchPrefix: string, sequence: number) => {
-    const pedagogyChar = sub.type === 'Lab/Sessional' ? 'P' : (sub.creditCategory === 'PRJ' ? 'I' : 'L');
-    const getPillarChar = (cat: CreditCategory) => {
-      switch(cat) {
-        case 'DSC': return 'C';
-        case 'DSE': case 'OFE': return 'E';
-        case 'SEC': return 'S';
-        case 'VAC': return 'V';
-        case 'AEC': return 'A';
-        case 'MDC': return 'M';
-        case 'PRJ': return 'P';
-        default: return 'C';
-      }
-    };
-    const pillarChar = getPillarChar(sub.creditCategory || 'DSC');
-    const yearDigit = Math.ceil((sub.semester || 1) / 2);
-    const seqStr = sequence.toString().padStart(2, '0');
-    return `${branchPrefix}${pedagogyChar}${pillarChar}${yearDigit}${seqStr}`;
-  };
-
-  const handleGlobalSync = async () => {
-    if (!permissions.isAdmin) return;
-    setIsSyncing(true);
-    
-    try {
-      const isInstitutionalScheme = scheme?.programId === 'INSTITUTIONAL' || scheme?.isVerticalPool || scheme?.isCommitteePool;
-      const baseBranchPrefix = isInstitutionalScheme ? 'RT' : (program?.branchPrefixes?.[scheme?.branch || ''] || 'XX');
-      const batch = writeBatch(db);
-      
-      // UNIVERSITY-WIDE UNIQUENESS: Fetch ALL subject codes to ensure global collision avoidance
-      const universitySyllabiSnap = await getDocs(collectionGroup(db, 'syllabi'));
-      
-      const existingGlobalCodes = new Set(universitySyllabiSnap.docs
-        .filter(d => d.ref.parent.parent?.id !== schemeId) 
-        .map(d => (d.data() as Syllabus).subjectCode)
-      );
-
-      const assignedInBatch = new Set<string>();
-
-      for (const sub of localSyllabi) {
-        // Rule: Institutional Pool subjects (VAC, AEC, MDC) always use RT prefix university-wide
-        const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(sub.creditCategory);
-        const effectivePrefix = isCommonCategory ? 'RT' : baseBranchPrefix;
-        
-        let sequence = 1;
-        let newCode = '';
-        
-        // Sequence Hunting Algorithm: Find the next available globally unique sequence for this bucket
-        while (true) {
-          newCode = generateInstitutionalCode(sub, effectivePrefix, sequence);
-          if (!existingGlobalCodes.has(newCode) && !assignedInBatch.has(newCode)) {
-            break;
-          }
-          sequence++;
-          if (sequence > 99) throw new Error(`CRITICAL: Sequence exhausted for bucket ${newCode.substring(0, 5)}. Global clash limit reached.`);
-        }
-
-        assignedInBatch.add(newCode);
-        const subRef = doc(db, 'schemes', schemeId, 'syllabi', sub.id);
-        batch.update(subRef, { subjectCode: newCode, updatedAt: serverTimestamp() });
-      }
-
-      await batch.commit();
-      toast({ title: "University-Wide Synchronization Successful", description: "All codes regenerated and verified unique across the institution." });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Sync Failed", description: e.message });
-    } finally {
-      setIsSyncing(false);
-    }
-  };
 
   const handleSaveSyllabus = async (data: Partial<Syllabus>) => {
     const docId = data.id || Math.random().toString(36).substr(2, 9);
@@ -281,12 +216,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             <h1 className="text-3xl font-headline font-bold">{scheme.branch || program?.name}</h1>
             {scheme.isVerticalPool && <Badge className="bg-emerald-100 text-emerald-700">VERTICAL POOL</Badge>}
             {scheme.isCommitteePool && <Badge className="bg-blue-100 text-blue-700">COMMITTEE POOL</Badge>}
-            {inheritedCount > 0 && (
-              <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1.5 py-1 px-3">
-                <ShieldCheck className="w-3 h-3" />
-                {inheritedCount} Institutional Standards Mirroring
-              </Badge>
-            )}
           </div>
           <div className="flex items-center gap-3 text-muted-foreground text-sm">
             <span className="font-mono font-bold text-primary flex items-center gap-1"><Hash className="w-3.5 h-3.5" /> {scheme.schemeCode}</span>
@@ -295,12 +224,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           </div>
         </div>
         <div className="flex gap-2">
-          {permissions.isAdmin && (
-            <Button variant="outline" className="text-primary border-primary/30 gap-2" onClick={handleGlobalSync} disabled={isSyncing}>
-              {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-              Institutional Sync
-            </Button>
-          )}
           <Button variant="outline" onClick={() => exportFullSchemeToPDF(scheme, program || null, syllabi)}>
             <FileText className="w-4 h-4 mr-2" /> Structure
           </Button>
@@ -320,7 +243,16 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             <TabsContent value="syllabi" className="mt-6 space-y-6">
               {Array.from({ length: scheme.isCommitteePool ? 1 : (program?.totalSemesters || 8) }, (_, i) => i + 1).map(sem => {
                 const semSyllabi = syllabi.filter(s => (scheme.isCommitteePool ? true : s.semester === sem));
-                const semTotalCredits = semSyllabi.reduce((sum, s) => sum + (s.credits || 0), 0);
+                
+                const processedGroups = new Set<string>();
+                const semTotalCredits = semSyllabi.reduce((sum, s) => {
+                  const isCore = ['DSC', 'PRJ', 'SEC'].includes(s.creditCategory);
+                  if (!isCore && s.electiveGroupId) {
+                    if (processedGroups.has(s.electiveGroupId)) return sum;
+                    processedGroups.add(s.electiveGroupId);
+                  }
+                  return sum + (s.credits || 0);
+                }, 0);
 
                 return (
                   <Card key={sem} className="shadow-sm border-none overflow-hidden">
@@ -329,7 +261,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                         <CardTitle className="text-lg">{scheme.isCommitteePool ? 'Course Registry' : `Semester ${sem}`}</CardTitle>
                         {!scheme.isCommitteePool && (
                           <Badge variant="secondary" className="bg-white/50 text-primary border-primary/20">
-                            Total: {semTotalCredits} Credits
+                            Total: {semTotalCredits} Credits (Deduplicated)
                           </Badge>
                         )}
                       </div>
@@ -358,6 +290,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                                 <div className="flex flex-col">
                                   <span className={cn(sub.isStandardized && "text-primary")}>{sub.subjectCode}</span>
                                   {sub.parentCode && <span className="text-[9px] text-muted-foreground italic font-normal">Standard: {sub.parentCode}</span>}
+                                  {sub.electiveGroupId && <Badge variant="outline" className="text-[8px] h-3 px-1 mt-0.5 w-fit">{sub.electiveGroupId}</Badge>}
                                 </div>
                               </TableCell>
                               <TableCell className="font-medium">

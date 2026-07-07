@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Progress } from "@/components/ui/progress";
@@ -28,7 +27,6 @@ export function CreditValidator({ currentCredits, rules }: CreditValidatorProps)
   const electiveTotal = currentCredits.DSE + currentCredits.OFE;
   const dscProjectTotal = currentCredits.DSC + currentCredits.PRJ;
   
-  // Specific Institutional Checks
   const isDscIndividualValid = currentCredits.DSC >= (rules.dscMin || 0) && currentCredits.DSC <= (rules.dscMax || 200);
   const isProjectValid = currentCredits.PRJ >= (rules.projectMin || 16) && currentCredits.PRJ <= (rules.projectMax || 32);
   const isDscProjectAggregateValid = dscProjectTotal >= 96 && dscProjectTotal <= 104;
@@ -37,12 +35,11 @@ export function CreditValidator({ currentCredits, rules }: CreditValidatorProps)
   const isOfeValid = currentCredits.OFE >= (rules.ofeMin || 12) && currentCredits.OFE <= (rules.ofeMax || 24);
   const isElectiveValid = electiveTotal >= (rules.electiveMin || 24) && electiveTotal <= (rules.electiveMax || 32);
   
-  // Fixed institutional checks
-  const isVacValid = currentCredits.VAC === (rules.vacTotal || 8);
-  const isAecValid = currentCredits.AEC === (rules.aecTotal || 8);
-  const isSecValid = currentCredits.SEC === (rules.secTotal || 8);
-  const isMdcValid = currentCredits.MDC === (rules.mdcTotal || 8);
-  const isTotalValid = currentCredits.total === rules.totalRequired;
+  const isVacValid = Math.abs(currentCredits.VAC - (rules.vacTotal || 8)) < 0.1;
+  const isAecValid = Math.abs(currentCredits.AEC - (rules.aecTotal || 8)) < 0.1;
+  const isSecValid = Math.abs(currentCredits.SEC - (rules.secTotal || 8)) < 0.1;
+  const isMdcValid = Math.abs(currentCredits.MDC - (rules.mdcTotal || 8)) < 0.1;
+  const isTotalValid = Math.abs(currentCredits.total - rules.totalRequired) < 0.1;
 
   return (
     <Card className="shadow-sm border-primary/10">
@@ -50,7 +47,7 @@ export function CreditValidator({ currentCredits, rules }: CreditValidatorProps)
         <CardTitle className="text-lg font-headline flex items-center gap-2">
           Credit Compliance Tracker
           <Badge variant="outline" className={isTotalValid ? "bg-green-50 text-green-700 border-green-200" : "bg-amber-50 text-amber-700 border-amber-200"}>
-            {currentCredits.total} / {rules.totalRequired} Credits
+            {currentCredits.total.toFixed(1)} / {rules.totalRequired} Credits
           </Badge>
         </CardTitle>
       </CardHeader>
@@ -81,7 +78,7 @@ export function CreditValidator({ currentCredits, rules }: CreditValidatorProps)
         </div>
 
         <div className="space-y-4">
-          <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Elective Pools</p>
+          <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Elective Pools (Deduplicated)</p>
           <div className="grid grid-cols-2 gap-4">
             <CreditSection 
               label="DSE (Elective)" 
@@ -121,7 +118,7 @@ export function CreditValidator({ currentCredits, rules }: CreditValidatorProps)
         {!isTotalValid && (
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex gap-3 text-amber-800 text-[11px] leading-tight">
             <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-            <p>Total credits must be exactly {rules.totalRequired}. Ensure DSC+PRJ aggregate is 96-104 and all institutional targets are met.</p>
+            <p>Total credits must be exactly {rules.totalRequired}. Multiple options in elective slots are deduplicated via Group ID.</p>
           </div>
         )}
       </CardContent>
@@ -138,7 +135,7 @@ function CreditSection({ label, current, min, max, isValid }: any) {
           {label}
           {isValid ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <Info className="w-3.5 h-3.5 text-amber-500" />}
         </span>
-        <span className="text-muted-foreground font-mono">{current} / {min}-{max}</span>
+        <span className="text-muted-foreground font-mono">{current.toFixed(1)} / {min}-{max}</span>
       </div>
       <Progress value={percentage} className="h-1.5" />
     </div>
@@ -150,7 +147,7 @@ function CompactCheck({ label, current, target, isValid }: any) {
     <div className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 transition-colors ${isValid ? 'bg-green-50 border-green-100' : 'bg-muted/30 border-border'}`}>
       <span className="text-[9px] font-bold uppercase text-muted-foreground tracking-tighter">{label}</span>
       <div className="flex items-center gap-1.5">
-        <span className={`text-xs font-bold ${isValid ? 'text-green-700' : 'text-foreground'}`}>{current}/{target}</span>
+        <span className={`text-xs font-bold ${isValid ? 'text-green-700' : 'text-foreground'}`}>{current.toFixed(1)}/{target}</span>
         {isValid ? <CheckCircle2 className="w-3 h-3 text-green-600" /> : <div className="w-3 h-3 rounded-full border border-dashed border-muted-foreground/30" />}
       </div>
     </div>

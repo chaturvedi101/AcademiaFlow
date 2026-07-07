@@ -7,9 +7,6 @@ import { Syllabus, Scheme, Program } from './types';
 const PRIMARY_COLOR = [77, 26, 140]; // #4D1A8C
 const ACCENT_COLOR = [61, 143, 255]; // #3D8FFF
 
-/**
- * Helper to clean titles for display in professional PDF
- */
 const getCleanTitle = (sub: Partial<Syllabus>) => {
   if (!sub.title || sub.title === 'Slot Placeholder' || sub.title === 'Institutional Pool Slot') {
     return sub.creditCategory || 'N/A';
@@ -17,36 +14,27 @@ const getCleanTitle = (sub: Partial<Syllabus>) => {
   return sub.title;
 };
 
-/**
- * Helper to calculate deduplicated credits for a set of syllabi.
- * Groups non-core categories by electiveGroupId.
- */
 const getDeduplicatedTotal = (items: Syllabus[]) => {
-  const countedGroups = new Set<string>();
+  const processedGroups = new Set<string>();
   let total = 0;
 
   items.forEach(sub => {
-    // Subjects offered TO the pool are not counted in the branch's own degree requirements
     if (sub.isOFEContribution) return;
 
-    // Grouping bypass for core categories: DSC, PRJ and SEC
     const isCore = ['DSC', 'PRJ', 'SEC'].includes(sub.creditCategory);
-    if (sub.electiveGroupId && !isCore) {
-      if (!countedGroups.has(sub.electiveGroupId)) {
+    if (!isCore && sub.electiveGroupId) {
+      const groupKey = `${sub.creditCategory}-${sub.electiveGroupId}`;
+      if (!processedGroups.has(groupKey)) {
         total += (sub.credits || 0);
-        countedGroups.add(sub.electiveGroupId);
+        processedGroups.add(groupKey);
       }
     } else {
       total += (sub.credits || 0);
     }
   });
-  return total;
+  return Number(total.toFixed(2));
 };
 
-/**
- * Helper to draw a single subject's syllabus into an existing jsPDF instance.
- * Returns the final Y position.
- */
 const drawSubjectSyllabus = (
   doc: jsPDF, 
   syllabus: Partial<Syllabus>, 
@@ -62,7 +50,6 @@ const drawSubjectSyllabus = (
   const displayTitle = getCleanTitle(syllabus);
   const itemLabel = syllabus.type === 'Lab/Sessional' ? 'Experiment' : 'Unit';
 
-  // Subject Branding Strip
   doc.setFillColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
   doc.rect(15, currentY, pageWidth - 30, 10, 'F');
   doc.setTextColor(255);
@@ -70,7 +57,6 @@ const drawSubjectSyllabus = (
   doc.text(`COURSE CODE: ${syllabus.subjectCode || 'CODE'} - ${displayTitle.toUpperCase()}`, 20, currentY + 6.5);
   currentY += 16;
 
-  // Basic Info Grid
   doc.setTextColor(0);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
@@ -86,7 +72,6 @@ const drawSubjectSyllabus = (
   doc.text(`Semester: ${syllabus.semester || 'N/A'}`, pageWidth / 2, currentY + 10);
   currentY += 18;
 
-  // Units Section
   doc.setFontSize(12);
   doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
   doc.setFont('helvetica', 'bold');
@@ -119,7 +104,6 @@ const drawSubjectSyllabus = (
 
   currentY = (doc as any).lastAutoTable.finalY + 12;
 
-  // Resources Section
   const checkPage = (heightNeeded: number) => {
     if (currentY + heightNeeded > 275) {
       doc.addPage();
@@ -155,15 +139,10 @@ const drawSubjectSyllabus = (
 
   drawResourceSection(textBooksTitle, syllabus.textBooks);
   drawResourceSection(refBooksTitle, syllabus.referenceBooks);
-  drawResourceSection('Digital Courses (NPTEL/SWAYAM)', syllabus.nptelLinks);
-  drawResourceSection('Video Resources (YouTube)', syllabus.youtubeLinks);
 
   return currentY;
 };
 
-/**
- * Generates and downloads a professional PDF document for a single subject syllabus.
- */
 export const exportSyllabusToPDF = (
   syllabus: Partial<Syllabus>, 
   programName: string = 'N/A', 
@@ -184,9 +163,6 @@ export const exportSyllabusToPDF = (
   doc.save(`${syllabus.subjectCode || 'Subject'}_Detailed_Syllabus.pdf`);
 };
 
-/**
- * Generates a complete Syllabus Book containing detailed info for ALL subjects in the scheme.
- */
 export const exportCompleteSyllabusToPDF = (
   scheme: Scheme,
   program: Program | null,
@@ -197,7 +173,6 @@ export const exportCompleteSyllabusToPDF = (
   const isDraft = scheme.status !== 'Approved';
   const programName = program?.name || scheme.branch || 'Institutional Pool';
 
-  // Title Page
   doc.setFontSize(16);
   doc.setTextColor(0);
   doc.setFont('helvetica', 'bold');
@@ -253,9 +228,6 @@ export const exportCompleteSyllabusToPDF = (
   doc.save(`${program?.code || 'SCHEME'}_${scheme.branch}_Complete_Syllabus.pdf`);
 };
 
-/**
- * Generates and downloads a complete Course Structure PDF for an entire scheme.
- */
 export const exportFullSchemeToPDF = (
   scheme: Scheme,
   program: Program | null,
@@ -266,7 +238,6 @@ export const exportFullSchemeToPDF = (
   const isDraft = scheme.status !== 'Approved';
   const programName = program?.name || scheme.branch || 'Institutional Pool';
 
-  // Institution Title
   doc.setFontSize(16);
   doc.setTextColor(0);
   doc.setFont('helvetica', 'bold');
@@ -277,7 +248,6 @@ export const exportFullSchemeToPDF = (
   doc.setFont('helvetica', 'bold');
   doc.text('Academia Flow | Course Structure', pageWidth / 2, 25, { align: 'center' });
 
-  // Program & Branch Info
   doc.setFontSize(12);
   doc.setTextColor(50);
   doc.setFont('helvetica', 'bold');
@@ -290,7 +260,6 @@ export const exportFullSchemeToPDF = (
   doc.setLineWidth(0.5);
   doc.line(20, 53, pageWidth - 20, 53);
 
-  // Credit Summary Section
   doc.setFontSize(14);
   doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
   doc.setFont('helvetica', 'bold');

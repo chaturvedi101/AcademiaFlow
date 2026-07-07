@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   BookOpen, Loader2, Plus, ChevronDown, ChevronUp, Trash2, 
-  Sparkles, FlaskConical, AlertTriangle, ShieldCheck
+  Sparkles, FlaskConical, AlertTriangle, ShieldCheck, Layers
 } from "lucide-react";
 import { Syllabus, UserProfile, CreditCategory, SubjectType, Scheme, Program } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -53,7 +53,7 @@ export function SyllabusDialog({
     subjectCode: '', title: '', lectureCredits: 0, tutorialCredits: 0, practicalCredits: 0,
     credits: 0, semester: 1, type: 'Theory', creditCategory: 'DSC', units: [],
     poMappings: {}, textBooks: [], referenceBooks: [], nptelLinks: [], youtubeLinks: [],
-    followedFromId: ''
+    followedFromId: '', electiveGroupId: ''
   });
 
   const isSuperuser = userProfile?.role === 'admin' || userProfile?.role === 'dean_academic';
@@ -64,10 +64,9 @@ export function SyllabusDialog({
         subjectCode: '', title: '', lectureCredits: 0, tutorialCredits: 0, practicalCredits: 0,
         credits: 0, semester: 1, type: 'Theory', creditCategory: 'DSC', 
         poMappings: {}, textBooks: [], referenceBooks: [], nptelLinks: [], youtubeLinks: [],
-        followedFromId: '',
+        followedFromId: '', electiveGroupId: '',
         ...syllabus
       });
-      // VIRTUAL AUTO-EXPAND: Automatically expand units for authorized standards
       if (syllabus.followedFromId || (syllabus as any).isInherited) {
         const expandMap: Record<string, boolean> = {};
         syllabus.units?.forEach(u => { expandMap[u.id] = true; });
@@ -82,7 +81,6 @@ export function SyllabusDialog({
   const isCountValid = unitCount >= minRequired;
   const unitLabel = isLab ? 'Experiment' : 'Unit';
 
-  // PEDAGOGICAL AUTO-CREATION: Proactively populate counts for compliance
   useEffect(() => {
     if (!open || !canEdit || formData.followedFromId) return;
     
@@ -99,41 +97,6 @@ export function SyllabusDialog({
       setFormData(prev => ({ ...prev, units: initialUnits }));
     }
   }, [formData.type, open, canEdit, formData.followedFromId]);
-
-  // COURSE CODE RULES: RT prefix for common categories, Branch prefix for departmental slots
-  useEffect(() => {
-    if (!open || !program || !scheme || formData.followedFromId) return;
-    
-    const isInstitutionalScheme = scheme?.programId === 'INSTITUTIONAL' || scheme?.isVerticalPool || scheme?.isCommitteePool;
-    const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(formData.creditCategory || '');
-    
-    const branchCode = (isInstitutionalScheme || isCommonCategory) 
-      ? 'RT' 
-      : (program.branchPrefixes?.[scheme.branch || ''] || 'XX');
-      
-    const pedagogyChar = formData.type === 'Lab/Sessional' ? 'P' : (formData.creditCategory === 'PRJ' ? 'I' : 'L');
-    
-    const getPillarChar = (cat: CreditCategory) => {
-      switch(cat) {
-        case 'DSC': return 'C';
-        case 'DSE': case 'OFE': return 'E';
-        case 'SEC': return 'S';
-        case 'VAC': return 'V';
-        case 'AEC': return 'A';
-        case 'MDC': return 'M';
-        case 'PRJ': return 'P';
-        default: return 'C';
-      }
-    };
-
-    const pillarChar = getPillarChar(formData.creditCategory || 'DSC');
-    const yearDigit = Math.ceil((formData.semester || 1) / 2);
-    const patternBase = `${branchCode}${pedagogyChar}${pillarChar}${yearDigit}`;
-    
-    if (!formData.subjectCode?.startsWith(patternBase)) {
-      setFormData(prev => ({ ...prev, subjectCode: `${patternBase}01` }));
-    }
-  }, [formData.type, formData.creditCategory, formData.semester, program, scheme, open, formData.followedFromId]);
 
   const handleAiGenerate = async () => {
     if (!formData.title) return;
@@ -161,8 +124,6 @@ export function SyllabusDialog({
 
   const isLinked = !!formData.followedFromId;
   const isFormDisabled = (isLinked && !isSuperuser) || !canEdit;
-
-  // INSTITUTIONAL LOCK: Once a course is saved (has ID), its category cannot be changed to preserve sequence integrity
   const isCategoryLocked = isFormDisabled || !!syllabus?.id;
 
   const calculateCredits = (l: number, t: number, p: number) => {
@@ -184,6 +145,8 @@ export function SyllabusDialog({
     );
     setFormData({ ...newData, credits });
   };
+
+  const isElectiveCategory = ['DSE', 'OFE', 'VAC', 'AEC', 'MDC'].includes(formData.creditCategory || '');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -269,7 +232,7 @@ export function SyllabusDialog({
                       const t = v === 'Lab/Sessional' ? 0 : formData.tutorialCredits;
                       const p = v === 'Theory' ? 0 : formData.practicalCredits;
                       const credits = calculateCredits(l || 0, t || 0, p || 0);
-                      setFormData({...formData, type: v, units: [], lectureCredits: l, tutorialCredits: t, practicalCredits: p, credits });
+                      setFormData({...formData, type: v, lectureCredits: l, tutorialCredits: t, practicalCredits: p, credits });
                     }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -283,12 +246,21 @@ export function SyllabusDialog({
                     <Input disabled={isFormDisabled} type="number" value={formData.semester || 1} onChange={e => setFormData({...formData, semester: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Calculated Credits</Label>
-                    <div className="p-2 bg-primary/5 rounded font-bold text-center h-10 flex items-center justify-center text-primary border border-primary/20">{formData.credits} Cr</div>
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Elective Slot ID</Label>
+                    <div className="flex gap-2">
+                       <Input 
+                        disabled={isFormDisabled || !isElectiveCategory} 
+                        value={formData.electiveGroupId || ''} 
+                        onChange={e => setFormData({...formData, electiveGroupId: e.target.value})} 
+                        placeholder="e.g. Elective-I" 
+                        className="font-bold text-primary"
+                      />
+                      <Badge variant="outline" className="shrink-0"><Layers className="w-3 h-3" /></Badge>
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white border rounded-xl shadow-inner">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-white border rounded-xl shadow-inner">
                   <div className="space-y-1">
                     <Label className={cn("text-[10px] uppercase font-bold", isLab && "text-muted-foreground opacity-50")}>L (Lecture)</Label>
                     <Input type="number" disabled={isFormDisabled || isLab} value={formData.lectureCredits || 0} onChange={e => handleLTPChange({ lectureCredits: Number(e.target.value) })} />
@@ -300,6 +272,10 @@ export function SyllabusDialog({
                   <div className="space-y-1">
                     <Label className={cn("text-[10px] uppercase font-bold", !isLab && "text-muted-foreground opacity-50")}>P (Practical Hours)</Label>
                     <Input type="number" disabled={isFormDisabled || !isLab} value={formData.practicalCredits || 0} onChange={e => handleLTPChange({ practicalCredits: Number(e.target.value) })} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase font-bold">Credits</Label>
+                    <div className="p-2 bg-primary/5 rounded font-bold text-center h-10 flex items-center justify-center text-primary border border-primary/20">{formData.credits} Cr</div>
                   </div>
                 </div>
               </TabsContent>
