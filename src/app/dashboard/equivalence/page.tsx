@@ -35,13 +35,12 @@ export default function EquivalencePage() {
   const [childSyllabi, setChildSyllabi] = useState<Syllabus[]>([]);
   const [parentSyllabi, setParentSyllabi] = useState<Syllabus[]>([]);
 
-  // Institutional Registry Resolver: Fetch all to bypass missing index for collectionGroup range filters
+  // Institutional Registry Resolver: Fetch all mirrors
   useEffect(() => {
     const fetchGlobalRegistry = async () => {
       try {
         const q = query(collectionGroup(db, 'syllabi'));
         const snap = await getDocs(q);
-        // Client-side filtering to identify authorized mirrors
         const linked = snap.docs
           .map(d => ({ ...d.data(), id: d.id } as Syllabus))
           .filter(s => !!s.followedFromId);
@@ -66,6 +65,15 @@ export default function EquivalencePage() {
       managed.some(m => m.programId === s.programId && m.branch === s.branch && m.role === 'bos_convenor')
     );
   }, [allSchemes, profile]);
+
+  // JURISDICTIONAL FILTER: Show links only for schemes managed by the current user
+  const jurisdictionalEquivalences = useMemo(() => {
+    if (!profile) return [];
+    if (profile.role === 'admin' || profile.role === 'dean_academic') return globalEquivalences;
+    
+    const mySchemeIds = new Set(branchSchemes.map(s => s.id));
+    return globalEquivalences.filter(s => mySchemeIds.has(s.schemeId));
+  }, [globalEquivalences, branchSchemes, profile]);
 
   useEffect(() => {
     if (childSchemeId) {
@@ -99,7 +107,8 @@ export default function EquivalencePage() {
       });
       toast({ title: "Equivalence Established", description: "Departmental slot is now mirroring institutional standard." });
       setChildSyllabusId("");
-      setChildSyllabi(prev => prev.map(s => s.id === childSyllabusId ? { ...s, followedFromId: parentSyllabusId } : s));
+      // Force refresh the collectionGroup fetch
+      setIsProcessing(prev => !prev);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Linking Failed", description: e.message });
     } finally {
@@ -117,10 +126,9 @@ export default function EquivalencePage() {
         parentCode: null,
         updatedAt: serverTimestamp()
       });
-      if (schemeId === childSchemeId) {
-        setChildSyllabi(prev => prev.map(s => s.id === syllabusId ? { ...s, followedFromId: undefined } : s));
-      }
       toast({ title: "Equivalence Severed" });
+      // Force refresh registry
+      setIsProcessing(prev => !prev);
     } finally {
       setIsProcessing(false);
     }
@@ -204,11 +212,15 @@ export default function EquivalencePage() {
         <Card className="lg:col-span-2 shadow-sm border-none bg-white overflow-hidden">
           <CardHeader className="bg-muted/10 border-b flex flex-row items-center justify-between">
             <div>
-              <CardTitle className="text-lg">Global Equivalence Registry</CardTitle>
-              <CardDescription>Comprehensive list of all authorized standardizations across BTECH branches.</CardDescription>
+              <CardTitle className="text-lg">Equivalence Registry</CardTitle>
+              <CardDescription>
+                {profile?.role === 'admin' || profile?.role === 'dean_academic' 
+                  ? 'Comprehensive list of all authorized standardizations across BTECH branches.' 
+                  : 'Equivalences authorized within your departmental jurisdiction.'}
+              </CardDescription>
             </div>
             <Badge variant="outline" className="bg-primary/5 text-primary">
-              {globalEquivalences.length} active links
+              {jurisdictionalEquivalences.length} active links
             </Badge>
           </CardHeader>
           <CardContent className="p-0">
@@ -222,7 +234,7 @@ export default function EquivalencePage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {globalEquivalences.map(s => {
+                {jurisdictionalEquivalences.map(s => {
                   const schemeInfo = allSchemes.find(sch => sch.id === s.schemeId);
                   return (
                     <TableRow key={s.id} className="group hover:bg-muted/10">
@@ -250,11 +262,11 @@ export default function EquivalencePage() {
                     </TableRow>
                   );
                 })}
-                {globalEquivalences.length === 0 && (
+                {jurisdictionalEquivalences.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center py-20 text-muted-foreground">
                       <History className="w-12 h-12 mx-auto mb-4 opacity-10" />
-                      <p className="italic">No institutional equivalences have been registered yet.</p>
+                      <p className="italic">No institutional equivalences found in your scope.</p>
                     </TableCell>
                   </TableRow>
                 )}
