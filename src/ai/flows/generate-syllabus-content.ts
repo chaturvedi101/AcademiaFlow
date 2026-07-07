@@ -1,7 +1,7 @@
 'use server';
 /**
- * @fileOverview Flow to generate full syllabus content using Gemini with Search Grounding.
- * Handles both Theory (Units) and Lab/Sessional (Experiments) methodologies.
+ * @fileOverview Flow to generate full syllabus content using Gemini.
+ * Strictly mandates 5 units for Theory and at least 8 experiments for Labs.
  */
 
 import { ai } from '@/ai/genkit';
@@ -46,12 +46,12 @@ const syllabusPrompt = ai.definePrompt({
   - Methodology: {{{type}}}
   
   Requirements for Theory:
-  1. If methodology is "Theory", generate AT LEAST 5 units (5-6 is ideal).
+  1. If methodology is "Theory", you MUST generate EXACTLY 5-6 units.
   2. For each unit, provide a specific title and a detailed block of topics.
   3. Suggest teaching hours (usually 8-10 hours per unit).
   
   Requirements for Lab/Sessional:
-  1. If methodology is "Lab/Sessional", generate AT LEAST 8 experiments (8-12 is ideal).
+  1. If methodology is "Lab/Sessional", you MUST generate AT LEAST 8-10 experiments.
   2. Label each item as "Experiment X: [Title]" (e.g. Experiment 1: Synthesis of...).
   3. Content should describe the objective and list of equipment/software or procedure.
   4. Suggest teaching hours (usually 2-3 hours per experiment).
@@ -60,7 +60,7 @@ const syllabusPrompt = ai.definePrompt({
   1. Define clear Course Outcomes (CO) following Bloom's Taxonomy.
   2. Suggest 3-5 authoritative Text Books and 3-5 Reference Books.
   
-  Use Google Search to ensure the content reflects current industry standards and AICTE guidelines for 2024-25.`,
+  Use Google Search to ensure the content reflects current industry standards for 2024-25.`,
 });
 
 export async function generateSyllabusContent(input: GenerateSyllabusInput): Promise<GenerateSyllabusOutput> {

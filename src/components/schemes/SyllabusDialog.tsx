@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,14 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
-  BookOpen, Loader2, Plus, ChevronDown, ChevronUp, Trash2, CheckCircle2, 
+  BookOpen, Loader2, Plus, ChevronDown, ChevronUp, Trash2, 
   Sparkles, FlaskConical, AlertTriangle, ShieldCheck
 } from "lucide-react";
 import { Syllabus, UserProfile, CreditCategory, SubjectType, Scheme, Program } from "@/lib/types";
-import { useFirestore } from "@/firebase";
 import { cn } from "@/lib/utils";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { useToast } from "@/hooks/use-toast";
@@ -42,11 +41,9 @@ export function SyllabusDialog({
   onSave,
   canEdit = true,
   userProfile,
-  batchYear,
   program,
   scheme
 }: SyllabusDialogProps) {
-  const db = useFirestore();
   const { toast } = useToast();
 
   const [expandedUnits, setExpandedUnits] = useState<Record<string, boolean>>({});
@@ -79,6 +76,24 @@ export function SyllabusDialog({
   const isCountValid = unitCount >= minRequired;
   const unitLabel = isLab ? 'Experiment' : 'Unit';
 
+  // PEDAGOGICAL AUTO-CREATION LOGIC
+  useEffect(() => {
+    if (!open || !canEdit || formData.followedFromId) return;
+    
+    const currentUnits = formData.units || [];
+    if (currentUnits.length === 0) {
+      const required = isLab ? 8 : 5;
+      const initialUnits = Array.from({ length: required }, (_, i) => ({
+        id: Math.random().toString(36).substr(2, 9),
+        title: '',
+        content: '',
+        hours: isLab ? 2 : 8,
+        courseOutcome: ''
+      }));
+      setFormData(prev => ({ ...prev, units: initialUnits }));
+    }
+  }, [formData.type, open, canEdit]);
+
   // AUTOMATED COURSE CODE LOGIC (Strict Rule: [Branch][Pedagogy][Pillar][Year][Sequence])
   useEffect(() => {
     if (!open || !program || !scheme || formData.followedFromId) return;
@@ -101,14 +116,10 @@ export function SyllabusDialog({
 
     const pillarChar = getPillarChar(formData.creditCategory || 'DSC');
     const yearDigit = Math.ceil((formData.semester || 1) / 2);
-    
     const patternBase = `${branchCode}${pedagogyChar}${pillarChar}${yearDigit}`;
     
     if (!formData.subjectCode?.startsWith(patternBase)) {
-      setFormData(prev => ({ 
-        ...prev, 
-        subjectCode: `${patternBase}01` 
-      }));
+      setFormData(prev => ({ ...prev, subjectCode: `${patternBase}01` }));
     }
   }, [formData.type, formData.creditCategory, formData.semester, program, scheme, open]);
 
@@ -173,7 +184,7 @@ export function SyllabusDialog({
             </div>
           </DialogTitle>
           <DialogDescription>
-            Strict Institutional Rules: <b>{isLab ? 'Practical (8+ Exp)' : 'Theory (5+ Units)'}</b>. Codes are auto-generated.
+            Institutional Rules: <b>{isLab ? 'Practical (8+ Exp)' : 'Theory (5+ Units)'}</b>. Codes are auto-generated.
           </DialogDescription>
         </DialogHeader>
 
@@ -230,7 +241,7 @@ export function SyllabusDialog({
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Methodology</Label>
-                    <Select disabled={isFormDisabled} value={formData.type || 'Theory'} onValueChange={(v: any) => setFormData({...formData, type: v})}>
+                    <Select disabled={isFormDisabled} value={formData.type || 'Theory'} onValueChange={(v: any) => setFormData({...formData, type: v, units: []})}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Theory">Theory (L-T)</SelectItem>
