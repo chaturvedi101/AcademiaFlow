@@ -36,99 +36,118 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const programRef = useMemoFirebase(() => (scheme?.programId && scheme.programId !== 'INSTITUTIONAL' ? doc(db, 'programs', scheme.programId) : null), [db, scheme?.programId]);
   const { data: program } = useDoc<Program>(programRef);
 
-  const [poolSyllabi, setPoolSyllabi] = useState<Syllabus[]>([]);
-  const [poolLoading, setPoolLoading] = useState(false);
+  const [allParentSyllabi, setAllParentSyllabi] = useState<Syllabus[]>([]);
+  const [parentsLoading, setParentsLoading] = useState(false);
   const [isSubmissionDialogOpen, setIsSubmissionDialogOpen] = useState(false);
   const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // AUTOMATED VERTICAL INHERITANCE ENGINE (BTECH STANDARDIZED)
+  // INSTITUTIONAL KNOWLEDGE ENGINE: Fetch all potential parent sources (Vertical + Committees)
   useEffect(() => {
     if (!scheme) return;
-    setPoolLoading(true);
+    setParentsLoading(true);
 
-    const verticalKey = 'BTECH'; 
+    const verticalPrefix = 'BTECH'; 
 
+    // Don't inherit from self if we are a pool
     if (scheme.programId === 'INSTITUTIONAL' || scheme.isVerticalPool || scheme.isCommitteePool) {
-      setPoolSyllabi([]);
-      setPoolLoading(false);
+      setAllParentSyllabi([]);
+      setParentsLoading(false);
       return;
     }
 
-    const poolQuery = query(
+    // Query for ALL pool schemes for this batch
+    const poolsQuery = query(
       collection(db, 'schemes'),
-      where('batchYear', '==', scheme.batchYear),
-      where('isVerticalPool', '==', true)
+      where('batchYear', '==', scheme.batchYear)
     );
 
-    let unsubSyllabi: Unsubscribe[] = [];
+    let activeUnsubs: Unsubscribe[] = [];
 
-    const unsubscribePools = onSnapshot(poolQuery, (snap) => {
-      unsubSyllabi.forEach(u => u());
-      unsubSyllabi = [];
+    const unsubPools = onSnapshot(poolsQuery, (snap) => {
+      activeUnsubs.forEach(u => u());
+      activeUnsubs = [];
 
-      const poolDoc = snap.docs.find(d => {
-        const normalizedBranch = (d.data().branch || '').toUpperCase();
-        return normalizedBranch.includes(verticalKey);
+      const parentSchemes = snap.docs.filter(d => {
+        const data = d.data();
+        return data.isVerticalPool || data.isCommitteePool;
       });
-      
-      if (!poolDoc) {
-        setPoolSyllabi([]);
-        setPoolLoading(false);
+
+      if (parentSchemes.length === 0) {
+        setAllParentSyllabi([]);
+        setParentsLoading(false);
         return;
       }
 
-      const sRef = collection(db, 'schemes', poolDoc.id, 'syllabi');
-      const u = onSnapshot(sRef, (sSnap) => {
-        setPoolSyllabi(sSnap.docs.map(d => ({ 
-          ...d.data(), 
-          id: d.id, 
-          fromVerticalPool: true,
-          parentPoolId: poolDoc.id
-        } as any)));
-        setPoolLoading(false);
-      }, (err) => {
-        setPoolLoading(false);
+      let combinedParents: Syllabus[] = [];
+      let schemasProcessed = 0;
+
+      parentSchemes.forEach(ps => {
+        const sRef = collection(db, 'schemes', ps.id, 'syllabi');
+        const u = onSnapshot(sRef, (sSnap) => {
+          const fetched = sSnap.docs.map(d => ({ 
+            ...d.data(), 
+            id: d.id,
+            parentSchemeId: ps.id,
+            isAuthoritativeSource: true
+          } as Syllabus));
+          
+          // Use a Map to keep uniquely by ID to avoid duplicates from multiple snapshots
+          combinedParents = [...combinedParents.filter(c => c.parentSchemeId !== ps.id), ...fetched];
+          setAllParentSyllabi(combinedParents);
+          
+          schemasProcessed++;
+          if (schemasProcessed >= parentSchemes.length) {
+            setParentsLoading(false);
+          }
+        }, () => {
+          schemasProcessed++;
+          if (schemasProcessed >= parentSchemes.length) setParentsLoading(false);
+        });
+        activeUnsubs.push(u);
       });
-      unsubSyllabi.push(u);
-    }, (err) => {
-      setPoolLoading(false);
     });
 
     return () => {
-      unsubscribePools();
-      unsubSyllabi.forEach(u => u());
+      unsubPools();
+      activeUnsubs.forEach(u => u());
     };
   }, [db, scheme]);
 
   const [isSyllabusDialogOpen, setIsSyllabusDialogOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Partial<Syllabus> | undefined>(undefined);
 
-  // ENHANCED INHERITANCE RESOLUTION: Deep merge parent content for child slots
+  // AUTHORITATIVE RESOLUTION ENGINE: Deep merge parent content into departmental slots
   const syllabi = useMemo(() => {
     if (!scheme) return [];
 
     const resolvedLocal = localSyllabi.map(local => {
-      // Find parent by explicit ID link or Subject Code match in Vertical Pool
-      const parent = local.followedFromId ? poolSyllabi.find(p => p.id === local.followedFromId) : 
-                     (local.subjectCode ? poolSyllabi.find(p => p.subjectCode === local.subjectCode) : null);
+      // Find parent by explicit ID link or Subject Code match in Vertical Pool (BTECH)
+      const parent = local.followedFromId ? allParentSyllabi.find(p => p.id === local.followedFromId) : 
+                     (local.subjectCode ? allParentSyllabi.find(p => p.subjectCode === local.subjectCode && p.subjectCode.startsWith('RT')) : null);
 
       if (parent) {
         return {
           ...local,
           ...parent, 
-          id: local.id, // Preserve departmental instance ID
+          id: local.id, // Preserve departmental slot ID
+          subjectCode: local.subjectCode || parent.subjectCode, // Use local code if assigned, else parent
           isStandardized: true,
-          standardizedFrom: local.followedFromId ? 'Equivalence Link' : 'Code Match'
-        };
+          standardizedFrom: local.followedFromId ? 'Equivalence Link' : 'Automated Pool Match'
+        } as Syllabus;
       }
       return local;
     });
 
-    // Auto-inject missing common pool subjects that aren't yet in the local scheme
-    const missingFromPool = poolSyllabi.filter(p => !resolvedLocal.some(l => l.subjectCode === p.subjectCode));
+    // Auto-inject missing mandatory BTECH vertical pool subjects that aren't in local scheme yet
+    const btechPoolSyllabi = allParentSyllabi.filter(p => {
+       const pScheme = p.parentSchemeId || '';
+       return pScheme.includes('BTECH') && pScheme.includes('POOL');
+    });
+
+    const missingFromBtech = btechPoolSyllabi.filter(p => !resolvedLocal.some(l => l.subjectCode === p.subjectCode));
     
-    const inheritedFromPool = missingFromPool.map(p => ({
+    const inheritedFromPool = missingFromBtech.map(p => ({
       ...p,
       isStandardized: true,
       standardizedFrom: 'Institutional Common Pool (Auto)',
@@ -139,7 +158,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       if ((a.semester || 1) !== (b.semester || 1)) return (a.semester || 1) - (b.semester || 1);
       return (a.subjectCode || "").localeCompare(b.subjectCode || "");
     });
-  }, [localSyllabi, poolSyllabi, scheme]);
+  }, [localSyllabi, allParentSyllabi, scheme]);
 
   const inheritedCount = useMemo(() => syllabi.filter(s => (s as any).isInherited || (s as any).isStandardized).length, [syllabi]);
 
@@ -163,11 +182,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const canEditSyllabus = (s: any) => {
       if (isSuperuser) return true;
       if (isMyCommittee) return true;
-      if (s?.isInherited) return false; 
+      if (s?.isInherited || s?.followedFromId) return false; // Lock inherited or linked courses
       return isProgramDean || !!myBranchRole || canEditScheme;
     };
 
-    // STRICT RULE: Only Admin can delete a subject
     const canDeleteSyllabus = (s: any) => isAdmin;
 
     return { canEditScheme, canDeleteSyllabus, canEditSyllabus, isMonitor: false, isSuperuser, isAdmin };
@@ -203,7 +221,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     return creditDistribution.total === program.rules.totalRequired;
   }, [creditDistribution, program?.rules, scheme, selectedScope, syllabi]);
 
-  // INSTITUTIONAL CODE GENERATION RULES (RT for POOL)
   const generateInstitutionalCode = (sub: Partial<Syllabus>, branchPrefix: string, sequence: number) => {
     const pedagogyChar = sub.type === 'Lab/Sessional' ? 'P' : (sub.creditCategory === 'PRJ' ? 'I' : 'L');
     const getPillarChar = (cat: CreditCategory) => {
@@ -242,6 +259,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       const sequenceMap: Record<string, number> = {};
 
       for (const sub of localSyllabi) {
+        // Skip sync for linked courses as they follow parent codes
+        if (sub.followedFromId) continue;
+
         const bucketKey = `${sub.type}-${sub.creditCategory}-${sub.semester}`;
         sequenceMap[bucketKey] = (sequenceMap[bucketKey] || 0) + 1;
         
@@ -282,7 +302,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       .then(() => toast({ title: "Scheme Advanced" }));
   };
 
-  if (profileLoading || schemeLoading || syllabiLoading || poolLoading) {
+  if (profileLoading || schemeLoading || syllabiLoading || parentsLoading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   }
 
@@ -299,7 +319,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             {inheritedCount > 0 && (
               <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1.5 py-1 px-3">
                 <ShieldCheck className="w-3 h-3" />
-                {inheritedCount} Institutional Courses Synchronized
+                {inheritedCount} Institutional Standards Applied
               </Badge>
             )}
           </div>
@@ -385,7 +405,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                                     <Badge variant="outline" className={cn(
                                       "gap-1 border-emerald-200",
                                       (sub as any).isInherited ? "bg-primary/5 text-primary border-primary/20" : "bg-emerald-50 text-emerald-700"
-                                    )} title={`Standardized via ${sub.standardizedFrom}`}>
+                                    )} title={`Authoritative content from ${sub.standardizedFrom}`}>
                                       {(sub as any).isInherited ? <ShieldCheck className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
                                       {(sub as any).isInherited ? "Institutional" : "Standardized"}
                                     </Badge>
