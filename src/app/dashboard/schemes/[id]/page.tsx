@@ -140,20 +140,20 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const isAdmin = profile?.role === 'admin';
     const isSuper = isAdmin || profile?.role === 'dean_academic';
     
-    // Authorization for localized convenors and specialized committee heads
+    // Authorization for BoS Convenors, BoS Members, and specialized Committee heads
     const canEditScheme = isSuper || 
-      (profile?.role === 'bos_convenor' && profile?.managedBranches?.some(m => m.programId === scheme?.programId && m.branch === scheme?.branch)) ||
+      (['bos_convenor', 'bos_member'].includes(profile?.role || '') && profile?.managedBranches?.some(m => m.programId === scheme?.programId && m.branch === scheme?.branch)) ||
       (profile?.role === 'committee_convenor' && scheme?.isCommitteePool && scheme?.branch === profile.faculty);
     
     return {
       isAdmin,
       isSuper,
       canEditScheme,
-      canDeleteCourse: isAdmin,
+      canDeleteCourse: isAdmin, // Strict: only admin can delete subjects
       canEditSyllabus: (s: Partial<Syllabus> | undefined) => {
         if (!s) return false;
         if (isSuper) return true;
-        // Institutional standards and virtual mirrors are read-only to branch convenors
+        // Institutional standards and virtual mirrors are read-only to branch BoS personnel
         if (s.followedFromId || s.isInherited) return false;
         return canEditScheme;
       }
