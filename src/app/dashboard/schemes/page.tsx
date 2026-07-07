@@ -1,29 +1,27 @@
 
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
-import { collection, setDoc, doc, serverTimestamp, query, orderBy, getDoc, writeBatch, collectionGroup, getDocs, deleteDoc } from 'firebase/firestore';
-import { Scheme, Program, UserProfile, CreditCategory, SubjectType, FACULTIES } from '@/lib/types';
+import { collection, setDoc, doc, serverTimestamp, query, orderBy, writeBatch } from 'firebase/firestore';
+import { Scheme, Program, UserProfile, FACULTIES } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, BookOpen, Loader2, FileText, ArrowRight, ShieldCheck, Hash, Trash2, GraduationCap, Info, Layers, CheckCircle2, FlaskConical } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Plus, Loader2, ArrowRight, Hash, Layers } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 
 export default function SchemesPage() {
   const db = useFirestore();
   const { user } = useUser();
-  const router = useRouter();
   const { toast } = useToast();
 
   const userDocRef = useMemoFirebase(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
@@ -40,7 +38,6 @@ export default function SchemesPage() {
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [step, setStep] = useState(1);
   const [newScheme, setNewScheme] = useState({
     programIds: [] as string[],
     branch: '',
@@ -116,7 +113,7 @@ export default function SchemesPage() {
         });
 
         // SEED STANDARD INSTITUTIONAL SUBJECTS
-        if (newScheme.poolType === 'Vertical') {
+        if (newScheme.poolType === 'Vertical' && newScheme.poolVertical === 'B.Tech') {
            const standardSlots = [
              { code: 'AEC101', title: 'Technical Communication', cat: 'AEC', sem: 1, credits: 2, type: 'Theory', l: 2, t: 0, p: 0 },
              { code: 'VAC101', title: 'Environmental Science', cat: 'VAC', sem: 2, credits: 2, type: 'Theory', l: 2, t: 0, p: 0 },
@@ -150,25 +147,6 @@ export default function SchemesPage() {
         await batch.commit();
         toast({ title: "Pool Created" });
       } else {
-        // AUTOMATIC POOL GENERATION: Check if creating B.Tech schemes and ensure vertical pool exists
-        const isBTech = newScheme.programIds.some(pid => pid.toUpperCase().includes('BTECH'));
-        if (isBTech) {
-          const poolId = `B.TECH-POOL-${newScheme.batchYear}`;
-          batch.set(doc(db, 'schemes', poolId), {
-            programId: 'INSTITUTIONAL',
-            branch: 'B.Tech (Common BOS) Pool',
-            batchYear: newScheme.batchYear,
-            version: 'v1.0',
-            id: poolId,
-            schemeCode: poolId,
-            status: 'Draft',
-            createdBy: user?.uid || '',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            isVerticalPool: true
-          }, { merge: true });
-        }
-
         for (const pid of newScheme.programIds) {
           const program = programs.find(p => p.id === pid);
           if (!program) continue;

@@ -3,7 +3,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { useFirestore, useDoc, useCollection, useUser, useMemoFirebase } from "@/firebase";
-import { doc, collection, setDoc, deleteDoc, serverTimestamp, updateDoc, query, where, onSnapshot, Unsubscribe } from "firebase/firestore";
+import { doc, collection, setDoc, serverTimestamp, updateDoc, query, where, onSnapshot, Unsubscribe } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Send, Edit3, Loader2, FileText, BookOpen, Eye, Link as LinkIcon, CheckCircle2, Layers, ShieldCheck, Info } from "lucide-react";
+import { Plus, Edit3, Loader2, FileText, BookOpen, Eye, CheckCircle2, ShieldCheck, Layers } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile, SubmissionScope } from "@/lib/types";
@@ -43,13 +43,14 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
 
   // UNIVERSAL VERTICAL MAPPING ENGINE
+  // Automatically finds and pulls from B.TECH-POOL, BBA-POOL, etc.
   useEffect(() => {
     if (!scheme) return;
     setPoolLoading(true);
 
-    // Extraction logic: Get vertical key (BTECH, BBA, MCA, etc.)
-    const code = program?.code || scheme.schemeCode || '';
-    const verticalKey = code.split('-')[0].replace('.', '').toUpperCase(); // Normalized vertical key
+    // Extraction: Get vertical key (BTECH, BBA, MCA, etc.) from Program ID or Code
+    const baseCode = program?.code || scheme.programId || '';
+    const verticalKey = baseCode.split('-')[0].replace('.', '').toUpperCase();
 
     const poolQuery = query(
       collection(db, 'schemes'),
@@ -63,10 +64,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       unsubSyllabi.forEach(u => u());
       unsubSyllabi = [];
 
-      // Find pool matching normalized vertical key
+      // Robust find: Match normalized vertical key (e.g. BTECH matches B.TECH)
       const poolDoc = snap.docs.find(d => {
-        const poolCode = d.id.replace('.', '').toUpperCase();
-        return poolCode.includes(verticalKey);
+        const normalizedId = d.id.replace('.', '').toUpperCase();
+        return normalizedId.includes(verticalKey);
       });
       
       if (!poolDoc) {
@@ -84,6 +85,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           parentPoolId: poolDoc.id
         } as any)));
         setPoolLoading(false);
+      }, (err) => {
+        console.error("Pool Syllabi Error:", err);
+        setPoolLoading(false);
       });
       unsubSyllabi.push(u);
     }, (err) => {
@@ -100,11 +104,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [isSyllabusDialogOpen, setIsSyllabusDialogOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Partial<Syllabus> | undefined>(undefined);
 
-  // AUTOMATIC MERGE & INJECTION ENGINE (Zero-Touch)
+  // AUTOMATIC MERGE & INJECTION ENGINE
   const syllabi = useMemo(() => {
     if (!scheme) return [];
 
-    // 1. Process local slots and resolve inheritance
+    // 1. Process local slots and resolve inheritance (Matched by Code or ID)
     const resolvedLocal = localSyllabi.map(local => {
       const parent = local.followedFromId ? poolSyllabi.find(p => p.id === local.followedFromId) : 
                      (local.subjectCode ? poolSyllabi.find(p => p.subjectCode === local.subjectCode) : null);
@@ -112,16 +116,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       if (parent) {
         return {
           ...local,
-          title: parent.title,
-          subjectCode: parent.subjectCode,
-          lectureCredits: parent.lectureCredits,
-          tutorialCredits: parent.tutorialCredits,
-          practicalCredits: parent.practicalCredits,
-          credits: parent.credits,
-          type: parent.type,
-          units: parent.units,
-          textBooks: parent.textBooks,
-          referenceBooks: parent.referenceBooks,
+          ...parent, // Inherit all content
+          id: local.id, // Preserve local document ID
           isStandardized: true,
           standardizedFrom: local.followedFromId ? 'Equivalence Link' : 'Code Match'
         };
@@ -129,7 +125,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       return local;
     });
 
-    // 2. Automatic Injection of pool courses not in local slots
+    // 2. Automatic Injection: Only inject subjects from pool that aren't already in the branch scheme
     const missingFromPool = poolSyllabi.filter(p => !resolvedLocal.some(l => l.subjectCode === p.subjectCode));
     
     const inheritedFromPool = missingFromPool.map(p => ({
@@ -166,7 +162,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const canEditSyllabus = (s: any) => {
       if (isSuperuser) return true;
       if (isMyCommittee) return true;
-      if (s?.isInherited) return false; // Automated courses are locked
+      if (s?.isInherited) return false; 
       return isProgramDean || !!myBranchRole || canEditScheme;
     };
 
@@ -248,8 +244,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => exportFullSchemeToPDF(scheme, program!, syllabi)}><FileText className="w-4 h-4 mr-2" /> Structure</Button>
-          <Button variant="outline" onClick={() => exportCompleteSyllabusToPDF(scheme, program!, syllabi)}><BookOpen className="w-4 h-4 mr-2" /> Book</Button>
+          <Button variant="outline" onClick={() => exportFullSchemeToPDF(scheme, program!, syllabi)}>
+            <FileText className="w-4 h-4 mr-2" /> Structure
+          </Button>
+          <Button variant="outline" onClick={() => exportCompleteSyllabusToPDF(scheme, program!, syllabi)}>
+            <BookOpen className="w-4 h-4 mr-2" /> Book
+          </Button>
           {permissions.canEditScheme && <Button onClick={() => setIsSubmissionDialogOpen(true)}>Submit Scheme</Button>}
         </div>
       </div>
