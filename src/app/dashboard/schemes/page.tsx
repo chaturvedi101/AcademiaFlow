@@ -147,9 +147,10 @@ export default function SchemesPage() {
           const program = programs.find(p => p.id === pid);
           if (!program) continue;
           
-          const codePrefix = program.branchPrefixes?.[newScheme.branch] || pid.substring(0, 3).toUpperCase();
-          const sid = `${pid.toUpperCase()}-${codePrefix.replace(/[^A-Z]/g, '')}-${newScheme.batchYear}`;
+          const branchPrefix = program.branchPrefixes?.[newScheme.branch] || pid.substring(0, 3).toUpperCase();
+          const sid = `${pid.toUpperCase()}-${branchPrefix.replace(/[^A-Z]/g, '')}-${newScheme.batchYear}`;
           
+          // 1. Initialize the Scheme Document
           batch.set(doc(db, 'schemes', sid), {
             programId: pid,
             branch: newScheme.branch,
@@ -162,9 +163,40 @@ export default function SchemesPage() {
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
           });
+
+          // 2. Auto-instantiate Syllabus slots from Master Pattern
+          if (program.slotTemplate && program.slotTemplate.length > 0) {
+            program.slotTemplate.forEach(slot => {
+              const syllabusId = Math.random().toString(36).substr(2, 9);
+              const syllabusRef = doc(db, 'schemes', sid, 'syllabi', syllabusId);
+              
+              // Resolve code: Replace "XX" placeholders with actual branch prefix
+              let finalCode = slot.subjectCode || 'XXXXXXX';
+              if (finalCode.startsWith('XX')) {
+                finalCode = branchPrefix + finalCode.substring(2);
+              }
+
+              batch.set(syllabusRef, {
+                id: syllabusId,
+                schemeId: sid,
+                subjectCode: finalCode,
+                title: slot.title || (['VAC', 'AEC', 'MDC', 'OFE'].includes(slot.creditCategory) ? 'Institutional Pool Slot' : 'Slot Placeholder'),
+                credits: slot.credits,
+                lectureCredits: slot.lectureCredits,
+                tutorialCredits: slot.tutorialCredits,
+                practicalCredits: slot.practicalCredits,
+                semester: slot.semester,
+                type: slot.type,
+                creditCategory: slot.creditCategory,
+                electiveGroupId: slot.electiveGroupId || '',
+                isSlot: true, // Flag as a master template instantiation
+                updatedAt: serverTimestamp()
+              });
+            });
+          }
         }
         await batch.commit();
-        toast({ title: "Branch Schemes Synchronized" });
+        toast({ title: "Branch Schemes & Master Patterns Synchronized" });
       }
 
       setIsDialogOpen(false);
@@ -295,7 +327,7 @@ export default function SchemesPage() {
             {!newScheme.isPoolScheme && (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-sm font-bold">Select BTECH Program(s)</Label>
+                  <Label className="text-sm font-bold">Select Program(s)</Label>
                   <ScrollArea className="h-48 border rounded-lg p-4 bg-white">
                     <div className="space-y-3">
                       {programs.map(p => (
