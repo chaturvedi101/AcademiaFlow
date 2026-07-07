@@ -42,7 +42,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // AUTOMATED VERTICAL INHERITANCE ENGINE
+  // AUTOMATED VERTICAL INHERITANCE ENGINE (BTECH STANDARDIZED)
   useEffect(() => {
     if (!scheme) return;
     setPoolLoading(true);
@@ -128,7 +128,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const inheritedFromPool = missingFromPool.map(p => ({
       ...p,
       isStandardized: true,
-      standardizedFrom: 'Vertical Common Pool (Auto)',
+      standardizedFrom: 'Institutional Common Pool (Auto)',
       isInherited: true
     }));
 
@@ -199,7 +199,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     return creditDistribution.total === program.rules.totalRequired;
   }, [creditDistribution, program?.rules, scheme, selectedScope, syllabi]);
 
-  // INSTITUTIONAL CODE GENERATION RULES
+  // INSTITUTIONAL CODE GENERATION RULES (RT for POOL)
   const generateInstitutionalCode = (sub: Partial<Syllabus>, branchPrefix: string, sequence: number) => {
     const pedagogyChar = sub.type === 'Lab/Sessional' ? 'P' : (sub.creditCategory === 'PRJ' ? 'I' : 'L');
     const getPillarChar = (cat: CreditCategory) => {
@@ -225,19 +225,18 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     setIsSyncing(true);
     
     try {
-      const branchPrefix = program?.branchPrefixes?.[scheme?.branch || ''] || 'XX';
+      const isInstitutional = scheme?.programId === 'INSTITUTIONAL' || scheme?.isVerticalPool || scheme?.isCommitteePool;
+      const branchPrefix = isInstitutional ? 'RT' : (program?.branchPrefixes?.[scheme?.branch || ''] || 'XX');
       const batch = writeBatch(db);
       
-      // 1. Fetch ALL syllabi across university to check for clashes
       const universitySyllabiSnap = await getDocs(collectionGroup(db, 'syllabi'));
       const existingCodes = new Set(universitySyllabiSnap.docs
-        .filter(d => d.ref.parent.parent?.id !== schemeId) // Exclude current scheme
+        .filter(d => d.ref.parent.parent?.id !== schemeId) 
         .map(d => (d.data() as Syllabus).subjectCode)
       );
 
       const sequenceMap: Record<string, number> = {};
 
-      // 2. Generate and validate codes for all local syllabi
       for (const sub of localSyllabi) {
         const bucketKey = `${sub.type}-${sub.creditCategory}-${sub.semester}`;
         sequenceMap[bucketKey] = (sequenceMap[bucketKey] || 0) + 1;
@@ -245,7 +244,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         const newCode = generateInstitutionalCode(sub, branchPrefix, sequenceMap[bucketKey]);
         
         if (existingCodes.has(newCode)) {
-          throw new Error(`CRITICAL CLASH: Generated code ${newCode} for "${sub.title}" is already in use by another scheme in the University.`);
+          throw new Error(`CLASH: Generated code ${newCode} for "${sub.title}" is already in use by another scheme in the University.`);
         }
 
         const subRef = doc(db, 'schemes', schemeId, 'syllabi', sub.id);
@@ -253,7 +252,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       }
 
       await batch.commit();
-      toast({ title: "Institutional Sync Complete", description: "All course codes have been standardized and validated." });
+      toast({ title: "Institutional Sync Complete" });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
     } finally {
@@ -382,7 +381,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                                     <Badge variant="outline" className={cn(
                                       "gap-1 border-emerald-200",
                                       (sub as any).isInherited ? "bg-primary/5 text-primary border-primary/20" : "bg-emerald-50 text-emerald-700"
-                                    )} title={`Following authoritative standard via ${sub.standardizedFrom}`}>
+                                    )} title={`Standardized via ${sub.standardizedFrom}`}>
                                       {(sub as any).isInherited ? <ShieldCheck className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
                                       {(sub as any).isInherited ? "Institutional" : "Standardized"}
                                     </Badge>
@@ -432,7 +431,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Submission Scope</DialogTitle>
-            <DialogDescription>Identify which part of the framework is finalized for official implementation.</DialogDescription>
+            <DialogDescription>Finalize academic framework implementation.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <Select value={selectedScope} onValueChange={(v: any) => setSelectedScope(v)}>

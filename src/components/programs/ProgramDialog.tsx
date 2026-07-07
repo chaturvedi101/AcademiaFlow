@@ -133,11 +133,14 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
     }
   };
 
+  // AUTOMATED MASTER CODE RULE (RT for Common categories)
   const generateTemplateCode = (slot: Partial<ProgramSlotTemplate>) => {
+    const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(slot.creditCategory || '');
+    const prefix = isCommonCategory ? 'RT' : 'XX';
     const pedagogyChar = slot.type === 'Lab/Sessional' ? 'P' : (slot.creditCategory === 'PRJ' ? 'I' : 'L');
     const pillarChar = getPillarChar(slot.creditCategory || 'DSC');
     const yearDigit = Math.ceil((slot.semester || 1) / 2);
-    return `XX${pedagogyChar}${pillarChar}${yearDigit}XX`;
+    return `${prefix}${pedagogyChar}${pillarChar}${yearDigit}XX`;
   };
 
   const handleSave = () => {
@@ -406,7 +409,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                 <div className="space-y-6">
                   <div className="p-4 bg-accent/5 rounded-xl border border-accent/10 flex items-center gap-3 text-accent text-sm">
                     <ShieldIcon className="w-5 h-5 shrink-0" />
-                    <p>Audit parameters defining degree boundaries. These rules are inherited by the Credit Validator in every scheme.</p>
+                    <p>Audit parameters defining degree boundaries. VAC, AEC, and MDC targets are strictly mandated at 8 Credits each.</p>
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
@@ -432,7 +435,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                   </div>
 
                   <div className="space-y-6">
-                    <h3 className="font-bold text-xs uppercase tracking-wider text-primary border-l-4 border-primary pl-3">Institutional Credit Targets (Fixed)</h3>
+                    <h3 className="font-bold text-xs uppercase tracking-wider text-primary border-l-4 border-primary pl-3">Institutional Credit Targets (Fixed 8 Cr)</h3>
                     <div className="grid grid-cols-4 gap-4">
                       <div className="space-y-1.5"><Label className="text-[10px] uppercase font-bold">VAC (Value)</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.vacTotal ?? ''} onChange={e => updateRule('vacTotal', e.target.value)} /></div>
                       <div className="space-y-1.5"><Label className="text-[10px] uppercase font-bold">AEC (Ability)</Label><Input disabled={isReadOnly} type="number" value={formData.rules?.aecTotal ?? ''} onChange={e => updateRule('aecTotal', e.target.value)} /></div>
@@ -464,7 +467,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
               <TabsContent value="template" className="mt-0 space-y-6">
                 <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex items-center gap-3 text-primary text-sm mb-6 shadow-sm">
                   <Layers className="w-5 h-5 shrink-0" />
-                  <p><b>Master Patterns:</b> These slots are inherited by every branch scheme. Subject codes are strictly auto-generated: <b>[Branch][Pedagogy][Pillar][Year][Seq]</b>.</p>
+                  <p><b>Master Patterns:</b> Institutional categories (VAC, AEC, MDC) use the <b>RT</b> prefix. Branch subjects use <b>XX</b> placeholders.</p>
                 </div>
                 <div className="space-y-10">
                   {Array.from({ length: formData.totalSemesters || 8 }, (_, i) => i + 1).map(sem => {
@@ -568,7 +571,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                           })}
                           {slots.length === 0 && (
                             <div className="py-8 text-center text-muted-foreground text-xs italic bg-white/50 rounded-xl border border-dashed">
-                              No patterns defined for Semester {sem}. Click "Define Pattern" to begin.
+                              No patterns defined. Click "Define Pattern" to begin.
                             </div>
                           )}
                         </div>
@@ -581,8 +584,8 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
           </ScrollArea>
         </Tabs>
         <DialogFooter className="p-6 bg-muted/20 border-t shrink-0 shadow-inner">
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="h-11 px-8">{isReadOnly ? 'Close Overview' : 'Cancel Changes'}</Button>
-          {!isReadOnly && <Button onClick={handleSave} className="h-11 px-8 shadow-lg">Save Program Framework</Button>}
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="h-11 px-8">{isReadOnly ? 'Close' : 'Cancel'}</Button>
+          {!isReadOnly && <Button onClick={handleSave} className="h-11 px-8 shadow-lg">Save Framework</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>

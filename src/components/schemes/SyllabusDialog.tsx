@@ -76,7 +76,7 @@ export function SyllabusDialog({
   const isCountValid = unitCount >= minRequired;
   const unitLabel = isLab ? 'Experiment' : 'Unit';
 
-  // PEDAGOGICAL AUTO-CREATION LOGIC
+  // PEDAGOGICAL AUTO-CREATION LOGIC (5 for Theory, 8 for Lab)
   useEffect(() => {
     if (!open || !canEdit || formData.followedFromId) return;
     
@@ -94,11 +94,12 @@ export function SyllabusDialog({
     }
   }, [formData.type, open, canEdit]);
 
-  // AUTOMATED COURSE CODE LOGIC (Strict Rule: [Branch][Pedagogy][Pillar][Year][Sequence])
+  // AUTOMATED COURSE CODE LOGIC (RT for POOL, [Branch] for Local)
   useEffect(() => {
     if (!open || !program || !scheme || formData.followedFromId) return;
     
-    const branchCode = program.branchPrefixes?.[scheme.branch || ''] || 'XX';
+    const isInstitutional = scheme?.programId === 'INSTITUTIONAL' || scheme?.isVerticalPool || scheme?.isCommitteePool;
+    const branchCode = isInstitutional ? 'RT' : (program.branchPrefixes?.[scheme.branch || ''] || 'XX');
     const pedagogyChar = formData.type === 'Lab/Sessional' ? 'P' : (formData.creditCategory === 'PRJ' ? 'I' : 'L');
     
     const getPillarChar = (cat: CreditCategory) => {
@@ -156,7 +157,7 @@ export function SyllabusDialog({
         textBooks: result.suggestedTextBooks,
         referenceBooks: result.suggestedReferences
       }));
-      toast({ title: "AI Content Architected" });
+      toast({ title: "AI Content Generated" });
     } catch (e: any) {
       toast({ variant: "destructive", title: "AI Error", description: e.message });
     } finally {
@@ -184,7 +185,7 @@ export function SyllabusDialog({
             </div>
           </DialogTitle>
           <DialogDescription>
-            Institutional Rules: <b>{isLab ? 'Practical (8+ Exp)' : 'Theory (5+ Units)'}</b>. Codes are auto-generated.
+            Pedagogical Mandate: <b>{isLab ? '8+ Experiments' : '5+ Units'}</b>. Codes are auto-managed.
           </DialogDescription>
         </DialogHeader>
 
@@ -333,7 +334,7 @@ export function SyllabusDialog({
               </TabsContent>
 
               <TabsContent value="mapping" className="p-8 text-center text-muted-foreground italic bg-white rounded-xl border border-dashed">
-                 <p>Advanced Outcome Mapping (PO/PSO) is inherited from institutional standards for synchronized subjects.</p>
+                 <p>PO/PSO Mapping is inherited from institutional standards for synchronized subjects.</p>
               </TabsContent>
             </Tabs>
           </div>
@@ -346,7 +347,7 @@ export function SyllabusDialog({
             onClick={() => { onSave(formData); onOpenChange(false); }} 
             className="h-11 px-8 shadow-md"
            >
-             Save Subject Specification
+             Save Specification
            </Button>
         </DialogFooter>
       </DialogContent>
