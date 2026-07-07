@@ -1,4 +1,3 @@
-
 'use client';
 
 import jsPDF from 'jspdf';
@@ -68,7 +67,7 @@ const drawSubjectSyllabus = (
   doc.rect(15, currentY, pageWidth - 30, 10, 'F');
   doc.setTextColor(255);
   doc.setFontSize(11);
-  doc.text(`COURSE CODE: ${syllabus.subjectCode || 'CODE'} - ${displayTitle.toUpperCase()} (SLOT: ${syllabus.timetableSlot || 'N/A'})`, 20, currentY + 6.5);
+  doc.text(`COURSE CODE: ${syllabus.subjectCode || 'CODE'} - ${displayTitle.toUpperCase()}`, 20, currentY + 6.5);
   currentY += 16;
 
   // Basic Info Grid
@@ -336,7 +335,6 @@ export const exportFullSchemeToPDF = (
     doc.text(`Total Semester Credits: ${semCredits}`, pageWidth - 20, currentY, { align: 'right' });
     
     const body = semSubjects.map(s => [
-      s.timetableSlot || '-',
       s.subjectCode || '',
       getCleanTitle(s),
       `${s.lectureCredits || 0}-${s.tutorialCredits || 0}-${s.practicalCredits || 0}`,
@@ -346,18 +344,17 @@ export const exportFullSchemeToPDF = (
 
     autoTable(doc, {
       startY: currentY + 4,
-      head: [['Slot', 'Code', 'Course Title', 'L-T-P', 'Category', 'Cr']],
-      body: body.length > 0 ? body : [['-', '-', 'No courses added yet', '-', '-', '-']],
+      head: [['Code', 'Course Title', 'L-T-P', 'Category', 'Cr']],
+      body: body.length > 0 ? body : [['-', 'No courses added yet', '-', '-', '-']],
       theme: 'grid',
       headStyles: { fillColor: [100, 100, 100], fontSize: 9 },
       bodyStyles: { fontSize: 8.5 },
       columnStyles: {
-        0: { cellWidth: 15, halign: 'center', fontStyle: 'bold' },
-        1: { cellWidth: 25, fontStyle: 'bold' },
-        2: { cellWidth: 'auto' },
-        3: { cellWidth: 20, halign: 'center' },
-        4: { cellWidth: 25, halign: 'center' },
-        5: { cellWidth: 15, halign: 'center', fontStyle: 'bold' }
+        0: { cellWidth: 25, fontStyle: 'bold' },
+        1: { cellWidth: 'auto' },
+        2: { cellWidth: 20, halign: 'center' },
+        3: { cellWidth: 25, halign: 'center' },
+        4: { cellWidth: 15, halign: 'center', fontStyle: 'bold' }
       },
       margin: { left: 20, right: 20 }
     });

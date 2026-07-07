@@ -67,6 +67,12 @@ export function SyllabusDialog({
         followedFromId: '',
         ...syllabus
       });
+      // Auto-expand all units if inherited so content is immediately visible
+      if (syllabus.followedFromId || (syllabus as any).isInherited) {
+        const expandMap: Record<string, boolean> = {};
+        syllabus.units?.forEach(u => { expandMap[u.id] = true; });
+        setExpandedUnits(expandMap);
+      }
     }
   }, [open, syllabus]);
 
@@ -195,11 +201,13 @@ export function SyllabusDialog({
               <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between shadow-sm">
                 <div className="flex items-center gap-3 text-emerald-800 text-sm">
                   <ShieldCheck className="w-5 h-5" />
-                  <p>Standardized content inherited from the <b>Institutional Pool</b>.</p>
+                  <p><b>Standardized:</b> Full syllabus content inherited from the <b>Institutional Pool</b>.</p>
                 </div>
-                <Button variant="ghost" size="sm" className="text-emerald-700 hover:bg-emerald-100" onClick={() => setFormData({...formData, followedFromId: '', parentSchemeId: ''})}>
-                  Sever Link & Customize
-                </Button>
+                {isSuperuser && (
+                  <Button variant="ghost" size="sm" className="text-emerald-700 hover:bg-emerald-100" onClick={() => setFormData({...formData, followedFromId: '', parentSchemeId: ''})}>
+                    Sever Link & Customize
+                  </Button>
+                )}
               </div>
             )}
 
@@ -277,7 +285,7 @@ export function SyllabusDialog({
               </TabsContent>
 
               <TabsContent value="syllabus" className="space-y-6">
-                 {!isCountValid && (
+                 {!isCountValid && !isLinked && (
                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-amber-800 text-sm mb-4">
                      <AlertTriangle className="w-5 h-5 shrink-0" />
                      <p><b>Institutional Warning:</b> {formData.type} courses require at least <b>{minRequired}</b> {unitLabel}s. Current: {unitCount}.</p>
@@ -342,13 +350,15 @@ export function SyllabusDialog({
         
         <DialogFooter className="p-6 border-t bg-background shrink-0 shadow-lg">
            <Button variant="outline" onClick={() => onOpenChange(false)} className="h-11 px-6">Cancel</Button>
-           <Button 
-            disabled={!isCountValid && !isLinked} 
-            onClick={() => { onSave(formData); onOpenChange(false); }} 
-            className="h-11 px-8 shadow-md"
-           >
-             Save Specification
-           </Button>
+           {!isFormDisabled && (
+             <Button 
+              disabled={!isCountValid} 
+              onClick={() => { onSave(formData); onOpenChange(false); }} 
+              className="h-11 px-8 shadow-md"
+             >
+               Save Specification
+             </Button>
+           )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

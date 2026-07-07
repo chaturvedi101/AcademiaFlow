@@ -104,10 +104,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [isSyllabusDialogOpen, setIsSyllabusDialogOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Partial<Syllabus> | undefined>(undefined);
 
+  // ENHANCED INHERITANCE RESOLUTION: Deep merge parent content for child slots
   const syllabi = useMemo(() => {
     if (!scheme) return [];
 
     const resolvedLocal = localSyllabi.map(local => {
+      // Find parent by explicit ID link or Subject Code match in Vertical Pool
       const parent = local.followedFromId ? poolSyllabi.find(p => p.id === local.followedFromId) : 
                      (local.subjectCode ? poolSyllabi.find(p => p.subjectCode === local.subjectCode) : null);
 
@@ -115,7 +117,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         return {
           ...local,
           ...parent, 
-          id: local.id, 
+          id: local.id, // Preserve departmental instance ID
           isStandardized: true,
           standardizedFrom: local.followedFromId ? 'Equivalence Link' : 'Code Match'
         };
@@ -123,6 +125,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       return local;
     });
 
+    // Auto-inject missing common pool subjects that aren't yet in the local scheme
     const missingFromPool = poolSyllabi.filter(p => !resolvedLocal.some(l => l.subjectCode === p.subjectCode));
     
     const inheritedFromPool = missingFromPool.map(p => ({
@@ -164,6 +167,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       return isProgramDean || !!myBranchRole || canEditScheme;
     };
 
+    // STRICT RULE: Only Admin can delete a subject
     const canDeleteSyllabus = (s: any) => isAdmin;
 
     return { canEditScheme, canDeleteSyllabus, canEditSyllabus, isMonitor: false, isSuperuser, isAdmin };

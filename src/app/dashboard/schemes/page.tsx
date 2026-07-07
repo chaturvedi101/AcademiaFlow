@@ -2,12 +2,12 @@
 
 import { useState, useMemo } from 'react';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
-import { collection, doc, serverTimestamp, query, orderBy, writeBatch } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, query, orderBy, writeBatch, deleteDoc } from 'firebase/firestore';
 import { Scheme, Program, UserProfile, FACULTIES } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Loader2, ArrowRight, Hash, Layers } from 'lucide-react';
+import { Plus, Loader2, ArrowRight, Hash, Layers, Trash2 } from 'lucide-react';
 import { 
   Dialog, 
   DialogContent, 
@@ -118,12 +118,13 @@ export default function SchemesPage() {
           isCommitteePool: isCommittee
         });
 
+        // Initialize standard pools with placeholder slots if BTECH
         if (newScheme.poolType === 'Vertical' && (newScheme.poolVertical === 'BTECH' || !newScheme.poolVertical)) {
            const standardSlots = [
-             { code: 'AECV101', title: 'Technical Communication', cat: 'AEC', sem: 1, credits: 2, type: 'Theory', l: 2, t: 0, p: 0 },
-             { code: 'VACV101', title: 'Environmental Science', cat: 'VAC', sem: 2, credits: 2, type: 'Theory', l: 2, t: 0, p: 0 },
-             { code: 'MDCM201', title: 'Introduction to Economics', cat: 'MDC', sem: 3, credits: 3, type: 'Theory', l: 3, t: 0, p: 0 },
-             { code: 'MDCM202', title: 'Sustainable Engineering', cat: 'MDC', sem: 4, credits: 3, type: 'Theory', l: 3, t: 0, p: 0 }
+             { code: 'RTLV101', title: 'Technical Communication', cat: 'AEC', sem: 1, credits: 2, type: 'Theory', l: 2, t: 0, p: 0 },
+             { code: 'RTLV102', title: 'Environmental Science', cat: 'VAC', sem: 2, credits: 2, type: 'Theory', l: 2, t: 0, p: 0 },
+             { code: 'RTLM201', title: 'Introduction to Economics', cat: 'MDC', sem: 3, credits: 3, type: 'Theory', l: 3, t: 0, p: 0 },
+             { code: 'RTLM202', title: 'Sustainable Engineering', cat: 'MDC', sem: 4, credits: 3, type: 'Theory', l: 3, t: 0, p: 0 }
            ];
 
            standardSlots.forEach(slot => {
@@ -142,11 +143,11 @@ export default function SchemesPage() {
                practicalCredits: slot.p,
                updatedAt: serverTimestamp(),
                units: [
-                 { id: 'u1', title: 'Introduction', content: 'Detailed topics for unit 1', hours: 8, courseOutcome: 'Outcome for unit 1' },
-                 { id: 'u2', title: 'Intermediate Concepts', content: 'Detailed topics for unit 2', hours: 10, courseOutcome: 'Outcome for unit 2' },
-                 { id: 'u3', title: 'Advanced Theory', content: 'Detailed topics for unit 3', hours: 10, courseOutcome: 'Outcome for unit 3' },
-                 { id: 'u4', title: 'Implementation', content: 'Detailed topics for unit 4', hours: 10, courseOutcome: 'Outcome for unit 4' },
-                 { id: 'u5', title: 'Conclusion', content: 'Detailed topics for unit 5', hours: 8, courseOutcome: 'Outcome for unit 5' }
+                 { id: 'u1', title: 'Introduction', content: 'Authoritative content for unit 1', hours: 8, courseOutcome: 'Learning outcome 1' },
+                 { id: 'u2', title: 'Unit 2 Title', content: 'Authoritative content for unit 2', hours: 8, courseOutcome: 'Learning outcome 2' },
+                 { id: 'u3', title: 'Unit 3 Title', content: 'Authoritative content for unit 3', hours: 8, courseOutcome: 'Learning outcome 3' },
+                 { id: 'u4', title: 'Unit 4 Title', content: 'Authoritative content for unit 4', hours: 8, courseOutcome: 'Learning outcome 4' },
+                 { id: 'u5', title: 'Unit 5 Title', content: 'Authoritative content for unit 5', hours: 8, courseOutcome: 'Learning outcome 5' }
                ]
              });
            });
@@ -195,7 +196,7 @@ export default function SchemesPage() {
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <h1 className="text-3xl font-headline font-bold">Academic Schemes</h1>
-          <p className="text-muted-foreground">Manage institutional curriculum layouts and centralized course pools.</p>
+          <p className="text-muted-foreground">Manage institutional curriculum layouts and centralized **BTECH** course pools.</p>
         </div>
         {(isGlobalAdmin || isCommonBos || isCommitteeConvenor) && (
           <Button onClick={() => setIsDialogOpen(true)} className="gap-2 shadow-lg">
@@ -223,7 +224,7 @@ export default function SchemesPage() {
                 <div className="text-[11px] font-bold text-muted-foreground">Batch: {scheme.batchYear}</div>
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-2">
               <Button variant="ghost" className="w-full justify-between group-hover:bg-primary group-hover:text-white" asChild>
                 <Link href={`/dashboard/schemes/${scheme.id}`}>Open Pool Architect <ArrowRight className="w-4 h-4" /></Link>
               </Button>
