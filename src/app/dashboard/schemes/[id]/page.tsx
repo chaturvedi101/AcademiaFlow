@@ -41,14 +41,14 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [isSubmissionDialogOpen, setIsSubmissionDialogOpen] = useState(false);
   const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
 
-  // UNIVERSAL VERTICAL MAPPING ENGINE
+  // ROBUST NORMALIZED VERTICAL MAPPING ENGINE
   useEffect(() => {
     if (!scheme) return;
     setPoolLoading(true);
 
-    // Extraction: Get vertical key (BTECH, BBA, MCA, etc.) from Program ID or Code
+    // Extraction: Get vertical key (e.g. BTECH) by stripping dots and special chars
     const baseCode = program?.code || scheme.programId || '';
-    const verticalKey = baseCode.split('-')[0].replace('.', '').toUpperCase();
+    const verticalKey = baseCode.split('-')[0].replace(/[^a-zA-Z]/g, '').toUpperCase();
 
     const poolQuery = query(
       collection(db, 'schemes'),
@@ -62,10 +62,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       unsubSyllabi.forEach(u => u());
       unsubSyllabi = [];
 
-      // Robust find: Match normalized vertical key (e.g. BTECH matches B.TECH)
+      // Resilient Match: Normalize both IDs to remove dots (B.Tech -> BTECH)
       const poolDoc = snap.docs.find(d => {
-        const normalizedId = d.id.replace('.', '').toUpperCase();
-        return normalizedId.includes(verticalKey);
+        const normalizedId = d.id.replace(/[^a-zA-Z]/g, '').toUpperCase();
+        return normalizedId.startsWith(verticalKey);
       });
       
       if (!poolDoc) {
@@ -106,7 +106,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const syllabi = useMemo(() => {
     if (!scheme) return [];
 
-    // 1. Process local slots and resolve inheritance (Matched by Code or ID)
+    // 1. Resolve inheritance for local slots (Matched by Code or ID)
     const resolvedLocal = localSyllabi.map(local => {
       const parent = local.followedFromId ? poolSyllabi.find(p => p.id === local.followedFromId) : 
                      (local.subjectCode ? poolSyllabi.find(p => p.subjectCode === local.subjectCode) : null);
@@ -114,8 +114,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       if (parent) {
         return {
           ...local,
-          ...parent, // Inherit all content
-          id: local.id, // Preserve local document ID
+          ...parent, 
+          id: local.id, 
           isStandardized: true,
           standardizedFrom: local.followedFromId ? 'Equivalence Link' : 'Code Match'
         };
@@ -123,7 +123,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       return local;
     });
 
-    // 2. Automatic Injection: Only inject subjects from pool that aren't already in the branch scheme
+    // 2. Automated Injection: Bring pool subjects that don't have a local slot yet
     const missingFromPool = poolSyllabi.filter(p => !resolvedLocal.some(l => l.subjectCode === p.subjectCode));
     
     const inheritedFromPool = missingFromPool.map(p => ({
@@ -139,7 +139,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     });
   }, [localSyllabi, poolSyllabi, scheme]);
 
-  const inheritedCount = useMemo(() => syllabi.filter(s => (s as any).isInherited).length, [syllabi]);
+  const inheritedCount = useMemo(() => syllabi.filter(s => (s as any).isInherited || (s as any).isStandardized).length, [syllabi]);
 
   const permissions = useMemo(() => {
     if (profileLoading || !profile || !scheme) return { 
@@ -231,7 +231,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             {inheritedCount > 0 && (
               <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1.5 py-1 px-3">
                 <ShieldCheck className="w-3 h-3" />
-                {inheritedCount} Institutional Courses Automated
+                {inheritedCount} Institutional Courses Synchronized
               </Badge>
             )}
           </div>

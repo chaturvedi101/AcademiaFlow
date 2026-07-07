@@ -87,7 +87,7 @@ export default function SchemesPage() {
         if (newScheme.poolType === 'Vertical') {
           const verticalLabel = newScheme.poolVertical;
           branchName = `${verticalLabel} (Common BOS) Pool`;
-          generatedCode = `${verticalLabel.toUpperCase()}-POOL-${newScheme.batchYear}`;
+          generatedCode = `${verticalLabel.toUpperCase().replace(/[^A-Z]/g, '')}-POOL-${newScheme.batchYear}`;
         } else {
           branchName = newScheme.committeeName;
           const prefix = branchName.split('-')[1]?.trim().toUpperCase().substring(0, 4) || 'COMM';
@@ -151,7 +151,7 @@ export default function SchemesPage() {
           if (!program) continue;
           
           const codePrefix = program.branchPrefixes?.[newScheme.branch] || pid.substring(0, 3).toUpperCase();
-          const sid = `${pid.toUpperCase()}-${codePrefix}-${newScheme.batchYear}`;
+          const sid = `${pid.toUpperCase()}-${codePrefix.replace(/[^A-Z]/g, '')}-${newScheme.batchYear}`;
           
           batch.set(doc(db, 'schemes', sid), {
             programId: pid,
