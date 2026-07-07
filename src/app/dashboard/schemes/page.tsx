@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
 import { useState, useMemo } from 'react';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
-import { collection, doc, serverTimestamp, query, orderBy, writeBatch, deleteDoc } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, query, orderBy, writeBatch } from 'firebase/firestore';
 import { Scheme, Program, UserProfile, FACULTIES } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Loader2, ArrowRight, Hash, Layers, Trash2 } from 'lucide-react';
+import { Plus, Loader2, ArrowRight, Hash, Layers } from 'lucide-react';
 import { 
   Dialog, 
   DialogContent, 
@@ -93,8 +93,7 @@ export default function SchemesPage() {
         if (newScheme.poolType === 'Vertical') {
           const verticalLabel = newScheme.poolVertical || 'BTECH';
           branchName = `${verticalLabel} (Common BOS) Pool`;
-          const prefix = verticalLabel.toUpperCase().replace(/[^A-Z]/g, '');
-          generatedCode = `${prefix}-POOL-${newScheme.batchYear}`;
+          generatedCode = `${verticalLabel}-POOL-${newScheme.batchYear}`;
         } else {
           branchName = newScheme.committeeName;
           const prefix = branchName.split('-')[1]?.trim().toUpperCase().substring(0, 4) || 'COMM';
@@ -118,43 +117,8 @@ export default function SchemesPage() {
           isCommitteePool: isCommittee
         });
 
-        // Initialize standard pools with placeholder slots if BTECH
-        if (newScheme.poolType === 'Vertical' && (newScheme.poolVertical === 'BTECH' || !newScheme.poolVertical)) {
-           const standardSlots = [
-             { code: 'RTLV101', title: 'Technical Communication', cat: 'AEC', sem: 1, credits: 2, type: 'Theory', l: 2, t: 0, p: 0 },
-             { code: 'RTLV102', title: 'Environmental Science', cat: 'VAC', sem: 2, credits: 2, type: 'Theory', l: 2, t: 0, p: 0 },
-             { code: 'RTLM201', title: 'Introduction to Economics', cat: 'MDC', sem: 3, credits: 3, type: 'Theory', l: 3, t: 0, p: 0 },
-             { code: 'RTLM202', title: 'Sustainable Engineering', cat: 'MDC', sem: 4, credits: 3, type: 'Theory', l: 3, t: 0, p: 0 }
-           ];
-
-           standardSlots.forEach(slot => {
-             const syllId = Math.random().toString(36).substr(2, 9);
-             batch.set(doc(db, 'schemes', generatedCode, 'syllabi', syllId), {
-               id: syllId,
-               schemeId: generatedCode,
-               subjectCode: slot.code,
-               title: slot.title,
-               creditCategory: slot.cat,
-               semester: slot.sem,
-               credits: slot.credits,
-               type: slot.type,
-               lectureCredits: slot.l,
-               tutorialCredits: slot.t,
-               practicalCredits: slot.p,
-               updatedAt: serverTimestamp(),
-               units: [
-                 { id: 'u1', title: 'Introduction', content: 'Authoritative content for unit 1', hours: 8, courseOutcome: 'Learning outcome 1' },
-                 { id: 'u2', title: 'Unit 2 Title', content: 'Authoritative content for unit 2', hours: 8, courseOutcome: 'Learning outcome 2' },
-                 { id: 'u3', title: 'Unit 3 Title', content: 'Authoritative content for unit 3', hours: 8, courseOutcome: 'Learning outcome 3' },
-                 { id: 'u4', title: 'Unit 4 Title', content: 'Authoritative content for unit 4', hours: 8, courseOutcome: 'Learning outcome 4' },
-                 { id: 'u5', title: 'Unit 5 Title', content: 'Authoritative content for unit 5', hours: 8, courseOutcome: 'Learning outcome 5' }
-               ]
-             });
-           });
-        }
-
         await batch.commit();
-        toast({ title: "Pool Created" });
+        toast({ title: "Institutional Pool Initialized" });
       } else {
         for (const pid of newScheme.programIds) {
           const program = programs.find(p => p.id === pid);
@@ -177,7 +141,7 @@ export default function SchemesPage() {
           });
         }
         await batch.commit();
-        toast({ title: "Schemes Created" });
+        toast({ title: "Branch Schemes Synchronized" });
       }
 
       setIsDialogOpen(false);
@@ -196,7 +160,7 @@ export default function SchemesPage() {
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <h1 className="text-3xl font-headline font-bold">Academic Schemes</h1>
-          <p className="text-muted-foreground">Manage institutional curriculum layouts and centralized **BTECH** course pools.</p>
+          <p className="text-muted-foreground">Manage institutional curriculum for BTECH and BBA Vertical Pools.</p>
         </div>
         {(isGlobalAdmin || isCommonBos || isCommitteeConvenor) && (
           <Button onClick={() => setIsDialogOpen(true)} className="gap-2 shadow-lg">
@@ -217,14 +181,14 @@ export default function SchemesPage() {
                 </div>
               </div>
               <CardTitle className="font-headline text-lg group-hover:text-primary transition-colors">
-                {scheme.branch || (programs.find(p => p.id === scheme.programId)?.name || 'Scheme')}
+                {scheme.branch || (programs.find(p => p.id === scheme.programId)?.name || 'BTECH Scheme')}
               </CardTitle>
               <CardDescription className="flex flex-col gap-1">
                 <div className="flex items-center gap-2 font-mono text-[10px] text-primary font-bold"><Hash className="w-3 h-3" /> {scheme.schemeCode}</div>
-                <div className="text-[11px] font-bold text-muted-foreground">Batch: {scheme.batchYear}</div>
+                <div className="text-[11px] font-bold text-muted-foreground uppercase">Batch: {scheme.batchYear}</div>
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent>
               <Button variant="ghost" className="w-full justify-between group-hover:bg-primary group-hover:text-white" asChild>
                 <Link href={`/dashboard/schemes/${scheme.id}`}>Open Pool Architect <ArrowRight className="w-4 h-4" /></Link>
               </Button>
@@ -293,7 +257,7 @@ export default function SchemesPage() {
             {!newScheme.isPoolScheme && (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-sm font-bold">Select Academic Program(s)</Label>
+                  <Label className="text-sm font-bold">Select BTECH Program(s)</Label>
                   <ScrollArea className="h-48 border rounded-lg p-4 bg-white">
                     <div className="space-y-3">
                       {programs.map(p => (
@@ -319,7 +283,7 @@ export default function SchemesPage() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-bold">Branch Name</Label>
-                  <Input placeholder="e.g. Civil Engineering" value={newScheme.branch} onChange={e => setNewScheme({...newScheme, branch: e.target.value})} />
+                  <Input placeholder="e.g. Mechanical Engineering" value={newScheme.branch} onChange={e => setNewScheme({...newScheme, branch: e.target.value})} />
                 </div>
               </div>
             )}
@@ -333,7 +297,7 @@ export default function SchemesPage() {
           <DialogFooter>
             <Button onClick={handleCreateScheme} disabled={isCreating}>
               {isCreating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
-              {newScheme.isPoolScheme ? "Initialize Pool" : "Instantiate Schemes"}
+              {newScheme.isPoolScheme ? "Initialize Pool" : "Generate Schemes"}
             </Button>
           </DialogFooter>
         </DialogContent>

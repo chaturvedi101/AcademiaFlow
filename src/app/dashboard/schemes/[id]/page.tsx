@@ -42,19 +42,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // INSTITUTIONAL KNOWLEDGE ENGINE: Fetch all potential parent sources (Vertical + Committees)
+  // INSTITUTIONAL KNOWLEDGE ENGINE: Proactively fetch potential parents from the entire batch year
   useEffect(() => {
     if (!scheme) return;
     setParentsLoading(true);
 
-    // Don't inherit from self if we are a pool
-    if (scheme.programId === 'INSTITUTIONAL' || scheme.isVerticalPool || scheme.isCommitteePool) {
-      setAllParentSyllabi([]);
-      setParentsLoading(false);
-      return;
-    }
-
-    // Query for ALL authoritative pools for this batch
     const poolsQuery = query(
       collection(db, 'schemes'),
       where('batchYear', '==', scheme.batchYear)
@@ -112,45 +104,44 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [isSyllabusDialogOpen, setIsSyllabusDialogOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Partial<Syllabus> | undefined>(undefined);
 
-  // AUTHORITATIVE RESOLUTION ENGINE: Deep merge parent content into departmental slots
+  // VIRTUAL CHILD RESOLUTION: Merge parent content while keeping local code and semester context
   const syllabi = useMemo(() => {
     if (!scheme) return [];
 
     const resolvedLocal = localSyllabi.map(local => {
-      // Find parent by explicit ID link from Equivalence Manager
       const parent = local.followedFromId ? allParentSyllabi.find(p => p.id === local.followedFromId) : null;
 
       if (parent) {
         return {
-          ...local, // Preserve child slot ID
-          ...parent, // Overwrite with authoritative content
-          id: local.id, 
+          ...parent, // Inherit pedagogical content (Title, Units, resources, etc.)
+          id: local.id, // Preserve child DB reference
+          subjectCode: local.subjectCode, // AS REQUESTED: Keep child's own code
+          parentCode: parent.subjectCode, // Reference for UI
+          semester: local.semester, // Keep child's semester placement
+          schemeId: local.schemeId,
+          followedFromId: local.followedFromId,
+          parentSchemeId: local.parentSchemeId,
           isStandardized: true,
-          standardizedFrom: 'Equivalence Link',
-          parentCode: parent.subjectCode // Store for UI reference
+          standardizedFrom: 'Equivalence Manager'
         } as Syllabus;
       }
       return local;
     });
 
-    // Auto-inject missing mandatory BTECH vertical pool subjects
-    const btechPoolSyllabi = allParentSyllabi.filter(p => {
-       const pSchemeId = p.parentSchemeId || '';
-       return pSchemeId.includes('BTECH') && pSchemeId.includes('POOL');
-    });
-
-    const missingFromBtech = btechPoolSyllabi.filter(p => !resolvedLocal.some(l => l.subjectCode === p.subjectCode || l.followedFromId === p.id));
+    // Auto-inheritance for BTECH Common Pool mandatory subjects
+    const btechPool = allParentSyllabi.filter(p => p.parentSchemeId?.includes('BTECH-POOL'));
+    const missingFromBtech = btechPool.filter(p => !resolvedLocal.some(l => l.parentCode === p.subjectCode || l.followedFromId === p.id));
     
-    const inheritedFromPool = missingFromBtech.map(p => ({
+    const inherited = missingFromBtech.map(p => ({
       ...p,
       isStandardized: true,
-      standardizedFrom: 'Institutional Common Pool (Auto)',
+      standardizedFrom: 'Institutional Pool',
       isInherited: true,
       parentCode: p.subjectCode
     }));
 
-    return [...resolvedLocal, ...inheritedFromPool].sort((a, b) => {
-      if ((a.semester || 1) !== (b.semester || 1)) return (a.semester || 1) - (b.semester || 1);
+    return [...resolvedLocal, ...inherited].sort((a, b) => {
+      if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
       return (a.subjectCode || "").localeCompare(b.subjectCode || "");
     });
   }, [localSyllabi, allParentSyllabi, scheme]);
@@ -158,51 +149,30 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const inheritedCount = useMemo(() => syllabi.filter(s => s.isInherited || s.isStandardized).length, [syllabi]);
 
   const permissions = useMemo(() => {
-    if (profileLoading || !profile || !scheme) return { 
-      canEditScheme: false, canDeleteSyllabus: (s: any) => false, canEditSyllabus: (s: any) => false,
-      isMonitor: false, isSuperuser: false, isAdmin: false
+    const isAdmin = profile?.role === 'admin';
+    const isSuper = isAdmin || profile?.role === 'dean_academic';
+    
+    const canEditScheme = isSuper || (profile?.role === 'bos_convenor' && profile?.managedBranches?.some(m => m.programId === scheme?.programId && m.branch === scheme?.branch));
+    
+    return {
+      isAdmin,
+      isSuper,
+      canEditScheme,
+      canDeleteCourse: isAdmin,
+      canEditSyllabus: (s: Syllabus) => {
+        if (isSuper) return true;
+        if (s.followedFromId || s.isInherited) return false;
+        return canEditScheme;
+      }
     };
-
-    const isAdmin = profile.role === 'admin';
-    const isSuperuser = ['admin', 'dean_academic'].includes(profile.role);
-    if (profile.role === 'monitor') return { canEditScheme: false, canDeleteSyllabus: () => false, canEditSyllabus: () => false, isMonitor: true, isSuperuser: false, isAdmin: false };
-
-    const isProgramDean = profile.role === 'dean_faculty' && program && profile.faculty === program.faculty;
-    const isCommonBOS = !!profile.faculty?.includes('(Common BOS)');
-    const isMyCommittee = profile.role === 'committee_convenor' && profile.faculty === scheme.branch;
-
-    const myBranchRole = profile.managedBranches?.find(m => m.programId === scheme.programId && m.branch === scheme.branch)?.role;
-    const canEditScheme = isSuperuser || isProgramDean || isMyCommittee || (scheme.isVerticalPool ? isCommonBOS : myBranchRole === 'bos_convenor');
-
-    const canEditSyllabus = (s: any) => {
-      if (isSuperuser) return true;
-      if (s?.isInherited || s?.followedFromId) return false; // Strict lock for inherited courses
-      return isProgramDean || !!myBranchRole || canEditScheme;
-    };
-
-    const canDeleteSyllabus = (s: any) => isAdmin;
-
-    return { canEditScheme, canDeleteSyllabus, canEditSyllabus, isMonitor: false, isSuperuser, isAdmin };
-  }, [profile, profileLoading, scheme, program]);
+  }, [profile, scheme]);
 
   const creditDistribution = useMemo(() => {
     const dist = { DSC: 0, DSE: 0, OFE: 0, VAC: 0, AEC: 0, SEC: 0, MDC: 0, PRJ: 0, total: 0 };
-    const countedGroups = new Set<string>();
-
     syllabi.forEach(sub => {
       const cat = sub.creditCategory as keyof typeof dist;
-      if (sub.isOFEContribution) return;
-
-      if (sub.electiveGroupId && !['DSC', 'PRJ', 'SEC'].includes(sub.creditCategory)) {
-        if (!countedGroups.has(sub.electiveGroupId)) {
-          dist[cat] = (dist[cat] || 0) + (sub.credits || 0);
-          dist.total += (sub.credits || 0);
-          countedGroups.add(sub.electiveGroupId);
-        }
-      } else {
-        if (cat in dist) dist[cat] = (dist[cat] || 0) + (sub.credits || 0);
-        dist.total += (sub.credits || 0);
-      }
+      if (cat in dist) dist[cat] += (sub.credits || 0);
+      dist.total += (sub.credits || 0);
     });
     return dist;
   }, [syllabi]);
@@ -210,7 +180,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const isSchemeValid = useMemo(() => {
     if (scheme?.isVerticalPool || scheme?.isCommitteePool) return true; 
     if (!program?.rules) return false;
-    
     if (selectedScope === 'Year 1') return syllabi.some(s => s.semester === 1) && syllabi.some(s => s.semester === 2);
     return creditDistribution.total === program.rules.totalRequired;
   }, [creditDistribution, program?.rules, scheme, selectedScope, syllabi]);
@@ -261,7 +230,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         const newCode = generateInstitutionalCode(sub, branchPrefix, sequenceMap[bucketKey]);
         
         if (existingCodes.has(newCode)) {
-          throw new Error(`CLASH: Generated code ${newCode} for "${sub.title}" is already in use by another department in the University.`);
+          throw new Error(`CLASH: Generated code ${newCode} for "${sub.title}" is already in use elsewhere in the University.`);
         }
 
         const subRef = doc(db, 'schemes', schemeId, 'syllabi', sub.id);
@@ -281,18 +250,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const docId = data.id || Math.random().toString(36).substr(2, 9);
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', docId);
     setDoc(docRef, { ...data, id: docId, schemeId, updatedAt: serverTimestamp() }, { merge: true })
-      .then(() => toast({ title: "Synchronized" }));
+      .then(() => toast({ title: "Authorized & Synchronized" }));
   };
 
   const handleDeleteSyllabus = async (syllabusId: string) => {
     if (!permissions.isAdmin) return;
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', syllabusId);
     deleteDoc(docRef).then(() => toast({ title: "Subject Removed" }));
-  };
-
-  const handleUpdateScheme = (updates: Partial<Scheme>) => {
-    updateDoc(schemeRef, { ...updates, updatedAt: serverTimestamp() })
-      .then(() => toast({ title: "Scheme Advanced" }));
   };
 
   if (profileLoading || schemeLoading || syllabiLoading || parentsLoading) {
@@ -319,14 +283,14 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           <div className="flex items-center gap-3 text-muted-foreground text-sm">
             <span className="font-mono font-bold">{scheme.schemeCode}</span>
             <span>Batch: {scheme.batchYear}</span>
-            <Badge variant="secondary">{scheme.status} {scheme.submissionScope ? `(${scheme.submissionScope})` : ''}</Badge>
+            <Badge variant="secondary">{scheme.status}</Badge>
           </div>
         </div>
         <div className="flex gap-2">
           {permissions.isAdmin && (
             <Button variant="outline" className="text-primary border-primary/30 gap-2" onClick={handleGlobalSync} disabled={isSyncing}>
               {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-              Global Sync
+              Institutional Sync
             </Button>
           )}
           <Button variant="outline" onClick={() => exportFullSchemeToPDF(scheme, program!, syllabi)}>
@@ -335,7 +299,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           <Button variant="outline" onClick={() => exportCompleteSyllabusToPDF(scheme, program!, syllabi)}>
             <BookOpen className="w-4 h-4 mr-2" /> Book
           </Button>
-          {permissions.canEditScheme && <Button onClick={() => setIsSubmissionDialogOpen(true)}>Submit Scheme</Button>}
+          {permissions.canEditScheme && <Button onClick={() => setIsSubmissionDialogOpen(true)}>Finalize Scheme</Button>}
         </div>
       </div>
 
@@ -363,7 +327,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                       </div>
                       {permissions.canEditScheme && (
                         <Button size="sm" variant="outline" onClick={() => { setActiveSubject({ semester: sem }); setIsSyllabusDialogOpen(true); }}>
-                          <Plus className="w-4 h-4 mr-2" /> Add Subject
+                          <Plus className="w-4 h-4 mr-2" /> Add Subject Slot
                         </Button>
                       )}
                     </CardHeader>
@@ -371,7 +335,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead className="pl-6">Code</TableHead>
+                            <TableHead className="pl-6">Local Code</TableHead>
                             <TableHead>Course Title</TableHead>
                             <TableHead>Category</TableHead>
                             <TableHead className="text-center">L-T-P</TableHead>
@@ -383,12 +347,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                           {semSyllabi.map(sub => (
                             <TableRow key={sub.id} className="group">
                               <TableCell className="pl-6 font-mono font-bold">
-                                {sub.isStandardized ? (
-                                  <div className="flex flex-col">
-                                    <span className="text-primary">{sub.subjectCode}</span>
-                                    {sub.followedFromId && <span className="text-[9px] text-muted-foreground italic">Standard: {sub.parentCode}</span>}
-                                  </div>
-                                ) : sub.subjectCode}
+                                <div className="flex flex-col">
+                                  <span className={cn(sub.isStandardized && "text-primary")}>{sub.subjectCode}</span>
+                                  {sub.parentCode && <span className="text-[9px] text-muted-foreground italic font-normal">Standard: {sub.parentCode}</span>}
+                                </div>
                               </TableCell>
                               <TableCell className="font-medium">
                                 <div className="flex flex-col">
@@ -405,21 +367,15 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                                     <Badge variant="outline" className={cn(
                                       "gap-1 border-emerald-200",
                                       sub.isInherited ? "bg-primary/5 text-primary border-primary/20" : "bg-emerald-50 text-emerald-700"
-                                    )} title={`Authoritative content from ${sub.standardizedFrom}`}>
-                                      {sub.isInherited ? <ShieldCheck className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
+                                    )}>
+                                      <ShieldCheck className="w-3 h-3" />
                                       {sub.isInherited ? "Institutional" : "Standardized"}
                                     </Badge>
                                   )}
-                                  {permissions.canEditSyllabus(sub) ? (
-                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }}>
-                                      <Edit3 className="w-3.5 h-3.5" />
-                                    </Button>
-                                  ) : (
-                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }}>
-                                      <Eye className="w-3.5 h-3.5" />
-                                    </Button>
-                                  )}
-                                  {permissions.canDeleteSyllabus(sub) && (
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }}>
+                                    {permissions.canEditSyllabus(sub) ? <Edit3 className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                  </Button>
+                                  {permissions.isAdmin && (
                                     <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => handleDeleteSyllabus(sub.id)}>
                                       <Trash2 className="w-3.5 h-3.5" />
                                     </Button>
@@ -428,13 +384,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                               </TableCell>
                             </TableRow>
                           ))}
-                          {semSyllabi.length === 0 && (
-                            <TableRow>
-                              <TableCell colSpan={6} className="text-center py-8 text-muted-foreground italic">
-                                No subjects added for this semester.
-                              </TableCell>
-                            </TableRow>
-                          )}
                         </TableBody>
                       </Table>
                     </CardContent>
@@ -470,7 +419,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           </div>
           <DialogFooter>
             <Button disabled={!isSchemeValid} onClick={() => {
-              handleUpdateScheme({ status: 'Pending Dean', submissionScope: selectedScope });
+              updateDoc(schemeRef, { status: 'Pending Dean', submissionScope: selectedScope });
               setIsSubmissionDialogOpen(false);
             }}>Finalize & Submit</Button>
           </DialogFooter>
@@ -482,7 +431,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         onOpenChange={setIsSyllabusDialogOpen} 
         syllabus={activeSubject}
         onSave={handleSaveSyllabus}
-        canEdit={permissions.canEditSyllabus(activeSubject)}
+        canEdit={permissions.canEditSyllabus(activeSubject as Syllabus)}
         userProfile={profile || undefined}
         batchYear={scheme.batchYear}
         program={program || undefined}

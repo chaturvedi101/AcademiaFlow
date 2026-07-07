@@ -7,12 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Layers, ArrowRight, Info, Link as LinkIcon, Unlink, ShieldAlert, Loader2, CheckCircle2 } from "lucide-react";
+import { Layers, ArrowRight, Link as LinkIcon, Unlink, Loader2, CheckCircle2, ShieldCheck, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser, useDoc, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { doc, collection, query, where, updateDoc, serverTimestamp, getDocs } from "firebase/firestore";
+import { doc, collection, query, where, updateDoc, serverTimestamp, getDocs, collectionGroup } from "firebase/firestore";
 import { UserProfile, Scheme, Syllabus } from "@/lib/types";
-import Link from "next/link";
 
 export default function EquivalencePage() {
   const { user } = useUser();
@@ -27,6 +26,7 @@ export default function EquivalencePage() {
   const [parentSyllabusId, setParentSyllabusId] = useState("");
   const [childSyllabusId, setChildSyllabusId] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [globalEquivalences, setGlobalEquivalences] = useState<Syllabus[]>([]);
 
   const { data: allSchemes, loading: schemesLoading } = useCollection<Scheme>(
     useMemoFirebase(() => collection(db, 'schemes'), [db])
@@ -35,27 +35,30 @@ export default function EquivalencePage() {
   const [childSyllabi, setChildSyllabi] = useState<Syllabus[]>([]);
   const [parentSyllabi, setParentSyllabi] = useState<Syllabus[]>([]);
 
-  // Parent Pools: Both specialized Course Committees and Vertical Pools (BTECH/BBA)
+  // Fetch ALL registered links across the entire University
+  useEffect(() => {
+    const fetchGlobalRegistry = async () => {
+      const q = query(collectionGroup(db, 'syllabi'), where('followedFromId', '!=', null));
+      const snap = await getDocs(q);
+      setGlobalEquivalences(snap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus)));
+    };
+    fetchGlobalRegistry();
+  }, [db, isProcessing]);
+
   const authoritativePools = useMemo(() => 
     allSchemes.filter(s => s.isCommitteePool || s.isVerticalPool), 
   [allSchemes]);
   
   const branchSchemes = useMemo(() => {
     const base = allSchemes.filter(s => !s.isCommitteePool && !s.isVerticalPool);
+    if (profile?.role === 'admin' || profile?.role === 'dean_academic') return base;
     
-    // Admins and Dean Academic can see everything
-    if (profile?.role === 'admin' || profile?.role === 'dean_academic') {
-      return base;
-    }
-
-    // BoS Convenors can only see schemes they manage
     const managed = profile?.managedBranches || [];
     return base.filter(s => 
       managed.some(m => m.programId === s.programId && m.branch === s.branch && m.role === 'bos_convenor')
     );
   }, [allSchemes, profile]);
 
-  // Load Syllabi for selected schemes
   useEffect(() => {
     if (childSchemeId) {
       getDocs(collection(db, 'schemes', childSchemeId, 'syllabi')).then(snap => {
@@ -77,16 +80,17 @@ export default function EquivalencePage() {
     setIsProcessing(true);
     
     const childRef = doc(db, 'schemes', childSchemeId, 'syllabi', childSyllabusId);
+    const parent = parentSyllabi.find(p => p.id === parentSyllabusId);
 
     try {
       await updateDoc(childRef, {
         followedFromId: parentSyllabusId,
         parentSchemeId: parentSchemeId,
+        parentCode: parent?.subjectCode || '',
         updatedAt: serverTimestamp()
       });
-      toast({ title: "Equivalence Established", description: "Departmental course is now linked to standard parent." });
+      toast({ title: "Equivalence Established", description: "Virtual child is now mirroring authoritative parent." });
       setChildSyllabusId("");
-      // Refresh local list
       setChildSyllabi(prev => prev.map(s => s.id === childSyllabusId ? { ...s, followedFromId: parentSyllabusId } : s));
     } catch (e: any) {
       toast({ variant: "destructive", title: "Linking Failed", description: e.message });
@@ -95,17 +99,20 @@ export default function EquivalencePage() {
     }
   };
 
-  const handleUnlink = async (syllabusId: string) => {
+  const handleUnlink = async (schemeId: string, syllabusId: string) => {
     setIsProcessing(true);
-    const childRef = doc(db, 'schemes', childSchemeId, 'syllabi', syllabusId);
+    const childRef = doc(db, 'schemes', schemeId, 'syllabi', syllabusId);
     try {
       await updateDoc(childRef, {
         followedFromId: null,
         parentSchemeId: null,
+        parentCode: null,
         updatedAt: serverTimestamp()
       });
-      setChildSyllabi(prev => prev.map(s => s.id === syllabusId ? { ...s, followedFromId: undefined } : s));
-      toast({ title: "Equivalence Removed" });
+      if (schemeId === childSchemeId) {
+        setChildSyllabi(prev => prev.map(s => s.id === syllabusId ? { ...s, followedFromId: undefined } : s));
+      }
+      toast({ title: "Equivalence Severed" });
     } finally {
       setIsProcessing(false);
     }
@@ -116,24 +123,24 @@ export default function EquivalencePage() {
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-headline font-bold">Institutional Equivalence Manager</h1>
-        <p className="text-muted-foreground">Map branch subjects to authoritative Course Committee or Vertical Pool standards.</p>
+        <h1 className="text-3xl font-headline font-bold text-primary">Institutional Equivalence Manager</h1>
+        <p className="text-muted-foreground">Authorize departmental courses to mirror BTECH Committee or Vertical Pool standards.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <Card className="lg:col-span-1 h-fit shadow-lg border-primary/10">
-          <CardHeader>
+          <CardHeader className="bg-primary/5 border-b">
             <CardTitle className="text-lg flex items-center gap-2">
-              <LinkIcon className="w-5 h-5 text-primary" /> Standard Assignment
+              <LinkIcon className="w-5 h-5 text-primary" /> Authorization Engine
             </CardTitle>
-            <CardDescription>Link a branch course to inherit from a specialized pool.</CardDescription>
+            <CardDescription>Assign authoritative content to a departmental slot.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-6 pt-6">
             <div className="space-y-4 p-4 bg-muted/30 rounded-xl">
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase">1. Target Departmental Scheme (Child)</Label>
+                <Label className="text-[10px] font-bold uppercase">1. Target Branch Scheme (Child)</Label>
                 <Select value={childSchemeId} onValueChange={setChildSchemeId}>
-                  <SelectTrigger><SelectValue placeholder="Choose Branch..." /></SelectTrigger>
+                  <SelectTrigger className="bg-white"><SelectValue placeholder="Choose Branch..." /></SelectTrigger>
                   <SelectContent>
                     {branchSchemes.map(s => <SelectItem key={s.id} value={s.id}>{s.branch} ({s.batchYear})</SelectItem>)}
                   </SelectContent>
@@ -141,9 +148,9 @@ export default function EquivalencePage() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase">2. Target Subject Slot (Child)</Label>
+                <Label className="text-[10px] font-bold uppercase">2. Departmental Subject Slot (Child)</Label>
                 <Select value={childSyllabusId} onValueChange={setChildSyllabusId} disabled={!childSchemeId}>
-                  <SelectTrigger><SelectValue placeholder="Choose Slot..." /></SelectTrigger>
+                  <SelectTrigger className="bg-white"><SelectValue placeholder="Choose Subject Slot..." /></SelectTrigger>
                   <SelectContent>
                     {childSyllabi.map(s => <SelectItem key={s.id} value={s.id}>{s.subjectCode} - {s.title || 'Untitled Slot'}</SelectItem>)}
                   </SelectContent>
@@ -157,7 +164,7 @@ export default function EquivalencePage() {
               <div className="space-y-2">
                 <Label className="text-[10px] uppercase font-bold text-primary">3. Source Authority Pool (Parent)</Label>
                 <Select value={parentSchemeId} onValueChange={setParentSchemeId}>
-                  <SelectTrigger className="bg-white"><SelectValue placeholder="Choose Authority..." /></SelectTrigger>
+                  <SelectTrigger className="bg-white"><SelectValue placeholder="Choose Pool..." /></SelectTrigger>
                   <SelectContent>
                     {authoritativePools.map(s => (
                       <SelectItem key={s.id} value={s.id}>
@@ -171,7 +178,7 @@ export default function EquivalencePage() {
               <div className="space-y-2">
                 <Label className="text-[10px] uppercase font-bold text-primary">4. Standard Authoritative Course (Parent)</Label>
                 <Select value={parentSyllabusId} onValueChange={setParentSyllabusId} disabled={!parentSchemeId}>
-                  <SelectTrigger className="bg-white"><SelectValue placeholder="Choose Course..." /></SelectTrigger>
+                  <SelectTrigger className="bg-white"><SelectValue placeholder="Choose Standard Course..." /></SelectTrigger>
                   <SelectContent>
                     {parentSyllabi.map(s => <SelectItem key={s.id} value={s.id}>{s.subjectCode} - {s.title}</SelectItem>)}
                   </SelectContent>
@@ -181,56 +188,65 @@ export default function EquivalencePage() {
 
             <Button className="w-full h-12 gap-2 shadow-lg" onClick={handleLinkCourses} disabled={!childSyllabusId || !parentSyllabusId || isProcessing}>
               {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-              Register Parent-Child Link
+              Authorize Inheritance Link
             </Button>
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2 shadow-sm border-none bg-white">
-          <CardHeader className="bg-muted/10 border-b">
-            <CardTitle className="text-lg">Equivalence Registry</CardTitle>
-            <CardDescription>Courses following institutional standards in {branchSchemes.find(s => s.id === childSchemeId)?.branch || 'Selected Scheme'}</CardDescription>
+        <Card className="lg:col-span-2 shadow-sm border-none bg-white overflow-hidden">
+          <CardHeader className="bg-muted/10 border-b flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-lg">Global Equivalence Registry</CardTitle>
+              <CardDescription>Comprehensive list of all authorized standardizations across BTECH branches.</CardDescription>
+            </div>
+            <Badge variant="outline" className="bg-primary/5 text-primary">
+              {globalEquivalences.length} active links
+            </Badge>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
-              <TableHeader>
+              <TableHeader className="bg-muted/30">
                 <TableRow>
-                  <TableHead className="pl-6">Branch Subject (Child)</TableHead>
-                  <TableHead></TableHead>
-                  <TableHead>Authoritative Parent</TableHead>
-                  <TableHead className="text-right pr-6">Action</TableHead>
+                  <TableHead className="pl-6">Branch Slot (Virtual Child)</TableHead>
+                  <TableHead className="text-center"></TableHead>
+                  <TableHead>Authoritative Parent (BTECH Pool)</TableHead>
+                  <TableHead className="text-right pr-6">Management</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {childSyllabi.filter(s => s.followedFromId).map(s => {
-                  const parentInfo = parentSyllabi.find(p => p.id === s.followedFromId);
+                {globalEquivalences.map(s => {
+                  const schemeInfo = allSchemes.find(sch => sch.id === s.schemeId);
                   return (
-                    <TableRow key={s.id}>
+                    <TableRow key={s.id} className="group hover:bg-muted/10">
                       <TableCell className="pl-6">
-                        <p className="font-bold text-sm">{s.subjectCode}</p>
-                        <p className="text-xs text-muted-foreground">{s.title}</p>
+                        <div className="space-y-1">
+                          <p className="font-bold text-sm text-primary">{s.subjectCode}</p>
+                          <p className="text-[10px] text-muted-foreground uppercase font-black">{schemeInfo?.branch || 'Unknown Branch'}</p>
+                        </div>
                       </TableCell>
-                      <TableCell><ArrowRight className="w-4 h-4 text-primary opacity-30" /></TableCell>
+                      <TableCell className="text-center"><ArrowRight className="w-4 h-4 text-muted-foreground opacity-30" /></TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
-                          {parentInfo?.subjectCode || 'Linked Parent'}
-                        </Badge>
-                        <p className="text-[10px] mt-1 text-muted-foreground italic">
-                          {parentInfo?.title || 'Standardized Content'}
-                        </p>
+                        <div className="flex flex-col gap-1">
+                          <Badge variant="outline" className="w-fit bg-emerald-50 text-emerald-700 border-emerald-200 gap-1.5 py-1">
+                            <ShieldCheck className="w-3 h-3" />
+                            {s.parentCode || 'Linked Parent'}
+                          </Badge>
+                          <p className="text-[10px] text-muted-foreground italic truncate max-w-[200px]">{s.title || 'Institutional Standard'}</p>
+                        </div>
                       </TableCell>
                       <TableCell className="text-right pr-6">
-                        <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => handleUnlink(s.id)}>
-                          <Unlink className="w-4 h-4 mr-2" /> Sever Link
+                        <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => handleUnlink(s.schemeId, s.id)}>
+                          <Unlink className="w-4 h-4 mr-2" /> Sever link
                         </Button>
                       </TableCell>
                     </TableRow>
                   );
                 })}
-                {childSyllabi.filter(s => s.followedFromId).length === 0 && (
+                {globalEquivalences.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-20 text-muted-foreground italic">
-                      No parent-child equivalences registered for this scheme.
+                    <TableCell colSpan={4} className="text-center py-20 text-muted-foreground">
+                      <History className="w-12 h-12 mx-auto mb-4 opacity-10" />
+                      <p className="italic">No institutional equivalences have been registered yet.</p>
                     </TableCell>
                   </TableRow>
                 )}

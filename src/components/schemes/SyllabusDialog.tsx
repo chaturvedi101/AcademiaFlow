@@ -67,7 +67,7 @@ export function SyllabusDialog({
         followedFromId: '',
         ...syllabus
       });
-      // Auto-expand all units if inherited so content is immediately visible
+      // VIRTUAL AUTO-EXPAND: Automatically expand all units if inheriting standard content
       if (syllabus.followedFromId || (syllabus as any).isInherited) {
         const expandMap: Record<string, boolean> = {};
         syllabus.units?.forEach(u => { expandMap[u.id] = true; });
@@ -82,7 +82,7 @@ export function SyllabusDialog({
   const isCountValid = unitCount >= minRequired;
   const unitLabel = isLab ? 'Experiment' : 'Unit';
 
-  // PEDAGOGICAL AUTO-CREATION LOGIC (5 for Theory, 8 for Lab)
+  // PEDAGOGICAL AUTO-CREATION: Proactively populate 5 units for Theory and 8 for Labs
   useEffect(() => {
     if (!open || !canEdit || formData.followedFromId) return;
     
@@ -100,7 +100,7 @@ export function SyllabusDialog({
     }
   }, [formData.type, open, canEdit]);
 
-  // AUTOMATED COURSE CODE LOGIC (RT for POOL, [Branch] for Local)
+  // COURSE CODE AUTO-GENERATION: RT prefix for pools, Branch prefix for departmental
   useEffect(() => {
     if (!open || !program || !scheme || formData.followedFromId) return;
     
@@ -130,23 +130,6 @@ export function SyllabusDialog({
     }
   }, [formData.type, formData.creditCategory, formData.semester, program, scheme, open]);
 
-  const calculateCredits = (l: number, t: number, p: number) => {
-    let total = l + t;
-    if (p === 1) total += 0.5;
-    else if (p === 2) total += 1;
-    else if (p === 3) total += 2;
-    else if (p === 4) total += 2;
-    else if (p > 4) total += p / 2;
-    return Number(total.toFixed(2));
-  };
-
-  useEffect(() => {
-    const l = Number(formData.lectureCredits) || 0;
-    const t = Number(formData.tutorialCredits) || 0;
-    const p = Number(formData.practicalCredits) || 0;
-    setFormData(prev => ({ ...prev, credits: calculateCredits(l, t, p) }));
-  }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits]);
-
   const handleAiGenerate = async () => {
     if (!formData.title) return;
     setIsAiGenerating(true);
@@ -163,9 +146,9 @@ export function SyllabusDialog({
         textBooks: result.suggestedTextBooks,
         referenceBooks: result.suggestedReferences
       }));
-      toast({ title: "AI Content Generated" });
+      toast({ title: "Pedagogical Content Engineered" });
     } catch (e: any) {
-      toast({ variant: "destructive", title: "AI Error", description: e.message });
+      toast({ variant: "destructive", title: "AI Engineering Error", description: e.message });
     } finally {
       setIsAiGenerating(false);
     }
@@ -191,7 +174,7 @@ export function SyllabusDialog({
             </div>
           </DialogTitle>
           <DialogDescription>
-            Pedagogical Mandate: <b>{isLab ? '8+ Experiments' : '5+ Units'}</b>. Codes are auto-managed.
+            BTECH Mandate: <b>{isLab ? '8+ Experiments' : '5+ Units'}</b>. Virtual child slots maintain local identity.
           </DialogDescription>
         </DialogHeader>
 
@@ -202,13 +185,13 @@ export function SyllabusDialog({
                 <div className="flex items-center gap-3 text-emerald-800 text-sm">
                   <ShieldCheck className="w-5 h-5" />
                   <div className="flex flex-col">
-                    <p className="font-bold">Standardized Authorization Active</p>
-                    <p className="text-xs">Inheriting full syllabus from parent course: <span className="font-black">{(formData as any).parentCode || 'Authoritative Pool'}</span></p>
+                    <p className="font-bold">Institutional Mirror Active</p>
+                    <p className="text-xs">This virtual slot is mirroring standard: <span className="font-black">{(formData as any).parentCode || 'BTECH Pool'}</span></p>
                   </div>
                 </div>
                 {isSuperuser && (
-                  <Button variant="ghost" size="sm" className="text-emerald-700 hover:bg-emerald-100" onClick={() => setFormData({...formData, followedFromId: '', parentSchemeId: ''})}>
-                    Sever Link & Customize
+                  <Button variant="ghost" size="sm" className="text-emerald-700 hover:bg-emerald-100" onClick={() => setFormData({...formData, followedFromId: '', parentSchemeId: '', parentCode: ''})}>
+                    Sever Link & Restore Virtual Slot
                   </Button>
                 )}
               </div>
@@ -216,14 +199,14 @@ export function SyllabusDialog({
 
             <Tabs defaultValue="basic">
               <TabsList className="grid w-full grid-cols-4 mb-8">
-                <TabsTrigger value="basic">Identity</TabsTrigger>
+                <TabsTrigger value="basic">Mirror Identity</TabsTrigger>
                 <TabsTrigger value="syllabus" className="gap-2">
-                  Content 
+                  Inherited Content 
                   <Badge variant={isCountValid ? "outline" : "destructive"} className="text-[10px] px-1.5 h-4 min-w-4 flex items-center justify-center">
                     {unitCount}
                   </Badge>
                 </TabsTrigger>
-                <TabsTrigger value="resources">Resources</TabsTrigger>
+                <TabsTrigger value="resources">Institutional Resources</TabsTrigger>
                 <TabsTrigger value="mapping">Outcomes</TabsTrigger>
               </TabsList>
 
@@ -240,7 +223,7 @@ export function SyllabusDialog({
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Course Title</Label>
-                    <Input disabled={isFormDisabled} value={formData.title || ''} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="e.g. Engineering Mathematics-I" />
+                    <Input disabled={isFormDisabled} value={formData.title || ''} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="e.g. Engineering Physics-I" />
                   </div>
                 </div>
 
@@ -252,12 +235,12 @@ export function SyllabusDialog({
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Methodology</Label>
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Pedagogy</Label>
                     <Select disabled={isFormDisabled} value={formData.type || 'Theory'} onValueChange={(v: any) => setFormData({...formData, type: v, units: []})}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Theory">Theory (L-T)</SelectItem>
-                        <SelectItem value="Lab/Sessional">Lab (P)</SelectItem>
+                        <SelectItem value="Lab/Sessional">Practical (P)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -266,7 +249,7 @@ export function SyllabusDialog({
                     <Input disabled={isFormDisabled} type="number" value={formData.semester || 1} onChange={e => setFormData({...formData, semester: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Total Credits</Label>
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Calculated Credits</Label>
                     <div className="p-2 bg-primary/5 rounded font-bold text-center h-10 flex items-center justify-center text-primary border border-primary/20">{formData.credits} Cr</div>
                   </div>
                 </div>
@@ -291,7 +274,7 @@ export function SyllabusDialog({
                  {!isCountValid && !isLinked && (
                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-amber-800 text-sm mb-4">
                      <AlertTriangle className="w-5 h-5 shrink-0" />
-                     <p><b>Institutional Warning:</b> {formData.type} courses require at least <b>{minRequired}</b> {unitLabel}s. Current: {unitCount}.</p>
+                     <p><b>Institutional Warning:</b> {formData.type} courses mandate at least <b>{minRequired}</b> {unitLabel}s. Current: {unitCount}.</p>
                    </div>
                  )}
                  {formData.units?.map((u, i) => (
@@ -312,11 +295,11 @@ export function SyllabusDialog({
                            <div className="space-y-2"><Label>Teaching Hours</Label><Input type="number" disabled={isFormDisabled} value={u.hours || 0} onChange={e => { const units = [...(formData.units || [])]; units[i].hours = Number(e.target.value); setFormData({ ...formData, units }); }} /></div>
                         </div>
                         <div className="space-y-2">
-                          <Label>{isLab ? 'Experiment Details' : 'Unit Topics'}</Label>
+                          <Label>{isLab ? 'Procedure / Object' : 'Detailed Topics'}</Label>
                           <Textarea disabled={isFormDisabled} value={u.content || ''} onChange={e => { const units = [...(formData.units || [])]; units[i].content = e.target.value; setFormData({ ...formData, units }); }} className="min-h-[120px]" />
                         </div>
                         <div className="space-y-2">
-                          <Label>{unitLabel} Learning Outcome</Label>
+                          <Label>Course Outcome (CO)</Label>
                           <Input disabled={isFormDisabled} value={u.courseOutcome || ''} onChange={e => { const units = [...(formData.units || [])]; units[i].courseOutcome = e.target.value; setFormData({ ...formData, units }); }} placeholder="The student will be able to..." />
                         </div>
                      </CardContent>
@@ -324,7 +307,7 @@ export function SyllabusDialog({
                  ))}
                  {!isFormDisabled && (
                    <Button variant="outline" className="w-full border-dashed h-12" onClick={() => setFormData(p => ({...p, units: [...(p.units||[]), {id:Math.random().toString(36).substr(2,9), title:'', content:'', hours:0, courseOutcome:''}]}))}>
-                     <Plus className="w-4 h-4 mr-2" /> Add {unitLabel}
+                     <Plus className="w-4 h-4 mr-2" /> Add {unitLabel} Slot
                    </Button>
                  )}
               </TabsContent>
@@ -332,20 +315,20 @@ export function SyllabusDialog({
               <TabsContent value="resources" className="space-y-8">
                  <div className="space-y-4">
                     <Label className="font-bold text-primary flex items-center gap-2">
-                      <BookOpen className="w-4 h-4" /> Recommended Resources
+                      <BookOpen className="w-4 h-4" /> Authoritative References
                     </Label>
                     {formData.textBooks?.map((it, i) => (
                       <div key={i} className="flex gap-2">
-                        <Input value={it} disabled={isFormDisabled} onChange={e => { const a=[...formData.textBooks!]; a[i]=e.target.value; setFormData({...formData, textBooks:a}) }} placeholder="Author, Title, Edition, Publisher" />
+                        <Input value={it} disabled={isFormDisabled} onChange={e => { const a=[...formData.textBooks!]; a[i]=e.target.value; setFormData({...formData, textBooks:a}) }} placeholder="Standard Text Book Details" />
                         {!isFormDisabled && <Button variant="ghost" size="icon" onClick={() => setFormData({...formData, textBooks: formData.textBooks?.filter((_, idx) => idx !== i)})}><Trash2 className="w-4 h-4 text-red-400" /></Button>}
                       </div>
                     ))}
-                    {!isFormDisabled && <Button variant="ghost" size="sm" onClick={() => setFormData({...formData, textBooks: [...(formData.textBooks||[]), '']})} className="text-primary"><Plus className="w-3.5 h-3.5 mr-1" /> Add Entry</Button>}
+                    {!isFormDisabled && <Button variant="ghost" size="sm" onClick={() => setFormData({...formData, textBooks: [...(formData.textBooks||[]), '']})} className="text-primary"><Plus className="w-3.5 h-3.5 mr-1" /> Add Textbook</Button>}
                  </div>
               </TabsContent>
 
               <TabsContent value="mapping" className="p-8 text-center text-muted-foreground italic bg-white rounded-xl border border-dashed">
-                 <p>PO/PSO Mapping is inherited from institutional standards for synchronized subjects.</p>
+                 <p>PO/PSO Correlations are mirrored from the authoritative parent for synchronized virtual slots.</p>
               </TabsContent>
             </Tabs>
           </div>
@@ -359,7 +342,7 @@ export function SyllabusDialog({
               onClick={() => { onSave(formData); onOpenChange(false); }} 
               className="h-11 px-8 shadow-md"
              >
-               Save Specification
+               Save Subject Pattern
              </Button>
            )}
         </DialogFooter>
