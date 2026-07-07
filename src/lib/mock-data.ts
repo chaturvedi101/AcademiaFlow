@@ -1,4 +1,3 @@
-
 import { Program, UserProfile } from "./types";
 
 export const MOCK_USER: UserProfile = {
@@ -29,7 +28,7 @@ export const MOCK_DEAN_ACADEMIC: UserProfile = {
 export const MOCK_PROGRAMS: Program[] = [
   {
     id: 'btech-cs',
-    name: 'B.Tech in Computer Science',
+    name: 'BTECH in Computer Science',
     code: 'BTECH-CS',
     totalCredits: 160,
     totalSemesters: 8,

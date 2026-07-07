@@ -56,7 +56,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
   const [newPrefix, setNewPrefix] = useState('');
   
   const initialFaculty = userProfile?.role === 'dean_faculty' ? userProfile.faculty : FACULTIES[0];
-  const isCommonBos = userProfile?.faculty === 'University-wide (Common BOS)';
+  const isCommonBos = userProfile?.faculty?.includes('(Common BOS)');
   const isGlobalAdmin = userProfile?.role === 'admin' || userProfile?.role === 'dean_academic';
 
   const visibleCategories = useMemo(() => {
@@ -312,7 +312,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                     <Label className="text-xs font-bold uppercase text-muted-foreground">Institutional Name</Label>
                     <Input 
                       disabled={isReadOnly}
-                      placeholder="e.g. B.Tech in Materials Engineering" 
+                      placeholder="e.g. BTECH in Materials Engineering" 
                       value={formData.name || ''}
                       onChange={e => setFormData({ ...formData, name: e.target.value })}
                     />

@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
-import { collection, setDoc, doc, serverTimestamp, query, orderBy, writeBatch } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, query, orderBy, writeBatch } from 'firebase/firestore';
 import { Scheme, Program, UserProfile, FACULTIES } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -44,7 +44,7 @@ export default function SchemesPage() {
     version: 'v1.0',
     isPoolScheme: false,
     poolType: 'Vertical' as 'Vertical' | 'Committee',
-    poolVertical: '' as 'B.Tech' | 'BBA' | '',
+    poolVertical: '' as 'BTECH' | 'BBA' | '',
     committeeName: '' as string
   });
 
@@ -59,7 +59,7 @@ export default function SchemesPage() {
     return schemes.filter(s => {
       if (isCommitteeConvenor && s.isCommitteePool && s.branch === profile.faculty) return true;
       if (isCommonBos) {
-        if (profile.faculty === 'B.Tech (Common BOS)') return s.branch === 'B.Tech (Common BOS) Pool' || programs.find(p => p.id === s.programId)?.faculty.includes('Engineering');
+        if (profile.faculty === 'BTECH (Common BOS)') return s.branch === 'BTECH (Common BOS) Pool' || programs.find(p => p.id === s.programId)?.faculty.includes('Engineering');
         if (profile.faculty === 'BBA (Common BOS)') return s.branch === 'BBA (Common BOS) Pool' || programs.find(p => p.id === s.programId)?.faculty.includes('Management');
       }
       return profile.managedBranches?.some(mb => mb.programId === s.programId && mb.branch === s.branch);
@@ -114,7 +114,7 @@ export default function SchemesPage() {
         });
 
         // SEED STANDARD INSTITUTIONAL SUBJECTS
-        if (newScheme.poolType === 'Vertical' && newScheme.poolVertical === 'B.Tech') {
+        if (newScheme.poolType === 'Vertical' && newScheme.poolVertical === 'BTECH') {
            const standardSlots = [
              { code: 'AEC101', title: 'Technical Communication', cat: 'AEC', sem: 1, credits: 2, type: 'Theory', l: 2, t: 0, p: 0 },
              { code: 'VAC101', title: 'Environmental Science', cat: 'VAC', sem: 2, credits: 2, type: 'Theory', l: 2, t: 0, p: 0 },
@@ -248,7 +248,7 @@ export default function SchemesPage() {
                     <Select value={newScheme.poolType} onValueChange={(v: any) => setNewScheme({...newScheme, poolType: v})}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Vertical">Vertical Common Pool (B.Tech/BBA)</SelectItem>
+                        <SelectItem value="Vertical">Vertical Common Pool (BTECH/BBA)</SelectItem>
                         <SelectItem value="Committee">Course Committee (Math/Physics/etc.)</SelectItem>
                       </SelectContent>
                     </Select>
@@ -260,7 +260,7 @@ export default function SchemesPage() {
                       <Select value={newScheme.poolVertical} onValueChange={(v: any) => setNewScheme({...newScheme, poolVertical: v})}>
                         <SelectTrigger><SelectValue placeholder="Select Vertical..." /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="B.Tech">B.Tech (Engineering)</SelectItem>
+                          <SelectItem value="BTECH">BTECH (Engineering)</SelectItem>
                           <SelectItem value="BBA">BBA (Management)</SelectItem>
                         </SelectContent>
                       </Select>

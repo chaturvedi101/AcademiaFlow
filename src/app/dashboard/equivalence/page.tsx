@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -36,7 +35,7 @@ export default function EquivalencePage() {
   const [childSyllabi, setChildSyllabi] = useState<Syllabus[]>([]);
   const [parentSyllabi, setParentSyllabi] = useState<Syllabus[]>([]);
 
-  // Parent Pools: Both specialized Course Committees and Vertical Pools (B.Tech/BBA)
+  // Parent Pools: Both specialized Course Committees and Vertical Pools (BTECH/BBA)
   const authoritativePools = useMemo(() => 
     allSchemes.filter(s => s.isCommitteePool || s.isVerticalPool), 
   [allSchemes]);

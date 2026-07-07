@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -102,9 +101,9 @@ export function SyllabusDialog({
 
   // DISCOVERY: Fetch syllabi from selected pool
   useEffect(() => {
-    // AUTO-SELECTION FOR B.TECH VERTICAL: If this is an engineering scheme, pre-select the B.Tech Pool
+    // AUTO-SELECTION FOR BTECH VERTICAL: If this is an engineering scheme, pre-select the BTECH Pool
     if (!selectedPoolId && poolSchemes.length > 0) {
-      const btechPool = poolSchemes.find(p => p.id.startsWith('B.TECH-POOL'));
+      const btechPool = poolSchemes.find(p => p.id.startsWith('BTECH-POOL'));
       if (btechPool) {
         setSelectedPoolId(btechPool.id);
       }

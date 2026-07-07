@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo } from 'react';
@@ -35,16 +34,16 @@ export default function DashboardPage() {
 
     // Common BOS Logic: Independence check
     if (profile.faculty?.includes('(Common BOS)')) {
-      const isBTechBOS = profile.faculty === 'B.Tech (Common BOS)';
+      const isBTECHBOS = profile.faculty === 'BTECH (Common BOS)';
       const isBBABOS = profile.faculty === 'BBA (Common BOS)';
 
       return schemes.filter(s => {
         const prog = programs.find(p => p.id === s.programId);
         if (!prog) return false;
 
-        // BTech BOS sees Engineering programs + THEIR common pool
-        if (isBTechBOS) {
-           return prog.faculty.includes('Engineering') || (s.isVerticalPool && s.branch === 'B.Tech (Common BOS) Pool');
+        // BTECH BOS sees Engineering programs + THEIR common pool
+        if (isBTECHBOS) {
+           return prog.faculty.includes('Engineering') || (s.isVerticalPool && s.branch === 'BTECH (Common BOS) Pool');
         }
         // BBA BOS sees Management/BBA programs + THEIR common pool
         if (isBBABOS) {
@@ -69,7 +68,7 @@ export default function DashboardPage() {
       return p?.faculty.includes('Management') || p?.name.includes('BBA');
     });
 
-    const targetPoolName = isManagementVertical ? 'BBA (Common BOS) Pool' : 'B.Tech (Common BOS) Pool';
+    const targetPoolName = isManagementVertical ? 'BBA (Common BOS) Pool' : 'BTECH (Common BOS) Pool';
 
     return schemes.filter(s => 
       (s.isVerticalPool && s.branch === targetPoolName) || 

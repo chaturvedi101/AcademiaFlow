@@ -9,7 +9,7 @@ export const FACULTIES = [
   "Faculty of Management Studies",
   "Faculty of Arts",
   "Faculty of Sciences",
-  "B.Tech (Common BOS)",
+  "BTECH (Common BOS)",
   "BBA (Common BOS)",
   "Course Committee - Mathematics",
   "Course Committee - Physics",
@@ -112,7 +112,7 @@ export interface Scheme {
   hasMultipleExits: boolean;
   exitOptions: string[];
   abcEnabled: boolean;
-  isVerticalPool?: boolean; // Flag to indicate if this is a vertical-specific course pool (e.g. B.Tech Pool)
+  isVerticalPool?: boolean; // Flag to indicate if this is a vertical-specific course pool (e.g. BTECH Pool)
   isCommitteePool?: boolean; // Flag to indicate if this is a specialized Course Committee pool
 }
 
