@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Edit3, Loader2, FileText, BookOpen, Eye, CheckCircle2, ShieldCheck, Trash2, RefreshCw } from "lucide-react";
+import { Plus, Edit3, Loader2, FileText, BookOpen, Eye, CheckCircle2, ShieldCheck, Trash2, RefreshCw, Hash } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile, SubmissionScope, CreditCategory } from "@/lib/types";
@@ -140,7 +140,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const isAdmin = profile?.role === 'admin';
     const isSuper = isAdmin || profile?.role === 'dean_academic';
     
-    const canEditScheme = isSuper || (profile?.role === 'bos_convenor' && profile?.managedBranches?.some(m => m.programId === scheme?.programId && m.branch === scheme?.branch));
+    // Authorization for localized convenors and specialized committee heads
+    const canEditScheme = isSuper || 
+      (profile?.role === 'bos_convenor' && profile?.managedBranches?.some(m => m.programId === scheme?.programId && m.branch === scheme?.branch)) ||
+      (profile?.role === 'committee_convenor' && scheme?.isCommitteePool && scheme?.branch === profile.faculty);
     
     return {
       isAdmin,
@@ -150,6 +153,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       canEditSyllabus: (s: Partial<Syllabus> | undefined) => {
         if (!s) return false;
         if (isSuper) return true;
+        // Institutional standards and virtual mirrors are read-only to branch convenors
         if (s.followedFromId || s.isInherited) return false;
         return canEditScheme;
       }
@@ -279,9 +283,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             )}
           </div>
           <div className="flex items-center gap-3 text-muted-foreground text-sm">
-            <span className="font-mono font-bold">{scheme.schemeCode}</span>
+            <span className="font-mono font-bold text-primary flex items-center gap-1"><Hash className="w-3.5 h-3.5" /> {scheme.schemeCode}</span>
             <span>Batch: {scheme.batchYear}</span>
-            <Badge variant="secondary">{scheme.status}</Badge>
+            <Badge variant="secondary" className="font-bold">{scheme.status}</Badge>
           </div>
         </div>
         <div className="flex gap-2">

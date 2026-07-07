@@ -63,11 +63,16 @@ export default function SchemesPage() {
     if (isGlobalAdmin || profile.role === 'monitor') return schemes;
     
     return schemes.filter(s => {
+      // Committee Convenors only see pools matching their assigned committee
       if (isCommitteeConvenor && s.isCommitteePool && s.branch === profile.faculty) return true;
+      
+      // Common BOS members see program-wide pools (BTECH/BBA)
       if (isCommonBos) {
         if (profile.faculty === 'BTECH (Common BOS)') return s.branch === 'BTECH (Common BOS) Pool' || programs.find(p => p.id === s.programId)?.faculty.includes('BTECH');
         if (profile.faculty === 'BBA (Common BOS)') return s.branch === 'BBA (Common BOS) Pool' || programs.find(p => p.id === s.programId)?.faculty.includes('BBA');
       }
+
+      // Branch Convenors/Members see their assigned branches
       return profile.managedBranches?.some(mb => mb.programId === s.programId && mb.branch === s.branch);
     });
   }, [schemes, profile, programs, isGlobalAdmin, isCommitteeConvenor, isCommonBos]);
