@@ -35,12 +35,20 @@ export default function EquivalencePage() {
   const [childSyllabi, setChildSyllabi] = useState<Syllabus[]>([]);
   const [parentSyllabi, setParentSyllabi] = useState<Syllabus[]>([]);
 
-  // Fetch ALL registered links across the entire University using collectionGroup for absolute visibility
+  // Institutional Registry Resolver: Fetch all to bypass missing index for collectionGroup range filters
   useEffect(() => {
     const fetchGlobalRegistry = async () => {
-      const q = query(collectionGroup(db, 'syllabi'), where('followedFromId', '!=', null));
-      const snap = await getDocs(q);
-      setGlobalEquivalences(snap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus)));
+      try {
+        const q = query(collectionGroup(db, 'syllabi'));
+        const snap = await getDocs(q);
+        // Client-side filtering to identify authorized mirrors
+        const linked = snap.docs
+          .map(d => ({ ...d.data(), id: d.id } as Syllabus))
+          .filter(s => !!s.followedFromId);
+        setGlobalEquivalences(linked);
+      } catch (e: any) {
+        console.error("Registry lookup failed:", e);
+      }
     };
     fetchGlobalRegistry();
   }, [db, isProcessing]);
@@ -89,7 +97,7 @@ export default function EquivalencePage() {
         parentCode: parent?.subjectCode || '',
         updatedAt: serverTimestamp()
       });
-      toast({ title: "Equivalence Established", description: "Virtual child is now mirroring authoritative parent." });
+      toast({ title: "Equivalence Established", description: "Departmental slot is now mirroring institutional standard." });
       setChildSyllabusId("");
       setChildSyllabi(prev => prev.map(s => s.id === childSyllabusId ? { ...s, followedFromId: parentSyllabusId } : s));
     } catch (e: any) {
@@ -209,7 +217,7 @@ export default function EquivalencePage() {
                 <TableRow>
                   <TableHead className="pl-6">Branch Slot (Virtual Child)</TableHead>
                   <TableHead className="text-center"></TableHead>
-                  <TableHead>Authoritative Parent (BTECH Pool)</TableHead>
+                  <TableHead>Authoritative Parent (Standard)</TableHead>
                   <TableHead className="text-right pr-6">Management</TableHead>
                 </TableRow>
               </TableHeader>

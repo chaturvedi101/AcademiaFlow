@@ -67,7 +67,7 @@ export function SyllabusDialog({
         followedFromId: '',
         ...syllabus
       });
-      // VIRTUAL AUTO-EXPAND: Automatically expand all units if inheriting standard content
+      // VIRTUAL AUTO-EXPAND: Automatically expand units for authorized standards
       if (syllabus.followedFromId || (syllabus as any).isInherited) {
         const expandMap: Record<string, boolean> = {};
         syllabus.units?.forEach(u => { expandMap[u.id] = true; });
@@ -82,7 +82,7 @@ export function SyllabusDialog({
   const isCountValid = unitCount >= minRequired;
   const unitLabel = isLab ? 'Experiment' : 'Unit';
 
-  // PEDAGOGICAL AUTO-CREATION: Proactively populate 5 units for Theory and 8 for Labs
+  // PEDAGOGICAL AUTO-CREATION: Proactively populate counts for compliance
   useEffect(() => {
     if (!open || !canEdit || formData.followedFromId) return;
     
@@ -100,12 +100,17 @@ export function SyllabusDialog({
     }
   }, [formData.type, open, canEdit, formData.followedFromId]);
 
-  // COURSE CODE AUTO-GENERATION: RT prefix for pools, Branch prefix for departmental
+  // COURSE CODE RULES: RT prefix for common categories, Branch prefix for departmental slots
   useEffect(() => {
     if (!open || !program || !scheme || formData.followedFromId) return;
     
-    const isInstitutional = scheme?.programId === 'INSTITUTIONAL' || scheme?.isVerticalPool || scheme?.isCommitteePool;
-    const branchCode = isInstitutional ? 'RT' : (program.branchPrefixes?.[scheme.branch || ''] || 'XX');
+    const isInstitutionalScheme = scheme?.programId === 'INSTITUTIONAL' || scheme?.isVerticalPool || scheme?.isCommitteePool;
+    const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(formData.creditCategory || '');
+    
+    const branchCode = (isInstitutionalScheme || isCommonCategory) 
+      ? 'RT' 
+      : (program.branchPrefixes?.[scheme.branch || ''] || 'XX');
+      
     const pedagogyChar = formData.type === 'Lab/Sessional' ? 'P' : (formData.creditCategory === 'PRJ' ? 'I' : 'L');
     
     const getPillarChar = (cat: CreditCategory) => {
@@ -174,7 +179,7 @@ export function SyllabusDialog({
             </div>
           </DialogTitle>
           <DialogDescription>
-            BTECH Mandate: <b>{isLab ? '8+ Experiments' : '5+ Units'}</b>. Virtual child slots maintain local identity.
+            Pedagogical Mandate: <b>{isLab ? '8+ Experiments' : '5+ Units'}</b>. Virtual child slots maintain local identity.
           </DialogDescription>
         </DialogHeader>
 
@@ -186,12 +191,12 @@ export function SyllabusDialog({
                   <ShieldCheck className="w-5 h-5" />
                   <div className="flex flex-col">
                     <p className="font-bold">Institutional Mirror Active</p>
-                    <p className="text-xs">This virtual slot is mirroring standard: <span className="font-black">{(formData as any).parentCode || 'BTECH Pool'}</span></p>
+                    <p className="text-xs">Mirroring standard syllabus: <span className="font-black">{(formData as any).parentCode || 'BTECH Pool'}</span></p>
                   </div>
                 </div>
                 {isSuperuser && (
                   <Button variant="ghost" size="sm" className="text-emerald-700 hover:bg-emerald-100" onClick={() => setFormData({...formData, followedFromId: '', parentSchemeId: '', parentCode: ''})}>
-                    Sever Link & Restore Virtual Slot
+                    Sever Link & Restore Slot
                   </Button>
                 )}
               </div>
@@ -328,7 +333,7 @@ export function SyllabusDialog({
               </TabsContent>
 
               <TabsContent value="mapping" className="p-8 text-center text-muted-foreground italic bg-white rounded-xl border border-dashed">
-                 <p>PO/PSO Correlations are mirrored from the authoritative parent for synchronized virtual slots.</p>
+                 <p>PO/PSO Correlations are mirrored from the authoritative standard for synchronized virtual slots.</p>
               </TabsContent>
             </Tabs>
           </div>

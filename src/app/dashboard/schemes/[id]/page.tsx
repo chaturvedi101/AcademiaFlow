@@ -113,11 +113,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
       if (parent) {
         return {
-          ...parent, // Inherit pedagogical content (Title, Units, resources, etc.)
-          id: local.id, // Preserve child DB reference
-          subjectCode: local.subjectCode, // AS REQUESTED: Keep child's own code
-          parentCode: parent.subjectCode, // Reference for UI
-          semester: local.semester, // Keep child's semester placement
+          ...parent, 
+          id: local.id, 
+          subjectCode: local.subjectCode, 
+          parentCode: parent.subjectCode, 
+          semester: local.semester, 
           schemeId: local.schemeId,
           followedFromId: local.followedFromId,
           parentSchemeId: local.parentSchemeId,
@@ -198,33 +198,36 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     setIsSyncing(true);
     
     try {
-      const isInstitutional = scheme?.programId === 'INSTITUTIONAL' || scheme?.isVerticalPool || scheme?.isCommitteePool;
-      const branchPrefix = isInstitutional ? 'RT' : (program?.branchPrefixes?.[scheme?.branch || ''] || 'XX');
+      const isInstitutionalScheme = scheme?.programId === 'INSTITUTIONAL' || scheme?.isVerticalPool || scheme?.isCommitteePool;
+      const baseBranchPrefix = isInstitutionalScheme ? 'RT' : (program?.branchPrefixes?.[scheme?.branch || ''] || 'XX');
       const batch = writeBatch(db);
       
-      // Fetch ALL subject codes across the university for global uniqueness check
+      // UNIVERSITY-WIDE UNIQUENESS: Fetch ALL subject codes to ensure global collision avoidance
       const universitySyllabiSnap = await getDocs(collectionGroup(db, 'syllabi'));
       
       const existingGlobalCodes = new Set(universitySyllabiSnap.docs
-        .filter(d => d.ref.parent.parent?.id !== schemeId) // Don't block codes from this same scheme
+        .filter(d => d.ref.parent.parent?.id !== schemeId) 
         .map(d => (d.data() as Syllabus).subjectCode)
       );
 
       const assignedInBatch = new Set<string>();
 
       for (const sub of localSyllabi) {
-        // Even virtual children mirroring parents get a unique local code for this department
+        // Rule: Institutional Pool subjects (VAC, AEC, MDC) always use RT prefix university-wide
+        const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(sub.creditCategory);
+        const effectivePrefix = isCommonCategory ? 'RT' : baseBranchPrefix;
+        
         let sequence = 1;
         let newCode = '';
         
-        // Find the next available globally unique sequence for this bucket pattern
+        // Sequence Hunting Algorithm: Find the next available globally unique sequence for this bucket
         while (true) {
-          newCode = generateInstitutionalCode(sub, branchPrefix, sequence);
+          newCode = generateInstitutionalCode(sub, effectivePrefix, sequence);
           if (!existingGlobalCodes.has(newCode) && !assignedInBatch.has(newCode)) {
             break;
           }
           sequence++;
-          if (sequence > 99) throw new Error(`CRITICAL: Exhausted sequence slots for pattern base ${newCode.substring(0, 5)}. Please contact the Academic Monitor.`);
+          if (sequence > 99) throw new Error(`CRITICAL: Sequence exhausted for bucket ${newCode.substring(0, 5)}. Global clash limit reached.`);
         }
 
         assignedInBatch.add(newCode);
@@ -233,7 +236,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       }
 
       await batch.commit();
-      toast({ title: "University-Wide Synchronization Successful", description: "All subject codes regenerated and verified unique globally." });
+      toast({ title: "University-Wide Synchronization Successful", description: "All codes regenerated and verified unique across the institution." });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
     } finally {
