@@ -201,7 +201,10 @@ export function SyllabusDialog({
               <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between shadow-sm">
                 <div className="flex items-center gap-3 text-emerald-800 text-sm">
                   <ShieldCheck className="w-5 h-5" />
-                  <p><b>Standardized:</b> Full syllabus content inherited from the <b>Institutional Pool</b>.</p>
+                  <div className="flex flex-col">
+                    <p className="font-bold">Standardized Authorization Active</p>
+                    <p className="text-xs">Inheriting full syllabus from parent course: <span className="font-black">{(formData as any).parentCode || 'Authoritative Pool'}</span></p>
+                  </div>
                 </div>
                 {isSuperuser && (
                   <Button variant="ghost" size="sm" className="text-emerald-700 hover:bg-emerald-100" onClick={() => setFormData({...formData, followedFromId: '', parentSchemeId: ''})}>
