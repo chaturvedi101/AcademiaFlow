@@ -41,16 +41,18 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [isSubmissionDialogOpen, setIsSubmissionDialogOpen] = useState(false);
   const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
 
-  // ROBUST AUTOMATED VERTICAL INHERITANCE ENGINE
+  // ROBUST AUTOMATED VERTICAL INHERITANCE ENGINE (BTECH Standardization)
   useEffect(() => {
     if (!scheme) return;
     setPoolLoading(true);
 
-    // Extraction: Get normalized vertical key (e.g. BTECH)
-    const progId = scheme.programId || '';
-    const verticalKey = progId.split(/[-.]/)[0].toUpperCase().replace(/[^A-Z]/g, '');
+    // Extraction: Get normalized vertical key (e.g. BTECH) from program ID or program code
+    let verticalKey = 'BTECH'; // Default fallback
+    if (scheme.programId && scheme.programId !== 'INSTITUTIONAL') {
+       verticalKey = scheme.programId.split(/[-.]/)[0].toUpperCase().replace(/[^A-Z]/g, '');
+    }
 
-    if (verticalKey === 'INSTITUTIONAL' || scheme.isVerticalPool || scheme.isCommitteePool) {
+    if (scheme.programId === 'INSTITUTIONAL' || scheme.isVerticalPool || scheme.isCommitteePool) {
       setPoolSyllabi([]);
       setPoolLoading(false);
       return;
