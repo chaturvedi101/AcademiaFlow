@@ -22,49 +22,46 @@ export default function DashboardPage() {
   const filteredSchemes = useMemo(() => {
     if (!profile || !programs.length) return [];
     
-    // Admins and Monitors see everything
+    // 1. Global Administrative Oversight
     if (profile.role === 'admin' || profile.role === 'dean_academic' || profile.role === 'monitor') {
       return schemes;
     }
 
-    // Committee Convenors see their specialized pools matching their faculty
+    // 2. Committee Convenors purview
     if (profile.role === 'committee_convenor') {
       return schemes.filter(s => s.isCommitteePool && s.branch === profile.faculty);
     }
 
-    // Common BOS members see program-wide pools (BTECH/BBA) + all branch schemes in their program
-    if (profile.faculty?.includes('(Common BOS)')) {
-      const isBTECHBOS = profile.faculty.includes('BTECH');
-      const isBBABOS = profile.faculty.includes('BBA');
+    const isCommonTier = profile.faculty?.includes('(Common BOS)');
+    const isBTECHTier = profile.faculty?.includes('BTECH');
+    const isBBATier = profile.faculty?.includes('BBA');
 
+    // 3. Deans & Common BOS Purview Resolution
+    if (profile.role === 'dean_faculty' || isCommonTier) {
       return schemes.filter(s => {
-        // Pool Visibility: Show pools matching the BOS tier
-        if (s.isVerticalPool || s.isCommitteePool) {
-          if (isBTECHBOS && s.branch?.includes('BTECH')) return true;
-          if (isBBABOS && s.branch?.includes('BBA')) return true;
-          if (isBTECHBOS && s.programId === 'INSTITUTIONAL') return true;
+        // Pool Visibility: Show pools matching the Dean's tier
+        if (s.programId === 'INSTITUTIONAL') {
+          if (isBTECHTier && (s.branch?.includes('BTECH') || s.isVerticalPool)) return true;
+          if (isBBATier && (s.branch?.includes('BBA') || s.isVerticalPool)) return true;
+          return false;
         }
 
-        // Branch Visibility: Show schemes in matching program faculties
+        // Program Visibility: Show schemes in matching program faculties
         const prog = programs.find(p => p.id === s.programId);
         if (!prog) return false;
 
-        if (isBTECHBOS) return prog.faculty.includes('BTECH') || prog.name.includes('BTECH');
-        if (isBBABOS) return prog.faculty.includes('Management') || prog.name.includes('BBA');
+        // Strict faculty match for Faculty Deans
+        if (profile.role === 'dean_faculty' && prog.faculty === profile.faculty) return true;
+
+        // Tiered match for Common BOS (Dean or Member)
+        if (isBTECHTier) return prog.faculty.includes('BTECH') || prog.name.includes('BTECH');
+        if (isBBATier) return prog.faculty.includes('Management') || prog.name.includes('BBA');
         
         return false;
       });
     }
 
-    // Dean Faculty sees everything in their assigned faculty
-    if (profile.role === 'dean_faculty') {
-      return schemes.filter(s => {
-        const prog = programs.find(p => p.id === s.programId);
-        return prog?.faculty === profile.faculty;
-      });
-    }
-
-    // Branch Personnel (Convenors & Members) see their assigned branches + matching pools
+    // 4. Branch Personnel (Convenors & Members) purview
     const managed = profile.managedBranches || [];
     const managesBTECH = managed.some(m => {
       const p = programs.find(prog => prog.id === m.programId);
@@ -77,7 +74,7 @@ export default function DashboardPage() {
     });
 
     return schemes.filter(s => {
-      // Show matching vertical pools (so they can see what they are mirroring)
+      // Show matching vertical pools for their tier
       if (s.isVerticalPool || s.isCommitteePool) {
         if (managesBTECH && (s.branch?.includes('BTECH') || s.branch?.includes('Committee'))) return true;
         if (managesBBA && (s.branch?.includes('BBA') || s.branch?.includes('Committee'))) return true;
@@ -188,7 +185,12 @@ function StatsCard({ title, value, trend, icon, variant = 'default' }: any) {
 }
 
 function SchemeRow({ id, name, batch, status, code, isVertical, isCommittee }: any) {
-  const statusColors: any = { 'Draft': 'bg-slate-100 text-slate-700', 'Pending Dean': 'bg-amber-100 text-amber-700', 'Pending Academics': 'bg-blue-100 text-blue-700', 'Approved': 'bg-emerald-100 text-emerald-700' };
+  const statusColors: any = { 
+    'Draft': 'bg-slate-100 text-slate-700', 
+    'Pending Dean': 'bg-amber-100 text-amber-700', 
+    'Pending Academics': 'bg-blue-100 text-blue-700', 
+    'Approved': 'bg-emerald-100 text-emerald-700' 
+  };
   return (
     <Link href={`/dashboard/schemes/${id}`} className={`flex items-center justify-between p-4 rounded-lg border border-border/50 hover:bg-muted/20 transition-colors ${isVertical ? 'bg-emerald-50/10 border-emerald-100' : isCommittee ? 'bg-blue-50/10 border-blue-100' : ''}`}>
       <div className="space-y-1">

@@ -7,7 +7,7 @@ import { Scheme, Program, UserProfile, FACULTIES } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Loader2, ArrowRight, Hash, Layers } from 'lucide-react';
+import { Plus, Loader2, ArrowRight, Hash, Layers, Clock, CheckCircle2, FileText } from 'lucide-react';
 import { 
   Dialog, 
   DialogContent, 
@@ -56,36 +56,45 @@ export default function SchemesPage() {
 
   const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile?.role || '');
   const isCommitteeConvenor = profile?.role === 'committee_convenor';
-  const isCommonBos = profile?.faculty?.includes('(Common BOS)');
 
   const filteredSchemes = useMemo(() => {
     if (!profile || !programs.length) return [];
+    
+    // 1. Global Oversight
     if (isGlobalAdmin || profile.role === 'monitor') return schemes;
     
+    const isCommonTier = profile.faculty?.includes('(Common BOS)');
+    const isBTECHTier = profile.faculty?.includes('BTECH');
+    const isBBATier = profile.faculty?.includes('BBA');
+
     return schemes.filter(s => {
-      // Committee Convenors only see pools matching their assigned committee
+      // 2. Committee Convenors
       if (isCommitteeConvenor && s.isCommitteePool && s.branch === profile.faculty) return true;
       
-      // Common BOS members see program-wide pools (BTECH/BBA) + branch schemes in their tier
-      if (isCommonBos) {
-        const isBTECH = profile.faculty === 'BTECH (Common BOS)';
-        const isBBA = profile.faculty === 'BBA (Common BOS)';
-
+      // 3. Purview Logic for Deans & Common BOS
+      if (profile.role === 'dean_faculty' || isCommonTier) {
+        // Pool Matching
         if (s.programId === 'INSTITUTIONAL') {
-          if (isBTECH) return s.branch === 'BTECH (Common BOS) Pool';
-          if (isBBA) return s.branch === 'BBA (Common BOS) Pool';
+          if (isBTECHTier && (s.branch?.includes('BTECH') || s.isVerticalPool)) return true;
+          if (isBBATier && (s.branch?.includes('BBA') || s.isVerticalPool)) return true;
           return false;
         }
 
+        // Program Matching
         const prog = programs.find(p => p.id === s.programId);
-        if (isBTECH) return prog?.faculty.includes('BTECH');
-        if (isBBA) return prog?.faculty.includes('Management') || prog?.name.includes('BBA');
+        if (!prog) return false;
+
+        // Faculty Match (Strict for normal Deans, Tier-based for Common BOS)
+        if (profile.role === 'dean_faculty' && prog.faculty === profile.faculty) return true;
+        
+        if (isBTECHTier) return prog.faculty.includes('BTECH') || prog.name.includes('BTECH');
+        if (isBBATier) return prog.faculty.includes('Management') || prog.name.includes('BBA');
       }
 
-      // Branch Convenors/Members see their assigned branches
+      // 4. Branch Personnel
       return profile.managedBranches?.some(mb => mb.programId === s.programId && mb.branch === s.branch);
     });
-  }, [schemes, profile, programs, isGlobalAdmin, isCommitteeConvenor, isCommonBos]);
+  }, [schemes, profile, programs, isGlobalAdmin, isCommitteeConvenor]);
 
   const committeeList = useMemo(() => FACULTIES.filter(f => f.startsWith('Course Committee')), []);
 
@@ -175,9 +184,9 @@ export default function SchemesPage() {
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <h1 className="text-3xl font-headline font-bold">Academic Schemes</h1>
-          <p className="text-muted-foreground">Manage institutional curriculum for BTECH and BBA Vertical Pools.</p>
+          <p className="text-muted-foreground">Monitoring {filteredSchemes.length} schemes in your institutional jurisdiction.</p>
         </div>
-        {(isGlobalAdmin || isCommonBos || isCommitteeConvenor) && (
+        {(isGlobalAdmin || profile?.role === 'committee_convenor' || profile?.faculty?.includes('(Common BOS)')) && (
           <Button onClick={() => setIsDialogOpen(true)} className="gap-2 shadow-lg">
             <Plus className="w-4 h-4" /> New Scheme
           </Button>
@@ -189,7 +198,22 @@ export default function SchemesPage() {
           <Card key={scheme.id} className={`hover:shadow-md transition-shadow group relative overflow-hidden ${scheme.isVerticalPool ? 'border-emerald-200 bg-emerald-50/20' : scheme.isCommitteePool ? 'border-blue-200 bg-blue-50/20' : ''}`}>
             <CardHeader className="pb-4">
               <div className="flex justify-between items-start mb-2">
-                <Badge variant="outline" className="text-[10px]">{scheme.version}</Badge>
+                <div className="flex flex-col gap-1">
+                  <Badge variant="outline" className="text-[10px] w-fit">{scheme.version}</Badge>
+                  {scheme.status === 'Approved' ? (
+                    <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[9px] gap-1 px-1.5 py-0">
+                      <CheckCircle2 className="w-3 h-3" /> APPROVED
+                    </Badge>
+                  ) : scheme.status.includes('Pending') ? (
+                    <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-[9px] gap-1 px-1.5 py-0">
+                      <Clock className="w-3 h-3" /> {scheme.status.toUpperCase()}
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-slate-100 text-slate-700 border-slate-200 text-[9px] gap-1 px-1.5 py-0">
+                      <FileText className="w-3 h-3" /> DRAFT
+                    </Badge>
+                  )}
+                </div>
                 <div className="flex gap-2">
                   {scheme.isCommitteePool && <Badge className="bg-blue-100 text-blue-700 border-none font-black text-[8px] uppercase">Committee Pool</Badge>}
                   {scheme.isVerticalPool && <Badge className="bg-emerald-100 text-emerald-700 border-none font-black text-[8px] uppercase">Vertical Pool</Badge>}
