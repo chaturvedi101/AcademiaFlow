@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { useFirestore, useDoc, useCollection, useUser, useMemoFirebase } from "@/firebase";
-import { doc, collection, setDoc, serverTimestamp, updateDoc, query, where, onSnapshot, Unsubscribe } from "firebase/firestore";
+import { doc, collection, setDoc, serverTimestamp, updateDoc, query, where, onSnapshot, Unsubscribe, deleteDoc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Edit3, Loader2, FileText, BookOpen, Eye, CheckCircle2, ShieldCheck, Layers } from "lucide-react";
+import { Plus, Edit3, Loader2, FileText, BookOpen, Eye, CheckCircle2, ShieldCheck, Layers, Trash2 } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile, SubmissionScope } from "@/lib/types";
@@ -46,7 +46,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     if (!scheme) return;
     setPoolLoading(true);
 
-    // Extraction: Get normalized vertical key (e.g. BTECH) from program ID or program code
     let verticalKey = 'BTECH'; 
     if (scheme.programId && scheme.programId !== 'INSTITUTIONAL') {
        verticalKey = scheme.programId.split(/[-.]/)[0].toUpperCase().replace(/[^A-Z]/g, '');
@@ -70,7 +69,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       unsubSyllabi.forEach(u => u());
       unsubSyllabi = [];
 
-      // Improved discovery: Search for pool matching the vertical prefix (e.g. BTECH)
       const poolDoc = snap.docs.find(d => {
         const normalizedId = d.id.replace(/[^a-zA-Z]/g, '').toUpperCase();
         const normalizedBranch = (d.data().branch || '').replace(/[^a-zA-Z]/g, '').toUpperCase();
@@ -151,11 +149,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const permissions = useMemo(() => {
     if (profileLoading || !profile || !scheme) return { 
       canEditScheme: false, canDeleteSyllabus: (s: any) => false, canEditSyllabus: (s: any) => false,
-      isMonitor: false, isSuperuser: false
+      isMonitor: false, isSuperuser: false, isAdmin: false
     };
 
+    const isAdmin = profile.role === 'admin';
     const isSuperuser = ['admin', 'dean_academic'].includes(profile.role);
-    if (profile.role === 'monitor') return { canEditScheme: false, canDeleteSyllabus: () => false, canEditSyllabus: () => false, isMonitor: true, isSuperuser: false };
+    if (profile.role === 'monitor') return { canEditScheme: false, canDeleteSyllabus: () => false, canEditSyllabus: () => false, isMonitor: true, isSuperuser: false, isAdmin: false };
 
     const isProgramDean = profile.role === 'dean_faculty' && program && profile.faculty === program.faculty;
     const isCommonBOS = !!profile.faculty?.includes('(Common BOS)');
@@ -172,11 +171,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     };
 
     const canDeleteSyllabus = (s: any) => {
-      if (s?.isInherited) return false; 
-      return isSuperuser || isMyCommittee || canEditScheme;
+      // ONLY ADMIN CAN DELETE A COURSE
+      return isAdmin;
     };
 
-    return { canEditScheme, canDeleteSyllabus, canEditSyllabus, isMonitor: false, isSuperuser };
+    return { canEditScheme, canDeleteSyllabus, canEditSyllabus, isMonitor: false, isSuperuser, isAdmin };
   }, [profile, profileLoading, scheme, program]);
 
   const creditDistribution = useMemo(() => {
@@ -214,6 +213,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', docId);
     setDoc(docRef, { ...data, id: docId, schemeId, updatedAt: serverTimestamp() }, { merge: true })
       .then(() => toast({ title: "Synchronized" }));
+  };
+
+  const handleDeleteSyllabus = async (syllabusId: string) => {
+    if (!permissions.isAdmin) return;
+    const docRef = doc(db, 'schemes', schemeId, 'syllabi', syllabusId);
+    deleteDoc(docRef)
+      .then(() => toast({ title: "Subject Removed" }));
   };
 
   const handleUpdateScheme = (updates: Partial<Scheme>) => {
@@ -296,7 +302,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                             <TableHead>Category</TableHead>
                             <TableHead className="text-center">L-T-P</TableHead>
                             <TableHead className="text-right">Cr</TableHead>
-                            <TableHead className="text-right pr-6">Status</TableHead>
+                            <TableHead className="text-right pr-6">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -330,6 +336,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                                   ) : (
                                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }}>
                                       <Eye className="w-3.5 h-3.5" />
+                                    </Button>
+                                  )}
+                                  {permissions.canDeleteSyllabus(sub) && (
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => handleDeleteSyllabus(sub.id)}>
+                                      <Trash2 className="w-3.5 h-3.5" />
                                     </Button>
                                   )}
                                 </div>

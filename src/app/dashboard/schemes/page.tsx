@@ -122,10 +122,10 @@ export default function SchemesPage() {
 
         if (newScheme.poolType === 'Vertical' && (newScheme.poolVertical === 'BTECH' || !newScheme.poolVertical)) {
            const standardSlots = [
-             { code: 'AEC101', title: 'Technical Communication', cat: 'AEC', sem: 1, credits: 2, type: 'Theory', l: 2, t: 0, p: 0 },
-             { code: 'VAC101', title: 'Environmental Science', cat: 'VAC', sem: 2, credits: 2, type: 'Theory', l: 2, t: 0, p: 0 },
-             { code: 'MDC101', title: 'Introduction to Economics', cat: 'MDC', sem: 3, credits: 3, type: 'Theory', l: 3, t: 0, p: 0 },
-             { code: 'MDC102', title: 'Sustainable Engineering', cat: 'MDC', sem: 4, credits: 3, type: 'Theory', l: 3, t: 0, p: 0 }
+             { code: 'AECV101', title: 'Technical Communication', cat: 'AEC', sem: 1, credits: 2, type: 'Theory', l: 2, t: 0, p: 0 },
+             { code: 'VACV101', title: 'Environmental Science', cat: 'VAC', sem: 2, credits: 2, type: 'Theory', l: 2, t: 0, p: 0 },
+             { code: 'MDCM201', title: 'Introduction to Economics', cat: 'MDC', sem: 3, credits: 3, type: 'Theory', l: 3, t: 0, p: 0 },
+             { code: 'MDCM202', title: 'Sustainable Engineering', cat: 'MDC', sem: 4, credits: 3, type: 'Theory', l: 3, t: 0, p: 0 }
            ];
 
            standardSlots.forEach(slot => {

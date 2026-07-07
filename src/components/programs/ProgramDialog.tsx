@@ -119,7 +119,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
     return Number(total.toFixed(2));
   };
 
-  const getPillar = (cat: CreditCategory) => {
+  const getPillarChar = (cat: CreditCategory) => {
     switch(cat) {
       case 'DSC': return 'C';
       case 'DSE': return 'E';
@@ -134,10 +134,10 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
   };
 
   const generateTemplateCode = (slot: Partial<ProgramSlotTemplate>) => {
-    const p = slot.type === 'Lab/Sessional' ? 'P' : (slot.creditCategory === 'PRJ' ? 'I' : 'L');
-    const pillar = getPillar(slot.creditCategory || 'DSC');
-    const year = Math.ceil((slot.semester || 1) / 2);
-    return `XX${p}${pillar}${year}XX`;
+    const pedagogyChar = slot.type === 'Lab/Sessional' ? 'P' : (slot.creditCategory === 'PRJ' ? 'I' : 'L');
+    const pillarChar = getPillarChar(slot.creditCategory || 'DSC');
+    const yearDigit = Math.ceil((slot.semester || 1) / 2);
+    return `XX${pedagogyChar}${pillarChar}${yearDigit}XX`;
   };
 
   const handleSave = () => {
@@ -161,7 +161,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
 
     setDoc(programRef, data, { merge: true })
       .then(() => {
-        toast({ title: "Success", description: "Program saved successfully." });
+        toast({ title: "Success", description: "Program Specification saved." });
         onOpenChange(false);
       })
       .catch((err) => {
@@ -289,7 +289,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
           <DialogDescription>
             {isReadOnly 
               ? 'Authorized institutional framework. Editing restricted to program owners.'
-              : 'Configure master templates and credit boundaries for institutional consistency.'}
+              : 'Configure master patterns and credit boundaries for institutional consistency.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -364,7 +364,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                 <div className="space-y-4">
                   <Label className="text-sm font-bold flex items-center gap-2"><Layers className="w-4 h-4 text-primary" /> Branch Registry</Label>
                   {!isReadOnly && (
-                    <div className="flex gap-2 items-end p-4 bg-muted/20 rounded-xl border border-dashed">
+                    <div className="flex gap-2 items-end p-4 bg-muted/20 rounded-xl border border-dashed shadow-inner">
                       <div className="grid gap-1.5 flex-1">
                         <Label className="text-[10px] uppercase">New Specialization</Label>
                         <Input placeholder="Branch Name" value={newBranch} onChange={e => setNewBranch(e.target.value)} />
@@ -373,7 +373,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                         <Label className="text-[10px] uppercase">Branch Code</Label>
                         <Input placeholder="MT" value={newPrefix} onChange={e => setNewPrefix(e.target.value.toUpperCase())} maxLength={2} />
                       </div>
-                      <Button type="button" onClick={addBranch} variant="secondary">Authorize Branch</Button>
+                      <Button type="button" onClick={addBranch} variant="secondary" className="shadow-sm">Authorize Branch</Button>
                     </div>
                   )}
                   <div className="border rounded-xl overflow-hidden shadow-sm">
@@ -451,7 +451,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                         <Input 
                           disabled={isReadOnly} 
                           type="number" 
-                          className="text-3xl h-16 text-center font-black border-primary/30 bg-white" 
+                          className="text-3xl h-16 text-center font-black border-primary/30 bg-white shadow-sm" 
                           value={formData.rules?.totalRequired ?? 160} 
                           onChange={e => updateRule('totalRequired', e.target.value)} 
                         />
@@ -462,9 +462,9 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
               </TabsContent>
 
               <TabsContent value="template" className="mt-0 space-y-6">
-                <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex items-center gap-3 text-primary text-sm mb-6">
+                <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex items-center gap-3 text-primary text-sm mb-6 shadow-sm">
                   <Layers className="w-5 h-5 shrink-0" />
-                  <p><b>Master Slot Patterns:</b> These slots are inherited by every branch scheme. Subject codes are auto-generated based on Pillar and Methodology. <b>Manual code entry is disabled to ensure university standard compliance.</b></p>
+                  <p><b>Master Patterns:</b> These slots are inherited by every branch scheme. Subject codes are strictly auto-generated: <b>[Branch][Pedagogy][Pillar][Year][Seq]</b>.</p>
                 </div>
                 <div className="space-y-10">
                   {Array.from({ length: formData.totalSemesters || 8 }, (_, i) => i + 1).map(sem => {
@@ -473,10 +473,10 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                       <div key={sem} className="border rounded-2xl p-6 bg-muted/10">
                         <div className="flex items-center justify-between mb-6">
                           <h4 className="font-headline font-bold text-lg flex items-center gap-2">
-                             <Badge variant="outline" className="h-6 w-6 rounded-full p-0 flex items-center justify-center font-bold">{sem}</Badge>
+                             <Badge variant="outline" className="h-6 w-6 rounded-full p-0 flex items-center justify-center font-bold bg-white">{sem}</Badge>
                              Semester Patterns
                           </h4>
-                          {!isReadOnly && <Button variant="outline" size="sm" onClick={() => addTemplateSlot(sem)} className="h-9 gap-2 shadow-sm"><Plus className="w-4 h-4" /> Define Slot</Button>}
+                          {!isReadOnly && <Button variant="outline" size="sm" onClick={() => addTemplateSlot(sem)} className="h-9 gap-2 shadow-sm bg-white"><Plus className="w-4 h-4" /> Define Pattern</Button>}
                         </div>
                         <div className="space-y-6">
                           {slots.map(slot => {
@@ -533,14 +533,14 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                                 
                                 <div className="col-span-1 space-y-1">
                                   <Label className="text-[10px] uppercase font-bold">Code</Label>
-                                  <div className="h-10 flex items-center justify-center bg-muted/50 rounded-lg border font-mono text-[9px] font-bold text-primary uppercase px-2">
+                                  <div className="h-10 flex items-center justify-center bg-muted/50 rounded-lg border font-mono text-[9px] font-bold text-primary uppercase px-2 shadow-inner">
                                     {slot.subjectCode || '??'}
                                   </div>
                                 </div>
 
                                 <div className="col-span-2 space-y-1">
                                   <Label className="text-[10px] uppercase font-bold text-muted-foreground">
-                                    {isCoreSlot ? 'Core Identity' : 'Elective Group ID'}
+                                    {isCoreSlot ? 'Core Identity' : 'Elective Group'}
                                   </Label>
                                   <Input 
                                     disabled={isReadOnly || isCoreSlot} 
@@ -558,7 +558,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
 
                                 {!isReadOnly && (
                                   <div className="col-span-1 pb-0.5">
-                                    <Button variant="ghost" size="icon" className="h-10 w-10 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeTemplateSlot(slot.id)}>
+                                    <Button variant="ghost" size="icon" className="h-10 w-10 text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors" onClick={() => removeTemplateSlot(slot.id)}>
                                       <Trash2 className="w-4 h-4" />
                                     </Button>
                                   </div>
@@ -568,7 +568,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                           })}
                           {slots.length === 0 && (
                             <div className="py-8 text-center text-muted-foreground text-xs italic bg-white/50 rounded-xl border border-dashed">
-                              No patterns defined for Semester {sem}. Click "Define Slot" to begin.
+                              No patterns defined for Semester {sem}. Click "Define Pattern" to begin.
                             </div>
                           )}
                         </div>
@@ -580,7 +580,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
             </div>
           </ScrollArea>
         </Tabs>
-        <DialogFooter className="p-6 bg-muted/20 border-t shrink-0">
+        <DialogFooter className="p-6 bg-muted/20 border-t shrink-0 shadow-inner">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="h-11 px-8">{isReadOnly ? 'Close Overview' : 'Cancel Changes'}</Button>
           {!isReadOnly && <Button onClick={handleSave} className="h-11 px-8 shadow-lg">Save Program Framework</Button>}
         </DialogFooter>

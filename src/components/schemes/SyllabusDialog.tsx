@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,15 +9,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
-  BookOpen, Loader2, Plus, Clock, ShieldCheck, ChevronDown, ChevronUp, Trash2, CheckCircle2, 
-  Sparkles, FlaskConical, Layers, ArrowRight, Info
+  BookOpen, Loader2, Plus, ChevronDown, ChevronUp, Trash2, CheckCircle2, 
+  Sparkles, FlaskConical, ShieldCheck
 } from "lucide-react";
 import { Syllabus, UserProfile, CreditCategory, SubjectType, Scheme, Program } from "@/lib/types";
 import { useFirestore } from "@/firebase";
-import { collection, query, where, getDocs, doc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { useToast } from "@/hooks/use-toast";
@@ -53,11 +52,6 @@ export function SyllabusDialog({
   const [expandedUnits, setExpandedUnits] = useState<Record<string, boolean>>({});
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   
-  const [poolSchemes, setPoolSchemes] = useState<Scheme[]>([]);
-  const [selectedPoolId, setSelectedPoolId] = useState<string>("");
-  const [availablePoolSyllabi, setAvailablePoolSyllabi] = useState<Syllabus[]>([]);
-  const [isPoolLoading, setIsPoolLoading] = useState(false);
-
   const [formData, setFormData] = useState<Partial<Syllabus>>({
     subjectCode: '', title: '', lectureCredits: 0, tutorialCredits: 0, practicalCredits: 0,
     credits: 0, semester: 1, type: 'Theory', creditCategory: 'DSC', units: [],
@@ -66,7 +60,6 @@ export function SyllabusDialog({
   });
 
   const isSuperuser = userProfile?.role === 'admin' || userProfile?.role === 'dean_academic';
-  const isCommitteeConvenor = userProfile?.role === 'committee_convenor';
 
   useEffect(() => {
     if (open && syllabus) {
@@ -77,20 +70,18 @@ export function SyllabusDialog({
         followedFromId: '',
         ...syllabus
       });
-      setSelectedPoolId("");
-      setAvailablePoolSyllabi([]);
     }
   }, [open, syllabus]);
 
-  // Automated Course Code Logic
+  // AUTOMATED COURSE CODE LOGIC (Strict Rule: [Branch][Pedagogy][Pillar][Year][Sequence])
   useEffect(() => {
     if (!open || !program || !scheme) return;
     
-    // Only auto-generate if not linked and it's a new or draft entry
+    // Auto-generate if not a linked institutional course
     if (formData.followedFromId) return;
 
     const branchCode = program.branchPrefixes?.[scheme.branch || ''] || 'XX';
-    const typeChar = formData.type === 'Lab/Sessional' ? 'P' : (formData.creditCategory === 'PRJ' ? 'I' : 'L');
+    const pedagogyChar = formData.type === 'Lab/Sessional' ? 'P' : (formData.creditCategory === 'PRJ' ? 'I' : 'L');
     
     const getPillarChar = (cat: CreditCategory) => {
       switch(cat) {
@@ -109,52 +100,14 @@ export function SyllabusDialog({
     const pillarChar = getPillarChar(formData.creditCategory || 'DSC');
     const yearDigit = Math.ceil((formData.semester || 1) / 2);
     
-    // Check if the current code already matches the pattern (to avoid overwriting sequence)
-    const patternStart = `${branchCode}${typeChar}${pillarChar}${yearDigit}`;
+    const patternStart = `${branchCode}${pedagogyChar}${pillarChar}${yearDigit}`;
     if (!formData.subjectCode?.startsWith(patternStart)) {
       setFormData(prev => ({ 
         ...prev, 
-        subjectCode: `${patternStart}01` // Default sequence
+        subjectCode: `${patternStart}01` // Starts with sequence 01
       }));
     }
   }, [formData.type, formData.creditCategory, formData.semester, program, scheme, open]);
-
-  useEffect(() => {
-    if (!open || !batchYear) return;
-    
-    const fetchPools = async () => {
-      const q = query(
-        collection(db, 'schemes'), 
-        where('batchYear', '==', batchYear),
-        where('status', 'in', ['Draft', 'Pending Dean', 'Pending Academics', 'Approved'])
-      );
-      const snap = await getDocs(q);
-      const pools = snap.docs
-        .map(d => ({ ...d.data(), id: d.id } as Scheme))
-        .filter(s => s.isCommitteePool || s.isVerticalPool);
-      setPoolSchemes(pools);
-    };
-    fetchPools();
-  }, [db, batchYear, open]);
-
-  useEffect(() => {
-    if (!selectedPoolId && poolSchemes.length > 0) {
-      const btechPool = poolSchemes.find(p => p.id.toUpperCase().includes('BTECH-POOL'));
-      if (btechPool) {
-        setSelectedPoolId(btechPool.id);
-      }
-    }
-
-    if (!selectedPoolId) {
-      setAvailablePoolSyllabi([]);
-      return;
-    }
-    setIsPoolLoading(true);
-    getDocs(collection(db, 'schemes', selectedPoolId, 'syllabi')).then(snap => {
-      setAvailablePoolSyllabi(snap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus)));
-      setIsPoolLoading(false);
-    });
-  }, [db, selectedPoolId, poolSchemes]);
 
   const calculateCredits = (l: number, t: number, p: number) => {
     let total = l + t;
@@ -173,25 +126,6 @@ export function SyllabusDialog({
     setFormData(prev => ({ ...prev, credits: calculateCredits(l, t, p) }));
   }, [formData.lectureCredits, formData.tutorialCredits, formData.practicalCredits]);
 
-  const handleLinkFromPool = (poolSyllabus: Syllabus) => {
-    setFormData(prev => ({
-      ...prev,
-      followedFromId: poolSyllabus.id,
-      parentSchemeId: selectedPoolId,
-      title: poolSyllabus.title,
-      subjectCode: poolSyllabus.subjectCode,
-      lectureCredits: poolSyllabus.lectureCredits,
-      tutorialCredits: poolSyllabus.tutorialCredits,
-      practicalCredits: poolSyllabus.practicalCredits,
-      credits: poolSyllabus.credits,
-      type: poolSyllabus.type,
-      units: poolSyllabus.units,
-      textBooks: poolSyllabus.textBooks,
-      referenceBooks: poolSyllabus.referenceBooks
-    }));
-    toast({ title: "Institutional Link Created" });
-  };
-
   const handleAiGenerate = async () => {
     if (!formData.title) return;
     setIsAiGenerating(true);
@@ -208,7 +142,7 @@ export function SyllabusDialog({
         textBooks: result.suggestedTextBooks,
         referenceBooks: result.suggestedReferences
       }));
-      toast({ title: "AI Generation Complete" });
+      toast({ title: "AI Content Architected" });
     } catch (e: any) {
       toast({ variant: "destructive", title: "AI Error", description: e.message });
     } finally {
@@ -216,9 +150,8 @@ export function SyllabusDialog({
     }
   };
 
-  const isAuthorized = isSuperuser || isCommitteeConvenor || canEdit;
   const isLinked = !!formData.followedFromId;
-  const isFormDisabled = (isLinked && !isSuperuser) || !isAuthorized;
+  const isFormDisabled = (isLinked && !isSuperuser) || !canEdit;
 
   const isLab = formData.type === 'Lab/Sessional';
   const unitLabel = isLab ? 'Experiment' : 'Unit';
@@ -235,64 +168,22 @@ export function SyllabusDialog({
             <div className="flex gap-2">
               <Button onClick={handleAiGenerate} disabled={isAiGenerating || !formData.title || isLinked} variant="outline" className="gap-2">
                 {isAiGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-primary" />}
-                AI Content
+                AI Architect
               </Button>
             </div>
           </DialogTitle>
           <DialogDescription>
-            Subject codes are auto-generated based on the institutional prefix and methodology. Manual editing is restricted.
+            Course codes are auto-generated based on the institutional prefix: [Branch][Pedagogy][Pillar][Year][Seq].
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="flex-1 w-full min-h-0 bg-muted/5">
           <div className="p-6 space-y-8">
-            {!isLinked && !isCommitteeConvenor && (
-              <Card className="border-accent/20 bg-accent/5 shadow-sm">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-bold flex items-center gap-2 text-accent">
-                    <Layers className="w-4 h-4" /> Standard Institutional Pull
-                  </CardTitle>
-                  <CardDescription className="text-xs">Bring MDC, VAC, AEC or Committee courses into this slot.</CardDescription>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">1. Select Source Pool</Label>
-                    <Select value={selectedPoolId} onValueChange={setSelectedPoolId}>
-                      <SelectTrigger className="bg-white"><SelectValue placeholder="Choose Pool..." /></SelectTrigger>
-                      <SelectContent>
-                        {poolSchemes.map(p => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.branch} {p.isVerticalPool ? '(Vertical)' : '(Committee)'}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">2. Choose Standard Course</Label>
-                    <Select disabled={!selectedPoolId || isPoolLoading} onValueChange={(v) => {
-                      const found = availablePoolSyllabi.find(s => s.id === v);
-                      if (found) handleLinkFromPool(found);
-                    }}>
-                      <SelectTrigger className="bg-white">
-                        <SelectValue placeholder={isPoolLoading ? "Loading..." : "Select Course..."} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availablePoolSyllabi.map(s => (
-                          <SelectItem key={s.id} value={s.id}>{s.subjectCode} - {s.title}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
             {isLinked && (
-              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between shadow-sm">
                 <div className="flex items-center gap-3 text-emerald-800 text-sm">
                   <CheckCircle2 className="w-5 h-5" />
-                  <p>Standardized content brought from <b>{poolSchemes.find(p => p.id === formData.parentSchemeId)?.branch || 'Institutional Pool'}</b>.</p>
+                  <p>Standardized content inherited from the <b>Institutional Pool</b>.</p>
                 </div>
                 <Button variant="ghost" size="sm" className="text-emerald-700 hover:bg-emerald-100" onClick={() => setFormData({...formData, followedFromId: '', parentSchemeId: ''})}>
                   Sever Link & Customize
@@ -328,7 +219,7 @@ export function SyllabusDialog({
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Subject Code</Label>
-                    <div className="h-10 flex items-center px-3 bg-muted/50 rounded-md border font-mono font-bold text-primary">
+                    <div className="h-10 flex items-center px-3 bg-muted/50 rounded-md border font-mono font-bold text-primary shadow-inner">
                       {formData.subjectCode || 'AUTO-GEN'}
                     </div>
                   </div>
@@ -407,7 +298,7 @@ export function SyllabusDialog({
               <TabsContent value="resources" className="space-y-8">
                  <div className="space-y-4">
                     <Label className="font-bold text-primary flex items-center gap-2">
-                      <BookOpen className="w-4 h-4" /> {isLab ? 'Lab Manuals & Standard Codes' : 'Reference Text Books'}
+                      <BookOpen className="w-4 h-4" /> Recommended Resources
                     </Label>
                     {formData.textBooks?.map((it, i) => (
                       <div key={i} className="flex gap-2">
@@ -421,7 +312,7 @@ export function SyllabusDialog({
 
               <TabsContent value="mapping" className="p-8 text-center text-muted-foreground italic bg-white rounded-xl border border-dashed">
                  <ShieldCheck className="w-12 h-12 mx-auto mb-4 opacity-10" />
-                 <p>Advanced Outcome Mapping (PO/PSO) is inherited from the parent course for standardized subjects.</p>
+                 <p>Advanced Outcome Mapping (PO/PSO) is inherited from institutional standards for synchronized subjects.</p>
               </TabsContent>
             </Tabs>
           </div>
