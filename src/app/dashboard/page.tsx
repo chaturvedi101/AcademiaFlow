@@ -38,14 +38,14 @@ export default function DashboardPage() {
       const isBBABOS = profile.faculty.includes('BBA');
 
       return schemes.filter(s => {
-        // Handle Pool Identification via Branch Name matching
-        if (s.programId === 'INSTITUTIONAL') {
-          if (isBTECHBOS) return s.branch?.includes('BTECH');
-          if (isBBABOS) return s.branch?.includes('BBA');
-          return false;
+        // Pool Visibility: Show pools matching the BOS tier
+        if (s.isVerticalPool || s.isCommitteePool) {
+          if (isBTECHBOS && s.branch?.includes('BTECH')) return true;
+          if (isBBABOS && s.branch?.includes('BBA')) return true;
+          if (isBTECHBOS && s.programId === 'INSTITUTIONAL') return true;
         }
 
-        // Handle Branch Scheme Identification via Program Faculty
+        // Branch Visibility: Show schemes in matching program faculties
         const prog = programs.find(p => p.id === s.programId);
         if (!prog) return false;
 
@@ -64,23 +64,23 @@ export default function DashboardPage() {
       });
     }
 
-    // Branch Convenors see their assigned branches + matching vertical pool
+    // Branch Personnel (Convenors & Members) see their assigned branches + matching pools
     const managed = profile.managedBranches || [];
-    const hasBTECHManagement = managed.some(m => {
+    const managesBTECH = managed.some(m => {
       const p = programs.find(prog => prog.id === m.programId);
       return p?.name.includes('BTECH') || p?.faculty.includes('BTECH');
     });
 
-    const isManagementVertical = managed.some(m => {
+    const managesBBA = managed.some(m => {
       const p = programs.find(prog => prog.id === m.programId);
       return p?.faculty.includes('Management') || p?.name.includes('BBA');
     });
 
     return schemes.filter(s => {
-      // Show matching vertical pools
-      if (s.isVerticalPool) {
-        if (hasBTECHManagement && s.branch?.includes('BTECH')) return true;
-        if (isManagementVertical && s.branch?.includes('BBA')) return true;
+      // Show matching vertical pools (so they can see what they are mirroring)
+      if (s.isVerticalPool || s.isCommitteePool) {
+        if (managesBTECH && (s.branch?.includes('BTECH') || s.branch?.includes('Committee'))) return true;
+        if (managesBBA && (s.branch?.includes('BBA') || s.branch?.includes('Committee'))) return true;
       }
       
       // Show assigned branch schemes

@@ -42,7 +42,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // INSTITUTIONAL KNOWLEDGE ENGINE: Proactively fetch potential parents from the entire batch year
+  // INSTITUTIONAL KNOWLEDGE ACCUMULATOR: Proactively fetch potential parents from the entire batch year
   useEffect(() => {
     if (!scheme) return;
     setParentsLoading(true);
@@ -53,10 +53,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     );
 
     let activeUnsubs: Unsubscribe[] = [];
+    const syllabiMap = new Map<string, Syllabus[]>();
 
     const unsubPools = onSnapshot(poolsQuery, (snap) => {
+      // Clear previous pool listeners when batch schemes change
       activeUnsubs.forEach(u => u());
       activeUnsubs = [];
+      syllabiMap.clear();
 
       const parentSchemes = snap.docs.filter(d => {
         const data = d.data();
@@ -69,8 +72,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         return;
       }
 
-      let combinedParents: Syllabus[] = [];
-      let schemasProcessed = 0;
+      let schemesSyncedCount = 0;
 
       parentSchemes.forEach(ps => {
         const sRef = collection(db, 'schemes', ps.id, 'syllabi');
@@ -82,14 +84,18 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             isAuthoritativeSource: true
           } as Syllabus));
           
-          combinedParents = [...combinedParents.filter(c => c.parentSchemeId !== ps.id), ...fetched];
-          setAllParentSyllabi([...combinedParents]); 
+          syllabiMap.set(ps.id, fetched);
           
-          schemasProcessed++;
-          if (schemasProcessed >= parentSchemes.length) setParentsLoading(false);
+          // Flatten map into a single list of parent subjects
+          const allFlattened: Syllabus[] = [];
+          syllabiMap.forEach(list => allFlattened.push(...list));
+          setAllParentSyllabi(allFlattened);
+          
+          schemesSyncedCount++;
+          if (schemesSyncedCount >= parentSchemes.length) setParentsLoading(false);
         }, () => {
-          schemasProcessed++;
-          if (schemasProcessed >= parentSchemes.length) setParentsLoading(false);
+          schemesSyncedCount++;
+          if (schemesSyncedCount >= parentSchemes.length) setParentsLoading(false);
         });
         activeUnsubs.push(u);
       });
@@ -153,7 +159,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       canEditSyllabus: (s: Partial<Syllabus> | undefined) => {
         if (!s) return false;
         if (isSuper) return true;
-        // Institutional standards and virtual mirrors are read-only to branch BoS personnel
+        // Institutional standards and virtual mirrors are read-only to branch personnel
         if (s.followedFromId || s.isInherited) return false;
         return canEditScheme;
       }
