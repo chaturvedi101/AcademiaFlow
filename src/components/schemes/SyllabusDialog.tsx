@@ -162,6 +162,9 @@ export function SyllabusDialog({
   const isLinked = !!formData.followedFromId;
   const isFormDisabled = (isLinked && !isSuperuser) || !canEdit;
 
+  // INSTITUTIONAL LOCK: Once a course is saved (has ID), its category cannot be changed to preserve sequence integrity
+  const isCategoryLocked = isFormDisabled || !!syllabus?.id;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] lg:max-w-6xl h-[95vh] flex flex-col p-0 overflow-hidden border-none shadow-2xl">
@@ -219,7 +222,7 @@ export function SyllabusDialog({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Credit Category</Label>
-                    <Select disabled={isFormDisabled} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v})}>
+                    <Select disabled={isCategoryLocked} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v})}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {ALL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}

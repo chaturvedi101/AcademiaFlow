@@ -160,7 +160,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         if (!s) return false;
         if (isSuper) return true;
         // Institutional standards and virtual mirrors are read-only to branch personnel
-        if (s.followedFromId || s.isInherited) return false;
+        if (s.followedFromId || (s as any).isInherited) return false;
         return canEditScheme;
       }
     };
