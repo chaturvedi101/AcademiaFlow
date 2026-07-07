@@ -42,107 +42,69 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [isSubmissionDialogOpen, setIsSubmissionDialogOpen] = useState(false);
   const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
 
-  // DISCOVERY ENGINE: Robust identification of Institutional Pools (Vertical & Committee)
+  // AUTOMATED VERTICAL MAPPING ENGINE
   useEffect(() => {
     if (!scheme) return;
     setPoolLoading(true);
 
+    // Identify relevant pool based on program prefix (e.g. BTECH- -> B.Tech)
+    const progPrefix = program?.code?.split('-')[0] || scheme.schemeCode?.split('-')[0] || '';
+    const verticalMatch = progPrefix.includes('BTECH') ? 'B.Tech' : progPrefix.includes('BBA') ? 'BBA' : progPrefix;
+
     const poolQuery = query(
       collection(db, 'schemes'),
-      where('batchYear', '==', scheme.batchYear)
+      where('batchYear', '==', scheme.batchYear),
+      where('isVerticalPool', '==', true)
     );
 
     let unsubSyllabi: Unsubscribe[] = [];
 
-    const unsubscribeSchemes = onSnapshot(poolQuery, (snap) => {
+    const unsubscribePools = onSnapshot(poolQuery, (snap) => {
       unsubSyllabi.forEach(u => u());
       unsubSyllabi = [];
-      
-      const isEngineering = program?.faculty?.includes('Engineering') || 
-                          scheme.branch?.includes('B.Tech') || 
-                          scheme.schemeCode?.includes('BTECH') ||
-                          program?.name?.includes('B.Tech');
 
-      const isManagement = program?.faculty?.includes('Management') || 
-                         scheme.branch?.includes('BBA') || 
-                         scheme.schemeCode?.includes('BBA') ||
-                         program?.name?.includes('BBA');
-
-      const poolSchemeIds = snap.docs
-        .filter(d => d.id !== schemeId)
-        .filter(d => {
-          const data = d.data();
-          if (data.isCommitteePool) return true;
-          
-          if (data.isVerticalPool) {
-            const isBTechPool = data.branch?.includes('B.Tech') || d.id.includes('B.TECH-POOL');
-            const isBBAPool = data.branch?.includes('BBA') || d.id.includes('BBA-POOL');
-            if (isEngineering && isBTechPool) return true;
-            if (isManagement && isBBAPool) return true;
-          }
-          return false;
-        })
-        .map(d => d.id);
+      // Find the specific pool for this vertical
+      const poolDoc = snap.docs.find(d => d.data().branch?.includes(verticalMatch) || d.id.includes(verticalMatch.toUpperCase()));
       
-      if (poolSchemeIds.length === 0) {
+      if (!poolDoc) {
         setPoolSyllabi([]);
         setPoolLoading(false);
         return;
       }
 
-      const syllabiByScheme: Record<string, Syllabus[]> = {};
-      let loadedPoolCount = 0;
-
-      poolSchemeIds.forEach(psId => {
-        const sRef = collection(db, 'schemes', psId, 'syllabi');
-        const u = onSnapshot(sRef, (sSnap) => {
-          syllabiByScheme[psId] = sSnap.docs.map(d => ({ 
-            ...d.data(), 
-            id: d.id, 
-            parentPoolId: psId,
-            fromVerticalPool: snap.docs.find(doc => doc.id === psId)?.data().isVerticalPool
-          } as any));
-          
-          loadedPoolCount++;
-          const allPool = Object.values(syllabiByScheme).flat();
-          setPoolSyllabi(allPool);
-          
-          if (loadedPoolCount >= poolSchemeIds.length) {
-            setPoolLoading(false);
-          }
-        }, (err) => {
-          console.error("Syllabi listener failed:", err);
-          loadedPoolCount++;
-          if (loadedPoolCount >= poolSchemeIds.length) setPoolLoading(false);
-        });
-        unsubSyllabi.push(u);
+      const sRef = collection(db, 'schemes', poolDoc.id, 'syllabi');
+      const u = onSnapshot(sRef, (sSnap) => {
+        setPoolSyllabi(sSnap.docs.map(d => ({ 
+          ...d.data(), 
+          id: d.id, 
+          fromVerticalPool: true,
+          parentPoolId: poolDoc.id
+        } as any)));
+        setPoolLoading(false);
       });
+      unsubSyllabi.push(u);
     }, (err) => {
-      console.error("Pool discovery failed:", err);
+      console.error("Vertical Pool discovery failed:", err);
       setPoolLoading(false);
     });
 
     return () => {
-      unsubscribeSchemes();
+      unsubscribePools();
       unsubSyllabi.forEach(u => u());
     };
-  }, [db, scheme, schemeId, program]);
+  }, [db, scheme, program]);
 
   const [isSyllabusDialogOpen, setIsSyllabusDialogOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Partial<Syllabus> | undefined>(undefined);
 
-  // RESOLUTION & MERGE ENGINE
+  // AUTOMATIC MERGE & INJECTION ENGINE
   const syllabi = useMemo(() => {
     if (!scheme) return [];
 
-    // 1. Process departmental slots (Resolving Code Match or Link)
+    // 1. Process local slots and resolve inheritance
     const resolvedLocal = localSyllabi.map(local => {
-      let parent = local.followedFromId ? poolSyllabi.find(p => p.id === local.followedFromId) : null;
-      
-      if (!parent && local.subjectCode && !local.subjectCode.startsWith('XX')) {
-        parent = poolSyllabi.find(p => p.subjectCode === local.subjectCode && !(p as any).fromVerticalPool) || 
-                 poolSyllabi.find(p => p.subjectCode === local.subjectCode);
-      }
+      const parent = local.followedFromId ? poolSyllabi.find(p => p.id === local.followedFromId) : 
+                     (local.subjectCode ? poolSyllabi.find(p => p.subjectCode === local.subjectCode) : null);
 
       if (parent) {
         return {
@@ -164,36 +126,22 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       return local;
     });
 
-    const isBTechVertical = program?.faculty?.includes('Engineering') || 
-                           program?.name?.includes('B.Tech') || 
-                           scheme.branch?.includes('B.Tech') || 
-                           scheme.schemeCode?.includes('BTECH');
+    // 2. Automatic Injection of pool courses not in local slots
+    // This is the core logic that removes the need for manual adding
+    const missingFromPool = poolSyllabi.filter(p => !resolvedLocal.some(l => l.subjectCode === p.subjectCode));
     
-    // 2. Add subjects from vertical pool not already present (Automatic Injection)
-    let inheritedFromPool: any[] = [];
-    if (isBTechVertical) {
-      const poolMap = new Map<string, any>();
-      poolSyllabi.filter(p => (p as any).fromVerticalPool).forEach(p => {
-        if (!poolMap.has(p.subjectCode)) {
-          poolMap.set(p.subjectCode, p);
-        }
-      });
-
-      inheritedFromPool = Array.from(poolMap.values())
-        .filter(p => !resolvedLocal.some(l => l.subjectCode === p.subjectCode))
-        .map(p => ({
-          ...p,
-          isStandardized: true,
-          standardizedFrom: 'Vertical Pool (Auto)',
-          isInherited: true
-        }));
-    }
+    const inheritedFromPool = missingFromPool.map(p => ({
+      ...p,
+      isStandardized: true,
+      standardizedFrom: 'Vertical Pool (Automated)',
+      isInherited: true
+    }));
 
     return [...resolvedLocal, ...inheritedFromPool].sort((a, b) => {
       if ((a.semester || 1) !== (b.semester || 1)) return (a.semester || 1) - (b.semester || 1);
       return (a.subjectCode || "").localeCompare(b.subjectCode || "");
     });
-  }, [localSyllabi, poolSyllabi, scheme, program]);
+  }, [localSyllabi, poolSyllabi, scheme]);
 
   const inheritedCount = useMemo(() => syllabi.filter(s => (s as any).isInherited).length, [syllabi]);
 
@@ -216,12 +164,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const canEditSyllabus = (s: any) => {
       if (isSuperuser) return true;
       if (isMyCommittee) return true;
-      if (s?.isInherited) return false;
+      if (s?.isInherited) return false; // Inherited pool courses are locked
       return isProgramDean || !!myBranchRole || canEditScheme;
     };
 
     const canDeleteSyllabus = (s: any) => {
-      if (s?.isInherited) return false;
+      if (s?.isInherited) return false; // Automated courses cannot be deleted from branch
       return isSuperuser || isMyCommittee || canEditScheme;
     };
 
@@ -255,9 +203,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     if (!program?.rules) return false;
     
     if (selectedScope === 'Year 1') return syllabi.some(s => s.semester === 1) && syllabi.some(s => s.semester === 2);
-    if (selectedScope === 'Year 2') return syllabi.some(s => s.semester === 4);
-    if (selectedScope === 'Year 3') return syllabi.some(s => s.semester === 6);
-
     return creditDistribution.total === program.rules.totalRequired;
   }, [creditDistribution, program?.rules, scheme, selectedScope, syllabi]);
 
@@ -290,7 +235,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             {inheritedCount > 0 && (
               <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1.5 py-1 px-3">
                 <ShieldCheck className="w-3 h-3" />
-                {inheritedCount} Pool Subjects Linked
+                {inheritedCount} Institutional Courses Automated
               </Badge>
             )}
           </div>

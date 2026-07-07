@@ -61,16 +61,11 @@ export default function SchemesPage() {
     if (isGlobalAdmin || profile.role === 'monitor') return schemes;
     
     return schemes.filter(s => {
-      // Committee Convenors see their pool
       if (isCommitteeConvenor && s.isCommitteePool && s.branch === profile.faculty) return true;
-      
-      // Common BOS logic
       if (isCommonBos) {
         if (profile.faculty === 'B.Tech (Common BOS)') return s.branch === 'B.Tech (Common BOS) Pool' || programs.find(p => p.id === s.programId)?.faculty.includes('Engineering');
         if (profile.faculty === 'BBA (Common BOS)') return s.branch === 'BBA (Common BOS) Pool' || programs.find(p => p.id === s.programId)?.faculty.includes('Management');
       }
-
-      // Default Branch Access
       return profile.managedBranches?.some(mb => mb.programId === s.programId && mb.branch === s.branch);
     });
   }, [schemes, profile, programs, isGlobalAdmin, isCommitteeConvenor, isCommonBos]);
@@ -105,10 +100,6 @@ export default function SchemesPage() {
         }
         
         const schemeRef = doc(db, 'schemes', generatedCode);
-        const existing = await getDoc(schemeRef);
-        
-        if (existing.exists()) throw new Error(`Pool ${generatedCode} already exists.`);
-
         batch.set(schemeRef, {
           programId: 'INSTITUTIONAL',
           branch: branchName,
@@ -124,8 +115,8 @@ export default function SchemesPage() {
           isCommitteePool: isCommittee
         });
 
-        // SEED STANDARD INSTITUTIONAL SUBJECTS FOR B.TECH VERTICAL
-        if (newScheme.poolType === 'Vertical' && newScheme.poolVertical === 'B.Tech') {
+        // SEED STANDARD INSTITUTIONAL SUBJECTS
+        if (newScheme.poolType === 'Vertical') {
            const standardSlots = [
              { code: 'AEC261', title: 'Technical Communication', cat: 'AEC', sem: 1, credits: 2, type: 'Theory', l: 2, t: 0, p: 0 },
              { code: 'VAC261', title: 'Environmental Science', cat: 'VAC', sem: 2, credits: 2, type: 'Theory', l: 2, t: 0, p: 0 },
@@ -153,22 +144,11 @@ export default function SchemesPage() {
         }
 
         await batch.commit();
-        toast({ title: "Pool Created", description: `${branchName} initialized with standard slots.` });
+        toast({ title: "Pool Created" });
       } else {
-        // Standard program creation (batch)
-        if (newScheme.programIds.length === 0 || !newScheme.branch) {
-          toast({ title: "Validation Error", description: "Programs and Branch name are required.", variant: "destructive" });
-          setIsCreating(false);
-          return;
-        }
-
-        // INSTITUTIONAL AUTOMATION: Ensure the Vertical Pool exists for this batch if creating B.Tech schemes
-        const isBTechVertical = newScheme.programIds.some(pid => {
-          const p = programs.find(prog => prog.id === pid);
-          return p?.faculty?.includes('Engineering') || p?.name?.includes('B.Tech');
-        });
-
-        if (isBTechVertical) {
+        // AUTOMATIC POOL GENERATION: Check if creating B.Tech schemes and ensure vertical pool exists
+        const isBTech = newScheme.programIds.some(pid => pid.includes('BTECH'));
+        if (isBTech) {
           const poolId = `B.TECH-POOL-${newScheme.batchYear}`;
           batch.set(doc(db, 'schemes', poolId), {
             programId: 'INSTITUTIONAL',
@@ -204,28 +184,13 @@ export default function SchemesPage() {
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
           });
-
-          // Pattern Copy Logic
-          if (program.slotTemplate) {
-            program.slotTemplate.forEach(slot => {
-              const syllId = Math.random().toString(36).substr(2, 9);
-              batch.set(doc(db, 'schemes', sid, 'syllabi', syllId), {
-                ...slot,
-                id: syllId,
-                schemeId: sid,
-                isSlot: true,
-                updatedAt: serverTimestamp()
-              });
-            });
-          }
         }
         await batch.commit();
-        toast({ title: "Schemes Created", description: `${newScheme.programIds.length} frameworks initialized.` });
+        toast({ title: "Schemes Created" });
       }
 
       setIsDialogOpen(false);
       setNewScheme({ programIds: [], branch: '', batchYear: '', version: 'v1.0', isPoolScheme: false, poolType: 'Vertical', poolVertical: '', committeeName: '' });
-      setStep(1);
     } catch (error: any) {
       toast({ title: "Operation Failed", description: error.message, variant: "destructive" });
     } finally {
@@ -279,7 +244,6 @@ export default function SchemesPage() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Initialize Academic Repository</DialogTitle>
-            <DialogDescription>Select the type of pool or scheme to create for the current batch.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6 py-4">
@@ -361,7 +325,7 @@ export default function SchemesPage() {
                   </ScrollArea>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-bold">Branch Name (Common for selected programs)</Label>
+                  <Label className="text-sm font-bold">Branch Name</Label>
                   <Input placeholder="e.g. Civil Engineering" value={newScheme.branch} onChange={e => setNewScheme({...newScheme, branch: e.target.value})} />
                 </div>
               </div>
@@ -374,7 +338,7 @@ export default function SchemesPage() {
           </div>
 
           <DialogFooter>
-            <Button onClick={handleCreateScheme} disabled={isCreating || !newScheme.batchYear || (newScheme.isPoolScheme && !newScheme.poolVertical && !newScheme.committeeName)}>
+            <Button onClick={handleCreateScheme} disabled={isCreating}>
               {isCreating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
               {newScheme.isPoolScheme ? "Initialize Pool" : "Instantiate Schemes"}
             </Button>
