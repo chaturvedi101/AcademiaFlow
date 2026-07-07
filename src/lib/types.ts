@@ -114,6 +114,7 @@ export interface Scheme {
   abcEnabled: boolean;
   isVerticalPool?: boolean; // Flag to indicate if this is a vertical-specific course pool (e.g. BTECH Pool)
   isCommitteePool?: boolean; // Flag to indicate if this is a specialized Course Committee pool
+  reversionComments?: string; // Observations from Dean when reverting to Draft
 }
 
 export interface SyllabusSubUnit {
@@ -168,6 +169,7 @@ export interface Syllabus {
   isStandardized?: boolean;
   standardizedFrom?: string;
   isInherited?: boolean;
+  parentCode?: string;
 }
 
 export interface AuditLog {

@@ -2,18 +2,18 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { useFirestore, useDoc, useCollection, useUser, useMemoFirebase } from "@/firebase";
-import { doc, collection, setDoc, serverTimestamp, updateDoc, query, where, onSnapshot, Unsubscribe, deleteDoc, getDocs, collectionGroup, writeBatch } from "firebase/firestore";
+import { doc, collection, setDoc, serverTimestamp, updateDoc, query, where, onSnapshot, Unsubscribe, deleteDoc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Edit3, Loader2, FileText, BookOpen, Eye, CheckCircle2, ShieldCheck, Trash2, RefreshCw, Hash, Layers } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Plus, Edit3, Loader2, FileText, BookOpen, Eye, CheckCircle2, ShieldCheck, Trash2, Hash, Layers, Info } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
-import { Syllabus, Scheme, Program, UserProfile, SubmissionScope, CreditCategory } from "@/lib/types";
+import { Syllabus, Scheme, Program, UserProfile, SubmissionScope } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { exportFullSchemeToPDF, exportCompleteSyllabusToPDF } from "@/lib/pdf-export";
 import { cn } from "@/lib/utils";
@@ -59,7 +59,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       syllabiMap.clear();
 
       const parentSchemes = snap.docs.filter(d => {
-        const data = d.data();
+        const data = d.data() as Scheme;
         return data.isVerticalPool || data.isCommitteePool;
       });
 
@@ -131,7 +131,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     return resolvedLocal.sort((a, b) => {
       if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
-      // Sort by Elective Group ID to ensure options cluster together
       if (a.electiveGroupId !== b.electiveGroupId) {
         return (a.electiveGroupId || "").localeCompare(b.electiveGroupId || "");
       }
@@ -142,18 +141,26 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const permissions = useMemo(() => {
     const isAdmin = profile?.role === 'admin';
     const isSuper = isAdmin || profile?.role === 'dean_academic';
-    const canEditScheme = isSuper || 
-      (['bos_convenor', 'bos_member'].includes(profile?.role || '') && profile?.managedBranches?.some(m => m.programId === scheme?.programId && m.branch === scheme?.branch)) ||
+    
+    // Core edit right check
+    const isMyJurisdiction = (['bos_convenor', 'bos_member'].includes(profile?.role || '') && 
+      profile?.managedBranches?.some(m => m.programId === scheme?.programId && m.branch === scheme?.branch)) ||
       (profile?.role === 'committee_convenor' && scheme?.isCommitteePool && scheme?.branch === profile.faculty);
+
+    // SUBMISSION LOCK: If status is not Draft, BoS roles cannot edit
+    const isLockedForBoS = scheme?.status !== 'Draft' && !isSuper;
+    const canEditScheme = (isSuper || isMyJurisdiction) && !isLockedForBoS;
     
     return {
       isAdmin,
       isSuper,
       canEditScheme,
+      isLockedForBoS,
       canDeleteCourse: isAdmin,
       canEditSyllabus: (s: Partial<Syllabus> | undefined) => {
         if (!s) return false;
         if (isSuper) return true;
+        if (isLockedForBoS) return false;
         if (s.followedFromId || (s as any).isInherited) return false;
         return canEditScheme;
       }
@@ -222,7 +229,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           <div className="flex items-center gap-3 text-muted-foreground text-sm">
             <span className="font-mono font-bold text-primary flex items-center gap-1"><Hash className="w-3.5 h-3.5" /> {scheme.schemeCode}</span>
             <span>Batch: {scheme.batchYear}</span>
-            <Badge variant="secondary" className="font-bold">{scheme.status}</Badge>
+            <Badge variant={scheme.status === 'Approved' ? 'default' : 'secondary'} className="font-bold">
+              {scheme.status} {permissions.isLockedForBoS && <span className="ml-1 opacity-60">(Locked)</span>}
+            </Badge>
           </div>
         </div>
         <div className="flex gap-2">
@@ -232,9 +241,31 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           <Button variant="outline" onClick={() => exportCompleteSyllabusToPDF(scheme, program || null, syllabi)}>
             <BookOpen className="w-4 h-4 mr-2" /> Book
           </Button>
-          {permissions.canEditScheme && <Button onClick={() => setIsSubmissionDialogOpen(true)}>Finalize Scheme</Button>}
+          {permissions.canEditScheme && (
+            <Button onClick={() => setIsSubmissionDialogOpen(true)}>Finalize Scheme</Button>
+          )}
         </div>
       </div>
+
+      {scheme.status === 'Draft' && scheme.reversionComments && (
+        <Alert variant="destructive" className="bg-red-50 border-red-200">
+          <Info className="h-4 w-4" />
+          <AlertTitle className="font-bold">Dean's Observations (Requires Correction)</AlertTitle>
+          <AlertDescription className="mt-2 text-sm italic">
+            "{scheme.reversionComments}"
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {permissions.isLockedForBoS && (
+        <Alert className="bg-amber-50 border-amber-200 text-amber-800">
+          <ShieldCheck className="h-4 w-4" />
+          <AlertTitle className="font-bold">Submission Lock Active</AlertTitle>
+          <AlertDescription>
+            This scheme has been submitted and is currently under institutional review. Editing is disabled until a Dean reverts it to Draft.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
         <div className="md:col-span-3">
@@ -379,8 +410,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           </div>
           <DialogFooter>
             <Button disabled={!isSchemeValid} onClick={() => {
-              updateDoc(schemeRef, { status: 'Pending Dean', submissionScope: selectedScope });
+              updateDoc(schemeRef, { status: 'Pending Dean', submissionScope: selectedScope, reversionComments: null });
               setIsSubmissionDialogOpen(false);
+              toast({ title: "Scheme Submitted", description: "Submission lock is now active." });
             }}>Finalize & Submit</Button>
           </DialogFooter>
         </DialogContent>

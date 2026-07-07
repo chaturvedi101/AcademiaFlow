@@ -1,6 +1,6 @@
-
 'use client';
 
+import { useState, useMemo } from 'react';
 import { useFirestore, useDoc, useCollection, useUser, useMemoFirebase } from '@/firebase';
 import { collection, doc, updateDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { Scheme, Program, UserProfile } from '@/lib/types';
@@ -8,12 +8,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { CheckCircle, Eye, Loader2, FileCheck, Clock, Layers } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { CheckCircle, Eye, Loader2, FileCheck, Clock, Layers, RotateCcw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
-import { useMemo } from 'react';
 
 export default function ApprovalsPage() {
   const db = useFirestore();
@@ -32,6 +33,10 @@ export default function ApprovalsPage() {
   const { data: schemes, loading } = useCollection<Scheme>(schemesQuery);
   const { data: programs } = useCollection<Program>(useMemoFirebase(() => collection(db, 'programs'), [db]));
 
+  const [revertDialogOpen, setRevertDialogOpen] = useState(false);
+  const [selectedSchemeForRevert, setSelectedSchemeForRevert] = useState<Scheme | null>(null);
+  const [revertComments, setRevertComments] = useState('');
+
   const filteredSchemes = useMemo(() => {
     if (!profile || !programs.length) return [];
     if (profile.role === 'dean_academic' || profile.role === 'admin') return schemes;
@@ -49,7 +54,8 @@ export default function ApprovalsPage() {
     
     updateDoc(schemeRef, { 
       status: nextStatus, 
-      updatedAt: serverTimestamp() 
+      updatedAt: serverTimestamp(),
+      reversionComments: null // Clear any old comments
     }).then(() => {
       toast({ title: "Scheme Advanced", description: `Scheme moved to ${nextStatus}.` });
     }).catch(err => {
@@ -59,6 +65,22 @@ export default function ApprovalsPage() {
         requestResourceData: { status: nextStatus }
       }));
     });
+  };
+
+  const handleRevert = async () => {
+    if (!selectedSchemeForRevert || !revertComments) return;
+    
+    const schemeRef = doc(db, 'schemes', selectedSchemeForRevert.id);
+    await updateDoc(schemeRef, {
+      status: 'Draft',
+      reversionComments: revertComments,
+      updatedAt: serverTimestamp()
+    });
+
+    toast({ title: "Scheme Reverted", description: "Returned to BoS with observations." });
+    setRevertDialogOpen(false);
+    setSelectedSchemeForRevert(null);
+    setRevertComments('');
   };
 
   if (loading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary w-8 h-8" /></div>;
@@ -123,6 +145,12 @@ export default function ApprovalsPage() {
                             <Eye className="w-4 h-4" /> Review
                           </Link>
                         </Button>
+                        <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50" onClick={() => {
+                          setSelectedSchemeForRevert(scheme);
+                          setRevertDialogOpen(true);
+                        }}>
+                          <RotateCcw className="w-4 h-4" /> Revert
+                        </Button>
                         <Button size="sm" className="gap-2 bg-emerald-600 hover:bg-emerald-700" onClick={() => handleApprove(scheme)}>
                           <CheckCircle className="w-4 h-4" /> Approve
                         </Button>
@@ -143,6 +171,29 @@ export default function ApprovalsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={revertDialogOpen} onOpenChange={setRevertDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Revert Scheme to BoS</DialogTitle>
+            <DialogDescription>
+              Provide observations and required corrections. The BoS will be able to edit the scheme again once it returns to Draft.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Textarea 
+              placeholder="Enter your observations..." 
+              value={revertComments} 
+              onChange={e => setRevertComments(e.target.value)}
+              className="min-h-[120px]"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRevertDialogOpen(false)}>Cancel</Button>
+            <Button variant="destructive" disabled={!revertComments} onClick={handleRevert}>Revert to BoS</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
