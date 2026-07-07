@@ -31,7 +31,9 @@ export default function UserManagementPage() {
 
   const usersRef = useMemoFirebase(() => collection(db, 'users'), [db]);
   const { data: users, loading: usersLoading } = useCollection<UserProfile>(usersRef);
-  const { data: programs } = useCollection<Program>(useMemoFirebase(() => collection(db, 'programs'), [db]));
+  
+  const programsRef = useMemoFirebase(() => collection(db, 'programs'), [db]);
+  const { data: programs, loading: programsLoading } = useCollection<Program>(programsRef);
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
@@ -68,9 +70,15 @@ export default function UserManagementPage() {
   };
 
   const handleAddAssignment = () => {
-    if (!newAssignment.programId || !newAssignment.branch) return;
+    if (!newAssignment.programId || !newAssignment.branch) {
+      toast({ title: "Validation Error", description: "Select both Program and Branch.", variant: "destructive" });
+      return;
+    }
     const isDuplicate = form.managedBranches.some(b => b.programId === newAssignment.programId && b.branch === newAssignment.branch);
-    if (isDuplicate) return;
+    if (isDuplicate) {
+      toast({ title: "Duplicate Assignment", description: "This branch is already assigned.", variant: "destructive" });
+      return;
+    }
     setForm({ ...form, managedBranches: [...form.managedBranches, { ...newAssignment }] });
     setNewAssignment({ programId: '', branch: '', role: 'bos_member' });
   };
@@ -80,17 +88,22 @@ export default function UserManagementPage() {
   };
 
   const handleSaveUser = async () => {
-    if (!form.email || !form.displayName) return;
+    if (!form.email || !form.displayName) {
+      toast({ title: "Validation Error", description: "Name and Email are required.", variant: "destructive" });
+      return;
+    }
     setIsProcessing(true);
 
     try {
       const existingUser = users.find(u => u.email.toLowerCase() === form.email.toLowerCase());
       const targetId = editingUser?.id || existingUser?.id;
 
-      // Determine Primary Role based on branch assignments if needed
+      // Determine Primary Role based on branch assignments
       let primaryRole = form.role;
       if (form.managedBranches.some(b => b.role === 'bos_convenor')) {
          primaryRole = 'bos_convenor';
+      } else if (form.managedBranches.some(b => b.role === 'bos_member') && primaryRole !== 'dean_faculty' && primaryRole !== 'dean_academic' && primaryRole !== 'admin') {
+         primaryRole = 'bos_member';
       }
 
       if (targetId) {
@@ -115,21 +128,24 @@ export default function UserManagementPage() {
         });
         await deleteApp(tempApp);
       }
-      toast({ title: "Authorized", description: "Academic permissions and branch mappings updated." });
+      toast({ title: "Authorization Updated", description: `Permissions synced for ${form.displayName}.` });
       setIsDialogOpen(false);
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Error", description: e.message });
+      toast({ variant: "destructive", title: "Operation Failed", description: e.message });
     } finally {
       setIsProcessing(false);
     }
   };
 
-  if (usersLoading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary w-8 h-8" /></div>;
+  if (usersLoading || programsLoading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary w-8 h-8" /></div>;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-headline font-bold">Academic Staff Authorization</h1>
+        <div className="space-y-1">
+          <h1 className="text-3xl font-headline font-bold">Academic Staff Authorization</h1>
+          <p className="text-muted-foreground">Authorize university personnel and assign BoS jurisdictions across all branches.</p>
+        </div>
         <Button onClick={() => handleOpenDialog()} className="gap-2 shadow-lg"><UserPlus className="w-4 h-4" /> Register Staff</Button>
       </div>
 
@@ -139,36 +155,61 @@ export default function UserManagementPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="pl-6">Personnel</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Assignments</TableHead>
+                <TableHead>Primary Role</TableHead>
+                <TableHead>Jurisdictional Assignments</TableHead>
                 <TableHead className="text-right pr-6">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {academicStaff.map((u) => (
-                <TableRow key={u.id}>
-                  <TableCell className="pl-6 font-bold">
-                    {u.displayName}
-                    <p className="text-[10px] text-muted-foreground font-normal">{u.email}</p>
-                    {u.faculty && <Badge variant="outline" className="mt-1 text-[8px] bg-primary/5">{u.faculty}</Badge>}
-                  </TableCell>
-                  <TableCell><Badge variant="outline" className="uppercase text-[9px] font-bold">{u.role.replace('_', ' ')}</Badge></TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {u.managedBranches?.map((mb, idx) => (
-                        <Badge key={idx} variant="secondary" className="text-[8px] py-0">
-                          {programs.find(p => p.id === mb.programId)?.code || '??'} - {mb.branch} ({(mb.role||'').split('_')[1]})
+                <TableRow key={u.id} className="group">
+                  <TableCell className="pl-6 py-4">
+                    <div className="flex flex-col">
+                      <span className="font-bold text-sm">{u.displayName}</span>
+                      <span className="text-[10px] text-muted-foreground">{u.email}</span>
+                      {u.faculty && (
+                        <Badge variant="outline" className="mt-1.5 w-fit text-[8px] bg-primary/5 text-primary border-primary/20 font-bold px-1.5 py-0">
+                          {u.faculty}
                         </Badge>
-                      ))}
-                      {(!u.managedBranches || u.managedBranches.length === 0) && <span className="text-muted-foreground italic text-xs">No branches</span>}
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="secondary" className="uppercase text-[9px] font-black tracking-tight px-2 py-0.5">
+                      {u.role.replace('_', ' ')}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1.5 max-w-md">
+                      {u.managedBranches?.map((mb, idx) => {
+                        const prog = programs.find(p => p.id === mb.programId);
+                        return (
+                          <Badge key={idx} variant="outline" className="text-[8px] py-0 bg-muted/30 border-muted-foreground/20">
+                            <span className="font-black mr-1">{prog?.code || '??'}</span>
+                            {mb.branch} 
+                            <span className="ml-1 text-accent font-black">({(mb.role||'').split('_')[1] || 'member'})</span>
+                          </Badge>
+                        );
+                      })}
+                      {(!u.managedBranches || u.managedBranches.length === 0) && <span className="text-muted-foreground italic text-[10px]">No active branch assignments</span>}
                     </div>
                   </TableCell>
                   <TableCell className="text-right pr-6">
-                    <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(u)}><Edit3 className="w-4 h-4" /></Button>
-                    <Button variant="ghost" size="icon" className="text-red-400" onClick={() => deleteDoc(doc(db, 'users', u.id))}><Trash2 className="w-4 h-4" /></Button>
+                    <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDialog(u)}><Edit3 className="w-3.5 h-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => deleteDoc(doc(db, 'users', u.id))}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
+              {academicStaff.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-20 text-muted-foreground">
+                    <Users className="w-12 h-12 mx-auto mb-4 opacity-10" />
+                    <p>No authorized academic personnel found.</p>
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -177,32 +218,42 @@ export default function UserManagementPage() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Assign Academic Permissions</DialogTitle>
-            <DialogDescription>Authorize personnel and map them to their BoS jurisdictions.</DialogDescription>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-primary" />
+              Institutional Authorization
+            </DialogTitle>
+            <DialogDescription>Assign academic roles and map personnel to their respective Boards of Study.</DialogDescription>
           </DialogHeader>
           <div className="space-y-6 py-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label>Full Name</Label><Input value={form.displayName} onChange={e => setForm({...form, displayName: e.target.value})} /></div>
-              <div className="space-y-2"><Label>Institutional Email</Label><Input value={form.email} disabled={!!editingUser} onChange={e => setForm({...form, email: e.target.value})} /></div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase text-muted-foreground">Full Legal Name</Label>
+                <Input value={form.displayName} onChange={e => setForm({...form, displayName: e.target.value})} placeholder="Dr. Member Name" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase text-muted-foreground">Institutional Email</Label>
+                <Input value={form.email} disabled={!!editingUser} onChange={e => setForm({...form, email: e.target.value})} placeholder="member@rtu.ac.in" />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Primary Role</Label>
+                <Label className="text-xs font-bold uppercase text-muted-foreground">Primary Functional Role</Label>
                 <Select value={form.role} onValueChange={(v: any) => setForm({...form, role: v})}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="bos_convenor">BoS Convenor</SelectItem>
                     <SelectItem value="bos_member">BoS Member</SelectItem>
                     <SelectItem value="committee_convenor">Course Committee Convenor</SelectItem>
                     <SelectItem value="dean_faculty">Dean of Faculty</SelectItem>
                     <SelectItem value="dean_academic">Dean Academic</SelectItem>
+                    <SelectItem value="monitor">Academic Monitor</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Assigned Faculty / BOS</Label>
+                <Label className="text-xs font-bold uppercase text-muted-foreground">Assigned Faculty / Common BoS</Label>
                 <Select value={form.faculty} onValueChange={(v: any) => setForm({...form, faculty: v})}>
-                  <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectTrigger className="bg-white"><SelectValue placeholder="Select faculty assignment..." /></SelectTrigger>
                   <SelectContent>
                     {FACULTIES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
                   </SelectContent>
@@ -210,31 +261,36 @@ export default function UserManagementPage() {
               </div>
             </div>
 
-            <div className="space-y-4 border rounded-xl p-4 bg-muted/20">
-              <Label className="font-bold flex items-center gap-2 text-primary"><GraduationCap className="w-4 h-4" /> BoS Assignment Builder</Label>
+            <div className="space-y-4 border rounded-xl p-4 bg-muted/20 shadow-inner">
+              <Label className="font-bold flex items-center gap-2 text-primary">
+                <GraduationCap className="w-4 h-4" /> 
+                BoS Assignment Builder
+              </Label>
               <div className="grid grid-cols-12 gap-2 items-end">
                 <div className="col-span-5 space-y-1">
-                  <Label className="text-[10px] uppercase font-bold">Program</Label>
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">1. Select Program</Label>
                   <Select value={newAssignment.programId} onValueChange={v => setNewAssignment({...newAssignment, programId: v, branch: ''})}>
-                    <SelectTrigger className="h-9"><SelectValue placeholder="Select..." /></SelectTrigger>
+                    <SelectTrigger className="h-9 bg-white"><SelectValue placeholder="Select Program..." /></SelectTrigger>
                     <SelectContent>
                       {programs.map(p => <SelectItem key={p.id} value={p.id}>{p.code} - {p.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="col-span-4 space-y-1">
-                  <Label className="text-[10px] uppercase font-bold">Branch</Label>
-                  <Select value={newAssignment.branch} onValueChange={v => setNewAssignment({...newAssignment, branch: v})}>
-                    <SelectTrigger className="h-9"><SelectValue placeholder="..." /></SelectTrigger>
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">2. Select Branch</Label>
+                  <Select value={newAssignment.branch} onValueChange={v => setNewAssignment({...newAssignment, branch: v})} disabled={!newAssignment.programId}>
+                    <SelectTrigger className="h-9 bg-white"><SelectValue placeholder="Branch..." /></SelectTrigger>
                     <SelectContent>
-                      {programs.find(p => p.id === newAssignment.programId)?.branches.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                      {programs.find(p => p.id === newAssignment.programId)?.branches.map(b => (
+                        <SelectItem key={b} value={b}>{b}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="col-span-2 space-y-1">
-                  <Label className="text-[10px] uppercase font-bold">Role</Label>
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Role</Label>
                   <Select value={newAssignment.role} onValueChange={(v:any) => setNewAssignment({...newAssignment, role: v})}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-9 bg-white"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="bos_member">Member</SelectItem>
                       <SelectItem value="bos_convenor">Convenor</SelectItem>
@@ -242,21 +298,31 @@ export default function UserManagementPage() {
                   </Select>
                 </div>
                 <div className="col-span-1">
-                  <Button type="button" size="icon" className="h-9 w-9" onClick={handleAddAssignment} disabled={!newAssignment.branch}><Plus className="w-4 h-4" /></Button>
+                  <Button type="button" size="icon" className="h-9 w-9 shadow-sm" onClick={handleAddAssignment} disabled={!newAssignment.branch}>
+                    <Plus className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 min-h-[30px] pt-2">
                 {form.managedBranches.map((mb, idx) => (
-                  <Badge key={idx} className="bg-white text-foreground border-primary/20 gap-2 h-7">
-                    {programs.find(p => p.id === mb.programId)?.code} - {mb.branch} ({(mb.role||'').split('_')[1]})
-                    <X className="w-3 h-3 cursor-pointer text-red-400" onClick={() => handleRemoveAssignment(idx)} />
+                  <Badge key={idx} className="bg-white text-foreground border-primary/20 gap-2 h-7 px-2">
+                    <span className="font-bold">{programs.find(p => p.id === mb.programId)?.code}</span>
+                    {mb.branch} 
+                    <span className="text-accent font-black uppercase text-[8px]">({(mb.role||'').split('_')[1]})</span>
+                    <X className="w-3 h-3 cursor-pointer text-red-400 hover:text-red-600" onClick={() => handleRemoveAssignment(idx)} />
                   </Badge>
                 ))}
+                {form.managedBranches.length === 0 && (
+                  <div className="w-full text-center py-4 border border-dashed rounded-lg bg-white/50 text-[10px] text-muted-foreground italic">
+                    No jurisdictional assignments defined yet.
+                  </div>
+                )}
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button onClick={handleSaveUser} disabled={isProcessing}>
+          <DialogFooter className="bg-muted/10 p-6 -m-6 border-t mt-4">
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isProcessing}>Cancel</Button>
+            <Button onClick={handleSaveUser} disabled={isProcessing} className="shadow-lg px-8">
               {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
               Save Authorization
             </Button>

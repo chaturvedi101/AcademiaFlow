@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -13,8 +14,6 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Users, UserPlus, ShieldCheck, Loader2, Plus, X, GraduationCap, ShieldAlert } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
@@ -32,27 +31,27 @@ export default function TeamManagementPage() {
   const { data: allUsers, loading: usersLoading } = useCollection<UserProfile>(usersRef);
   
   const programsRef = useMemoFirebase(() => collection(db, 'programs'), [db]);
-  const { data: programs } = useCollection<Program>(programsRef);
+  const { data: programs, loading: programsLoading } = useCollection<Program>(programsRef);
 
-  // My branches where I am a Convenor - the basis of my jurisdiction
+  // Jurisdiction Resolution: Admin/Dean Academics see everything. BoS Convenors see their branches.
   const myConvenorBranches = useMemo(() => {
-    if (!profile) return [];
+    if (!profile || !programs.length) return [];
     if (profile.role === 'admin' || profile.role === 'dean_academic') {
-       return programs.flatMap(p => p.branches.map(b => ({ programId: p.id, branch: b })));
+       return programs.flatMap(p => p.branches.map(b => ({ programId: p.id, branch: b, programCode: p.code })));
     }
-    return profile.managedBranches?.filter(mb => mb.role === 'bos_convenor') || [];
+    return profile.managedBranches?.filter(mb => mb.role === 'bos_convenor').map(mb => ({
+      ...mb,
+      programCode: programs.find(p => p.id === mb.programId)?.code || '??'
+    })) || [];
   }, [profile, programs]);
 
   const teamMembers = useMemo(() => {
     if (!profile || !allUsers.length) return [];
     
     return allUsers.filter(u => {
-      // Admins see everyone in the BoS roles
       if (profile.role === 'admin' || profile.role === 'dean_academic') {
         return ['bos_member', 'bos_convenor'].includes(u.role);
       }
-      
-      // Convenors only see people who have at least one assignment in their jurisdiction
       return u.managedBranches?.some(mb => 
         myConvenorBranches.some(my => my.programId === mb.programId && my.branch === mb.branch)
       );
@@ -117,8 +116,6 @@ export default function TeamManagementPage() {
     
     if (existingUser) {
       const userRef = doc(db, 'users', existingUser.id);
-      
-      // Merge unique branches
       const currentBranches = existingUser.managedBranches || [];
       const newBranches = [...currentBranches];
 
@@ -127,19 +124,17 @@ export default function TeamManagementPage() {
         if (index === -1) {
           newBranches.push(pending);
         } else {
-          // Update role if different
           newBranches[index].role = pending.role;
         }
       });
       
       await updateDoc(userRef, { managedBranches: newBranches });
-      toast({ title: "Assignments Synced", description: `Updated branch access for ${registerForm.displayName}'s institutional ID.` });
+      toast({ title: "Assignments Synced", description: `Updated access for ${registerForm.displayName}.` });
       setIsRegistering(false);
       setIsRegisterDialogOpen(false);
       return;
     }
 
-    // CREATE new user
     let tempApp;
     try {
       const appName = `temp-member-${Date.now()}`;
@@ -154,14 +149,14 @@ export default function TeamManagementPage() {
       const userData = {
         displayName: registerForm.displayName,
         email: registerForm.email,
-        role: 'bos_member', // Initial primary role
+        role: 'bos_member',
         createdAt: serverTimestamp(),
         managedBranches: registerForm.managedBranches
       };
 
       await setDoc(userRef, userData);
       
-      toast({ title: "Member Registered", description: `${registerForm.displayName} added to your BoS team with ${registerForm.managedBranches.length} assignments.` });
+      toast({ title: "Member Registered", description: `${registerForm.displayName} added to the university BoS team.` });
       setIsRegisterDialogOpen(false);
       setRegisterForm({ email: '', displayName: '', managedBranches: [] });
     } catch (error: any) {
@@ -176,9 +171,10 @@ export default function TeamManagementPage() {
     const member = teamMembers.find(u => u.id === memberId);
     if (!member) return;
 
-    // Safety: Ensure the Convenor is only deleting their OWN jurisdictional assignment
     const isMyJurisdiction = myConvenorBranches.some(my => my.programId === programId && my.branch === branch);
-    if (!isMyJurisdiction && profile?.role !== 'admin' && profile?.role !== 'dean_academic') {
+    const isHighLevel = profile?.role === 'admin' || profile?.role === 'dean_academic';
+    
+    if (!isMyJurisdiction && !isHighLevel) {
       toast({ title: "Permission Denied", description: "You cannot delete assignments outside your BoS.", variant: "destructive" });
       return;
     }
@@ -187,18 +183,18 @@ export default function TeamManagementPage() {
     const memberRef = doc(db, 'users', memberId);
 
     updateDoc(memberRef, { managedBranches }).then(() => {
-      toast({ title: "Access Revoked", description: `Branch assignment removed.` });
+      toast({ title: "Access Revoked" });
     });
   };
 
-  if (usersLoading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary w-8 h-8" /></div>;
+  if (usersLoading || programsLoading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary w-8 h-8" /></div>;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-headline font-bold">BoS Faculty Management</h1>
-          <p className="text-muted-foreground">Manage your Board of Study team and synchronize jurisdictional access.</p>
+          <p className="text-muted-foreground">Manage authorized personnel for programs and branches within your institutional jurisdiction.</p>
         </div>
         <Button onClick={() => {
           setRegisterForm({ email: '', displayName: '', managedBranches: [] });
@@ -212,11 +208,10 @@ export default function TeamManagementPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="w-5 h-5 text-primary" />
-            My BoS Network
+            Active BoS Network
           </CardTitle>
           <CardDescription>
-            Faculty assigned to branches under your jurisdiction. 
-            Assignments for other Boards of Study are hidden for institutional privacy.
+            Faculty mapped to branches under your authority. Leadership maintains global oversight across all programs.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -224,17 +219,17 @@ export default function TeamManagementPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="pl-6">Personnel</TableHead>
-                <TableHead>Your Scoped Assignments</TableHead>
+                <TableHead>Scoped Jurisdictions</TableHead>
                 <TableHead className="text-right pr-6">Management</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {teamMembers.map((member) => (
-                <TableRow key={member.id}>
-                  <TableCell className="pl-6">
-                    <div className="space-y-1">
-                      <p className="font-bold">{member.displayName}</p>
-                      <p className="text-xs text-muted-foreground">{member.email}</p>
+                <TableRow key={member.id} className="group">
+                  <TableCell className="pl-6 py-4">
+                    <div className="space-y-0.5">
+                      <p className="font-bold text-sm">{member.displayName}</p>
+                      <p className="text-[10px] text-muted-foreground">{member.email}</p>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -244,15 +239,15 @@ export default function TeamManagementPage() {
                         const isMyJurisdiction = myConvenorBranches.some(my => my.programId === mb.programId && my.branch === mb.branch);
                         const isHighLevel = profile?.role === 'admin' || profile?.role === 'dean_academic';
 
-                        // SECURE FILTER: Only show assignments the convenor actually manages
                         if (!isMyJurisdiction && !isHighLevel) return null;
                         
                         return (
-                          <Badge key={idx} variant="outline" className="gap-2 py-1 bg-primary/5 border-primary/20">
-                            <span className="font-bold">{prog?.code || '??'}</span> - {mb.branch}
+                          <Badge key={idx} variant="outline" className="gap-2 py-1 bg-primary/5 border-primary/20 text-[9px]">
+                            <span className="font-black text-primary uppercase">{prog?.code || '??'}</span>
+                            {mb.branch}
                             <span className="text-[8px] font-black uppercase text-accent">({(mb.role || 'bos_member').split('_')[1] || 'member'})</span>
                             <X 
-                              className="w-3 h-3 text-red-400 cursor-pointer hover:text-red-600" 
+                              className="w-3 h-3 text-red-400 cursor-pointer hover:text-red-600 ml-1" 
                               onClick={() => handleRemoveAssignmentFromMember(member.id, mb.programId, mb.branch)} 
                             />
                           </Badge>
@@ -261,7 +256,7 @@ export default function TeamManagementPage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-right pr-6">
-                     <p className="text-[10px] text-muted-foreground italic">Jurisdiction Scoped</p>
+                     <p className="text-[10px] text-muted-foreground italic font-medium">Authorized Member</p>
                   </TableCell>
                 </TableRow>
               ))}
@@ -281,25 +276,28 @@ export default function TeamManagementPage() {
       <Dialog open={isRegisterDialogOpen} onOpenChange={setIsRegisterDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Assign Faculty Member</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="w-5 h-5 text-primary" />
+              Assign Faculty Member
+            </DialogTitle>
             <DialogDescription>
-              Identify the member by institutional email. You can only assign them to branches where you are an authorized Convenor.
+              Map an institutional user to a Board of Study. Leadership can assign across all programs.
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-6 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Institutional Email</Label>
+                <Label className="text-xs font-bold uppercase text-muted-foreground">Institutional Email</Label>
                 <Input type="email" placeholder="faculty@rtu.ac.in" value={registerForm.email} onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <Label>Full Name</Label>
+                <Label className="text-xs font-bold uppercase text-muted-foreground">Full Name</Label>
                 <Input placeholder="Member Name" value={registerForm.displayName} onChange={(e) => setRegisterForm({ ...registerForm, displayName: e.target.value })} />
               </div>
             </div>
 
-            <div className="space-y-4 border rounded-xl p-4 bg-muted/20">
+            <div className="space-y-4 border rounded-xl p-4 bg-muted/20 shadow-inner">
               <Label className="font-bold flex items-center gap-2 text-primary">
                 <GraduationCap className="w-4 h-4" /> 
                 BoS Assignment Builder
@@ -307,30 +305,27 @@ export default function TeamManagementPage() {
               
               <div className="grid grid-cols-12 gap-2 items-end">
                 <div className="col-span-8 space-y-1">
-                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Select Branch (Authorized Only)</Label>
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Select Branch Jurisidiction</Label>
                   <Select onValueChange={v => {
-                     const found = myConvenorBranches.find(b => b.branch === v);
-                     setNewAssignment({...newAssignment, programId: found?.programId || '', branch: v});
+                     const [pId, bName] = v.split('|');
+                     setNewAssignment({...newAssignment, programId: pId, branch: bName});
                   }}>
-                    <SelectTrigger className="h-10">
-                      <SelectValue placeholder="Select a branch..." />
+                    <SelectTrigger className="h-10 bg-white">
+                      <SelectValue placeholder="Select a program/branch..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {myConvenorBranches.map((mb, idx) => {
-                        const prog = programs.find(p => p.id === mb.programId);
-                        return (
-                          <SelectItem key={idx} value={mb.branch}>
-                            {prog?.code} - {mb.branch}
-                          </SelectItem>
-                        );
-                      })}
+                      {myConvenorBranches.map((mb, idx) => (
+                        <SelectItem key={idx} value={`${mb.programId}|${mb.branch}`}>
+                          {mb.programCode} - {mb.branch}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="col-span-3 space-y-1">
-                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">BoS Role</Label>
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Role</Label>
                   <Select value={newAssignment.role} onValueChange={(v: any) => setNewAssignment({...newAssignment, role: v})}>
-                    <SelectTrigger className="h-10">
+                    <SelectTrigger className="h-10 bg-white">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -340,7 +335,7 @@ export default function TeamManagementPage() {
                   </Select>
                 </div>
                 <div className="col-span-1">
-                  <Button type="button" size="icon" className="h-10 w-10" onClick={handleAddAssignment} disabled={!newAssignment.branch}>
+                  <Button type="button" size="icon" className="h-10 w-10 shadow-sm" onClick={handleAddAssignment} disabled={!newAssignment.branch}>
                     <Plus className="w-4 h-4" />
                   </Button>
                 </div>
@@ -348,21 +343,25 @@ export default function TeamManagementPage() {
 
               <div className="flex flex-wrap gap-2 mt-4 min-h-[40px]">
                 {registerForm.managedBranches.map((mb, idx) => (
-                  <Badge key={idx} className="h-8 gap-2 bg-white text-foreground border-primary/20">
-                    {programs.find(p => p.id === mb.programId)?.code} - {mb.branch} ({(mb.role || 'bos_member').split('_')[1] || 'member'})
+                  <Badge key={idx} className="h-8 gap-2 bg-white text-foreground border-primary/20 shadow-sm px-3">
+                    <span className="font-black text-primary uppercase">{programs.find(p => p.id === mb.programId)?.code}</span>
+                    {mb.branch} 
+                    <span className="text-[8px] font-black uppercase text-accent">({(mb.role || 'bos_member').split('_')[1] || 'member'})</span>
                     <X className="w-3.5 h-3.5 cursor-pointer text-red-400 hover:text-red-600" onClick={() => handleRemoveAssignmentFromForm(idx)} />
                   </Badge>
                 ))}
                 {registerForm.managedBranches.length === 0 && (
-                  <p className="text-[10px] text-muted-foreground italic w-full text-center py-2">No branches added yet.</p>
+                  <div className="w-full text-center py-4 border border-dashed rounded-lg bg-white/50 text-[10px] text-muted-foreground italic">
+                    Identify jurisdictional assignments to sync access.
+                  </div>
                 )}
               </div>
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="bg-muted/10 p-6 -m-6 border-t mt-4">
             <Button variant="outline" onClick={() => setIsRegisterDialogOpen(false)} disabled={isRegistering}>Cancel</Button>
-            <Button onClick={handleRegisterMember} disabled={isRegistering || registerForm.managedBranches.length === 0}>
+            <Button onClick={handleRegisterMember} disabled={isRegistering || registerForm.managedBranches.length === 0} className="shadow-lg px-6">
               {isRegistering ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
               Sync Scoped Access
             </Button>
