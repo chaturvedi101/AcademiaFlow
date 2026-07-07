@@ -27,29 +27,29 @@ export default function DashboardPage() {
       return schemes;
     }
 
-    // Committee Convenors see their specialized pools
+    // Committee Convenors see their specialized pools matching their faculty
     if (profile.role === 'committee_convenor') {
       return schemes.filter(s => s.isCommitteePool && s.branch === profile.faculty);
     }
 
-    // Common BOS members see their specific program vertical pools + all branch schemes in their program
+    // Common BOS members see program-wide pools (BTECH/BBA) + all branch schemes in their program
     if (profile.faculty?.includes('(Common BOS)')) {
-      const isBTECHBOS = profile.faculty === 'BTECH (Common BOS)';
-      const isBBABOS = profile.faculty === 'BBA (Common BOS)';
+      const isBTECHBOS = profile.faculty.includes('BTECH');
+      const isBBABOS = profile.faculty.includes('BBA');
 
       return schemes.filter(s => {
-        // Handle Pool Identification
+        // Handle Pool Identification via Branch Name matching
         if (s.programId === 'INSTITUTIONAL') {
-          if (isBTECHBOS) return s.branch === 'BTECH (Common BOS) Pool';
-          if (isBBABOS) return s.branch === 'BBA (Common BOS) Pool';
+          if (isBTECHBOS) return s.branch?.includes('BTECH');
+          if (isBBABOS) return s.branch?.includes('BBA');
           return false;
         }
 
-        // Handle Branch Scheme Identification
+        // Handle Branch Scheme Identification via Program Faculty
         const prog = programs.find(p => p.id === s.programId);
         if (!prog) return false;
 
-        if (isBTECHBOS) return prog.faculty.includes('BTECH');
+        if (isBTECHBOS) return prog.faculty.includes('BTECH') || prog.name.includes('BTECH');
         if (isBBABOS) return prog.faculty.includes('Management') || prog.name.includes('BBA');
         
         return false;
@@ -66,17 +66,26 @@ export default function DashboardPage() {
 
     // Branch Convenors see their assigned branches + matching vertical pool
     const managed = profile.managedBranches || [];
+    const hasBTECHManagement = managed.some(m => {
+      const p = programs.find(prog => prog.id === m.programId);
+      return p?.name.includes('BTECH') || p?.faculty.includes('BTECH');
+    });
+
     const isManagementVertical = managed.some(m => {
       const p = programs.find(prog => prog.id === m.programId);
       return p?.faculty.includes('Management') || p?.name.includes('BBA');
     });
 
-    const targetPoolName = isManagementVertical ? 'BBA (Common BOS) Pool' : 'BTECH (Common BOS) Pool';
-
-    return schemes.filter(s => 
-      (s.isVerticalPool && s.branch === targetPoolName) || 
-      managed.some(m => m.programId === s.programId && m.branch === s.branch)
-    );
+    return schemes.filter(s => {
+      // Show matching vertical pools
+      if (s.isVerticalPool) {
+        if (hasBTECHManagement && s.branch?.includes('BTECH')) return true;
+        if (isManagementVertical && s.branch?.includes('BBA')) return true;
+      }
+      
+      // Show assigned branch schemes
+      return managed.some(m => m.programId === s.programId && m.branch === s.branch);
+    });
   }, [schemes, profile, programs]);
 
   const stats = useMemo(() => {
@@ -117,7 +126,7 @@ export default function DashboardPage() {
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle className="font-headline">Recent Academic Activity</CardTitle>
-              <CardDescription>Monitor changes in your assigned faculties or branches.</CardDescription>
+              <CardDescription>Monitor changes in your assigned faculties or pools.</CardDescription>
             </div>
             <Button variant="outline" size="sm" asChild><Link href="/dashboard/schemes">View All</Link></Button>
           </CardHeader>

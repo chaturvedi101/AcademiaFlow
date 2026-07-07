@@ -83,7 +83,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           } as Syllabus));
           
           combinedParents = [...combinedParents.filter(c => c.parentSchemeId !== ps.id), ...fetched];
-          setAllParentSyllabi([...combinedParents]); // Ensure new array reference for trigger
+          setAllParentSyllabi([...combinedParents]); 
           
           schemasProcessed++;
           if (schemasProcessed >= parentSchemes.length) setParentsLoading(false);
