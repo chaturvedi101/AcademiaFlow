@@ -143,7 +143,10 @@ export default function SchemesPage() {
                updatedAt: serverTimestamp(),
                units: [
                  { id: 'u1', title: 'Introduction', content: 'Detailed topics for unit 1', hours: 8, courseOutcome: 'Outcome for unit 1' },
-                 { id: 'u2', title: 'Intermediate Concepts', content: 'Detailed topics for unit 2', hours: 10, courseOutcome: 'Outcome for unit 2' }
+                 { id: 'u2', title: 'Intermediate Concepts', content: 'Detailed topics for unit 2', hours: 10, courseOutcome: 'Outcome for unit 2' },
+                 { id: 'u3', title: 'Advanced Theory', content: 'Detailed topics for unit 3', hours: 10, courseOutcome: 'Outcome for unit 3' },
+                 { id: 'u4', title: 'Implementation', content: 'Detailed topics for unit 4', hours: 10, courseOutcome: 'Outcome for unit 4' },
+                 { id: 'u5', title: 'Conclusion', content: 'Detailed topics for unit 5', hours: 8, courseOutcome: 'Outcome for unit 5' }
                ]
              });
            });

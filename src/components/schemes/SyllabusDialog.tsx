@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   BookOpen, Loader2, Plus, ChevronDown, ChevronUp, Trash2, CheckCircle2, 
-  Sparkles, FlaskConical
+  Sparkles, FlaskConical, AlertTriangle, ShieldCheck
 } from "lucide-react";
 import { Syllabus, UserProfile, CreditCategory, SubjectType, Scheme, Program } from "@/lib/types";
 import { useFirestore } from "@/firebase";
@@ -73,6 +73,12 @@ export function SyllabusDialog({
     }
   }, [open, syllabus]);
 
+  const unitCount = formData.units?.length || 0;
+  const isLab = formData.type === 'Lab/Sessional';
+  const minRequired = isLab ? 8 : 5;
+  const isCountValid = unitCount >= minRequired;
+  const unitLabel = isLab ? 'Experiment' : 'Unit';
+
   // AUTOMATED COURSE CODE LOGIC (Strict Rule: [Branch][Pedagogy][Pillar][Year][Sequence])
   useEffect(() => {
     if (!open || !program || !scheme || formData.followedFromId) return;
@@ -96,13 +102,12 @@ export function SyllabusDialog({
     const pillarChar = getPillarChar(formData.creditCategory || 'DSC');
     const yearDigit = Math.ceil((formData.semester || 1) / 2);
     
-    // Pattern without sequence
     const patternBase = `${branchCode}${pedagogyChar}${pillarChar}${yearDigit}`;
     
     if (!formData.subjectCode?.startsWith(patternBase)) {
       setFormData(prev => ({ 
         ...prev, 
-        subjectCode: `${patternBase}01` // Default sequence for new courses
+        subjectCode: `${patternBase}01` 
       }));
     }
   }, [formData.type, formData.creditCategory, formData.semester, program, scheme, open]);
@@ -151,9 +156,6 @@ export function SyllabusDialog({
   const isLinked = !!formData.followedFromId;
   const isFormDisabled = (isLinked && !isSuperuser) || !canEdit;
 
-  const isLab = formData.type === 'Lab/Sessional';
-  const unitLabel = isLab ? 'Experiment' : 'Unit';
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] lg:max-w-6xl h-[95vh] flex flex-col p-0 overflow-hidden border-none shadow-2xl">
@@ -171,7 +173,7 @@ export function SyllabusDialog({
             </div>
           </DialogTitle>
           <DialogDescription>
-            Subject codes are strictly auto-generated: [Branch][Pedagogy][Pillar][Year][Seq].
+            Strict Institutional Rules: <b>{isLab ? 'Practical (8+ Exp)' : 'Theory (5+ Units)'}</b>. Codes are auto-generated.
           </DialogDescription>
         </DialogHeader>
 
@@ -180,7 +182,7 @@ export function SyllabusDialog({
             {isLinked && (
               <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between shadow-sm">
                 <div className="flex items-center gap-3 text-emerald-800 text-sm">
-                  <CheckCircle2 className="w-5 h-5" />
+                  <ShieldCheck className="w-5 h-5" />
                   <p>Standardized content inherited from the <b>Institutional Pool</b>.</p>
                 </div>
                 <Button variant="ghost" size="sm" className="text-emerald-700 hover:bg-emerald-100" onClick={() => setFormData({...formData, followedFromId: '', parentSchemeId: ''})}>
@@ -192,7 +194,12 @@ export function SyllabusDialog({
             <Tabs defaultValue="basic">
               <TabsList className="grid w-full grid-cols-4 mb-8">
                 <TabsTrigger value="basic">Identity</TabsTrigger>
-                <TabsTrigger value="syllabus">Content</TabsTrigger>
+                <TabsTrigger value="syllabus" className="gap-2">
+                  Content 
+                  <Badge variant={isCountValid ? "outline" : "destructive"} className="text-[10px] px-1.5 h-4 min-w-4 flex items-center justify-center">
+                    {unitCount}
+                  </Badge>
+                </TabsTrigger>
                 <TabsTrigger value="resources">Resources</TabsTrigger>
                 <TabsTrigger value="mapping">Outcomes</TabsTrigger>
               </TabsList>
@@ -258,6 +265,12 @@ export function SyllabusDialog({
               </TabsContent>
 
               <TabsContent value="syllabus" className="space-y-6">
+                 {!isCountValid && (
+                   <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-amber-800 text-sm mb-4">
+                     <AlertTriangle className="w-5 h-5 shrink-0" />
+                     <p><b>Institutional Warning:</b> {formData.type} courses require at least <b>{minRequired}</b> {unitLabel}s. Current: {unitCount}.</p>
+                   </div>
+                 )}
                  {formData.units?.map((u, i) => (
                    <Card key={u.id} className="border-muted overflow-hidden shadow-sm">
                      <CardHeader 
@@ -317,7 +330,13 @@ export function SyllabusDialog({
         
         <DialogFooter className="p-6 border-t bg-background shrink-0 shadow-lg">
            <Button variant="outline" onClick={() => onOpenChange(false)} className="h-11 px-6">Cancel</Button>
-           <Button onClick={() => { onSave(formData); onOpenChange(false); }} className="h-11 px-8 shadow-md">Save Subject Specification</Button>
+           <Button 
+            disabled={!isCountValid && !isLinked} 
+            onClick={() => { onSave(formData); onOpenChange(false); }} 
+            className="h-11 px-8 shadow-md"
+           >
+             Save Subject Specification
+           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

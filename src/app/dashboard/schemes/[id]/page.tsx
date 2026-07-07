@@ -236,7 +236,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       );
 
       const sequenceMap: Record<string, number> = {};
-      const updatedSyllabi: Partial<Syllabus>[] = [];
 
       // 2. Generate and validate codes for all local syllabi
       for (const sub of localSyllabi) {
