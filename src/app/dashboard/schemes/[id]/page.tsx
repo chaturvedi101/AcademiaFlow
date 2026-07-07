@@ -41,14 +41,14 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [isSubmissionDialogOpen, setIsSubmissionDialogOpen] = useState(false);
   const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
 
-  // ROBUST AUTOMATED VERTICAL INHERITANCE ENGINE
+  // ROBUST AUTOMATED VERTICAL INHERITANCE ENGINE (BTECH/BBA/etc.)
   useEffect(() => {
     if (!scheme) return;
     setPoolLoading(true);
 
     // Extraction: Get normalized vertical key (e.g. BTECH)
     const progId = scheme.programId || '';
-    const verticalKey = progId.split(/[-.]/)[0].toUpperCase();
+    const verticalKey = progId.split(/[-.]/)[0].toUpperCase().replace(/[^A-Z]/g, '');
 
     // Standardize mapping for discovery
     if (verticalKey === 'INSTITUTIONAL') {
