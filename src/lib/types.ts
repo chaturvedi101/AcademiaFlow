@@ -1,4 +1,3 @@
-
 export type UserRole = 'bos_convenor' | 'bos_member' | 'dean_faculty' | 'dean_academic' | 'admin' | 'monitor' | 'committee_convenor';
 
 export const FACULTIES = [
@@ -168,6 +167,7 @@ export interface Syllabus {
   timetableSlot?: string; // e.g. "1", "2" for Theory or "A", "B" for Practical
   isStandardized?: boolean;
   standardizedFrom?: string;
+  isInherited?: boolean;
 }
 
 export interface AuditLog {
