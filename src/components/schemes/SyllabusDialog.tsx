@@ -165,6 +165,26 @@ export function SyllabusDialog({
   // INSTITUTIONAL LOCK: Once a course is saved (has ID), its category cannot be changed to preserve sequence integrity
   const isCategoryLocked = isFormDisabled || !!syllabus?.id;
 
+  const calculateCredits = (l: number, t: number, p: number) => {
+    let total = l + t;
+    if (p === 1) total += 0.5;
+    else if (p === 2) total += 1;
+    else if (p === 3) total += 2;
+    else if (p === 4) total += 2;
+    else if (p > 4) total += p / 2;
+    return Number(total.toFixed(2));
+  };
+
+  const handleLTPChange = (updates: Partial<{ lectureCredits: number, tutorialCredits: number, practicalCredits: number }>) => {
+    const newData = { ...formData, ...updates };
+    const credits = calculateCredits(
+      newData.lectureCredits || 0,
+      newData.tutorialCredits || 0,
+      newData.practicalCredits || 0
+    );
+    setFormData({ ...newData, credits });
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] lg:max-w-6xl h-[95vh] flex flex-col p-0 overflow-hidden border-none shadow-2xl">
@@ -244,7 +264,13 @@ export function SyllabusDialog({
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Pedagogy</Label>
-                    <Select disabled={isFormDisabled} value={formData.type || 'Theory'} onValueChange={(v: any) => setFormData({...formData, type: v, units: []})}>
+                    <Select disabled={isFormDisabled} value={formData.type || 'Theory'} onValueChange={(v: any) => {
+                      const l = v === 'Lab/Sessional' ? 0 : formData.lectureCredits;
+                      const t = v === 'Lab/Sessional' ? 0 : formData.tutorialCredits;
+                      const p = v === 'Theory' ? 0 : formData.practicalCredits;
+                      const credits = calculateCredits(l || 0, t || 0, p || 0);
+                      setFormData({...formData, type: v, units: [], lectureCredits: l, tutorialCredits: t, practicalCredits: p, credits });
+                    }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Theory">Theory (L-T)</SelectItem>
@@ -264,16 +290,16 @@ export function SyllabusDialog({
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white border rounded-xl shadow-inner">
                   <div className="space-y-1">
-                    <Label className="text-[10px] uppercase font-bold">L (Lecture)</Label>
-                    <Input type="number" disabled={isFormDisabled} value={formData.lectureCredits || 0} onChange={e => setFormData({...formData, lectureCredits: Number(e.target.value)})} />
+                    <Label className={cn("text-[10px] uppercase font-bold", isLab && "text-muted-foreground opacity-50")}>L (Lecture)</Label>
+                    <Input type="number" disabled={isFormDisabled || isLab} value={formData.lectureCredits || 0} onChange={e => handleLTPChange({ lectureCredits: Number(e.target.value) })} />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[10px] uppercase font-bold">T (Tutorial)</Label>
-                    <Input type="number" disabled={isFormDisabled} value={formData.tutorialCredits || 0} onChange={e => setFormData({...formData, tutorialCredits: Number(e.target.value)})} />
+                    <Label className={cn("text-[10px] uppercase font-bold", isLab && "text-muted-foreground opacity-50")}>T (Tutorial)</Label>
+                    <Input type="number" disabled={isFormDisabled || isLab} value={formData.tutorialCredits || 0} onChange={e => handleLTPChange({ tutorialCredits: Number(e.target.value) })} />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[10px] uppercase font-bold">P (Practical Hours)</Label>
-                    <Input type="number" disabled={isFormDisabled} value={formData.practicalCredits || 0} onChange={e => setFormData({...formData, practicalCredits: Number(e.target.value)})} />
+                    <Label className={cn("text-[10px] uppercase font-bold", !isLab && "text-muted-foreground opacity-50")}>P (Practical Hours)</Label>
+                    <Input type="number" disabled={isFormDisabled || !isLab} value={formData.practicalCredits || 0} onChange={e => handleLTPChange({ practicalCredits: Number(e.target.value) })} />
                   </div>
                 </div>
               </TabsContent>

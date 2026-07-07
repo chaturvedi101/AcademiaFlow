@@ -133,7 +133,6 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
     }
   };
 
-  // AUTOMATED MASTER CODE RULE (RT for Common categories)
   const generateTemplateCode = (slot: Partial<ProgramSlotTemplate>) => {
     const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(slot.creditCategory || '');
     const prefix = isCommonCategory ? 'RT' : 'XX';
@@ -484,85 +483,78 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                         <div className="space-y-6">
                           {slots.map(slot => {
                             const isCoreSlot = slot.creditCategory === 'DSC' || slot.creditCategory === 'PRJ' || slot.creditCategory === 'SEC';
+                            const isLab = slot.type === 'Lab/Sessional';
                             return (
-                              <div key={slot.id} className="grid grid-cols-12 gap-3 items-end border-b border-border/50 pb-6 last:border-0 last:pb-0 group">
+                              <div key={slot.id} className="grid grid-cols-12 gap-2 items-end border-b border-border/50 pb-6 last:border-0 last:pb-0 group">
                                 <div className="col-span-2 space-y-1">
                                   <Label className="text-[10px] uppercase font-bold text-muted-foreground">Pool Category</Label>
                                   <Select disabled={isReadOnly} value={slot.creditCategory} onValueChange={(v: CreditCategory) => updateTemplateSlot(slot.id, { creditCategory: v })}>
-                                    <SelectTrigger className="h-10 bg-white"><SelectValue /></SelectTrigger>
+                                    <SelectTrigger className="h-9 bg-white"><SelectValue /></SelectTrigger>
                                     <SelectContent>{visibleCategories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}</SelectContent>
                                   </Select>
                                 </div>
-                                <div className="col-span-2 space-y-1">
-                                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Methodology</Label>
+                                <div className="col-span-1.5 space-y-1">
+                                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Type</Label>
                                   <Select disabled={isReadOnly} value={slot.type} onValueChange={(v: SubjectType) => updateTemplateSlot(slot.id, { 
                                     type: v,
                                     practicalCredits: v === 'Theory' ? 0 : slot.practicalCredits,
                                     lectureCredits: v === 'Lab/Sessional' ? 0 : slot.lectureCredits,
                                     tutorialCredits: v === 'Lab/Sessional' ? 0 : slot.tutorialCredits
                                   })}>
-                                    <SelectTrigger className="h-10 bg-white"><SelectValue /></SelectTrigger>
+                                    <SelectTrigger className="h-9 bg-white"><SelectValue /></SelectTrigger>
                                     <SelectContent>
-                                      <SelectItem value="Theory">Theory (L-T)</SelectItem>
-                                      <SelectItem value="Lab/Sessional">Lab (P)</SelectItem>
+                                      <SelectItem value="Theory">T</SelectItem>
+                                      <SelectItem value="Lab/Sessional">P</SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </div>
 
-                                {slot.type === 'Theory' ? (
-                                  <>
-                                    <div className="col-span-1 space-y-1">
-                                      <Label className="text-[10px] uppercase font-bold">L</Label>
-                                      <Input disabled={isReadOnly} type="number" value={slot.lectureCredits} onChange={e => updateTemplateSlot(slot.id, { lectureCredits: Number(e.target.value) })} className="h-10 text-center bg-white" />
-                                    </div>
-                                    <div className="col-span-1 space-y-1">
-                                      <Label className="text-[10px] uppercase font-bold">T</Label>
-                                      <Input disabled={isReadOnly} type="number" value={slot.tutorialCredits} onChange={e => updateTemplateSlot(slot.id, { tutorialCredits: Number(e.target.value) })} className="h-10 text-center bg-white" />
-                                    </div>
-                                  </>
-                                ) : (
-                                  <div className="col-span-2 space-y-1">
-                                    <Label className="text-[10px] uppercase font-bold">P (Lab Hours)</Label>
-                                    <Input disabled={isReadOnly} type="number" value={slot.practicalCredits} onChange={e => updateTemplateSlot(slot.id, { practicalCredits: Number(e.target.value) })} className="h-10 text-center bg-white" />
-                                  </div>
-                                )}
-
                                 <div className="col-span-1 space-y-1">
+                                  <Label className={cn("text-[10px] uppercase font-bold", isLab && "opacity-30")}>L</Label>
+                                  <Input disabled={isReadOnly || isLab} type="number" value={slot.lectureCredits} onChange={e => updateTemplateSlot(slot.id, { lectureCredits: Number(e.target.value) })} className="h-9 text-center bg-white" />
+                                </div>
+                                <div className="col-span-1 space-y-1">
+                                  <Label className={cn("text-[10px] uppercase font-bold", isLab && "opacity-30")}>T</Label>
+                                  <Input disabled={isReadOnly || isLab} type="number" value={slot.tutorialCredits} onChange={e => updateTemplateSlot(slot.id, { tutorialCredits: Number(e.target.value) })} className="h-9 text-center bg-white" />
+                                </div>
+                                <div className="col-span-1 space-y-1">
+                                  <Label className={cn("text-[10px] uppercase font-bold", !isLab && "opacity-30")}>P</Label>
+                                  <Input disabled={isReadOnly || !isLab} type="number" value={slot.practicalCredits} onChange={e => updateTemplateSlot(slot.id, { practicalCredits: Number(e.target.value) })} className="h-9 text-center bg-white" />
+                                </div>
+
+                                <div className="col-span-0.5 space-y-1">
                                   <Label className="text-[10px] uppercase font-bold">Cr</Label>
-                                  <div className="h-10 flex items-center justify-center bg-primary/5 rounded-lg border border-primary/20 text-xs font-black text-primary">
+                                  <div className="h-9 flex items-center justify-center bg-primary/5 rounded border border-primary/20 text-[10px] font-black text-primary">
                                     {slot.credits}
                                   </div>
                                 </div>
                                 
                                 <div className="col-span-1 space-y-1">
                                   <Label className="text-[10px] uppercase font-bold">Code</Label>
-                                  <div className="h-10 flex items-center justify-center bg-muted/50 rounded-lg border font-mono text-[9px] font-bold text-primary uppercase px-2 shadow-inner">
+                                  <div className="h-9 flex items-center justify-center bg-muted/50 rounded border font-mono text-[8px] font-bold text-primary uppercase px-1">
                                     {slot.subjectCode || '??'}
                                   </div>
                                 </div>
 
-                                <div className="col-span-2 space-y-1">
-                                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">
-                                    {isCoreSlot ? 'Core Identity' : 'Elective Group'}
-                                  </Label>
+                                <div className="col-span-1.5 space-y-1">
+                                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Group</Label>
                                   <Input 
                                     disabled={isReadOnly || isCoreSlot} 
-                                    placeholder={isCoreSlot ? "" : "e.g. Elective-I"} 
-                                    value={isCoreSlot ? "CORE SUBJECT" : (slot.electiveGroupId || '')} 
+                                    value={isCoreSlot ? "CORE" : (slot.electiveGroupId || '')} 
                                     onChange={e => updateTemplateSlot(slot.id, { electiveGroupId: e.target.value })} 
-                                    className={cn("h-10 bg-white", isCoreSlot && "bg-muted/50 font-medium")} 
+                                    className={cn("h-9 bg-white text-xs", isCoreSlot && "bg-muted/50 font-medium")} 
                                   />
                                 </div>
 
-                                <div className="col-span-2 space-y-1">
-                                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Descriptive Title</Label>
-                                  <Input disabled={isReadOnly} value={slot.title || ''} onChange={e => updateTemplateSlot(slot.id, { title: e.target.value })} className="h-10 bg-white" placeholder="e.g. Core Course III" />
+                                <div className="col-span-1.5 space-y-1">
+                                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Title</Label>
+                                  <Input disabled={isReadOnly} value={slot.title || ''} onChange={e => updateTemplateSlot(slot.id, { title: e.target.value })} className="h-9 bg-white text-xs" placeholder="Course III" />
                                 </div>
 
                                 {!isReadOnly && (
-                                  <div className="col-span-1 pb-0.5">
-                                    <Button variant="ghost" size="icon" className="h-10 w-10 text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors" onClick={() => removeTemplateSlot(slot.id)}>
-                                      <Trash2 className="w-4 h-4" />
+                                  <div className="col-span-0.5 pb-0.5">
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-600" onClick={() => removeTemplateSlot(slot.id)}>
+                                      <Trash2 className="w-3.5 h-3.5" />
                                     </Button>
                                   </div>
                                 )}
