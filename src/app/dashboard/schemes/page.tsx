@@ -65,8 +65,8 @@ export default function SchemesPage() {
     return schemes.filter(s => {
       if (isCommitteeConvenor && s.isCommitteePool && s.branch === profile.faculty) return true;
       if (isCommonBos) {
-        if (profile.faculty === 'BTECH (Common BOS)') return s.branch === 'BTECH (Common BOS) Pool' || programs.find(p => p.id === s.programId)?.faculty.includes('Engineering');
-        if (profile.faculty === 'BBA (Common BOS)') return s.branch === 'BBA (Common BOS) Pool' || programs.find(p => p.id === s.programId)?.faculty.includes('Management');
+        if (profile.faculty === 'BTECH (Common BOS)') return s.branch === 'BTECH (Common BOS) Pool' || programs.find(p => p.id === s.programId)?.faculty.includes('BTECH');
+        if (profile.faculty === 'BBA (Common BOS)') return s.branch === 'BBA (Common BOS) Pool' || programs.find(p => p.id === s.programId)?.faculty.includes('BBA');
       }
       return profile.managedBranches?.some(mb => mb.programId === s.programId && mb.branch === s.branch);
     });
@@ -93,7 +93,6 @@ export default function SchemesPage() {
         if (newScheme.poolType === 'Vertical') {
           const verticalLabel = newScheme.poolVertical;
           branchName = `${verticalLabel} (Common BOS) Pool`;
-          // Use normalized BTECH prefix for automated discovery
           const prefix = verticalLabel.toUpperCase().replace(/[^A-Z]/g, '');
           generatedCode = `${prefix}-POOL-${newScheme.batchYear}`;
         } else {
@@ -119,7 +118,6 @@ export default function SchemesPage() {
           isCommitteePool: isCommittee
         });
 
-        // SEED STANDARD INSTITUTIONAL SUBJECTS
         if (newScheme.poolType === 'Vertical' && newScheme.poolVertical === 'BTECH') {
            const standardSlots = [
              { code: 'AEC101', title: 'Technical Communication', cat: 'AEC', sem: 1, credits: 2, type: 'Theory', l: 2, t: 0, p: 0 },

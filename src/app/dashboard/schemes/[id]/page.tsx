@@ -41,7 +41,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [isSubmissionDialogOpen, setIsSubmissionDialogOpen] = useState(false);
   const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
 
-  // ROBUST AUTOMATED VERTICAL INHERITANCE ENGINE (BTECH/BBA/etc.)
+  // ROBUST AUTOMATED VERTICAL INHERITANCE ENGINE
   useEffect(() => {
     if (!scheme) return;
     setPoolLoading(true);
@@ -50,8 +50,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const progId = scheme.programId || '';
     const verticalKey = progId.split(/[-.]/)[0].toUpperCase().replace(/[^A-Z]/g, '');
 
-    // Standardize mapping for discovery
-    if (verticalKey === 'INSTITUTIONAL') {
+    if (verticalKey === 'INSTITUTIONAL' || scheme.isVerticalPool || scheme.isCommitteePool) {
       setPoolSyllabi([]);
       setPoolLoading(false);
       return;
@@ -69,10 +68,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       unsubSyllabi.forEach(u => u());
       unsubSyllabi = [];
 
-      // Unified discovery: Search for pool matching the vertical prefix
+      // Improved discovery: Search for pool matching the vertical prefix (e.g. BTECH)
       const poolDoc = snap.docs.find(d => {
         const normalizedId = d.id.replace(/[^a-zA-Z]/g, '').toUpperCase();
-        return normalizedId.includes(verticalKey);
+        const normalizedBranch = (d.data().branch || '').replace(/[^a-zA-Z]/g, '').toUpperCase();
+        return normalizedId.includes(verticalKey) || normalizedBranch.includes(verticalKey);
       });
       
       if (!poolDoc) {

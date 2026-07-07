@@ -101,9 +101,9 @@ export function SyllabusDialog({
 
   // DISCOVERY: Fetch syllabi from selected pool
   useEffect(() => {
-    // AUTO-SELECTION FOR BTECH VERTICAL: If this is an engineering scheme, pre-select the BTECH Pool
+    // AUTO-SELECTION FOR BTECH VERTICAL
     if (!selectedPoolId && poolSchemes.length > 0) {
-      const btechPool = poolSchemes.find(p => p.id.startsWith('BTECH-POOL'));
+      const btechPool = poolSchemes.find(p => p.id.toUpperCase().includes('BTECH-POOL'));
       if (btechPool) {
         setSelectedPoolId(btechPool.id);
       }
@@ -182,7 +182,6 @@ export function SyllabusDialog({
   };
 
   const isAuthorized = isSuperuser || isCommitteeConvenor || canEdit;
-  // If linked to a parent, most fields become read-only to ensure standardization
   const isLinked = !!formData.followedFromId;
   const isFormDisabled = (isLinked && !isSuperuser) || !isAuthorized;
 
@@ -214,7 +213,6 @@ export function SyllabusDialog({
 
         <ScrollArea className="flex-1 w-full min-h-0 bg-muted/5">
           <div className="p-6 space-y-8">
-            {/* INSTITUTIONAL PULLING MODULE */}
             {!isLinked && !isCommitteeConvenor && (
               <Card className="border-accent/20 bg-accent/5 shadow-sm">
                 <CardHeader className="pb-3">
