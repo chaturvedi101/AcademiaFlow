@@ -22,7 +22,7 @@ export default function DashboardPage() {
   const filteredSchemes = useMemo(() => {
     if (!profile || !programs.length) return [];
     
-    // 1. Global Administrative Oversight
+    // 1. Global Administrative Oversight (Admins, Dean Academic, and Monitors)
     if (profile.role === 'admin' || profile.role === 'dean_academic' || profile.role === 'monitor') {
       return schemes;
     }
@@ -39,7 +39,7 @@ export default function DashboardPage() {
     // 3. Deans & Common BOS Purview Resolution
     if (profile.role === 'dean_faculty' || isCommonTier) {
       return schemes.filter(s => {
-        // Pool Visibility: Show pools matching the Dean's tier
+        // Pool Visibility: Show pools matching the Dean's tier (e.g. BTECH Dean seeing BTECH Pools)
         if (s.programId === 'INSTITUTIONAL') {
           if (isBTECHTier && (s.branch?.includes('BTECH') || s.isVerticalPool)) return true;
           if (isBBATier && (s.branch?.includes('BBA') || s.isVerticalPool)) return true;
@@ -63,21 +63,10 @@ export default function DashboardPage() {
 
     // 4. Branch Personnel (Convenors & Members) purview
     const managed = profile.managedBranches || [];
-    const managesBTECH = managed.some(m => {
-      const p = programs.find(prog => prog.id === m.programId);
-      return p?.name.includes('BTECH') || p?.faculty.includes('BTECH');
-    });
-
-    const managesBBA = managed.some(m => {
-      const p = programs.find(prog => prog.id === m.programId);
-      return p?.faculty.includes('Management') || p?.name.includes('BBA');
-    });
-
     return schemes.filter(s => {
-      // Show matching vertical pools for their tier
+      // Show matching vertical pools for their tier to allow inheritance lookup
       if (s.isVerticalPool || s.isCommitteePool) {
-        if (managesBTECH && (s.branch?.includes('BTECH') || s.branch?.includes('Committee'))) return true;
-        if (managesBBA && (s.branch?.includes('BBA') || s.branch?.includes('Committee'))) return true;
+         return true; // Simplified: Personnel can see pools to inherit from them
       }
       
       // Show assigned branch schemes
@@ -123,7 +112,7 @@ export default function DashboardPage() {
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle className="font-headline">Recent Academic Activity</CardTitle>
-              <CardDescription>Monitor changes in your assigned faculties or pools.</CardDescription>
+              <CardDescription>Monitor current status of your assigned faculties or pools.</CardDescription>
             </div>
             <Button variant="outline" size="sm" asChild><Link href="/dashboard/schemes">View All</Link></Button>
           </CardHeader>
@@ -160,7 +149,7 @@ export default function DashboardPage() {
             {profile?.role === 'bos_convenor' && profile?.faculty && !profile.faculty.includes('(Common BOS)') && <ActionLink href="/dashboard/team" label="Manage BoS Team" icon={<UserCircle className="w-4 h-4" />} />}
             {(['bos_convenor', 'admin'].includes(profile?.role || '')) && <ActionLink href="/dashboard/equivalence" label="Map Equivalence" icon={<Layers className="w-4 h-4" />} />}
             {(['dean_faculty', 'dean_academic', 'admin'].includes(profile?.role || '')) && <ActionLink href="/dashboard/approvals" label="Review Pending" icon={<FileCheck className="w-4 h-4" />} />}
-            {profile?.role === 'monitor' && <ActionLink href="/dashboard/users" label="Authorize Staff" icon={<ShieldCheck className="w-4 h-4" />} />}
+            {(['monitor', 'admin'].includes(profile?.role || '')) && <ActionLink href="/dashboard/audit" label="System Audit" icon={<Hash className="w-4 h-4" />} />}
           </CardContent>
         </Card>
       </div>

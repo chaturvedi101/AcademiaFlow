@@ -54,14 +54,13 @@ export default function SchemesPage() {
     committeeName: '' as string
   });
 
-  const isGlobalAdmin = ['admin', 'dean_academic'].includes(profile?.role || '');
-  const isCommitteeConvenor = profile?.role === 'committee_convenor';
-
   const filteredSchemes = useMemo(() => {
     if (!profile || !programs.length) return [];
     
-    // 1. Global Oversight
-    if (isGlobalAdmin || profile.role === 'monitor') return schemes;
+    // 1. Global Oversight (Admin, Dean Academic, and Monitor)
+    if (profile.role === 'admin' || profile.role === 'dean_academic' || profile.role === 'monitor') {
+      return schemes;
+    }
     
     const isCommonTier = profile.faculty?.includes('(Common BOS)');
     const isBTECHTier = profile.faculty?.includes('BTECH');
@@ -69,7 +68,7 @@ export default function SchemesPage() {
 
     return schemes.filter(s => {
       // 2. Committee Convenors
-      if (isCommitteeConvenor && s.isCommitteePool && s.branch === profile.faculty) return true;
+      if (profile.role === 'committee_convenor' && s.isCommitteePool && s.branch === profile.faculty) return true;
       
       // 3. Purview Logic for Deans & Common BOS
       if (profile.role === 'dean_faculty' || isCommonTier) {
@@ -94,7 +93,7 @@ export default function SchemesPage() {
       // 4. Branch Personnel
       return profile.managedBranches?.some(mb => mb.programId === s.programId && mb.branch === s.branch);
     });
-  }, [schemes, profile, programs, isGlobalAdmin, isCommitteeConvenor]);
+  }, [schemes, profile, programs]);
 
   const committeeList = useMemo(() => FACULTIES.filter(f => f.startsWith('Course Committee')), []);
 
@@ -186,7 +185,7 @@ export default function SchemesPage() {
           <h1 className="text-3xl font-headline font-bold">Academic Schemes</h1>
           <p className="text-muted-foreground">Monitoring {filteredSchemes.length} schemes in your institutional jurisdiction.</p>
         </div>
-        {(isGlobalAdmin || profile?.role === 'committee_convenor' || profile?.faculty?.includes('(Common BOS)')) && (
+        {(['admin', 'dean_academic', 'committee_convenor'].includes(profile?.role || '') || profile?.faculty?.includes('(Common BOS)')) && (
           <Button onClick={() => setIsDialogOpen(true)} className="gap-2 shadow-lg">
             <Plus className="w-4 h-4" /> New Scheme
           </Button>

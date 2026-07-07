@@ -27,8 +27,13 @@ export default function ApprovalsPage() {
   const targetStatus = profile?.role === 'dean_faculty' ? 'Pending Dean' : 'Pending Academics';
   
   const schemesQuery = useMemoFirebase(() => {
+    // Both Deans and Admins/Monitors see schemes that need review.
+    // If Monitor/Admin, see all Pending statuses.
+    if (profile?.role === 'admin' || profile?.role === 'dean_academic' || profile?.role === 'monitor') {
+        return query(collection(db, 'schemes'), where('status', 'in', ['Pending Dean', 'Pending Academics']));
+    }
     return query(collection(db, 'schemes'), where('status', '==', targetStatus));
-  }, [db, targetStatus]);
+  }, [db, targetStatus, profile?.role]);
 
   const { data: schemes, loading } = useCollection<Scheme>(schemesQuery);
   const { data: programs } = useCollection<Program>(useMemoFirebase(() => collection(db, 'programs'), [db]));
@@ -39,12 +44,28 @@ export default function ApprovalsPage() {
 
   const filteredSchemes = useMemo(() => {
     if (!profile || !programs.length) return [];
-    if (profile.role === 'dean_academic' || profile.role === 'admin') return schemes;
     
-    // Dean Faculty only sees schemes from their faculty
+    // Monitors and Dean Academics see all pending items globally
+    if (profile.role === 'dean_academic' || profile.role === 'admin' || profile.role === 'monitor') return schemes;
+    
+    // Dean Faculty only sees pending schemes from their faculty or technical tier
+    const isBTECHTier = profile.faculty?.includes('BTECH');
+    const isBBATier = profile.faculty?.includes('BBA');
+
     return schemes.filter(s => {
+      if (s.programId === 'INSTITUTIONAL') {
+        if (isBTECHTier && s.branch?.includes('BTECH')) return true;
+        if (isBBATier && s.branch?.includes('BBA')) return true;
+        return false;
+      }
       const prog = programs.find(p => p.id === s.programId);
-      return prog?.faculty === profile.faculty;
+      if (!prog) return false;
+      
+      if (profile.role === 'dean_faculty' && prog.faculty === profile.faculty) return true;
+      if (isBTECHTier && prog.faculty.includes('BTECH')) return true;
+      if (isBBATier && prog.faculty.includes('Management')) return true;
+
+      return false;
     });
   }, [schemes, profile, programs]);
 
@@ -100,10 +121,10 @@ export default function ApprovalsPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Clock className="w-5 h-5 text-accent" />
-            Pending Your Review
+            Pending Review
           </CardTitle>
           <CardDescription>
-            Schemes awaiting {profile?.role?.replace('_', ' ')} validation.
+            Schemes awaiting validation within your institutional purview.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -113,7 +134,7 @@ export default function ApprovalsPage() {
                 <TableHead className="pl-6">Program & Batch</TableHead>
                 <TableHead>Submission Scope</TableHead>
                 <TableHead>Faculty</TableHead>
-                <TableHead>Version</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead className="text-right pr-6">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -137,7 +158,9 @@ export default function ApprovalsPage() {
                     <TableCell>
                       <Badge variant="outline" className="text-[10px]">{program?.faculty || 'Institutional Pool'}</Badge>
                     </TableCell>
-                    <TableCell>{scheme.version}</TableCell>
+                    <TableCell>
+                       <Badge variant="secondary" className="text-[9px] font-bold uppercase">{scheme.status}</Badge>
+                    </TableCell>
                     <TableCell className="text-right pr-6">
                       <div className="flex justify-end gap-2">
                         <Button variant="outline" size="sm" asChild>
@@ -145,15 +168,19 @@ export default function ApprovalsPage() {
                             <Eye className="w-4 h-4" /> Review
                           </Link>
                         </Button>
-                        <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50" onClick={() => {
-                          setSelectedSchemeForRevert(scheme);
-                          setRevertDialogOpen(true);
-                        }}>
-                          <RotateCcw className="w-4 h-4" /> Revert
-                        </Button>
-                        <Button size="sm" className="gap-2 bg-emerald-600 hover:bg-emerald-700" onClick={() => handleApprove(scheme)}>
-                          <CheckCircle className="w-4 h-4" /> Approve
-                        </Button>
+                        {profile?.role !== 'monitor' && (
+                          <>
+                            <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50" onClick={() => {
+                              setSelectedSchemeForRevert(scheme);
+                              setRevertDialogOpen(true);
+                            }}>
+                              <RotateCcw className="w-4 h-4" /> Revert
+                            </Button>
+                            <Button size="sm" className="gap-2 bg-emerald-600 hover:bg-emerald-700" onClick={() => handleApprove(scheme)}>
+                              <CheckCircle className="w-4 h-4" /> Approve
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
