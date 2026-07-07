@@ -301,10 +301,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
               Institutional Sync
             </Button>
           )}
-          <Button variant="outline" onClick={() => exportFullSchemeToPDF(scheme, program!, syllabi)}>
+          <Button variant="outline" onClick={() => exportFullSchemeToPDF(scheme, program || null, syllabi)}>
             <FileText className="w-4 h-4 mr-2" /> Structure
           </Button>
-          <Button variant="outline" onClick={() => exportCompleteSyllabusToPDF(scheme, program!, syllabi)}>
+          <Button variant="outline" onClick={() => exportCompleteSyllabusToPDF(scheme, program || null, syllabi)}>
             <BookOpen className="w-4 h-4 mr-2" /> Book
           </Button>
           {permissions.canEditScheme && <Button onClick={() => setIsSubmissionDialogOpen(true)}>Finalize Scheme</Button>}

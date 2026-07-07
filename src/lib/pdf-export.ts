@@ -189,12 +189,13 @@ export const exportSyllabusToPDF = (
  */
 export const exportCompleteSyllabusToPDF = (
   scheme: Scheme,
-  program: Program,
+  program: Program | null,
   syllabi: Syllabus[]
 ) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const isDraft = scheme.status !== 'Approved';
+  const programName = program?.name || scheme.branch || 'Institutional Pool';
 
   // Title Page
   doc.setFontSize(16);
@@ -209,7 +210,7 @@ export const exportCompleteSyllabusToPDF = (
   doc.setFontSize(14);
   doc.setTextColor(100);
   doc.setFont('helvetica', 'normal');
-  doc.text(`${program.name?.toUpperCase()}`, pageWidth / 2, 115, { align: 'center' });
+  doc.text(`${programName.toUpperCase()}`, pageWidth / 2, 115, { align: 'center' });
   doc.text(`Branch: ${scheme.branch || 'General'}`, pageWidth / 2, 125, { align: 'center' });
   doc.text(`Batch: ${scheme.batchYear}`, pageWidth / 2, 135, { align: 'center' });
   doc.text(`Framework: RTU-NEP 2020 Compliance`, pageWidth / 2, 145, { align: 'center' });
@@ -226,8 +227,8 @@ export const exportCompleteSyllabusToPDF = (
   doc.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth / 2, 170, { align: 'center' });
 
   const sortedSyllabi = [...syllabi].sort((a, b) => {
-    if (a.semester !== b.semester) return a.semester - b.semester;
-    return a.subjectCode.localeCompare(b.subjectCode);
+    if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
+    return (a.subjectCode || "").localeCompare(b.subjectCode || "");
   });
 
   sortedSyllabi.forEach((syllabus) => {
@@ -240,7 +241,7 @@ export const exportCompleteSyllabusToPDF = (
     drawSubjectSyllabus(
       doc, 
       syllabus, 
-      program.name, 
+      programName, 
       scheme.branch || 'General', 
       scheme.batchYear, 
       25, 
@@ -249,7 +250,7 @@ export const exportCompleteSyllabusToPDF = (
   });
 
   addFooter(doc, isDraft);
-  doc.save(`${program.code}_${scheme.branch}_Complete_Syllabus.pdf`);
+  doc.save(`${program?.code || 'SCHEME'}_${scheme.branch}_Complete_Syllabus.pdf`);
 };
 
 /**
@@ -257,12 +258,13 @@ export const exportCompleteSyllabusToPDF = (
  */
 export const exportFullSchemeToPDF = (
   scheme: Scheme,
-  program: Program,
+  program: Program | null,
   syllabi: Syllabus[]
 ) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const isDraft = scheme.status !== 'Approved';
+  const programName = program?.name || scheme.branch || 'Institutional Pool';
 
   // Institution Title
   doc.setFontSize(16);
@@ -279,7 +281,7 @@ export const exportFullSchemeToPDF = (
   doc.setFontSize(12);
   doc.setTextColor(50);
   doc.setFont('helvetica', 'bold');
-  doc.text(`${program.name?.toUpperCase()}`, pageWidth / 2, 35, { align: 'center' });
+  doc.text(`${programName.toUpperCase()}`, pageWidth / 2, 35, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.text(`Branch: ${scheme.branch || 'General'} | Batch: ${scheme.batchYear}`, pageWidth / 2, 41, { align: 'center' });
   doc.text(`Status: ${scheme.status} ${scheme.submissionScope ? `(${scheme.submissionScope})` : ''} | Version: ${scheme.version}`, pageWidth / 2, 47, { align: 'center' });
@@ -317,8 +319,10 @@ export const exportFullSchemeToPDF = (
 
   let currentY = (doc as any).lastAutoTable.finalY + 15;
 
-  for (let sem = 1; sem <= (program.totalSemesters || 8); sem++) {
-    const semSubjects = syllabi.filter(s => s.semester === sem && !s.isOFEContribution);
+  const totalSemesters = scheme.isCommitteePool ? 1 : (program?.totalSemesters || 8);
+
+  for (let sem = 1; sem <= totalSemesters; sem++) {
+    const semSubjects = syllabi.filter(s => (scheme.isCommitteePool ? true : s.semester === sem) && !s.isOFEContribution);
     const semCredits = getDeduplicatedTotal(semSubjects);
 
     if (currentY > 230) {
@@ -329,10 +333,13 @@ export const exportFullSchemeToPDF = (
     doc.setFontSize(13);
     doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
     doc.setFont('helvetica', 'bold');
-    doc.text(`SEMESTER ${sem}`, 20, currentY);
-    doc.setFontSize(10);
-    doc.setTextColor(ACCENT_COLOR[0], ACCENT_COLOR[1], ACCENT_COLOR[2]);
-    doc.text(`Total Semester Credits: ${semCredits}`, pageWidth - 20, currentY, { align: 'right' });
+    doc.text(scheme.isCommitteePool ? 'COURSE REGISTRY' : `SEMESTER ${sem}`, 20, currentY);
+    
+    if (!scheme.isCommitteePool) {
+      doc.setFontSize(10);
+      doc.setTextColor(ACCENT_COLOR[0], ACCENT_COLOR[1], ACCENT_COLOR[2]);
+      doc.text(`Total Semester Credits: ${semCredits}`, pageWidth - 20, currentY, { align: 'right' });
+    }
     
     const body = semSubjects.map(s => [
       s.subjectCode || '',
@@ -363,7 +370,7 @@ export const exportFullSchemeToPDF = (
   }
 
   addFooter(doc, isDraft);
-  doc.save(`${program.code}_${scheme.branch}_Structure.pdf`);
+  doc.save(`${program?.code || 'SCHEME'}_${scheme.branch}_Structure.pdf`);
 };
 
 function addFooter(doc: jsPDF, isDraft: boolean = false) {
