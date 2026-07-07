@@ -203,6 +203,7 @@ export const exportCompleteSyllabusToPDF = (
 
   const sortedSyllabi = [...syllabi].sort((a, b) => {
     if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
+    if (a.electiveGroupId !== b.electiveGroupId) return (a.electiveGroupId || '').localeCompare(b.electiveGroupId || '');
     return (a.subjectCode || "").localeCompare(b.subjectCode || "");
   });
 
@@ -291,7 +292,13 @@ export const exportFullSchemeToPDF = (
   const totalSemesters = scheme.isCommitteePool ? 1 : (program?.totalSemesters || 8);
 
   for (let sem = 1; sem <= totalSemesters; sem++) {
-    const semSubjects = syllabi.filter(s => (scheme.isCommitteePool ? true : s.semester === sem) && !s.isOFEContribution);
+    const semSubjects = syllabi
+      .filter(s => (scheme.isCommitteePool ? true : s.semester === sem) && !s.isOFEContribution)
+      .sort((a, b) => {
+        if (a.electiveGroupId !== b.electiveGroupId) return (a.electiveGroupId || '').localeCompare(b.electiveGroupId || '');
+        return (a.subjectCode || "").localeCompare(b.subjectCode || "");
+      });
+
     const semCredits = getDeduplicatedTotal(semSubjects);
 
     if (currentY > 230) {
@@ -310,13 +317,34 @@ export const exportFullSchemeToPDF = (
       doc.text(`Total Semester Credits: ${semCredits}`, pageWidth - 20, currentY, { align: 'right' });
     }
     
-    const body = semSubjects.map(s => [
-      s.subjectCode || '',
-      getCleanTitle(s),
-      `${s.lectureCredits || 0}-${s.tutorialCredits || 0}-${s.practicalCredits || 0}`,
-      s.creditCategory || '',
-      s.credits || 0
-    ]);
+    const body: any[] = [];
+    let currentGroupId = '';
+
+    semSubjects.forEach(s => {
+      const isCore = ['DSC', 'PRJ', 'SEC'].includes(s.creditCategory);
+      const gid = !isCore ? (s.electiveGroupId || '') : '';
+
+      if (gid && gid !== currentGroupId) {
+        body.push([
+          { 
+            content: `${gid} (Elective Pool Options)`, 
+            colSpan: 5, 
+            styles: { fillColor: [245, 245, 245], fontStyle: 'bold', textColor: PRIMARY_COLOR } 
+          }
+        ]);
+        currentGroupId = gid;
+      } else if (!gid) {
+        currentGroupId = '';
+      }
+
+      body.push([
+        s.subjectCode || '',
+        getCleanTitle(s),
+        `${s.lectureCredits || 0}-${s.tutorialCredits || 0}-${s.practicalCredits || 0}`,
+        s.creditCategory || '',
+        s.credits || 0
+      ]);
+    });
 
     autoTable(doc, {
       startY: currentY + 4,
