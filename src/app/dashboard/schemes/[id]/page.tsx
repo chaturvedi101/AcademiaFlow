@@ -42,14 +42,14 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [isSubmissionDialogOpen, setIsSubmissionDialogOpen] = useState(false);
   const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
 
-  // AUTOMATED VERTICAL MAPPING ENGINE
+  // UNIVERSAL VERTICAL MAPPING ENGINE
   useEffect(() => {
     if (!scheme) return;
     setPoolLoading(true);
 
-    // Identify relevant pool based on program prefix (e.g. BTECH- -> B.Tech)
-    const progPrefix = program?.code?.split('-')[0] || scheme.schemeCode?.split('-')[0] || '';
-    const verticalMatch = progPrefix.includes('BTECH') ? 'B.Tech' : progPrefix.includes('BBA') ? 'BBA' : progPrefix;
+    // Extraction logic: Get vertical key (BTECH, BBA, MCA, etc.)
+    const code = program?.code || scheme.schemeCode || '';
+    const verticalKey = code.split('-')[0].replace('.', '').toUpperCase(); // Normalized vertical key
 
     const poolQuery = query(
       collection(db, 'schemes'),
@@ -63,8 +63,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       unsubSyllabi.forEach(u => u());
       unsubSyllabi = [];
 
-      // Find the specific pool for this vertical
-      const poolDoc = snap.docs.find(d => d.data().branch?.includes(verticalMatch) || d.id.includes(verticalMatch.toUpperCase()));
+      // Find pool matching normalized vertical key
+      const poolDoc = snap.docs.find(d => {
+        const poolCode = d.id.replace('.', '').toUpperCase();
+        return poolCode.includes(verticalKey);
+      });
       
       if (!poolDoc) {
         setPoolSyllabi([]);
@@ -84,7 +87,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       });
       unsubSyllabi.push(u);
     }, (err) => {
-      console.error("Vertical Pool discovery failed:", err);
+      console.error("Vertical Pool Discovery Error:", err);
       setPoolLoading(false);
     });
 
@@ -97,7 +100,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [isSyllabusDialogOpen, setIsSyllabusDialogOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Partial<Syllabus> | undefined>(undefined);
 
-  // AUTOMATIC MERGE & INJECTION ENGINE
+  // AUTOMATIC MERGE & INJECTION ENGINE (Zero-Touch)
   const syllabi = useMemo(() => {
     if (!scheme) return [];
 
@@ -127,13 +130,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     });
 
     // 2. Automatic Injection of pool courses not in local slots
-    // This is the core logic that removes the need for manual adding
     const missingFromPool = poolSyllabi.filter(p => !resolvedLocal.some(l => l.subjectCode === p.subjectCode));
     
     const inheritedFromPool = missingFromPool.map(p => ({
       ...p,
       isStandardized: true,
-      standardizedFrom: 'Vertical Pool (Automated)',
+      standardizedFrom: 'Institutional Pool (Automated)',
       isInherited: true
     }));
 
@@ -164,12 +166,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const canEditSyllabus = (s: any) => {
       if (isSuperuser) return true;
       if (isMyCommittee) return true;
-      if (s?.isInherited) return false; // Inherited pool courses are locked
+      if (s?.isInherited) return false; // Automated courses are locked
       return isProgramDean || !!myBranchRole || canEditScheme;
     };
 
     const canDeleteSyllabus = (s: any) => {
-      if (s?.isInherited) return false; // Automated courses cannot be deleted from branch
+      if (s?.isInherited) return false; 
       return isSuperuser || isMyCommittee || canEditScheme;
     };
 

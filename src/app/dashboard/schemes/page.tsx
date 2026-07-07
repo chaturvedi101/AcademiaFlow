@@ -118,10 +118,10 @@ export default function SchemesPage() {
         // SEED STANDARD INSTITUTIONAL SUBJECTS
         if (newScheme.poolType === 'Vertical') {
            const standardSlots = [
-             { code: 'AEC261', title: 'Technical Communication', cat: 'AEC', sem: 1, credits: 2, type: 'Theory', l: 2, t: 0, p: 0 },
-             { code: 'VAC261', title: 'Environmental Science', cat: 'VAC', sem: 2, credits: 2, type: 'Theory', l: 2, t: 0, p: 0 },
-             { code: 'MDC261', title: 'Introduction to Economics', cat: 'MDC', sem: 3, credits: 3, type: 'Theory', l: 3, t: 0, p: 0 },
-             { code: 'MDC262', title: 'Sustainable Engineering', cat: 'MDC', sem: 4, credits: 3, type: 'Theory', l: 3, t: 0, p: 0 }
+             { code: 'AEC101', title: 'Technical Communication', cat: 'AEC', sem: 1, credits: 2, type: 'Theory', l: 2, t: 0, p: 0 },
+             { code: 'VAC101', title: 'Environmental Science', cat: 'VAC', sem: 2, credits: 2, type: 'Theory', l: 2, t: 0, p: 0 },
+             { code: 'MDC101', title: 'Introduction to Economics', cat: 'MDC', sem: 3, credits: 3, type: 'Theory', l: 3, t: 0, p: 0 },
+             { code: 'MDC102', title: 'Sustainable Engineering', cat: 'MDC', sem: 4, credits: 3, type: 'Theory', l: 3, t: 0, p: 0 }
            ];
 
            standardSlots.forEach(slot => {
@@ -138,7 +138,11 @@ export default function SchemesPage() {
                lectureCredits: slot.l,
                tutorialCredits: slot.t,
                practicalCredits: slot.p,
-               updatedAt: serverTimestamp()
+               updatedAt: serverTimestamp(),
+               units: [
+                 { id: 'u1', title: 'Introduction', content: 'Detailed topics for unit 1', hours: 8, courseOutcome: 'Outcome for unit 1' },
+                 { id: 'u2', title: 'Intermediate Concepts', content: 'Detailed topics for unit 2', hours: 10, courseOutcome: 'Outcome for unit 2' }
+               ]
              });
            });
         }
@@ -147,7 +151,7 @@ export default function SchemesPage() {
         toast({ title: "Pool Created" });
       } else {
         // AUTOMATIC POOL GENERATION: Check if creating B.Tech schemes and ensure vertical pool exists
-        const isBTech = newScheme.programIds.some(pid => pid.includes('BTECH'));
+        const isBTech = newScheme.programIds.some(pid => pid.toUpperCase().includes('BTECH'));
         if (isBTech) {
           const poolId = `B.TECH-POOL-${newScheme.batchYear}`;
           batch.set(doc(db, 'schemes', poolId), {
@@ -333,7 +337,7 @@ export default function SchemesPage() {
 
             <div className="space-y-2">
               <Label className="text-sm font-bold">Batch Year</Label>
-              <Input placeholder="e.g. 2024" value={newScheme.batchYear} onChange={e => setNewScheme({...newScheme, batchYear: e.target.value})} />
+              <Input placeholder="e.g. 2026-30" value={newScheme.batchYear} onChange={e => setNewScheme({...newScheme, batchYear: e.target.value})} />
             </div>
           </div>
 
