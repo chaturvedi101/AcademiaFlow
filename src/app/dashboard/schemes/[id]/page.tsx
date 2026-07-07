@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Edit3, Loader2, FileText, BookOpen, Eye, CheckCircle2, ShieldCheck, Trash2, Hash, Layers, Info } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
@@ -139,16 +140,18 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   }, [localSyllabi, allParentSyllabi, scheme]);
 
   const permissions = useMemo(() => {
-    const isAdmin = profile?.role === 'admin';
-    const isSuper = isAdmin || profile?.role === 'dean_academic';
+    if (!profile || !scheme) return { isAdmin: false, isSuper: false, canEditScheme: false, isLockedForBoS: true, canDeleteCourse: false, canEditSyllabus: () => false };
+
+    const isAdmin = profile.role === 'admin';
+    const isSuper = isAdmin || profile.role === 'dean_academic';
     
     // Core edit right check
-    const isMyJurisdiction = (['bos_convenor', 'bos_member'].includes(profile?.role || '') && 
-      profile?.managedBranches?.some(m => m.programId === scheme?.programId && m.branch === scheme?.branch)) ||
-      (profile?.role === 'committee_convenor' && scheme?.isCommitteePool && scheme?.branch === profile.faculty);
+    const isMyJurisdiction = (['bos_convenor', 'bos_member'].includes(profile.role) && 
+      profile.managedBranches?.some(m => m.programId === scheme.programId && m.branch === scheme.branch)) ||
+      (profile.role === 'committee_convenor' && scheme.isCommitteePool && scheme.branch === profile.faculty);
 
     // SUBMISSION LOCK: If status is not Draft, BoS roles cannot edit
-    const isLockedForBoS = scheme?.status !== 'Draft' && !isSuper;
+    const isLockedForBoS = scheme.status !== 'Draft' && !isSuper;
     const canEditScheme = (isSuper || isMyJurisdiction) && !isLockedForBoS;
     
     return {
