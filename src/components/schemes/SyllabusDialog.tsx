@@ -75,19 +75,15 @@ export function SyllabusDialog({
 
   // AUTOMATED COURSE CODE LOGIC (Strict Rule: [Branch][Pedagogy][Pillar][Year][Sequence])
   useEffect(() => {
-    if (!open || !program || !scheme) return;
+    if (!open || !program || !scheme || formData.followedFromId) return;
     
-    // Auto-generate if not a linked institutional course
-    if (formData.followedFromId) return;
-
     const branchCode = program.branchPrefixes?.[scheme.branch || ''] || 'XX';
     const pedagogyChar = formData.type === 'Lab/Sessional' ? 'P' : (formData.creditCategory === 'PRJ' ? 'I' : 'L');
     
     const getPillarChar = (cat: CreditCategory) => {
       switch(cat) {
         case 'DSC': return 'C';
-        case 'DSE': return 'E';
-        case 'OFE': return 'E';
+        case 'DSE': case 'OFE': return 'E';
         case 'SEC': return 'S';
         case 'VAC': return 'V';
         case 'AEC': return 'A';
@@ -100,11 +96,13 @@ export function SyllabusDialog({
     const pillarChar = getPillarChar(formData.creditCategory || 'DSC');
     const yearDigit = Math.ceil((formData.semester || 1) / 2);
     
-    const patternStart = `${branchCode}${pedagogyChar}${pillarChar}${yearDigit}`;
-    if (!formData.subjectCode?.startsWith(patternStart)) {
+    // Pattern without sequence
+    const patternBase = `${branchCode}${pedagogyChar}${pillarChar}${yearDigit}`;
+    
+    if (!formData.subjectCode?.startsWith(patternBase)) {
       setFormData(prev => ({ 
         ...prev, 
-        subjectCode: `${patternStart}01` // Starts with sequence 01
+        subjectCode: `${patternBase}01` // Default sequence for new courses
       }));
     }
   }, [formData.type, formData.creditCategory, formData.semester, program, scheme, open]);
@@ -173,7 +171,7 @@ export function SyllabusDialog({
             </div>
           </DialogTitle>
           <DialogDescription>
-            Course codes are auto-generated based on the institutional prefix: [Branch][Pedagogy][Pillar][Year][Seq].
+            Subject codes are strictly auto-generated: [Branch][Pedagogy][Pillar][Year][Seq].
           </DialogDescription>
         </DialogHeader>
 
@@ -218,7 +216,7 @@ export function SyllabusDialog({
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Subject Code</Label>
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Subject Code (LOCKED)</Label>
                     <div className="h-10 flex items-center px-3 bg-muted/50 rounded-md border font-mono font-bold text-primary shadow-inner">
                       {formData.subjectCode || 'AUTO-GEN'}
                     </div>

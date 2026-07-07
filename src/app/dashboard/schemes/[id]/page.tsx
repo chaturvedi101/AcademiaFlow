@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { useFirestore, useDoc, useCollection, useUser, useMemoFirebase } from "@/firebase";
-import { doc, collection, setDoc, serverTimestamp, updateDoc, query, where, onSnapshot, Unsubscribe, deleteDoc } from "firebase/firestore";
+import { doc, collection, setDoc, serverTimestamp, updateDoc, query, where, onSnapshot, Unsubscribe, deleteDoc, getDocs, collectionGroup, writeBatch } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,10 +10,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Edit3, Loader2, FileText, BookOpen, Eye, CheckCircle2, ShieldCheck, Trash2 } from "lucide-react";
+import { Plus, Edit3, Loader2, FileText, BookOpen, Eye, CheckCircle2, ShieldCheck, Trash2, RefreshCw, AlertTriangle } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
-import { Syllabus, Scheme, Program, UserProfile, SubmissionScope } from "@/lib/types";
+import { Syllabus, Scheme, Program, UserProfile, SubmissionScope, CreditCategory } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { exportFullSchemeToPDF, exportCompleteSyllabusToPDF } from "@/lib/pdf-export";
 import { cn } from "@/lib/utils";
@@ -40,16 +40,14 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [poolLoading, setPoolLoading] = useState(false);
   const [isSubmissionDialogOpen, setIsSubmissionDialogOpen] = useState(false);
   const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  // AUTOMATED VERTICAL INHERITANCE ENGINE (BTECH/BBA Standardization)
+  // AUTOMATED VERTICAL INHERITANCE ENGINE
   useEffect(() => {
     if (!scheme) return;
     setPoolLoading(true);
 
-    let verticalKey = 'BTECH'; 
-    if (scheme.programId && scheme.programId !== 'INSTITUTIONAL') {
-       verticalKey = scheme.programId.split(/[-.]/)[0].toUpperCase().replace(/[^A-Z]/g, '');
-    }
+    const verticalKey = 'BTECH'; 
 
     if (scheme.programId === 'INSTITUTIONAL' || scheme.isVerticalPool || scheme.isCommitteePool) {
       setPoolSyllabi([]);
@@ -70,9 +68,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       unsubSyllabi = [];
 
       const poolDoc = snap.docs.find(d => {
-        const normalizedId = d.id.replace(/[^a-zA-Z]/g, '').toUpperCase();
-        const normalizedBranch = (d.data().branch || '').replace(/[^a-zA-Z]/g, '').toUpperCase();
-        return normalizedId.includes(verticalKey) || normalizedBranch.includes(verticalKey);
+        const normalizedBranch = (d.data().branch || '').toUpperCase();
+        return normalizedBranch.includes(verticalKey);
       });
       
       if (!poolDoc) {
@@ -91,12 +88,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         } as any)));
         setPoolLoading(false);
       }, (err) => {
-        console.error("Pool Syllabi Error:", err);
         setPoolLoading(false);
       });
       unsubSyllabi.push(u);
     }, (err) => {
-      console.error("Vertical Pool Discovery Error:", err);
       setPoolLoading(false);
     });
 
@@ -109,7 +104,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [isSyllabusDialogOpen, setIsSyllabusDialogOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Partial<Syllabus> | undefined>(undefined);
 
-  // AUTOMATIC MERGE & DEDUPLICATION ENGINE
   const syllabi = useMemo(() => {
     if (!scheme) return [];
 
@@ -170,10 +164,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       return isProgramDean || !!myBranchRole || canEditScheme;
     };
 
-    const canDeleteSyllabus = (s: any) => {
-      // ONLY ADMIN CAN DELETE A COURSE
-      return isAdmin;
-    };
+    const canDeleteSyllabus = (s: any) => isAdmin;
 
     return { canEditScheme, canDeleteSyllabus, canEditSyllabus, isMonitor: false, isSuperuser, isAdmin };
   }, [profile, profileLoading, scheme, program]);
@@ -208,6 +199,69 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     return creditDistribution.total === program.rules.totalRequired;
   }, [creditDistribution, program?.rules, scheme, selectedScope, syllabi]);
 
+  // INSTITUTIONAL CODE GENERATION RULES
+  const generateInstitutionalCode = (sub: Partial<Syllabus>, branchPrefix: string, sequence: number) => {
+    const pedagogyChar = sub.type === 'Lab/Sessional' ? 'P' : (sub.creditCategory === 'PRJ' ? 'I' : 'L');
+    const getPillarChar = (cat: CreditCategory) => {
+      switch(cat) {
+        case 'DSC': return 'C';
+        case 'DSE': case 'OFE': return 'E';
+        case 'SEC': return 'S';
+        case 'VAC': return 'V';
+        case 'AEC': return 'A';
+        case 'MDC': return 'M';
+        case 'PRJ': return 'P';
+        default: return 'C';
+      }
+    };
+    const pillarChar = getPillarChar(sub.creditCategory || 'DSC');
+    const yearDigit = Math.ceil((sub.semester || 1) / 2);
+    const seqStr = sequence.toString().padStart(2, '0');
+    return `${branchPrefix}${pedagogyChar}${pillarChar}${yearDigit}${seqStr}`;
+  };
+
+  const handleGlobalSync = async () => {
+    if (!permissions.isAdmin) return;
+    setIsSyncing(true);
+    
+    try {
+      const branchPrefix = program?.branchPrefixes?.[scheme?.branch || ''] || 'XX';
+      const batch = writeBatch(db);
+      
+      // 1. Fetch ALL syllabi across university to check for clashes
+      const universitySyllabiSnap = await getDocs(collectionGroup(db, 'syllabi'));
+      const existingCodes = new Set(universitySyllabiSnap.docs
+        .filter(d => d.ref.parent.parent?.id !== schemeId) // Exclude current scheme
+        .map(d => (d.data() as Syllabus).subjectCode)
+      );
+
+      const sequenceMap: Record<string, number> = {};
+      const updatedSyllabi: Partial<Syllabus>[] = [];
+
+      // 2. Generate and validate codes for all local syllabi
+      for (const sub of localSyllabi) {
+        const bucketKey = `${sub.type}-${sub.creditCategory}-${sub.semester}`;
+        sequenceMap[bucketKey] = (sequenceMap[bucketKey] || 0) + 1;
+        
+        const newCode = generateInstitutionalCode(sub, branchPrefix, sequenceMap[bucketKey]);
+        
+        if (existingCodes.has(newCode)) {
+          throw new Error(`CRITICAL CLASH: Generated code ${newCode} for "${sub.title}" is already in use by another scheme in the University.`);
+        }
+
+        const subRef = doc(db, 'schemes', schemeId, 'syllabi', sub.id);
+        batch.update(subRef, { subjectCode: newCode, updatedAt: serverTimestamp() });
+      }
+
+      await batch.commit();
+      toast({ title: "Institutional Sync Complete", description: "All course codes have been standardized and validated." });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Sync Failed", description: e.message });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const handleSaveSyllabus = async (data: Partial<Syllabus>) => {
     const docId = data.id || Math.random().toString(36).substr(2, 9);
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', docId);
@@ -218,8 +272,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const handleDeleteSyllabus = async (syllabusId: string) => {
     if (!permissions.isAdmin) return;
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', syllabusId);
-    deleteDoc(docRef)
-      .then(() => toast({ title: "Subject Removed" }));
+    deleteDoc(docRef).then(() => toast({ title: "Subject Removed" }));
   };
 
   const handleUpdateScheme = (updates: Partial<Scheme>) => {
@@ -255,6 +308,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           </div>
         </div>
         <div className="flex gap-2">
+          {permissions.isAdmin && (
+            <Button variant="outline" className="text-primary border-primary/30 gap-2" onClick={handleGlobalSync} disabled={isSyncing}>
+              {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              Global Sync
+            </Button>
+          )}
           <Button variant="outline" onClick={() => exportFullSchemeToPDF(scheme, program!, syllabi)}>
             <FileText className="w-4 h-4 mr-2" /> Structure
           </Button>
