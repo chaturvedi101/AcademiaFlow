@@ -2,12 +2,12 @@
 
 import { useState, useMemo } from 'react';
 import { useFirestore, useCollection, useMemoFirebase, useUser, useDoc } from '@/firebase';
-import { collection, doc, serverTimestamp, query, orderBy, writeBatch, deleteDoc } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, query, orderBy, writeBatch } from 'firebase/firestore';
 import { Scheme, Program, UserProfile, FACULTIES } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Loader2, ArrowRight, Hash, Layers, Trash2 } from 'lucide-react';
+import { Plus, Loader2, ArrowRight, Hash, Layers } from 'lucide-react';
 import { 
   Dialog, 
   DialogContent, 
@@ -22,8 +22,6 @@ import { Switch } from '@/components/ui/switch';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
 
 export default function SchemesPage() {
@@ -187,19 +185,6 @@ export default function SchemesPage() {
     }
   };
 
-  const handleDeleteScheme = (id: string) => {
-    if (profile?.role !== 'admin') return;
-    const schemeRef = doc(db, 'schemes', id);
-    deleteDoc(schemeRef)
-      .then(() => toast({ title: "Scheme Deleted" }))
-      .catch((err) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: schemeRef.path,
-          operation: 'delete'
-        }));
-      });
-  };
-
   if (schemesLoading) return <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
   return (
@@ -225,11 +210,6 @@ export default function SchemesPage() {
                 <div className="flex gap-2">
                   {scheme.isCommitteePool && <Badge className="bg-blue-100 text-blue-700 border-none font-black text-[8px] uppercase">Committee Pool</Badge>}
                   {scheme.isVerticalPool && <Badge className="bg-emerald-100 text-emerald-700 border-none font-black text-[8px] uppercase">Vertical Pool</Badge>}
-                  {profile?.role === 'admin' && (
-                    <Button variant="ghost" size="icon" className="h-6 w-6 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => handleDeleteScheme(scheme.id)}>
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  )}
                 </div>
               </div>
               <CardTitle className="font-headline text-lg group-hover:text-primary transition-colors">

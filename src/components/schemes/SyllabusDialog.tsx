@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   BookOpen, Loader2, Plus, ChevronDown, ChevronUp, Trash2, CheckCircle2, 
-  Sparkles, FlaskConical, ShieldCheck
+  Sparkles, FlaskConical
 } from "lucide-react";
 import { Syllabus, UserProfile, CreditCategory, SubjectType, Scheme, Program } from "@/lib/types";
 import { useFirestore } from "@/firebase";
@@ -311,7 +311,6 @@ export function SyllabusDialog({
               </TabsContent>
 
               <TabsContent value="mapping" className="p-8 text-center text-muted-foreground italic bg-white rounded-xl border border-dashed">
-                 <ShieldCheck className="w-12 h-12 mx-auto mb-4 opacity-10" />
                  <p>Advanced Outcome Mapping (PO/PSO) is inherited from institutional standards for synchronized subjects.</p>
               </TabsContent>
             </Tabs>
