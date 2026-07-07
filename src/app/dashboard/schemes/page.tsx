@@ -66,10 +66,20 @@ export default function SchemesPage() {
       // Committee Convenors only see pools matching their assigned committee
       if (isCommitteeConvenor && s.isCommitteePool && s.branch === profile.faculty) return true;
       
-      // Common BOS members see program-wide pools (BTECH/BBA)
+      // Common BOS members see program-wide pools (BTECH/BBA) + branch schemes in their tier
       if (isCommonBos) {
-        if (profile.faculty === 'BTECH (Common BOS)') return s.branch === 'BTECH (Common BOS) Pool' || programs.find(p => p.id === s.programId)?.faculty.includes('BTECH');
-        if (profile.faculty === 'BBA (Common BOS)') return s.branch === 'BBA (Common BOS) Pool' || programs.find(p => p.id === s.programId)?.faculty.includes('BBA');
+        const isBTECH = profile.faculty === 'BTECH (Common BOS)';
+        const isBBA = profile.faculty === 'BBA (Common BOS)';
+
+        if (s.programId === 'INSTITUTIONAL') {
+          if (isBTECH) return s.branch === 'BTECH (Common BOS) Pool';
+          if (isBBA) return s.branch === 'BBA (Common BOS) Pool';
+          return false;
+        }
+
+        const prog = programs.find(p => p.id === s.programId);
+        if (isBTECH) return prog?.faculty.includes('BTECH');
+        if (isBBA) return prog?.faculty.includes('Management') || prog?.name.includes('BBA');
       }
 
       // Branch Convenors/Members see their assigned branches
@@ -186,7 +196,7 @@ export default function SchemesPage() {
                 </div>
               </div>
               <CardTitle className="font-headline text-lg group-hover:text-primary transition-colors">
-                {scheme.branch || (programs.find(p => p.id === scheme.programId)?.name || 'BTECH Scheme')}
+                {scheme.branch || (programs.find(p => p.id === scheme.programId)?.name || 'Institutional Scheme')}
               </CardTitle>
               <CardDescription className="flex flex-col gap-1">
                 <div className="flex items-center gap-2 font-mono text-[10px] text-primary font-bold"><Hash className="w-3 h-3" /> {scheme.schemeCode}</div>

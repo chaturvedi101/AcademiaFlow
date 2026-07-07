@@ -22,32 +22,41 @@ export default function DashboardPage() {
   const filteredSchemes = useMemo(() => {
     if (!profile || !programs.length) return [];
     
+    // Admins and Monitors see everything
     if (profile.role === 'admin' || profile.role === 'dean_academic' || profile.role === 'monitor') {
       return schemes;
     }
 
+    // Committee Convenors see their specialized pools
     if (profile.role === 'committee_convenor') {
       return schemes.filter(s => s.isCommitteePool && s.branch === profile.faculty);
     }
 
+    // Common BOS members see their specific program vertical pools + all branch schemes in their program
     if (profile.faculty?.includes('(Common BOS)')) {
       const isBTECHBOS = profile.faculty === 'BTECH (Common BOS)';
       const isBBABOS = profile.faculty === 'BBA (Common BOS)';
 
       return schemes.filter(s => {
+        // Handle Pool Identification
+        if (s.programId === 'INSTITUTIONAL') {
+          if (isBTECHBOS) return s.branch === 'BTECH (Common BOS) Pool';
+          if (isBBABOS) return s.branch === 'BBA (Common BOS) Pool';
+          return false;
+        }
+
+        // Handle Branch Scheme Identification
         const prog = programs.find(p => p.id === s.programId);
         if (!prog) return false;
 
-        if (isBTECHBOS) {
-           return prog.faculty.includes('BTECH') || (s.isVerticalPool && s.branch === 'BTECH (Common BOS) Pool');
-        }
-        if (isBBABOS) {
-           return (prog.faculty.includes('Management') || prog.name.includes('BBA')) || (s.isVerticalPool && s.branch === 'BBA (Common BOS) Pool');
-        }
+        if (isBTECHBOS) return prog.faculty.includes('BTECH');
+        if (isBBABOS) return prog.faculty.includes('Management') || prog.name.includes('BBA');
+        
         return false;
       });
     }
 
+    // Dean Faculty sees everything in their assigned faculty
     if (profile.role === 'dean_faculty') {
       return schemes.filter(s => {
         const prog = programs.find(p => p.id === s.programId);
@@ -55,6 +64,7 @@ export default function DashboardPage() {
       });
     }
 
+    // Branch Convenors see their assigned branches + matching vertical pool
     const managed = profile.managedBranches || [];
     const isManagementVertical = managed.some(m => {
       const p = programs.find(prog => prog.id === m.programId);
@@ -119,7 +129,7 @@ export default function DashboardPage() {
                   <SchemeRow 
                     key={scheme.id} 
                     id={scheme.id} 
-                    name={program?.name || 'Loading...'} 
+                    name={scheme.branch || program?.name || 'Institutional Pool'} 
                     batch={scheme.batchYear} 
                     status={scheme.status} 
                     code={scheme.schemeCode}
