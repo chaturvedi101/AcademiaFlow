@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Edit3, Loader2, FileText, BookOpen, Eye, CheckCircle2, ShieldCheck, Trash2, RefreshCw, Hash } from "lucide-react";
+import { Plus, Edit3, Loader2, FileText, BookOpen, Eye, CheckCircle2, ShieldCheck, Trash2, RefreshCw, Hash, Layers } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile, SubmissionScope, CreditCategory } from "@/lib/types";
@@ -40,7 +40,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [parentsLoading, setParentsLoading] = useState(false);
   const [isSubmissionDialogOpen, setIsSubmissionDialogOpen] = useState(false);
   const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
-  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
     if (!scheme) return;
@@ -123,7 +122,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           followedFromId: local.followedFromId,
           parentSchemeId: local.parentSchemeId,
           isStandardized: true,
-          standardizedFrom: 'Equivalence Manager'
+          standardizedFrom: 'Equivalence Manager',
+          electiveGroupId: local.electiveGroupId || parent.electiveGroupId || ''
         } as Syllabus;
       }
       return local;
@@ -131,11 +131,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     return resolvedLocal.sort((a, b) => {
       if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
+      // Sort by Elective Group ID to ensure options cluster together
+      if (a.electiveGroupId !== b.electiveGroupId) {
+        return (a.electiveGroupId || "").localeCompare(b.electiveGroupId || "");
+      }
       return (a.subjectCode || "").localeCompare(b.subjectCode || "");
     });
   }, [localSyllabi, allParentSyllabi, scheme]);
-
-  const inheritedCount = useMemo(() => syllabi.filter(s => s.isStandardized).length, [syllabi]);
 
   const permissions = useMemo(() => {
     const isAdmin = profile?.role === 'admin';
@@ -245,6 +247,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                 const semSyllabi = syllabi.filter(s => (scheme.isCommitteePool ? true : s.semester === sem));
                 
                 const processedGroups = new Set<string>();
+                const renderedGroups = new Set<string>();
+
                 const semTotalCredits = semSyllabi.reduce((sum, s) => {
                   const isCore = ['DSC', 'PRJ', 'SEC'].includes(s.creditCategory);
                   if (!isCore && s.electiveGroupId) {
@@ -284,44 +288,62 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {semSyllabi.map(sub => (
-                            <TableRow key={sub.id} className="group">
-                              <TableCell className="pl-6 font-mono font-bold">
-                                <div className="flex flex-col">
-                                  <span className={cn(sub.isStandardized && "text-primary")}>{sub.subjectCode}</span>
-                                  {sub.parentCode && <span className="text-[9px] text-muted-foreground italic font-normal">Standard: {sub.parentCode}</span>}
-                                  {sub.electiveGroupId && <Badge variant="outline" className="text-[8px] h-3 px-1 mt-0.5 w-fit">{sub.electiveGroupId}</Badge>}
-                                </div>
-                              </TableCell>
-                              <TableCell className="font-medium">
-                                <div className="flex flex-col">
-                                  <span>{sub.title}</span>
-                                  <span className="text-[10px] text-muted-foreground uppercase">{sub.type}</span>
-                                </div>
-                              </TableCell>
-                              <TableCell><Badge variant="secondary" className="text-[9px]">{sub.creditCategory}</Badge></TableCell>
-                              <TableCell className="text-center text-xs">{sub.lectureCredits}-{sub.tutorialCredits}-{sub.practicalCredits}</TableCell>
-                              <TableCell className="text-right font-bold">{sub.credits}</TableCell>
-                              <TableCell className="text-right pr-6">
-                                <div className="flex justify-end items-center gap-2">
-                                  {sub.isStandardized && (
-                                    <Badge variant="outline" className="gap-1 border-emerald-200 bg-emerald-50 text-emerald-700">
-                                      <ShieldCheck className="w-3 h-3" />
-                                      Mirror
-                                    </Badge>
-                                  )}
-                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }}>
-                                    {permissions.canEditSyllabus(sub) ? <Edit3 className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                                  </Button>
-                                  {permissions.isAdmin && (
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => handleDeleteSyllabus(sub.id)}>
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </Button>
-                                  )}
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
+                          {semSyllabi.map((sub, sIdx) => {
+                            const showGroupHeader = sub.electiveGroupId && !renderedGroups.has(sub.electiveGroupId);
+                            if (sub.electiveGroupId) renderedGroups.add(sub.electiveGroupId);
+
+                            return (
+                              <React.Fragment key={sub.id}>
+                                {showGroupHeader && (
+                                  <TableRow className="bg-primary/5 hover:bg-primary/5">
+                                    <TableCell colSpan={6} className="py-2 px-6">
+                                      <div className="flex items-center gap-2">
+                                        <Layers className="w-3.5 h-3.5 text-primary" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-primary">
+                                          {sub.electiveGroupId} (Pool Options)
+                                        </span>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                )}
+                                <TableRow className="group">
+                                  <TableCell className={cn("pl-6 font-mono font-bold", sub.electiveGroupId && "pl-10")}>
+                                    <div className="flex flex-col">
+                                      <span className={cn(sub.isStandardized && "text-primary")}>{sub.subjectCode}</span>
+                                      {sub.parentCode && <span className="text-[9px] text-muted-foreground italic font-normal">Standard: {sub.parentCode}</span>}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="font-medium">
+                                    <div className="flex flex-col">
+                                      <span>{sub.title}</span>
+                                      <span className="text-[10px] text-muted-foreground uppercase">{sub.type}</span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell><Badge variant="secondary" className="text-[9px]">{sub.creditCategory}</Badge></TableCell>
+                                  <TableCell className="text-center text-xs">{sub.lectureCredits}-{sub.tutorialCredits}-{sub.practicalCredits}</TableCell>
+                                  <TableCell className="text-right font-bold">{sub.credits}</TableCell>
+                                  <TableCell className="text-right pr-6">
+                                    <div className="flex justify-end items-center gap-2">
+                                      {sub.isStandardized && (
+                                        <Badge variant="outline" className="gap-1 border-emerald-200 bg-emerald-50 text-emerald-700">
+                                          <ShieldCheck className="w-3 h-3" />
+                                          Mirror
+                                        </Badge>
+                                      )}
+                                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }}>
+                                        {permissions.canEditSyllabus(sub) ? <Edit3 className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                      </Button>
+                                      {permissions.isAdmin && (
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => handleDeleteSyllabus(sub.id)}>
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              </React.Fragment>
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     </CardContent>
