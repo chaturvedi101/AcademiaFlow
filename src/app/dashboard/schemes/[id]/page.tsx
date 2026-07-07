@@ -41,14 +41,21 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [isSubmissionDialogOpen, setIsSubmissionDialogOpen] = useState(false);
   const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
 
-  // ROBUST NORMALIZED VERTICAL MAPPING ENGINE
+  // ROBUST AUTOMATED VERTICAL INHERITANCE ENGINE
   useEffect(() => {
     if (!scheme) return;
     setPoolLoading(true);
 
-    // Extraction: Get vertical key (e.g. BTECH) by stripping dots and special chars
-    const baseCode = program?.code || scheme.programId || '';
-    const verticalKey = baseCode.split('-')[0].replace(/[^a-zA-Z]/g, '').toUpperCase();
+    // Extraction: Get normalized vertical key (e.g. BTECH)
+    const progId = scheme.programId || '';
+    const verticalKey = progId.split(/[-.]/)[0].toUpperCase();
+
+    // Standardize mapping for discovery
+    if (verticalKey === 'INSTITUTIONAL') {
+      setPoolSyllabi([]);
+      setPoolLoading(false);
+      return;
+    }
 
     const poolQuery = query(
       collection(db, 'schemes'),
@@ -62,10 +69,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       unsubSyllabi.forEach(u => u());
       unsubSyllabi = [];
 
-      // Resilient Match: Normalize both IDs to remove dots (B.Tech -> BTECH)
+      // Unified discovery: Search for pool matching the vertical prefix
       const poolDoc = snap.docs.find(d => {
         const normalizedId = d.id.replace(/[^a-zA-Z]/g, '').toUpperCase();
-        return normalizedId.startsWith(verticalKey);
+        return normalizedId.includes(verticalKey);
       });
       
       if (!poolDoc) {
@@ -97,16 +104,16 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       unsubscribePools();
       unsubSyllabi.forEach(u => u());
     };
-  }, [db, scheme, program]);
+  }, [db, scheme]);
 
   const [isSyllabusDialogOpen, setIsSyllabusDialogOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Partial<Syllabus> | undefined>(undefined);
 
-  // AUTOMATIC MERGE & INJECTION ENGINE
+  // AUTOMATIC MERGE & DEDUPLICATION ENGINE
   const syllabi = useMemo(() => {
     if (!scheme) return [];
 
-    // 1. Resolve inheritance for local slots (Matched by Code or ID)
+    // 1. Resolve inheritance for existing local slots
     const resolvedLocal = localSyllabi.map(local => {
       const parent = local.followedFromId ? poolSyllabi.find(p => p.id === local.followedFromId) : 
                      (local.subjectCode ? poolSyllabi.find(p => p.subjectCode === local.subjectCode) : null);
@@ -123,13 +130,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       return local;
     });
 
-    // 2. Automated Injection: Bring pool subjects that don't have a local slot yet
+    // 2. Automated Injection: Pull pool subjects that don't have a local slot yet
     const missingFromPool = poolSyllabi.filter(p => !resolvedLocal.some(l => l.subjectCode === p.subjectCode));
     
     const inheritedFromPool = missingFromPool.map(p => ({
       ...p,
       isStandardized: true,
-      standardizedFrom: 'Institutional Pool (Automated)',
+      standardizedFrom: 'Vertical Common Pool (Auto)',
       isInherited: true
     }));
 

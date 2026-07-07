@@ -87,7 +87,9 @@ export default function SchemesPage() {
         if (newScheme.poolType === 'Vertical') {
           const verticalLabel = newScheme.poolVertical;
           branchName = `${verticalLabel} (Common BOS) Pool`;
-          generatedCode = `${verticalLabel.toUpperCase().replace(/[^A-Z]/g, '')}-POOL-${newScheme.batchYear}`;
+          // Use normalized BTECH prefix for automated discovery
+          const prefix = verticalLabel.toUpperCase().replace(/[^A-Z]/g, '');
+          generatedCode = `${prefix}-POOL-${newScheme.batchYear}`;
         } else {
           branchName = newScheme.committeeName;
           const prefix = branchName.split('-')[1]?.trim().toUpperCase().substring(0, 4) || 'COMM';
