@@ -128,25 +128,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       return local;
     });
 
-    // Auto-inheritance for BTECH Common Pool mandatory subjects
-    const btechPool = allParentSyllabi.filter(p => p.parentSchemeId?.includes('BTECH-POOL'));
-    const missingFromBtech = btechPool.filter(p => !resolvedLocal.some(l => l.parentCode === p.subjectCode || l.followedFromId === p.id));
-    
-    const inherited = missingFromBtech.map(p => ({
-      ...p,
-      isStandardized: true,
-      standardizedFrom: 'Institutional Pool',
-      isInherited: true,
-      parentCode: p.subjectCode
-    }));
-
-    return [...resolvedLocal, ...inherited].sort((a, b) => {
+    return resolvedLocal.sort((a, b) => {
       if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
       return (a.subjectCode || "").localeCompare(b.subjectCode || "");
     });
   }, [localSyllabi, allParentSyllabi, scheme]);
 
-  const inheritedCount = useMemo(() => syllabi.filter(s => s.isInherited || s.isStandardized).length, [syllabi]);
+  const inheritedCount = useMemo(() => syllabi.filter(s => s.isStandardized).length, [syllabi]);
 
   const permissions = useMemo(() => {
     const isAdmin = profile?.role === 'admin';
@@ -214,32 +202,38 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       const branchPrefix = isInstitutional ? 'RT' : (program?.branchPrefixes?.[scheme?.branch || ''] || 'XX');
       const batch = writeBatch(db);
       
+      // Fetch ALL subject codes across the university for global uniqueness check
       const universitySyllabiSnap = await getDocs(collectionGroup(db, 'syllabi'));
-      const existingCodes = new Set(universitySyllabiSnap.docs
-        .filter(d => d.ref.parent.parent?.id !== schemeId) 
+      
+      const existingGlobalCodes = new Set(universitySyllabiSnap.docs
+        .filter(d => d.ref.parent.parent?.id !== schemeId) // Don't block codes from this same scheme
         .map(d => (d.data() as Syllabus).subjectCode)
       );
 
-      const sequenceMap: Record<string, number> = {};
+      const assignedInBatch = new Set<string>();
 
       for (const sub of localSyllabi) {
-        if (sub.followedFromId) continue;
-
-        const bucketKey = `${sub.type}-${sub.creditCategory}-${sub.semester}`;
-        sequenceMap[bucketKey] = (sequenceMap[bucketKey] || 0) + 1;
+        // Even virtual children mirroring parents get a unique local code for this department
+        let sequence = 1;
+        let newCode = '';
         
-        const newCode = generateInstitutionalCode(sub, branchPrefix, sequenceMap[bucketKey]);
-        
-        if (existingCodes.has(newCode)) {
-          throw new Error(`CLASH: Generated code ${newCode} for "${sub.title}" is already in use elsewhere in the University.`);
+        // Find the next available globally unique sequence for this bucket pattern
+        while (true) {
+          newCode = generateInstitutionalCode(sub, branchPrefix, sequence);
+          if (!existingGlobalCodes.has(newCode) && !assignedInBatch.has(newCode)) {
+            break;
+          }
+          sequence++;
+          if (sequence > 99) throw new Error(`CRITICAL: Exhausted sequence slots for pattern base ${newCode.substring(0, 5)}. Please contact the Academic Monitor.`);
         }
 
+        assignedInBatch.add(newCode);
         const subRef = doc(db, 'schemes', schemeId, 'syllabi', sub.id);
         batch.update(subRef, { subjectCode: newCode, updatedAt: serverTimestamp() });
       }
 
       await batch.commit();
-      toast({ title: "Institutional Sync Complete" });
+      toast({ title: "University-Wide Synchronization Successful", description: "All subject codes regenerated and verified unique globally." });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
     } finally {
@@ -277,7 +271,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             {inheritedCount > 0 && (
               <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 gap-1.5 py-1 px-3">
                 <ShieldCheck className="w-3 h-3" />
-                {inheritedCount} Institutional Standards Applied
+                {inheritedCount} Institutional Standards Mirroring
               </Badge>
             )}
           </div>
@@ -365,12 +359,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                               <TableCell className="text-right pr-6">
                                 <div className="flex justify-end items-center gap-2">
                                   {sub.isStandardized && (
-                                    <Badge variant="outline" className={cn(
-                                      "gap-1 border-emerald-200",
-                                      sub.isInherited ? "bg-primary/5 text-primary border-primary/20" : "bg-emerald-50 text-emerald-700"
-                                    )}>
+                                    <Badge variant="outline" className="gap-1 border-emerald-200 bg-emerald-50 text-emerald-700">
                                       <ShieldCheck className="w-3 h-3" />
-                                      {sub.isInherited ? "Institutional" : "Standardized"}
+                                      Mirror
                                     </Badge>
                                   )}
                                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }}>

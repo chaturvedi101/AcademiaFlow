@@ -35,7 +35,7 @@ export default function EquivalencePage() {
   const [childSyllabi, setChildSyllabi] = useState<Syllabus[]>([]);
   const [parentSyllabi, setParentSyllabi] = useState<Syllabus[]>([]);
 
-  // Fetch ALL registered links across the entire University
+  // Fetch ALL registered links across the entire University using collectionGroup for absolute visibility
   useEffect(() => {
     const fetchGlobalRegistry = async () => {
       const q = query(collectionGroup(db, 'syllabi'), where('followedFromId', '!=', null));
