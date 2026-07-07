@@ -67,6 +67,18 @@ export default function UserManagementPage() {
     setIsDialogOpen(true);
   };
 
+  const handleAddAssignment = () => {
+    if (!newAssignment.programId || !newAssignment.branch) return;
+    const isDuplicate = form.managedBranches.some(b => b.programId === newAssignment.programId && b.branch === newAssignment.branch);
+    if (isDuplicate) return;
+    setForm({ ...form, managedBranches: [...form.managedBranches, { ...newAssignment }] });
+    setNewAssignment({ programId: '', branch: '', role: 'bos_member' });
+  };
+
+  const handleRemoveAssignment = (idx: number) => {
+    setForm({ ...form, managedBranches: form.managedBranches.filter((_, i) => i !== idx) });
+  };
+
   const handleSaveUser = async () => {
     if (!form.email || !form.displayName) return;
     setIsProcessing(true);
@@ -75,11 +87,17 @@ export default function UserManagementPage() {
       const existingUser = users.find(u => u.email.toLowerCase() === form.email.toLowerCase());
       const targetId = editingUser?.id || existingUser?.id;
 
+      // Determine Primary Role based on branch assignments if needed
+      let primaryRole = form.role;
+      if (form.managedBranches.some(b => b.role === 'bos_convenor')) {
+         primaryRole = 'bos_convenor';
+      }
+
       if (targetId) {
         const userRef = doc(db, 'users', targetId);
         await updateDoc(userRef, { 
           displayName: form.displayName, 
-          role: form.role, 
+          role: primaryRole, 
           faculty: form.faculty || null,
           managedBranches: form.managedBranches 
         });
@@ -90,14 +108,14 @@ export default function UserManagementPage() {
         await setDoc(doc(db, 'users', res.user.uid), {
           displayName: form.displayName,
           email: form.email,
-          role: form.role,
+          role: primaryRole,
           faculty: form.faculty || null,
           managedBranches: form.managedBranches,
           createdAt: serverTimestamp()
         });
         await deleteApp(tempApp);
       }
-      toast({ title: "Authorized", description: "Academic permissions updated." });
+      toast({ title: "Authorized", description: "Academic permissions and branch mappings updated." });
       setIsDialogOpen(false);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message });
@@ -122,16 +140,29 @@ export default function UserManagementPage() {
               <TableRow>
                 <TableHead className="pl-6">Personnel</TableHead>
                 <TableHead>Role</TableHead>
-                <TableHead>Assigned Committee / Faculty</TableHead>
+                <TableHead>Assignments</TableHead>
                 <TableHead className="text-right pr-6">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {academicStaff.map((u) => (
                 <TableRow key={u.id}>
-                  <TableCell className="pl-6 font-bold">{u.displayName}<p className="text-[10px] text-muted-foreground font-normal">{u.email}</p></TableCell>
-                  <TableCell><Badge variant="outline" className="uppercase text-[9px]">{u.role.replace('_', ' ')}</Badge></TableCell>
-                  <TableCell>{u.faculty || <span className="text-muted-foreground italic text-xs">Branch Specific</span>}</TableCell>
+                  <TableCell className="pl-6 font-bold">
+                    {u.displayName}
+                    <p className="text-[10px] text-muted-foreground font-normal">{u.email}</p>
+                    {u.faculty && <Badge variant="outline" className="mt-1 text-[8px] bg-primary/5">{u.faculty}</Badge>}
+                  </TableCell>
+                  <TableCell><Badge variant="outline" className="uppercase text-[9px] font-bold">{u.role.replace('_', ' ')}</Badge></TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {u.managedBranches?.map((mb, idx) => (
+                        <Badge key={idx} variant="secondary" className="text-[8px] py-0">
+                          {programs.find(p => p.id === mb.programId)?.code || '??'} - {mb.branch} ({(mb.role||'').split('_')[1]})
+                        </Badge>
+                      ))}
+                      {(!u.managedBranches || u.managedBranches.length === 0) && <span className="text-muted-foreground italic text-xs">No branches</span>}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-right pr-6">
                     <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(u)}><Edit3 className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" className="text-red-400" onClick={() => deleteDoc(doc(db, 'users', u.id))}><Trash2 className="w-4 h-4" /></Button>
@@ -147,6 +178,7 @@ export default function UserManagementPage() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Assign Academic Permissions</DialogTitle>
+            <DialogDescription>Authorize personnel and map them to their BoS jurisdictions.</DialogDescription>
           </DialogHeader>
           <div className="space-y-6 py-4">
             <div className="grid grid-cols-2 gap-4">
@@ -159,16 +191,16 @@ export default function UserManagementPage() {
                 <Select value={form.role} onValueChange={(v: any) => setForm({...form, role: v})}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="bos_convenor">BoS Convenor</SelectItem>
+                    <SelectItem value="bos_member">BoS Member</SelectItem>
                     <SelectItem value="committee_convenor">Course Committee Convenor</SelectItem>
-                    <SelectItem value="bos_convenor">Branch BoS Convenor</SelectItem>
                     <SelectItem value="dean_faculty">Dean of Faculty</SelectItem>
                     <SelectItem value="dean_academic">Dean Academic</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Assigned Vertical / Committee</Label>
+                <Label>Assigned Faculty / BOS</Label>
                 <Select value={form.faculty} onValueChange={(v: any) => setForm({...form, faculty: v})}>
                   <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
                   <SelectContent>
@@ -177,9 +209,57 @@ export default function UserManagementPage() {
                 </Select>
               </div>
             </div>
+
+            <div className="space-y-4 border rounded-xl p-4 bg-muted/20">
+              <Label className="font-bold flex items-center gap-2 text-primary"><GraduationCap className="w-4 h-4" /> BoS Assignment Builder</Label>
+              <div className="grid grid-cols-12 gap-2 items-end">
+                <div className="col-span-5 space-y-1">
+                  <Label className="text-[10px] uppercase font-bold">Program</Label>
+                  <Select value={newAssignment.programId} onValueChange={v => setNewAssignment({...newAssignment, programId: v, branch: ''})}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Select..." /></SelectTrigger>
+                    <SelectContent>
+                      {programs.map(p => <SelectItem key={p.id} value={p.id}>{p.code} - {p.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-4 space-y-1">
+                  <Label className="text-[10px] uppercase font-bold">Branch</Label>
+                  <Select value={newAssignment.branch} onValueChange={v => setNewAssignment({...newAssignment, branch: v})}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="..." /></SelectTrigger>
+                    <SelectContent>
+                      {programs.find(p => p.id === newAssignment.programId)?.branches.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-2 space-y-1">
+                  <Label className="text-[10px] uppercase font-bold">Role</Label>
+                  <Select value={newAssignment.role} onValueChange={(v:any) => setNewAssignment({...newAssignment, role: v})}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bos_member">Member</SelectItem>
+                      <SelectItem value="bos_convenor">Convenor</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-1">
+                  <Button type="button" size="icon" className="h-9 w-9" onClick={handleAddAssignment} disabled={!newAssignment.branch}><Plus className="w-4 h-4" /></Button>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 min-h-[30px] pt-2">
+                {form.managedBranches.map((mb, idx) => (
+                  <Badge key={idx} className="bg-white text-foreground border-primary/20 gap-2 h-7">
+                    {programs.find(p => p.id === mb.programId)?.code} - {mb.branch} ({(mb.role||'').split('_')[1]})
+                    <X className="w-3 h-3 cursor-pointer text-red-400" onClick={() => handleRemoveAssignment(idx)} />
+                  </Badge>
+                ))}
+              </div>
+            </div>
           </div>
           <DialogFooter>
-            <Button onClick={handleSaveUser} disabled={isProcessing}>Save Authorization</Button>
+            <Button onClick={handleSaveUser} disabled={isProcessing}>
+              {isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
+              Save Authorization
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
