@@ -41,13 +41,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [isSubmissionDialogOpen, setIsSubmissionDialogOpen] = useState(false);
   const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
 
-  // ROBUST AUTOMATED VERTICAL INHERITANCE ENGINE (BTECH Standardization)
+  // AUTOMATED VERTICAL INHERITANCE ENGINE (BTECH/BBA Standardization)
   useEffect(() => {
     if (!scheme) return;
     setPoolLoading(true);
 
     // Extraction: Get normalized vertical key (e.g. BTECH) from program ID or program code
-    let verticalKey = 'BTECH'; // Default fallback
+    let verticalKey = 'BTECH'; 
     if (scheme.programId && scheme.programId !== 'INSTITUTIONAL') {
        verticalKey = scheme.programId.split(/[-.]/)[0].toUpperCase().replace(/[^A-Z]/g, '');
     }
@@ -115,7 +115,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const syllabi = useMemo(() => {
     if (!scheme) return [];
 
-    // 1. Resolve inheritance for existing local slots
     const resolvedLocal = localSyllabi.map(local => {
       const parent = local.followedFromId ? poolSyllabi.find(p => p.id === local.followedFromId) : 
                      (local.subjectCode ? poolSyllabi.find(p => p.subjectCode === local.subjectCode) : null);
@@ -132,7 +131,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       return local;
     });
 
-    // 2. Automated Injection: Pull pool subjects that don't have a local slot yet
     const missingFromPool = poolSyllabi.filter(p => !resolvedLocal.some(l => l.subjectCode === p.subjectCode));
     
     const inheritedFromPool = missingFromPool.map(p => ({
@@ -395,6 +393,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         canEdit={permissions.canEditSyllabus(activeSubject)}
         userProfile={profile || undefined}
         batchYear={scheme.batchYear}
+        program={program || undefined}
+        scheme={scheme}
       />
     </div>
   );

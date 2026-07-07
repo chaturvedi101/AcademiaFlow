@@ -15,8 +15,8 @@ import {
   BookOpen, Loader2, Plus, Clock, ShieldCheck, ChevronDown, ChevronUp, Trash2, CheckCircle2, 
   Sparkles, FlaskConical, Layers, ArrowRight, Info
 } from "lucide-react";
-import { Syllabus, UserProfile, CreditCategory, SubjectType, Scheme } from "@/lib/types";
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
+import { Syllabus, UserProfile, CreditCategory, SubjectType, Scheme, Program } from "@/lib/types";
+import { useFirestore } from "@/firebase";
 import { collection, query, where, getDocs, doc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
@@ -32,6 +32,8 @@ interface SyllabusDialogProps {
   canEdit?: boolean;
   batchYear?: string;
   userProfile?: UserProfile;
+  program?: Program;
+  scheme?: Scheme;
 }
 
 export function SyllabusDialog({ 
@@ -41,7 +43,9 @@ export function SyllabusDialog({
   onSave,
   canEdit = true,
   userProfile,
-  batchYear
+  batchYear,
+  program,
+  scheme
 }: SyllabusDialogProps) {
   const db = useFirestore();
   const { toast } = useToast();
@@ -49,7 +53,6 @@ export function SyllabusDialog({
   const [expandedUnits, setExpandedUnits] = useState<Record<string, boolean>>({});
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   
-  // Pool Discovery States
   const [poolSchemes, setPoolSchemes] = useState<Scheme[]>([]);
   const [selectedPoolId, setSelectedPoolId] = useState<string>("");
   const [availablePoolSyllabi, setAvailablePoolSyllabi] = useState<Syllabus[]>([]);
@@ -74,13 +77,48 @@ export function SyllabusDialog({
         followedFromId: '',
         ...syllabus
       });
-      // Reset pool picker
       setSelectedPoolId("");
       setAvailablePoolSyllabi([]);
     }
   }, [open, syllabus]);
 
-  // DISCOVERY: Find all Institutional Pools (Vertical or Committee) for this batch
+  // Automated Course Code Logic
+  useEffect(() => {
+    if (!open || !program || !scheme) return;
+    
+    // Only auto-generate if not linked and it's a new or draft entry
+    if (formData.followedFromId) return;
+
+    const branchCode = program.branchPrefixes?.[scheme.branch || ''] || 'XX';
+    const typeChar = formData.type === 'Lab/Sessional' ? 'P' : (formData.creditCategory === 'PRJ' ? 'I' : 'L');
+    
+    const getPillarChar = (cat: CreditCategory) => {
+      switch(cat) {
+        case 'DSC': return 'C';
+        case 'DSE': return 'E';
+        case 'OFE': return 'E';
+        case 'SEC': return 'S';
+        case 'VAC': return 'V';
+        case 'AEC': return 'A';
+        case 'MDC': return 'M';
+        case 'PRJ': return 'P';
+        default: return 'C';
+      }
+    };
+
+    const pillarChar = getPillarChar(formData.creditCategory || 'DSC');
+    const yearDigit = Math.ceil((formData.semester || 1) / 2);
+    
+    // Check if the current code already matches the pattern (to avoid overwriting sequence)
+    const patternStart = `${branchCode}${typeChar}${pillarChar}${yearDigit}`;
+    if (!formData.subjectCode?.startsWith(patternStart)) {
+      setFormData(prev => ({ 
+        ...prev, 
+        subjectCode: `${patternStart}01` // Default sequence
+      }));
+    }
+  }, [formData.type, formData.creditCategory, formData.semester, program, scheme, open]);
+
   useEffect(() => {
     if (!open || !batchYear) return;
     
@@ -99,9 +137,7 @@ export function SyllabusDialog({
     fetchPools();
   }, [db, batchYear, open]);
 
-  // DISCOVERY: Fetch syllabi from selected pool
   useEffect(() => {
-    // AUTO-SELECTION FOR BTECH VERTICAL
     if (!selectedPoolId && poolSchemes.length > 0) {
       const btechPool = poolSchemes.find(p => p.id.toUpperCase().includes('BTECH-POOL'));
       if (btechPool) {
@@ -142,7 +178,6 @@ export function SyllabusDialog({
       ...prev,
       followedFromId: poolSyllabus.id,
       parentSchemeId: selectedPoolId,
-      // Bring identity and pedagogy immediately
       title: poolSyllabus.title,
       subjectCode: poolSyllabus.subjectCode,
       lectureCredits: poolSyllabus.lectureCredits,
@@ -154,7 +189,7 @@ export function SyllabusDialog({
       textBooks: poolSyllabus.textBooks,
       referenceBooks: poolSyllabus.referenceBooks
     }));
-    toast({ title: "Institutional Link Created", description: `Slot linked to authoritative ${poolSyllabus.subjectCode}.` });
+    toast({ title: "Institutional Link Created" });
   };
 
   const handleAiGenerate = async () => {
@@ -205,9 +240,7 @@ export function SyllabusDialog({
             </div>
           </DialogTitle>
           <DialogDescription>
-            {isLinked 
-              ? `Standardized course linked to institutional parent. Identity and syllabus content are inherited.`
-              : 'Authorized syllabus management module. Use the Institutional Pull below to bring MDC/VAC/AEC courses.'}
+            Subject codes are auto-generated based on the institutional prefix and methodology. Manual editing is restricted.
           </DialogDescription>
         </DialogHeader>
 
@@ -295,13 +328,9 @@ export function SyllabusDialog({
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Subject Code</Label>
-                    <Input 
-                      disabled={isFormDisabled} 
-                      value={formData.subjectCode || ''} 
-                      onChange={e => setFormData({...formData, subjectCode: e.target.value.toUpperCase()})} 
-                      placeholder="e.g. MALT101"
-                      className="font-mono font-bold text-primary"
-                    />
+                    <div className="h-10 flex items-center px-3 bg-muted/50 rounded-md border font-mono font-bold text-primary">
+                      {formData.subjectCode || 'AUTO-GEN'}
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Methodology</Label>

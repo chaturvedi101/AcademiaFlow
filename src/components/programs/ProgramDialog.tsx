@@ -249,7 +249,6 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
             updated.tutorialCredits = 0;
           }
 
-          // Force clear Elective Group ID for Core categories (now including SEC)
           if (updated.creditCategory === 'DSC' || updated.creditCategory === 'PRJ' || updated.creditCategory === 'SEC') {
             updated.electiveGroupId = '';
           }
@@ -465,7 +464,7 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
               <TabsContent value="template" className="mt-0 space-y-6">
                 <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex items-center gap-3 text-primary text-sm mb-6">
                   <Layers className="w-5 h-5 shrink-0" />
-                  <p><b>Master Slot Patterns:</b> These slots are inherited by every branch scheme. Subjects will follow the <code>XX</code> pattern, which is auto-resolved to branch codes during instantiation. <b>DSC, PRJ and SEC are Core Subjects and cannot be grouped.</b></p>
+                  <p><b>Master Slot Patterns:</b> These slots are inherited by every branch scheme. Subject codes are auto-generated based on Pillar and Methodology. <b>Manual code entry is disabled to ensure university standard compliance.</b></p>
                 </div>
                 <div className="space-y-10">
                   {Array.from({ length: formData.totalSemesters || 8 }, (_, i) => i + 1).map(sem => {
@@ -533,8 +532,8 @@ export function ProgramDialog({ open, onOpenChange, program, userProfile }: Prog
                                 </div>
                                 
                                 <div className="col-span-1 space-y-1">
-                                  <Label className="text-[10px] uppercase font-bold">Pattern</Label>
-                                  <div className="h-10 flex items-center justify-center bg-muted/50 rounded-lg border font-mono text-[9px] font-bold text-muted-foreground uppercase px-2">
+                                  <Label className="text-[10px] uppercase font-bold">Code</Label>
+                                  <div className="h-10 flex items-center justify-center bg-muted/50 rounded-lg border font-mono text-[9px] font-bold text-primary uppercase px-2">
                                     {slot.subjectCode || '??'}
                                   </div>
                                 </div>

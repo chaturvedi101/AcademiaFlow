@@ -22,17 +22,14 @@ export default function DashboardPage() {
   const filteredSchemes = useMemo(() => {
     if (!profile || !programs.length) return [];
     
-    // Admins, Dean Academic, and Monitors see everything
     if (profile.role === 'admin' || profile.role === 'dean_academic' || profile.role === 'monitor') {
       return schemes;
     }
 
-    // Committee Convenors: see their pools
     if (profile.role === 'committee_convenor') {
       return schemes.filter(s => s.isCommitteePool && s.branch === profile.faculty);
     }
 
-    // Common BOS Logic: Independence check
     if (profile.faculty?.includes('(Common BOS)')) {
       const isBTECHBOS = profile.faculty === 'BTECH (Common BOS)';
       const isBBABOS = profile.faculty === 'BBA (Common BOS)';
@@ -41,11 +38,9 @@ export default function DashboardPage() {
         const prog = programs.find(p => p.id === s.programId);
         if (!prog) return false;
 
-        // BTECH BOS sees Engineering programs + THEIR common pool
         if (isBTECHBOS) {
-           return prog.faculty.includes('Engineering') || (s.isVerticalPool && s.branch === 'BTECH (Common BOS) Pool');
+           return prog.faculty.includes('BTECH') || (s.isVerticalPool && s.branch === 'BTECH (Common BOS) Pool');
         }
-        // BBA BOS sees Management/BBA programs + THEIR common pool
         if (isBBABOS) {
            return (prog.faculty.includes('Management') || prog.name.includes('BBA')) || (s.isVerticalPool && s.branch === 'BBA (Common BOS) Pool');
         }
@@ -53,7 +48,6 @@ export default function DashboardPage() {
       });
     }
 
-    // Dean Faculty see schemes within their faculty
     if (profile.role === 'dean_faculty') {
       return schemes.filter(s => {
         const prog = programs.find(p => p.id === s.programId);
@@ -61,7 +55,6 @@ export default function DashboardPage() {
       });
     }
 
-    // Branch BOS: See their branches AND only THEIR relevant common pool
     const managed = profile.managedBranches || [];
     const isManagementVertical = managed.some(m => {
       const p = programs.find(prog => prog.id === m.programId);
