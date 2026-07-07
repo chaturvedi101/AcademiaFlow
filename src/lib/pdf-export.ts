@@ -2,7 +2,7 @@
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Syllabus, Scheme, Program } from './types';
+import { Syllabus, Scheme, Program, SubmissionScope } from './types';
 
 const PRIMARY_COLOR = [77, 26, 140]; // #4D1A8C
 const ACCENT_COLOR = [61, 143, 255]; // #3D8FFF
@@ -33,6 +33,17 @@ const getDeduplicatedTotal = (items: Syllabus[]) => {
     }
   });
   return Number(total.toFixed(2));
+};
+
+const filterSyllabiByScope = (syllabi: Syllabus[], scope?: SubmissionScope) => {
+  if (!scope || scope === 'Complete') return syllabi;
+  
+  let maxSem = 8;
+  if (scope === 'Year 1') maxSem = 2;
+  else if (scope === 'Year 2') maxSem = 4;
+  else if (scope === 'Year 3') maxSem = 6;
+  
+  return syllabi.filter(s => (s.semester || 1) <= maxSem);
 };
 
 const drawSubjectSyllabus = (
@@ -166,12 +177,14 @@ export const exportSyllabusToPDF = (
 export const exportCompleteSyllabusToPDF = (
   scheme: Scheme,
   program: Program | null,
-  syllabi: Syllabus[]
+  allSyllabi: Syllabus[]
 ) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const isDraft = scheme.status !== 'Approved';
   const programName = program?.name || scheme.branch || 'Institutional Pool';
+
+  const syllabi = filterSyllabiByScope(allSyllabi, scheme.submissionScope);
 
   doc.setFontSize(16);
   doc.setTextColor(0);
@@ -232,12 +245,14 @@ export const exportCompleteSyllabusToPDF = (
 export const exportFullSchemeToPDF = (
   scheme: Scheme,
   program: Program | null,
-  syllabi: Syllabus[]
+  allSyllabi: Syllabus[]
 ) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const isDraft = scheme.status !== 'Approved';
   const programName = program?.name || scheme.branch || 'Institutional Pool';
+
+  const syllabi = filterSyllabiByScope(allSyllabi, scheme.submissionScope);
 
   doc.setFontSize(16);
   doc.setTextColor(0);
@@ -289,9 +304,12 @@ export const exportFullSchemeToPDF = (
 
   let currentY = (doc as any).lastAutoTable.finalY + 15;
 
-  const totalSemesters = scheme.isCommitteePool ? 1 : (program?.totalSemesters || 8);
+  let maxSem = scheme.isCommitteePool ? 1 : (program?.totalSemesters || 8);
+  if (scheme.submissionScope === 'Year 1') maxSem = Math.min(maxSem, 2);
+  else if (scheme.submissionScope === 'Year 2') maxSem = Math.min(maxSem, 4);
+  else if (scheme.submissionScope === 'Year 3') maxSem = Math.min(maxSem, 6);
 
-  for (let sem = 1; sem <= totalSemesters; sem++) {
+  for (let sem = 1; sem <= maxSem; sem++) {
     const semSubjects = syllabi
       .filter(s => (scheme.isCommitteePool ? true : s.semester === sem) && !s.isOFEContribution)
       .sort((a, b) => {
