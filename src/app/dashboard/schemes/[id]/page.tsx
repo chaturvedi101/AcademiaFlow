@@ -159,7 +159,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       isSuper,
       canEditScheme,
       canDeleteCourse: isAdmin,
-      canEditSyllabus: (s: Syllabus) => {
+      canEditSyllabus: (s: Partial<Syllabus> | undefined) => {
+        if (!s) return false;
         if (isSuper) return true;
         if (s.followedFromId || s.isInherited) return false;
         return canEditScheme;
@@ -431,7 +432,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         onOpenChange={setIsSyllabusDialogOpen} 
         syllabus={activeSubject}
         onSave={handleSaveSyllabus}
-        canEdit={permissions.canEditSyllabus(activeSubject as Syllabus)}
+        canEdit={permissions.canEditSyllabus(activeSubject)}
         userProfile={profile || undefined}
         batchYear={scheme.batchYear}
         program={program || undefined}

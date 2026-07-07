@@ -98,7 +98,7 @@ export function SyllabusDialog({
       }));
       setFormData(prev => ({ ...prev, units: initialUnits }));
     }
-  }, [formData.type, open, canEdit]);
+  }, [formData.type, open, canEdit, formData.followedFromId]);
 
   // COURSE CODE AUTO-GENERATION: RT prefix for pools, Branch prefix for departmental
   useEffect(() => {
@@ -128,7 +128,7 @@ export function SyllabusDialog({
     if (!formData.subjectCode?.startsWith(patternBase)) {
       setFormData(prev => ({ ...prev, subjectCode: `${patternBase}01` }));
     }
-  }, [formData.type, formData.creditCategory, formData.semester, program, scheme, open]);
+  }, [formData.type, formData.creditCategory, formData.semester, program, scheme, open, formData.followedFromId]);
 
   const handleAiGenerate = async () => {
     if (!formData.title) return;
