@@ -240,23 +240,47 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const handleSyncCodes = async () => {
-    if (!program || !scheme || isSyncing) return;
+    if (!scheme || isSyncing) return;
+    
+    // For non-pool schemes, we need the program to resolve branch prefixes
+    if (!program && !scheme.isCommitteePool && !scheme.isVerticalPool) return;
+
     setIsSyncing(true);
 
     try {
       const batch = writeBatch(db);
-      const branchPrefix = program.branchPrefixes?.[scheme.branch || ''] || 'XX';
+      
+      let effectivePrefix = 'XX';
+      if (scheme.isCommitteePool) {
+        // Resolve prefix for committees
+        const branchName = scheme.branch || '';
+        if (branchName.includes('Mathematics')) effectivePrefix = 'MATH';
+        else if (branchName.includes('Physics')) effectivePrefix = 'PHYS';
+        else if (branchName.includes('Chemistry')) effectivePrefix = 'CHEM';
+        else if (branchName.includes('Humanities')) effectivePrefix = 'HUMA';
+        else if (branchName.includes('Basic Sciences')) effectivePrefix = 'BSCI';
+        else effectivePrefix = 'COMM';
+      } else if (scheme.isVerticalPool) {
+        effectivePrefix = 'RT';
+      } else if (program) {
+        effectivePrefix = program.branchPrefixes?.[scheme.branch || ''] || 'XX';
+      }
+
       let updateCount = 0;
 
       localSyllabi.forEach(sub => {
         let currentCode = sub.subjectCode || '';
         const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(sub.creditCategory);
-        const targetPrefix = isCommonCategory ? 'RT' : branchPrefix;
+        
+        // Institutional pools (Vertical/Committee) often use their specific prefix for everything 
+        // OR RT for common categories. 
+        // For committees, usually everything they offer is their domain (e.g. MATH...)
+        const targetPrefix = isCommonCategory && !scheme.isCommitteePool ? 'RT' : effectivePrefix;
         
         let newCode = currentCode;
         if (currentCode.startsWith('XX')) {
           newCode = targetPrefix + currentCode.substring(2);
-        } else if (isCommonCategory && !currentCode.startsWith('RT')) {
+        } else if (isCommonCategory && !currentCode.startsWith('RT') && !scheme.isCommitteePool) {
           // Force institutional prefix for common categories if they somehow missed it
           newCode = 'RT' + currentCode.substring(2);
         }
