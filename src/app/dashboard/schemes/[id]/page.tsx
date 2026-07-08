@@ -145,14 +145,44 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const isAdmin = profile.role === 'admin';
     const isSuper = isAdmin || profile.role === 'dean_academic';
     
-    // Core edit right check
-    const isMyJurisdiction = (['bos_convenor', 'bos_member'].includes(profile.role) && 
-      profile.managedBranches?.some(m => m.programId === scheme.programId && m.branch === scheme.branch)) ||
-      (profile.role === 'committee_convenor' && scheme.isCommitteePool && scheme.branch === profile.faculty);
+    // Tier Recognition for Common BOS
+    const isCommonTier = profile.faculty?.includes('(Common BOS)');
+    const isBTECHTier = profile.faculty?.includes('BTECH');
+    const isBBATier = profile.faculty?.includes('BBA');
+
+    // Jurisdiction Resolution
+    let isMyJurisdiction = false;
+    
+    if (isSuper) {
+      isMyJurisdiction = true;
+    } else if (profile.role === 'committee_convenor') {
+      isMyJurisdiction = scheme.isCommitteePool && scheme.branch === profile.faculty;
+    } else if (['bos_convenor', 'bos_member'].includes(profile.role)) {
+      // 1. Check explicit branch assignment
+      const hasExplicitAssignment = profile.managedBranches?.some(m => 
+        m.programId === scheme.programId && m.branch === scheme.branch
+      );
+      
+      // 2. Check tiered oversight for Common BOS members (e.g. BBA Convenor editing BBA Pool)
+      let hasTieredOversight = false;
+      if (isCommonTier) {
+        if (scheme.programId === 'INSTITUTIONAL') {
+          // Check if pool matches their tier
+          if (isBTECHTier && (scheme.branch?.includes('BTECH') || scheme.isVerticalPool)) hasTieredOversight = true;
+          if (isBBATier && (scheme.branch?.includes('BBA') || scheme.isVerticalPool)) hasTieredOversight = true;
+        } else if (program) {
+          // Check if program faculty matches their technical tier (NEP 2020 Framework)
+          if (isBTECHTier && (program.faculty.includes('BTECH') || program.name.includes('BTECH'))) hasTieredOversight = true;
+          if (isBBATier && (program.faculty.includes('Management') || program.name.includes('BBA'))) hasTieredOversight = true;
+        }
+      }
+      
+      isMyJurisdiction = hasExplicitAssignment || hasTieredOversight;
+    }
 
     // SUBMISSION LOCK: If status is not Draft, BoS roles cannot edit
     const isLockedForBoS = scheme.status !== 'Draft' && !isSuper;
-    const canEditScheme = (isSuper || isMyJurisdiction) && !isLockedForBoS;
+    const canEditScheme = isMyJurisdiction && !isLockedForBoS;
     
     return {
       isAdmin,
@@ -164,11 +194,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         if (!s) return false;
         if (isSuper) return true;
         if (isLockedForBoS) return false;
+        // Mirrors cannot be edited by BoS (they follow the parent standard)
         if (s.followedFromId || (s as any).isInherited) return false;
-        return canEditScheme;
+        return isMyJurisdiction;
       }
     };
-  }, [profile, scheme]);
+  }, [profile, scheme, program]);
 
   const creditDistribution = useMemo(() => {
     const dist = { DSC: 0, DSE: 0, OFE: 0, VAC: 0, AEC: 0, SEC: 0, MDC: 0, PRJ: 0, total: 0 };

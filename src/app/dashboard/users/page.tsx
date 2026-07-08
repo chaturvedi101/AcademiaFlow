@@ -76,7 +76,27 @@ export default function UserManagementPage() {
       });
     });
 
-    // 2. Course Committees
+    // 2. Institutional Pools (BTECH/BBA)
+    ['BTECH', 'BBA'].forEach(tier => {
+      const branchName = `${tier} (Common BOS) Pool`;
+      const convenors = users.filter(u => 
+        (u.faculty === `${tier} (Common BOS)` && u.role === 'bos_convenor') ||
+        u.managedBranches?.some(mb => mb.programId === 'INSTITUTIONAL' && mb.branch === branchName && mb.role === 'bos_convenor')
+      );
+      const members = users.filter(u => 
+        (u.faculty === `${tier} (Common BOS)` && u.role === 'bos_member') ||
+        u.managedBranches?.some(mb => mb.programId === 'INSTITUTIONAL' && mb.branch === branchName && mb.role === 'bos_member')
+      );
+      matrix.push({
+        type: 'vertical',
+        label: `${tier} Common Pool`,
+        faculty: 'Institutional Pool',
+        convenors,
+        members
+      });
+    });
+
+    // 3. Course Committees
     FACULTIES.filter(f => f.startsWith('Course Committee')).forEach(c => {
       const convenors = users.filter(u => (u.faculty === c && u.role === 'committee_convenor') || u.managedBranches?.some(mb => mb.branch === c && mb.role === 'bos_convenor'));
       const members = users.filter(u => (u.faculty === c && u.role === 'bos_member') || u.managedBranches?.some(mb => mb.branch === c && mb.role === 'bos_member'));
@@ -231,8 +251,8 @@ export default function UserManagementPage() {
                             const prog = programs.find(p => p.id === mb.programId);
                             return (
                               <Badge key={idx} variant="outline" className="text-[8px] py-0 bg-muted/30 border-muted-foreground/20">
-                                <span className="font-black mr-1">{prog?.code || '??'}</span>
-                                {mb.branch} 
+                                <span className="font-black mr-1">{mb.programId === 'INSTITUTIONAL' ? 'POOL' : (prog?.code || '??')}</span>
+                                {mb.branch.replace('Course Committee - ', '')} 
                                 <span className="ml-1 text-accent font-black">({(mb.role||'').split('_')[1] || 'member'})</span>
                               </Badge>
                             );
@@ -384,24 +404,28 @@ export default function UserManagementPage() {
               </Label>
               <div className="grid grid-cols-12 gap-2 items-end">
                 <div className="col-span-5 space-y-1">
-                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">1. Select Program / Committee</Label>
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">1. Select Program / Pool Group</Label>
                   <Select value={newAssignment.programId} onValueChange={v => setNewAssignment({...newAssignment, programId: v, branch: ''})}>
                     <SelectTrigger className="h-9 bg-white"><SelectValue placeholder="Select Program..." /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="COMMITTEE">Institutional Committee Pool</SelectItem>
+                      <SelectItem value="INSTITUTIONAL">Institutional Pools (Common/Committee)</SelectItem>
                       {programs.map(p => <SelectItem key={p.id} value={p.id}>{p.code} - {p.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="col-span-4 space-y-1">
-                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">2. Select Branch / Pool</Label>
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">2. Select Branch / technical Pool</Label>
                   <Select value={newAssignment.branch} onValueChange={v => setNewAssignment({...newAssignment, branch: v})} disabled={!newAssignment.programId}>
                     <SelectTrigger className="h-9 bg-white"><SelectValue placeholder="Branch..." /></SelectTrigger>
                     <SelectContent>
-                      {newAssignment.programId === 'COMMITTEE' ? (
-                        FACULTIES.filter(f => f.startsWith('Course Committee')).map(c => (
-                          <SelectItem key={c} value={c}>{c.replace('Course Committee - ', '')}</SelectItem>
-                        ))
+                      {newAssignment.programId === 'INSTITUTIONAL' ? (
+                        <>
+                          <SelectItem value="BTECH (Common BOS) Pool">BTECH Common Pool</SelectItem>
+                          <SelectItem value="BBA (Common BOS) Pool">BBA Common Pool</SelectItem>
+                          {FACULTIES.filter(f => f.startsWith('Course Committee')).map(c => (
+                            <SelectItem key={c} value={c}>{c.replace('Course Committee - ', '')}</SelectItem>
+                          ))}
+                        </>
                       ) : (
                         programs.find(p => p.id === newAssignment.programId)?.branches.map(b => (
                           <SelectItem key={b} value={b}>{b}</SelectItem>
@@ -429,7 +453,7 @@ export default function UserManagementPage() {
               <div className="flex flex-wrap gap-2 min-h-[30px] pt-2">
                 {form.managedBranches.map((mb, idx) => (
                   <Badge key={idx} className="bg-white text-foreground border-primary/20 gap-2 h-7 px-2">
-                    <span className="font-bold">{mb.programId === 'COMMITTEE' ? 'COMM' : (programs.find(p => p.id === mb.programId)?.code || '??')}</span>
+                    <span className="font-bold">{mb.programId === 'INSTITUTIONAL' ? 'POOL' : (programs.find(p => p.id === mb.programId)?.code || '??')}</span>
                     {mb.branch.replace('Course Committee - ', '')} 
                     <span className="text-accent font-black uppercase text-[8px]">({(mb.role||'').split('_')[1]})</span>
                     <X className="w-3.5 h-3.5 cursor-pointer text-red-400 hover:text-red-600" onClick={() => handleRemoveAssignment(idx)} />
