@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
@@ -379,7 +378,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             <FileText className="w-4 h-4 mr-2" /> Structure
           </Button>
           <Button variant="outline" onClick={() => exportCompleteSyllabusToPDF(scheme, program || null, syllabi)}>
-            <BookOpen className="w-4 h-4 mr-2" /> Book
+            <BookOpen className="w-4 h-4 mr-2" /> Syllabus
           </Button>
           {permissions.canEditScheme && (
             <Button onClick={() => setIsSubmissionDialogOpen(true)}>Finalize Scheme</Button>
