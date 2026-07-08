@@ -8,14 +8,15 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   BookOpen, Loader2, Plus, ChevronDown, ChevronUp, Trash2, 
-  Sparkles, FlaskConical, ShieldCheck, Layers, Globe, Video, GraduationCap
+  Sparkles, FlaskConical, ShieldCheck, Layers, Globe, Video, GraduationCap, Clock
 } from "lucide-react";
-import { Syllabus, UserProfile, CreditCategory, SubjectType, Scheme, Program } from "@/lib/types";
+import { Syllabus, UserProfile, CreditCategory, SubjectType, Scheme, Program, PROGRAM_OUTCOMES, CorrelationLevel } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { useToast } from "@/hooks/use-toast";
@@ -53,7 +54,7 @@ export function SyllabusDialog({
     subjectCode: '', title: '', lectureCredits: 0, tutorialCredits: 0, practicalCredits: 0,
     credits: 0, semester: 1, type: 'Theory', creditCategory: 'DSC', units: [],
     poMappings: {}, textBooks: [], referenceBooks: [], nptelLinks: [], youtubeLinks: [], websiteLinks: [],
-    followedFromId: '', electiveGroupId: ''
+    followedFromId: '', electiveGroupId: '', timetableSlot: ''
   });
 
   const isSuperuser = userProfile?.role === 'admin' || userProfile?.role === 'dean_academic';
@@ -64,7 +65,7 @@ export function SyllabusDialog({
         subjectCode: '', title: '', lectureCredits: 0, tutorialCredits: 0, practicalCredits: 0,
         credits: 0, semester: 1, type: 'Theory', creditCategory: 'DSC', 
         poMappings: {}, textBooks: [], referenceBooks: [], nptelLinks: [], youtubeLinks: [], websiteLinks: [],
-        followedFromId: '', electiveGroupId: '',
+        followedFromId: '', electiveGroupId: '', timetableSlot: '',
         ...syllabus
       });
       if (syllabus.followedFromId || (syllabus as any).isInherited) {
@@ -144,7 +145,20 @@ export function SyllabusDialog({
     setFormData({ ...newData, credits });
   };
 
+  const handlePOMapping = (unitId: string, poCode: string, level: CorrelationLevel) => {
+    if (isFormDisabled) return;
+    const currentMappings = { ...(formData.poMappings || {}) };
+    const unitMappings = { ...(currentMappings[unitId] || {}) };
+    unitMappings[poCode] = level;
+    currentMappings[unitId] = unitMappings;
+    setFormData({ ...formData, poMappings: currentMappings });
+  };
+
   const isElectiveCategory = ['DSE', 'OFE', 'VAC', 'AEC', 'MDC'].includes(formData.creditCategory || '');
+
+  const timetableOptions = isLab 
+    ? ['A', 'B', 'C', 'D', 'E', 'F'] 
+    : ['1', '2', '3', '4', '5', '6'];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -190,7 +204,7 @@ export function SyllabusDialog({
               <TabsList className="grid w-full grid-cols-4 mb-8">
                 <TabsTrigger value="basic">{isLinked ? "Mirror Identity" : "Identity"}</TabsTrigger>
                 <TabsTrigger value="syllabus" className="gap-2">
-                  Inherited Content 
+                  Content 
                   <Badge variant="outline" className="text-[10px] px-1.5 h-4 min-w-4 flex items-center justify-center">
                     {unitCount}
                   </Badge>
@@ -203,7 +217,7 @@ export function SyllabusDialog({
                 {isLinked && (
                   <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-2 shadow-inner">
                     <Label className="text-[10px] uppercase font-bold text-primary flex items-center gap-2">
-                      <Layers className="w-3.5 h-3.5" /> Parent Heritage
+                      <Layers className="w-3.5 h-3.5" /> Parent Authority
                     </Label>
                     <p className="text-sm font-medium">
                       This course mirrors institutional standard <span className="font-black text-primary">{(formData as any).parentCode}</span>.
@@ -254,21 +268,21 @@ export function SyllabusDialog({
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Semester Slot</Label>
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Semester</Label>
                     <Input disabled={isFormDisabled} type="number" value={formData.semester || 1} onChange={e => setFormData({...formData, semester: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Elective Slot ID</Label>
-                    <div className="flex gap-2">
-                       <Input 
-                        disabled={isFormDisabled || !isElectiveCategory} 
-                        value={formData.electiveGroupId || ''} 
-                        onChange={e => setFormData({...formData, electiveGroupId: e.target.value})} 
-                        placeholder="e.g. Elective-I" 
-                        className="font-bold text-primary"
-                      />
-                      <Badge variant="outline" className="shrink-0"><Layers className="w-3 h-3" /></Badge>
-                    </div>
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-2">
+                      <Clock className="w-3 h-3" /> Timetable Slot
+                    </Label>
+                    <Select disabled={isFormDisabled} value={formData.timetableSlot} onValueChange={(v) => setFormData({...formData, timetableSlot: v})}>
+                      <SelectTrigger><SelectValue placeholder="Select Slot..." /></SelectTrigger>
+                      <SelectContent>
+                        {timetableOptions.map(opt => (
+                          <SelectItem key={opt} value={opt}>Slot {opt}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
@@ -288,6 +302,20 @@ export function SyllabusDialog({
                   <div className="space-y-1">
                     <Label className="text-[10px] uppercase font-bold">Credits</Label>
                     <div className="p-2 bg-primary/5 rounded font-bold text-center h-10 flex items-center justify-center text-primary border border-primary/20">{formData.credits} Cr</div>
+                  </div>
+                </div>
+
+                <div className="space-y-2 max-w-sm">
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Elective Slot ID</Label>
+                  <div className="flex gap-2">
+                      <Input 
+                      disabled={isFormDisabled || !isElectiveCategory} 
+                      value={formData.electiveGroupId || ''} 
+                      onChange={e => setFormData({...formData, electiveGroupId: e.target.value})} 
+                      placeholder="e.g. Elective-I" 
+                      className="font-bold text-primary"
+                    />
+                    <Badge variant="outline" className="shrink-0"><Layers className="w-3 h-3" /></Badge>
                   </div>
                 </div>
               </TabsContent>
@@ -412,8 +440,68 @@ export function SyllabusDialog({
                  </div>
               </TabsContent>
 
-              <TabsContent value="mapping" className="p-8 text-center text-muted-foreground italic bg-white rounded-xl border border-dashed">
-                 <p>PO/PSO Correlations are mirrored from the authoritative standard for synchronized virtual slots.</p>
+              <TabsContent value="mapping" className="space-y-6">
+                 <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 mb-6">
+                    <h3 className="font-bold text-lg text-primary flex items-center gap-2">
+                      <GraduationCap className="w-5 h-5" /> 
+                      CO-PO Correlation Matrix
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      Map Course Outcomes (COs) to Program Outcomes (POs). 
+                      Levels: 1: Slight (Low), 2: Moderate (Medium), 3: Substantial (High), -: No Correlation.
+                    </p>
+                 </div>
+
+                 <div className="border rounded-xl bg-white shadow-sm overflow-hidden">
+                    <ScrollArea className="w-full">
+                      <Table>
+                        <TableHeader className="bg-muted/30">
+                          <TableRow>
+                            <TableHead className="w-[250px] font-black text-[10px] uppercase">Course Outcome (CO)</TableHead>
+                            {PROGRAM_OUTCOMES.map(po => (
+                              <TableHead key={po.code} className="text-center font-black text-[10px] uppercase min-w-[60px]" title={po.title}>
+                                {po.code}
+                              </TableHead>
+                            ))}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {(formData.units || []).map((unit, uIdx) => (
+                            <TableRow key={unit.id} className="hover:bg-muted/10 transition-colors">
+                              <TableCell className="py-4">
+                                <div className="space-y-1">
+                                  <Badge variant="outline" className="text-[9px] font-black bg-primary/5 text-primary border-primary/10">CO{uIdx + 1}</Badge>
+                                  <p className="text-[10px] text-muted-foreground italic leading-tight truncate max-w-[200px]" title={unit.courseOutcome}>
+                                    {unit.courseOutcome || "Outcome not defined"}
+                                  </p>
+                                </div>
+                              </TableCell>
+                              {PROGRAM_OUTCOMES.map(po => (
+                                <TableCell key={po.code} className="p-1">
+                                  <Select 
+                                    disabled={isFormDisabled}
+                                    value={formData.poMappings?.[unit.id]?.[po.code] || '-'} 
+                                    onValueChange={(v: CorrelationLevel) => handlePOMapping(unit.id, po.code, v)}
+                                  >
+                                    <SelectTrigger className="h-8 border-none bg-transparent hover:bg-muted/50 focus:ring-0 text-center font-bold text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="-">-</SelectItem>
+                                      <SelectItem value="1">1</SelectItem>
+                                      <SelectItem value="2">2</SelectItem>
+                                      <SelectItem value="3">3</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </TableCell>
+                              ))}
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                      <ScrollBar orientation="horizontal" />
+                    </ScrollArea>
+                 </div>
               </TabsContent>
             </Tabs>
           </div>

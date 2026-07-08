@@ -46,6 +46,21 @@ export type CreditCategory = 'DSC' | 'DSE' | 'OFE' | 'VAC' | 'AEC' | 'SEC' | 'MD
 
 export type CorrelationLevel = '1' | '2' | '3' | '-';
 
+export const PROGRAM_OUTCOMES = [
+  { code: 'PO1', title: 'Engineering Knowledge' },
+  { code: 'PO2', title: 'Problem Analysis' },
+  { code: 'PO3', title: 'Design/Development' },
+  { code: 'PO4', title: 'Investigations' },
+  { code: 'PO5', title: 'Tool Usage' },
+  { code: 'PO6', title: 'Society' },
+  { code: 'PO7', title: 'Environment' },
+  { code: 'PO8', title: 'Ethics' },
+  { code: 'PO9', title: 'Teamwork' },
+  { code: 'PO10', title: 'Communication' },
+  { code: 'PO11', title: 'Project Management' },
+  { code: 'PO12', title: 'Life-long Learning' },
+];
+
 export interface CreditRules {
   dscMin: number;
   dscMax: number;
