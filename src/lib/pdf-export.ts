@@ -1,4 +1,3 @@
-
 'use client';
 
 import jsPDF from 'jspdf';
@@ -222,9 +221,9 @@ export const exportCompleteSyllabusToPDF = (
   const sortedSyllabi = [...syllabi].sort((a, b) => {
     if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
     
-    // Sort by Timetable Slot for official book consistency
-    const slotA = a.timetableSlot || "";
-    const slotB = b.timetableSlot || "";
+    // Arrange by Timetable Slot for official book consistency
+    const slotA = a.timetableSlot || "Z";
+    const slotB = b.timetableSlot || "Z";
     if (slotA !== slotB) {
       return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
     }
@@ -327,8 +326,8 @@ export const exportFullSchemeToPDF = (
       .filter(s => (scheme.isCommitteePool ? true : s.semester === sem) && !s.isOFEContribution)
       .sort((a, b) => {
         // Arrange by Timetable Slot in Structure PDF
-        const slotA = a.timetableSlot || "";
-        const slotB = b.timetableSlot || "";
+        const slotA = a.timetableSlot || "Z";
+        const slotB = b.timetableSlot || "Z";
         if (slotA !== slotB) {
           return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
         }
