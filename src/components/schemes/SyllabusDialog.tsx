@@ -635,7 +635,7 @@ export function SyllabusDialog({
         
         <DialogFooter className="p-6 border-t bg-background shrink-0 shadow-lg">
            <Button variant="outline" onClick={() => onOpenChange(false)} className="h-11 px-6">Cancel</Button>
-           {!isFormDisabled && (
+           {canEdit && (
              <Button 
               onClick={() => { onSave(formData); onOpenChange(false); }} 
               className="h-11 px-8 shadow-md"
