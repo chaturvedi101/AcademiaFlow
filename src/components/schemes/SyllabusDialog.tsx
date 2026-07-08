@@ -106,6 +106,11 @@ export function SyllabusDialog({
     }
   }, [selectedLinkSchemeId, db]);
 
+  // Enforce Methodology Consistency (Theory to Theory, Lab to Lab)
+  const filteredParentSyllabi = useMemo(() => {
+    return availableParentSyllabi.filter(s => s.type === formData.type);
+  }, [availableParentSyllabi, formData.type]);
+
   const timetableClash = useMemo(() => {
     if (!formData.timetableSlot || !formData.semester || !allSyllabi) return null;
     return allSyllabi.find(s => 
@@ -221,7 +226,7 @@ export function SyllabusDialog({
           poMappings: parentData.poMappings,
           timetableSlot: parentData.timetableSlot || ''
         }));
-        toast({ title: "Institutional Standard established", description: "All pedagogical details, including timetable slot and outcomes, have been synchronized." });
+        toast({ title: "Institutional Standard established", description: "All pedagogical details synchronized." });
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Linking Failed", description: e.message });
@@ -253,7 +258,7 @@ export function SyllabusDialog({
             </div>
           </DialogTitle>
           <DialogDescription>
-            Construct pedagogical methodology and content. Establish mirror links to institutional standards.
+            Construct pedagogical methodology and content. Link to institutional standards (Theory-to-Theory, Lab-to-Lab).
           </DialogDescription>
         </DialogHeader>
 
@@ -290,7 +295,7 @@ export function SyllabusDialog({
                     Conflict detected with: <span className="font-black">{timetableClash.title} ({timetableClash.subjectCode})</span> in Semester {formData.semester}.
                   </p>
                   <p className="text-[11px] italic">
-                    University policy mandates unique slots per semester. Please reassign the slot for the clashing departmental course.
+                    University policy mandates unique slots per semester. Please reassign the slot for the departmental course.
                   </p>
                 </AlertDescription>
               </Alert>
@@ -336,22 +341,28 @@ export function SyllabusDialog({
                             </Select>
                           </div>
                           <div className="space-y-2">
-                            <Label className="text-[10px] uppercase font-bold">Standard Subject</Label>
+                            <Label className="text-[10px] uppercase font-bold">Standard Subject ({formData.type})</Label>
                             <Select 
                               disabled={!selectedLinkSchemeId || isFetchingParentSyllabi} 
                               onValueChange={handleEstablishLink}
                             >
                               <SelectTrigger className="bg-white">
-                                <SelectValue placeholder={isFetchingParentSyllabi ? "Fetching subjects..." : "Choose Subject..."} />
+                                <SelectValue placeholder={isFetchingParentSyllabi ? "Fetching subjects..." : "Choose matching standard..."} />
                               </SelectTrigger>
                               <SelectContent>
-                                {availableParentSyllabi.map(s => (
+                                {filteredParentSyllabi.map(s => (
                                   <SelectItem key={s.id} value={s.id}>
                                     {s.subjectCode} - {s.title}
                                   </SelectItem>
                                 ))}
+                                {filteredParentSyllabi.length === 0 && !isFetchingParentSyllabi && (
+                                  <div className="p-4 text-xs text-muted-foreground italic text-center">
+                                    No {formData.type} courses found in this pool.
+                                  </div>
+                                )}
                               </SelectContent>
                             </Select>
+                            <p className="text-[9px] text-muted-foreground italic">Note: Only {formData.type} subjects from the parent pool are available for linking.</p>
                           </div>
                         </div>
                       )}
@@ -368,7 +379,7 @@ export function SyllabusDialog({
                       This course mirrors institutional standard <span className="font-black text-primary">{(formData as any).parentCode}</span>.
                     </p>
                     <p className="text-[10px] text-muted-foreground italic">
-                      Units, Hours, Learning Resources, Outcomes, and Timetable Slots are synchronized with the authoritative Board of Studies pool.
+                      Units, Hours, Resources, Outcomes, and Slots are synchronized with the BoS pool.
                     </p>
                   </div>
                 )}
@@ -398,7 +409,7 @@ export function SyllabusDialog({
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Pedagogy</Label>
-                    <Select disabled={isFormDisabled} value={formData.type || 'Theory'} onValueChange={(v: any) => {
+                    <Select disabled={isFormDisabled || isLinked} value={formData.type || 'Theory'} onValueChange={(v: any) => {
                       const l = v === 'Lab/Sessional' ? 0 : formData.lectureCredits;
                       const t = v === 'Lab/Sessional' ? 0 : formData.tutorialCredits;
                       const p = v === 'Theory' ? 0 : formData.practicalCredits;
@@ -520,7 +531,6 @@ export function SyllabusDialog({
 
               <TabsContent value="resources" className="space-y-8">
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                   {/* Learning Resources */}
                    <div className="space-y-4">
                       <Label className="font-bold text-primary flex items-center gap-2">
                         <BookOpen className="w-4 h-4" /> Standard Text Books
@@ -588,7 +598,7 @@ export function SyllabusDialog({
                       <div className="space-y-2">
                         {formData.websiteLinks?.map((it, i) => (
                           <div key={i} className="flex gap-2">
-                            <Input value={it} disabled={isFormDisabled} onChange={e => { const a=[...formData.websiteLinks!]; a[i]=e.target.value; setFormData({...formData, websiteLinks:a}) }} placeholder="Academic Portal or Documentation URL" />
+                            <Input value={it} disabled={isFormDisabled} onChange={e => { const a=[...formData.websiteLinks!]; a[i]=e.target.value; setFormData({...formData, websiteLinks:a}) }} placeholder="Academic Portal URL" />
                             {!isFormDisabled && <Button variant="ghost" size="icon" onClick={() => setFormData({...formData, websiteLinks: formData.websiteLinks?.filter((_, idx) => idx !== i)})}><Trash2 className="w-4 h-4 text-red-400" /></Button>}
                           </div>
                         ))}
@@ -606,7 +616,7 @@ export function SyllabusDialog({
                     </h3>
                     <p className="text-xs text-muted-foreground">
                       Map Course Outcomes (COs) to Program Outcomes (POs). 
-                      Levels: 1: Slight (Low), 2: Moderate (Medium), 3: Substantial (High), -: No Correlation.
+                      Levels: 1: Slight, 2: Moderate, 3: Substantial, -: No Correlation.
                     </p>
                  </div>
 
