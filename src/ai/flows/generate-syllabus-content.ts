@@ -1,7 +1,7 @@
 'use server';
 /**
  * @fileOverview Flow to generate full syllabus content using Gemini.
- * Strictly mandates 5 units for Theory and at least 8 experiments for Labs.
+ * Relaxed constraints for flexible academic structures.
  */
 
 import { ai } from '@/ai/genkit';
@@ -46,12 +46,12 @@ const syllabusPrompt = ai.definePrompt({
   - Methodology: {{{type}}}
   
   Requirements for Theory:
-  1. If methodology is "Theory", you MUST generate EXACTLY 5-6 units.
+  1. Generate a logical number of units based on the credits (typically 4-6 units).
   2. For each unit, provide a specific title and a detailed block of topics.
-  3. Suggest teaching hours (usually 8-10 hours per unit).
+  3. Suggest teaching hours (usually 8-12 hours per unit depending on complexity).
   
   Requirements for Lab/Sessional:
-  1. If methodology is "Lab/Sessional", you MUST generate AT LEAST 8-10 experiments.
+  1. Generate a logical list of experiments/practicals (typically 8-12 items).
   2. Label each item as "Experiment X: [Title]" (e.g. Experiment 1: Synthesis of...).
   3. Content should describe the objective and list of equipment/software or procedure.
   4. Suggest teaching hours (usually 2-3 hours per experiment).

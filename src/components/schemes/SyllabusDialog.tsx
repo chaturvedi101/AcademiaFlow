@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   BookOpen, Loader2, Plus, ChevronDown, ChevronUp, Trash2, 
-  Sparkles, FlaskConical, ShieldCheck, Layers
+  Sparkles, FlaskConical, ShieldCheck, Layers, Globe, Video, GraduationCap
 } from "lucide-react";
 import { Syllabus, UserProfile, CreditCategory, SubjectType, Scheme, Program } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -52,7 +52,7 @@ export function SyllabusDialog({
   const [formData, setFormData] = useState<Partial<Syllabus>>({
     subjectCode: '', title: '', lectureCredits: 0, tutorialCredits: 0, practicalCredits: 0,
     credits: 0, semester: 1, type: 'Theory', creditCategory: 'DSC', units: [],
-    poMappings: {}, textBooks: [], referenceBooks: [], nptelLinks: [], youtubeLinks: [],
+    poMappings: {}, textBooks: [], referenceBooks: [], nptelLinks: [], youtubeLinks: [], websiteLinks: [],
     followedFromId: '', electiveGroupId: ''
   });
 
@@ -63,7 +63,7 @@ export function SyllabusDialog({
       setFormData({ 
         subjectCode: '', title: '', lectureCredits: 0, tutorialCredits: 0, practicalCredits: 0,
         credits: 0, semester: 1, type: 'Theory', creditCategory: 'DSC', 
-        poMappings: {}, textBooks: [], referenceBooks: [], nptelLinks: [], youtubeLinks: [],
+        poMappings: {}, textBooks: [], referenceBooks: [], nptelLinks: [], youtubeLinks: [], websiteLinks: [],
         followedFromId: '', electiveGroupId: '',
         ...syllabus
       });
@@ -195,7 +195,7 @@ export function SyllabusDialog({
                     {unitCount}
                   </Badge>
                 </TabsTrigger>
-                <TabsTrigger value="resources">Institutional Resources</TabsTrigger>
+                <TabsTrigger value="resources">Learning Resources</TabsTrigger>
                 <TabsTrigger value="mapping">Outcomes</TabsTrigger>
               </TabsList>
 
@@ -315,17 +315,86 @@ export function SyllabusDialog({
               </TabsContent>
 
               <TabsContent value="resources" className="space-y-8">
-                 <div className="space-y-4">
-                    <Label className="font-bold text-primary flex items-center gap-2">
-                      <BookOpen className="w-4 h-4" /> Authoritative References
-                    </Label>
-                    {formData.textBooks?.map((it, i) => (
-                      <div key={i} className="flex gap-2">
-                        <Input value={it} disabled={isFormDisabled} onChange={e => { const a=[...formData.textBooks!]; a[i]=e.target.value; setFormData({...formData, textBooks:a}) }} placeholder="Standard Text Book Details" />
-                        {!isFormDisabled && <Button variant="ghost" size="icon" onClick={() => setFormData({...formData, textBooks: formData.textBooks?.filter((_, idx) => idx !== i)})}><Trash2 className="w-4 h-4 text-red-400" /></Button>}
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                   {/* Text Books */}
+                   <div className="space-y-4">
+                      <Label className="font-bold text-primary flex items-center gap-2">
+                        <BookOpen className="w-4 h-4" /> Standard Text Books
+                      </Label>
+                      <div className="space-y-2">
+                        {formData.textBooks?.map((it, i) => (
+                          <div key={i} className="flex gap-2">
+                            <Input value={it} disabled={isFormDisabled} onChange={e => { const a=[...formData.textBooks!]; a[i]=e.target.value; setFormData({...formData, textBooks:a}) }} placeholder="Author, Title, Edition, Publisher" />
+                            {!isFormDisabled && <Button variant="ghost" size="icon" onClick={() => setFormData({...formData, textBooks: formData.textBooks?.filter((_, idx) => idx !== i)})}><Trash2 className="w-4 h-4 text-red-400" /></Button>}
+                          </div>
+                        ))}
+                        {!isFormDisabled && <Button variant="ghost" size="sm" onClick={() => setFormData({...formData, textBooks: [...(formData.textBooks||[]), '']})} className="text-primary h-8"><Plus className="w-3.5 h-3.5 mr-1" /> Add Textbook</Button>}
                       </div>
-                    ))}
-                    {!isFormDisabled && <Button variant="ghost" size="sm" onClick={() => setFormData({...formData, textBooks: [...(formData.textBooks||[]), '']})} className="text-primary"><Plus className="w-3.5 h-3.5 mr-1" /> Add Textbook</Button>}
+                   </div>
+
+                   {/* Reference Books */}
+                   <div className="space-y-4">
+                      <Label className="font-bold text-primary flex items-center gap-2">
+                        <Layers className="w-4 h-4" /> Reference Materials
+                      </Label>
+                      <div className="space-y-2">
+                        {formData.referenceBooks?.map((it, i) => (
+                          <div key={i} className="flex gap-2">
+                            <Input value={it} disabled={isFormDisabled} onChange={e => { const a=[...formData.referenceBooks!]; a[i]=e.target.value; setFormData({...formData, referenceBooks:a}) }} placeholder="Reference details..." />
+                            {!isFormDisabled && <Button variant="ghost" size="icon" onClick={() => setFormData({...formData, referenceBooks: formData.referenceBooks?.filter((_, idx) => idx !== i)})}><Trash2 className="w-4 h-4 text-red-400" /></Button>}
+                          </div>
+                        ))}
+                        {!isFormDisabled && <Button variant="ghost" size="sm" onClick={() => setFormData({...formData, referenceBooks: [...(formData.referenceBooks||[]), '']})} className="text-primary h-8"><Plus className="w-3.5 h-3.5 mr-1" /> Add Reference</Button>}
+                      </div>
+                   </div>
+
+                   {/* NPTEL Links */}
+                   <div className="space-y-4">
+                      <Label className="font-bold text-primary flex items-center gap-2">
+                        <GraduationCap className="w-4 h-4" /> NPTEL / Online Courses
+                      </Label>
+                      <div className="space-y-2">
+                        {formData.nptelLinks?.map((it, i) => (
+                          <div key={i} className="flex gap-2">
+                            <Input value={it} disabled={isFormDisabled} onChange={e => { const a=[...formData.nptelLinks!]; a[i]=e.target.value; setFormData({...formData, nptelLinks:a}) }} placeholder="URL to NPTEL/SWAYAM Course" />
+                            {!isFormDisabled && <Button variant="ghost" size="icon" onClick={() => setFormData({...formData, nptelLinks: formData.nptelLinks?.filter((_, idx) => idx !== i)})}><Trash2 className="w-4 h-4 text-red-400" /></Button>}
+                          </div>
+                        ))}
+                        {!isFormDisabled && <Button variant="ghost" size="sm" onClick={() => setFormData({...formData, nptelLinks: [...(formData.nptelLinks||[]), '']})} className="text-primary h-8"><Plus className="w-3.5 h-3.5 mr-1" /> Add MOOC Link</Button>}
+                      </div>
+                   </div>
+
+                   {/* YouTube Links */}
+                   <div className="space-y-4">
+                      <Label className="font-bold text-primary flex items-center gap-2">
+                        <Video className="w-4 h-4" /> YouTube / Multimedia
+                      </Label>
+                      <div className="space-y-2">
+                        {formData.youtubeLinks?.map((it, i) => (
+                          <div key={i} className="flex gap-2">
+                            <Input value={it} disabled={isFormDisabled} onChange={e => { const a=[...formData.youtubeLinks!]; a[i]=e.target.value; setFormData({...formData, youtubeLinks:a}) }} placeholder="YouTube Video URL" />
+                            {!isFormDisabled && <Button variant="ghost" size="icon" onClick={() => setFormData({...formData, youtubeLinks: formData.youtubeLinks?.filter((_, idx) => idx !== i)})}><Trash2 className="w-4 h-4 text-red-400" /></Button>}
+                          </div>
+                        ))}
+                        {!isFormDisabled && <Button variant="ghost" size="sm" onClick={() => setFormData({...formData, youtubeLinks: [...(formData.youtubeLinks||[]), '']})} className="text-primary h-8"><Plus className="w-3.5 h-3.5 mr-1" /> Add Video Link</Button>}
+                      </div>
+                   </div>
+
+                   {/* Digital Portals / Websites */}
+                   <div className="space-y-4 md:col-span-2">
+                      <Label className="font-bold text-primary flex items-center gap-2">
+                        <Globe className="w-4 h-4" /> Websites & Digital Portals
+                      </Label>
+                      <div className="space-y-2">
+                        {formData.websiteLinks?.map((it, i) => (
+                          <div key={i} className="flex gap-2">
+                            <Input value={it} disabled={isFormDisabled} onChange={e => { const a=[...formData.websiteLinks!]; a[i]=e.target.value; setFormData({...formData, websiteLinks:a}) }} placeholder="Academic Portal or Documentation URL" />
+                            {!isFormDisabled && <Button variant="ghost" size="icon" onClick={() => setFormData({...formData, websiteLinks: formData.websiteLinks?.filter((_, idx) => idx !== i)})}><Trash2 className="w-4 h-4 text-red-400" /></Button>}
+                          </div>
+                        ))}
+                        {!isFormDisabled && <Button variant="ghost" size="sm" onClick={() => setFormData({...formData, websiteLinks: [...(formData.websiteLinks||[]), '']})} className="text-primary h-8"><Plus className="w-3.5 h-3.5 mr-1" /> Add Portal URL</Button>}
+                      </div>
+                   </div>
                  </div>
               </TabsContent>
 

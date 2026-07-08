@@ -125,7 +125,7 @@ const drawSubjectSyllabus = (
   };
 
   const drawResourceSection = (title: string, items?: string[]) => {
-    if (!items || items.length === 0) return;
+    if (!items || items.length === 0 || items.every(i => !i.trim())) return;
     checkPage(15);
     doc.setFontSize(10);
     doc.setTextColor(ACCENT_COLOR[0], ACCENT_COLOR[1], ACCENT_COLOR[2]);
@@ -137,6 +137,7 @@ const drawSubjectSyllabus = (
     doc.setTextColor(0);
     doc.setFont('helvetica', 'normal');
     items.forEach(item => {
+      if (!item.trim()) return;
       const splitText = doc.splitTextToSize(`• ${item}`, pageWidth - 40);
       checkPage(splitText.length * 5);
       doc.text(splitText, 20, currentY);
@@ -145,11 +146,14 @@ const drawSubjectSyllabus = (
     currentY += 4;
   };
 
-  const textBooksTitle = syllabus.type === 'Lab/Sessional' ? 'Lab Manuals & Standards' : 'Recommended Text Books';
+  const textBooksTitle = syllabus.type === 'Lab/Sessional' ? 'Lab Manuals & Standards' : 'Standard Text Books';
   const refBooksTitle = syllabus.type === 'Lab/Sessional' ? 'Software / Equipment List' : 'Reference Materials';
 
   drawResourceSection(textBooksTitle, syllabus.textBooks);
   drawResourceSection(refBooksTitle, syllabus.referenceBooks);
+  drawResourceSection('NPTEL / Online Courses', syllabus.nptelLinks);
+  drawResourceSection('YouTube / Multimedia Resources', syllabus.youtubeLinks);
+  drawResourceSection('Digital Portals & Documentation', syllabus.websiteLinks);
 
   return currentY;
 };

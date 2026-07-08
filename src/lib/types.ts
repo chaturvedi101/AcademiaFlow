@@ -156,6 +156,7 @@ export interface Syllabus {
   referenceBooks: string[];
   nptelLinks?: string[];
   youtubeLinks?: string[];
+  websiteLinks?: string[];
   creditCategory: CreditCategory;
   isCommonCourse?: boolean;
   followedFromId?: string;
