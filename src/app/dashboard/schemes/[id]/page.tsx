@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
@@ -127,7 +126,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           isStandardized: true,
           standardizedFrom: 'Equivalence Manager',
           electiveGroupId: local.electiveGroupId || parent.electiveGroupId || '',
-          timetableSlot: local.timetableSlot || parent.timetableSlot || ''
+          timetableSlot: parent.timetableSlot || local.timetableSlot || ''
         } as Syllabus;
       }
       return local;
@@ -136,9 +135,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     return resolvedLocal.sort((a, b) => {
       if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
       
-      // Arrange within semester by Timetable Slot
-      const slotA = a.timetableSlot || "";
-      const slotB = b.timetableSlot || "";
+      // Arrange within semester by Timetable Slot (Numeric slots 1-6 then Alpha slots A-F)
+      const slotA = a.timetableSlot || "Z";
+      const slotB = b.timetableSlot || "Z";
       if (slotA !== slotB) {
         return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
       }
@@ -251,7 +250,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const handleSyncCodes = async () => {
     if (!scheme || isSyncing) return;
     
-    // For non-pool schemes, we need the program to resolve branch prefixes
     if (!program && !scheme.isCommitteePool && !scheme.isVerticalPool) return;
 
     setIsSyncing(true);
@@ -287,13 +285,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         }
       };
 
-      // 1. Sort localSyllabi for consistent sequencing by Semester then Timetable Slot
       const sortedSyllabi = [...localSyllabi].sort((a, b) => {
         if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
         
         // Arrange by Timetable Slot for deterministic code assignment
-        const slotA = a.timetableSlot || "";
-        const slotB = b.timetableSlot || "";
+        const slotA = a.timetableSlot || "Z";
+        const slotB = b.timetableSlot || "Z";
         if (slotA !== slotB) {
           return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
         }
@@ -307,16 +304,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
       sortedSyllabi.forEach(sub => {
         const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(sub.creditCategory);
-        
-        // RT prefix for common categories in normal schemes, or the branch prefix
-        // For committees, they always use their domain prefix
         const targetPrefix = isCommonCategory && !scheme.isCommitteePool ? 'RT' : effectivePrefix;
         
         const pedagogyChar = sub.type === 'Lab/Sessional' ? 'P' : (sub.creditCategory === 'PRJ' ? 'I' : 'L');
         const pillarChar = getPillarChar(sub.creditCategory);
         const yearDigit = Math.ceil((sub.semester || 1) / 2);
         
-        // Sequence is specific to Prefix + Pedagogy + Pillar + Year
         const counterKey = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}`;
         sequenceCounters[counterKey] = (sequenceCounters[counterKey] || 0) + 1;
         

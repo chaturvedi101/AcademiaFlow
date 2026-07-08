@@ -206,9 +206,10 @@ export function SyllabusDialog({
           nptelLinks: parentData.nptelLinks,
           youtubeLinks: parentData.youtubeLinks,
           websiteLinks: parentData.websiteLinks,
-          poMappings: parentData.poMappings
+          poMappings: parentData.poMappings,
+          timetableSlot: parentData.timetableSlot || ''
         }));
-        toast({ title: "Institutional Standard established", description: "Pedagogical content synchronized with parent authority." });
+        toast({ title: "Institutional Standard established", description: "All pedagogical details, including timetable slot and outcomes, have been synchronized." });
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Linking Failed", description: e.message });
@@ -335,7 +336,7 @@ export function SyllabusDialog({
                       This course mirrors institutional standard <span className="font-black text-primary">{(formData as any).parentCode}</span>.
                     </p>
                     <p className="text-[10px] text-muted-foreground italic">
-                      Units, Hours, and Outcomes are synchronized with the authoritative Board of Studies pool.
+                      Units, Hours, Learning Resources, Outcomes, and Timetable Slots are synchronized with the authoritative Board of Studies pool.
                     </p>
                   </div>
                 )}
@@ -388,7 +389,7 @@ export function SyllabusDialog({
                       <Clock className="w-3 h-3" /> Timetable Slot
                     </Label>
                     <Select disabled={isFormDisabled} value={formData.timetableSlot} onValueChange={(v) => setFormData({...formData, timetableSlot: v})}>
-                      <SelectTrigger><SelectValue placeholder="Select Slot..." /></SelectTrigger>
+                      <SelectTrigger className="bg-white"><SelectValue placeholder="Select Slot..." /></SelectTrigger>
                       <SelectContent>
                         {timetableOptions.map(opt => (
                           <SelectItem key={opt} value={opt}>Slot {opt}</SelectItem>
