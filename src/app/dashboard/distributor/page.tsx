@@ -12,8 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Share2, Loader2, CheckCircle2, AlertTriangle, ShieldCheck, Search, Building2, Filter, Layers, Plus, Trash2 } from 'lucide-react';
+import { Share2, Loader2, CheckCircle2, AlertTriangle, ShieldCheck, Filter, Layers, History, ArrowRight, BookOpen } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 export default function PoolDistributorPage() {
   const db = useFirestore();
@@ -30,6 +31,8 @@ export default function PoolDistributorPage() {
   const [selectedProgramIds, setSelectedProgramIds] = useState<string[]>([]);
   const [isDistributing, setIsProcessing] = useState(false);
   const [poolSyllabi, setPoolSyllabi] = useState<Syllabus[]>([]);
+  const [globalRegistry, setGlobalRegistry] = useState<Syllabus[]>([]);
+  const [registryLoading, setRegistryLoading] = useState(false);
 
   const { data: allPrograms } = useCollection<Program>(useMemoFirebase(() => collection(db, 'programs'), [db]));
   const { data: allSchemes } = useCollection<Scheme>(useMemoFirebase(() => collection(db, 'schemes'), [db]));
@@ -37,6 +40,24 @@ export default function PoolDistributorPage() {
   const sourcePools = useMemo(() => 
     allSchemes.filter(s => s.isCommitteePool || s.isVerticalPool), 
   [allSchemes]);
+
+  const fetchGlobalRegistry = async () => {
+    setRegistryLoading(true);
+    try {
+      const q = query(collectionGroup(db, 'syllabi'), where('followedFromId', '!=', null));
+      const snap = await getDocs(q);
+      const linked = snap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus));
+      setGlobalRegistry(linked);
+    } catch (e) {
+      console.error("Registry fetch failed:", e);
+    } finally {
+      setRegistryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchGlobalRegistry();
+  }, [db, isDistributing]);
 
   useEffect(() => {
     if (sourceSchemeId) {
@@ -58,6 +79,11 @@ export default function PoolDistributorPage() {
       !s.isVerticalPool
     );
   }, [allSchemes, batchYear, selectedProgramIds]);
+
+  const filteredRegistry = useMemo(() => {
+    if (!sourceSchemeId) return [];
+    return globalRegistry.filter(s => s.parentSchemeId === sourceSchemeId);
+  }, [globalRegistry, sourceSchemeId]);
 
   const generateInstitutionalCode = (sub: Syllabus, branchPrefix: string, sequence: number) => {
     const pedagogyChar = sub.type === 'Lab/Sessional' ? 'P' : (sub.creditCategory === 'PRJ' ? 'I' : 'L');
@@ -95,7 +121,6 @@ export default function PoolDistributorPage() {
         const program = allPrograms.find(p => p.id === targetScheme.programId);
         const branchPrefix = program?.branchPrefixes?.[targetScheme.branch || ''] || 'XX';
         
-        // Distribute each selected course
         for (const subId of selectedSourceSyllabusIds) {
           const sourceSub = poolSyllabi.find(s => s.id === subId);
           if (!sourceSub) continue;
@@ -108,9 +133,6 @@ export default function PoolDistributorPage() {
           
           while (true) {
             localCode = generateInstitutionalCode(sourceSub, effectivePrefix, sequence);
-            // Check global registry + this batch for collision in this specific target scheme
-            // (AssignedInBatch should include code+schemeId if we want to reuse codes across schemes,
-            // but here we maintain global unique prefixing where possible)
             const schemeSpecificCode = `${targetScheme.id}-${localCode}`;
             
             if (!existingGlobalCodes.has(localCode) && !assignedInBatch.has(schemeSpecificCode)) break;
@@ -120,7 +142,6 @@ export default function PoolDistributorPage() {
 
           assignedInBatch.add(`${targetScheme.id}-${localCode}`);
 
-          // Child entry logic
           const newSyllabusId = Math.random().toString(36).substr(2, 9);
           const syllabusRef = doc(db, 'schemes', targetScheme.id, 'syllabi', newSyllabusId);
           
@@ -138,14 +159,14 @@ export default function PoolDistributorPage() {
             lectureCredits: sourceSub.lectureCredits,
             tutorialCredits: sourceSub.tutorialCredits,
             practicalCredits: sourceSub.practicalCredits,
-            title: sourceSub.title, // Initial mirror
+            title: sourceSub.title,
             updatedAt: serverTimestamp()
           });
         }
       }
 
       await batch.commit();
-      toast({ title: "Bulk Distribution Complete", description: `Injected ${selectedSourceSyllabusIds.length} standard courses into ${targetSchemes.length} branch schemes.` });
+      toast({ title: "Bulk Distribution Complete", description: `Injected standard courses into ${targetSchemes.length} branch schemes.` });
       setSelectedProgramIds([]);
       setSelectedSourceSyllabusIds([]);
     } catch (e: any) {
@@ -159,21 +180,21 @@ export default function PoolDistributorPage() {
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-headline font-bold text-primary">Institutional Course Distributor</h1>
-        <p className="text-muted-foreground">Bulk insert and link common pool subjects (Physics, Maths, VAC, etc.) across multiple BTECH programs.</p>
+        <p className="text-muted-foreground">Bulk insert and link common pool subjects across multiple programs with automatic heritage tracking.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <Card className="lg:col-span-5 h-fit border-primary/10 shadow-lg bg-gradient-to-br from-white to-primary/5">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <Share2 className="w-5 h-5 text-primary" /> Multi-Course Source
+              <Share2 className="w-5 h-5 text-primary" /> Distribution Engine
             </CardTitle>
-            <CardDescription>Select standard courses to distribute university-wide.</CardDescription>
+            <CardDescription>Select and inject standard courses university-wide.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-6">
               <div className="space-y-2">
-                <Label className="text-[10px] uppercase font-bold text-muted-foreground">1. Source Pool</Label>
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">1. Source Pool (Heritage Parent)</Label>
                 <Select value={sourceSchemeId} onValueChange={setSourceSchemeId}>
                   <SelectTrigger className="bg-white"><SelectValue placeholder="Select Pool..." /></SelectTrigger>
                   <SelectContent>
@@ -184,7 +205,7 @@ export default function PoolDistributorPage() {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">2. Select Courses</Label>
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">2. Select Courses to Inherit</Label>
                   {poolSyllabi.length > 0 && (
                     <div className="flex gap-2">
                       <Button variant="ghost" size="sm" onClick={() => setSelectedSourceSyllabusIds(poolSyllabi.map(s => s.id))} className="h-6 text-[9px] uppercase font-black">All</Button>
@@ -234,18 +255,13 @@ export default function PoolDistributorPage() {
               </div>
             </div>
 
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex gap-3 text-[10px] text-amber-800 shadow-inner">
-              <AlertTriangle className="w-4 h-4 shrink-0" />
-              <p><b>Institutional Linkage:</b> Selected subjects will mirror the parent pedagogy. Local codes will use branch prefixes (XX) or RT standard prefix where applicable.</p>
-            </div>
-
             <Button 
               className="w-full h-12 gap-2 shadow-lg" 
               onClick={handleDistribute} 
               disabled={selectedSourceSyllabusIds.length === 0 || targetSchemes.length === 0 || isDistributing}
             >
               {isDistributing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-              {isDistributing ? "Processing Batch Injection..." : `Distribute ${selectedSourceSyllabusIds.length} Subjects to ${targetSchemes.length} Schemes`}
+              {isDistributing ? "Processing Batch Injection..." : `Distribute to ${targetSchemes.length} Branch Schemes`}
             </Button>
           </CardContent>
         </Card>
@@ -255,18 +271,18 @@ export default function PoolDistributorPage() {
             <CardHeader className="bg-muted/10 border-b flex flex-row items-center justify-between py-4">
               <div>
                 <CardTitle className="text-lg">Target Branches & Faculties</CardTitle>
-                <CardDescription>Select BTECH programs to receive the institutional distribution.</CardDescription>
+                <CardDescription>Select programs to receive the standard injection.</CardDescription>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" onClick={() => setSelectedProgramIds(allPrograms.map(p => p.id))} className="text-[10px] uppercase font-bold">Select All</Button>
+                <Button variant="ghost" size="sm" onClick={() => setSelectedProgramIds(allPrograms.map(p => p.id))} className="text-[10px] uppercase font-bold">All</Button>
                 <Button variant="ghost" size="sm" onClick={() => setSelectedProgramIds([])} className="text-[10px] uppercase font-bold">Clear</Button>
               </div>
             </CardHeader>
             <CardContent className="p-6">
-              <ScrollArea className="h-[400px] pr-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <ScrollArea className="h-[250px] pr-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {allPrograms.map(p => (
-                    <div key={p.id} className="flex items-center space-x-3 p-3 border rounded-xl hover:bg-muted/30 transition-colors">
+                    <div key={p.id} className="flex items-center space-x-3 p-2.5 border rounded-lg hover:bg-muted/30 transition-colors">
                       <Checkbox 
                         id={p.id} 
                         checked={selectedProgramIds.includes(p.id)}
@@ -278,8 +294,8 @@ export default function PoolDistributorPage() {
                         }}
                       />
                       <label htmlFor={p.id} className="flex flex-col cursor-pointer flex-1">
-                        <span className="text-sm font-bold">{p.name}</span>
-                        <span className="text-[10px] text-muted-foreground uppercase font-black tracking-tighter">{p.faculty}</span>
+                        <span className="text-xs font-bold">{p.name}</span>
+                        <span className="text-[9px] text-muted-foreground uppercase font-black">{p.faculty}</span>
                       </label>
                     </div>
                   ))}
@@ -288,35 +304,62 @@ export default function PoolDistributorPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-none shadow-sm bg-white">
-            <CardHeader className="py-4 border-b">
-              <CardTitle className="text-sm font-bold flex items-center gap-2">
-                <Filter className="w-4 h-4" /> Distribution Matrix Preview
-              </CardTitle>
+          <Card className="border-none shadow-sm bg-white overflow-hidden">
+            <CardHeader className="py-4 border-b bg-primary/5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm font-bold flex items-center gap-2">
+                    <History className="w-4 h-4 text-primary" /> Inheritance Registry
+                  </CardTitle>
+                  <CardDescription className="text-[10px]">Active institutional mirrors for the selected pool.</CardDescription>
+                </div>
+                {registryLoading && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
+              </div>
             </CardHeader>
-            <CardContent className="p-6">
-               <div className="space-y-4">
-                 <div className="flex flex-wrap gap-2 justify-center">
-                   {targetSchemes.length === 0 ? (
-                     <p className="text-center text-muted-foreground text-xs italic py-4">Select target programs and batch to preview active branches.</p>
-                   ) : (
-                     targetSchemes.map(s => (
-                       <Badge key={s.id} variant="outline" className="bg-primary/5 text-primary border-primary/20">
-                         {s.branch}
-                       </Badge>
-                     ))
-                   )}
-                 </div>
-                 {selectedSourceSyllabusIds.length > 0 && targetSchemes.length > 0 && (
-                   <div className="mt-4 p-4 bg-primary/5 rounded-xl border border-primary/10 text-center">
-                     <p className="text-[10px] font-bold text-primary uppercase">Operation Impact</p>
-                     <p className="text-2xl font-black text-primary">
-                       {selectedSourceSyllabusIds.length * targetSchemes.length}
-                     </p>
-                     <p className="text-[10px] text-muted-foreground font-medium">New standardized course links will be created.</p>
-                   </div>
-                 )}
-               </div>
+            <CardContent className="p-0">
+              <ScrollArea className="h-[300px]">
+                <Table>
+                  <TableHeader className="bg-muted/20">
+                    <TableRow>
+                      <TableHead className="pl-6 text-[10px] uppercase font-black">Target Branch</TableHead>
+                      <TableHead className="text-[10px] uppercase font-black">Inherited Mapping</TableHead>
+                      <TableHead className="text-right pr-6 text-[10px] uppercase font-black">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredRegistry.map((reg, idx) => {
+                      const scheme = allSchemes.find(s => s.id === reg.schemeId);
+                      return (
+                        <TableRow key={idx} className="hover:bg-muted/5 transition-colors">
+                          <TableCell className="pl-6">
+                            <div className="flex flex-col">
+                              <span className="text-xs font-bold">{scheme?.branch || 'Department'}</span>
+                              <span className="text-[9px] text-muted-foreground uppercase">{scheme?.batchYear}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-[9px] font-mono bg-white">{reg.subjectCode}</Badge>
+                              <ArrowRight className="w-3 h-3 text-muted-foreground" />
+                              <Badge variant="secondary" className="text-[9px] font-mono bg-primary/5 text-primary border-primary/10">{reg.parentCode}</Badge>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right pr-6">
+                            <Badge className="bg-emerald-100 text-emerald-700 border-none text-[8px] font-black">ACTIVE MIRROR</Badge>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {filteredRegistry.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-center py-12 text-muted-foreground italic text-xs">
+                          {sourceSchemeId ? 'No distribution records found for this pool.' : 'Select a source pool to view its inheritance registry.'}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
             </CardContent>
           </Card>
         </div>
