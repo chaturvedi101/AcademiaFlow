@@ -188,7 +188,7 @@ export function SyllabusDialog({
 
             <Tabs defaultValue="basic">
               <TabsList className="grid w-full grid-cols-4 mb-8">
-                <TabsTrigger value="basic">Mirror Identity</TabsTrigger>
+                <TabsTrigger value="basic">{isLinked ? "Mirror Identity" : "Identity"}</TabsTrigger>
                 <TabsTrigger value="syllabus" className="gap-2">
                   Inherited Content 
                   <Badge variant="outline" className="text-[10px] px-1.5 h-4 min-w-4 flex items-center justify-center">
@@ -200,6 +200,20 @@ export function SyllabusDialog({
               </TabsList>
 
               <TabsContent value="basic" className="space-y-6">
+                {isLinked && (
+                  <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-2 shadow-inner">
+                    <Label className="text-[10px] uppercase font-bold text-primary flex items-center gap-2">
+                      <Layers className="w-3.5 h-3.5" /> Parent Heritage
+                    </Label>
+                    <p className="text-sm font-medium">
+                      This course mirrors institutional standard <span className="font-black text-primary">{(formData as any).parentCode}</span>.
+                    </p>
+                    <p className="text-[10px] text-muted-foreground italic">
+                      Units, Hours, and Outcomes are synchronized with the authoritative Board of Studies pool.
+                    </p>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Credit Category</Label>
