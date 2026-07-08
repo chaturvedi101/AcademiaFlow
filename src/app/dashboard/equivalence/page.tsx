@@ -7,7 +7,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Layers, ArrowRight, Link as LinkIcon, Unlink, Loader2, CheckCircle2, ShieldCheck, History } from "lucide-react";
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle 
+} from "@/components/ui/alert-dialog";
+import { Layers, ArrowRight, Link as LinkIcon, Unlink, Loader2, CheckCircle2, ShieldCheck, History, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser, useDoc, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
 import { doc, collection, query, where, updateDoc, serverTimestamp, getDocs, collectionGroup } from "firebase/firestore";
@@ -27,6 +37,10 @@ export default function EquivalencePage() {
   const [childSyllabusId, setChildSyllabusId] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [globalEquivalences, setGlobalEquivalences] = useState<Syllabus[]>([]);
+
+  // Unlink Confirmation State
+  const [unlinkConfirmOpen, setUnlinkConfirmOpen] = useState(false);
+  const [pendingUnlink, setPendingUnlink] = useState<{ schemeId: string; syllabusId: string } | null>(null);
 
   const { data: allSchemes, loading: schemesLoading } = useCollection<Scheme>(
     useMemoFirebase(() => collection(db, 'schemes'), [db])
@@ -66,7 +80,6 @@ export default function EquivalencePage() {
     );
   }, [allSchemes, profile]);
 
-  // JURISDICTIONAL FILTER: Show links only for schemes managed by the current user
   const jurisdictionalEquivalences = useMemo(() => {
     if (!profile) return [];
     if (profile.role === 'admin' || profile.role === 'dean_academic') return globalEquivalences;
@@ -107,7 +120,6 @@ export default function EquivalencePage() {
       });
       toast({ title: "Equivalence Established", description: "Departmental slot is now mirroring institutional standard." });
       setChildSyllabusId("");
-      // Force refresh the collectionGroup fetch
       setIsProcessing(prev => !prev);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Linking Failed", description: e.message });
@@ -116,9 +128,10 @@ export default function EquivalencePage() {
     }
   };
 
-  const handleUnlink = async (schemeId: string, syllabusId: string) => {
+  const confirmUnlink = async () => {
+    if (!pendingUnlink) return;
     setIsProcessing(true);
-    const childRef = doc(db, 'schemes', schemeId, 'syllabi', syllabusId);
+    const childRef = doc(db, 'schemes', pendingUnlink.schemeId, 'syllabi', pendingUnlink.syllabusId);
     try {
       await updateDoc(childRef, {
         followedFromId: null,
@@ -126,12 +139,20 @@ export default function EquivalencePage() {
         parentCode: null,
         updatedAt: serverTimestamp()
       });
-      toast({ title: "Equivalence Severed" });
-      // Force refresh registry
+      toast({ title: "Equivalence Severed", description: "The course has been disconnected from the institutional standard." });
       setIsProcessing(prev => !prev);
+      setUnlinkConfirmOpen(false);
+      setPendingUnlink(null);
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Unlinking Failed", description: e.message });
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const triggerUnlinkDialog = (schemeId: string, syllabusId: string) => {
+    setPendingUnlink({ schemeId, syllabusId });
+    setUnlinkConfirmOpen(true);
   };
 
   if (schemesLoading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin w-8 h-8 text-primary" /></div>;
@@ -255,7 +276,7 @@ export default function EquivalencePage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right pr-6">
-                        <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => handleUnlink(s.schemeId, s.id)}>
+                        <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => triggerUnlinkDialog(s.schemeId, s.id)}>
                           <Unlink className="w-4 h-4 mr-2" /> Sever link
                         </Button>
                       </TableCell>
@@ -275,6 +296,31 @@ export default function EquivalencePage() {
           </CardContent>
         </Card>
       </div>
+
+      <AlertDialog open={unlinkConfirmOpen} onOpenChange={setUnlinkConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              Sever Institutional Link?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This action will disconnect the departmental course from its authoritative standard. 
+              The course will revert to its original state and will no longer automatically mirror updates 
+              from the Board of Studies (BOS) pool.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingUnlink(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmUnlink}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Sever Mirror Link
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
