@@ -442,7 +442,24 @@ export function SyllabusDialog({
                         <div className="flex items-center gap-3">
                           <Badge className="bg-primary/10 text-primary border-none">{unitLabel} {i+1}</Badge>
                           <span className="font-bold">{u.title || `Untitled ${unitLabel}`}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
                           {expandedUnits[u.id] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          {!isFormDisabled && (
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const units = [...(formData.units || [])];
+                                units.splice(i, 1);
+                                setFormData({ ...formData, units });
+                              }}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
                         </div>
                      </CardHeader>
                      <CardContent className={cn("p-4 space-y-4", !expandedUnits[u.id] && "hidden")}>
