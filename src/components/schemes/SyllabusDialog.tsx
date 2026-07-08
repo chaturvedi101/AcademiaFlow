@@ -13,9 +13,10 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   BookOpen, Loader2, Plus, ChevronDown, ChevronUp, Trash2, 
-  Sparkles, FlaskConical, ShieldCheck, Layers, Globe, Video, GraduationCap, Clock, Link as LinkIcon
+  Sparkles, FlaskConical, ShieldCheck, Layers, Globe, Video, GraduationCap, Clock, Link as LinkIcon, AlertTriangle
 } from "lucide-react";
 import { Syllabus, UserProfile, CreditCategory, SubjectType, Scheme, Program, PROGRAM_OUTCOMES, CorrelationLevel } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,7 @@ interface SyllabusDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   syllabus?: Partial<Syllabus>;
+  allSyllabi?: Syllabus[];
   onSave: (data: Partial<Syllabus>) => void;
   canEdit?: boolean;
   batchYear?: string;
@@ -41,7 +43,8 @@ interface SyllabusDialogProps {
 export function SyllabusDialog({ 
   open, 
   onOpenChange, 
-  syllabus, 
+  syllabus,
+  allSyllabi,
   onSave,
   canEdit = true,
   userProfile,
@@ -102,6 +105,15 @@ export function SyllabusDialog({
       setAvailableParentSyllabi([]);
     }
   }, [selectedLinkSchemeId, db]);
+
+  const timetableClash = useMemo(() => {
+    if (!formData.timetableSlot || !formData.semester || !allSyllabi) return null;
+    return allSyllabi.find(s => 
+      s.semester === formData.semester && 
+      s.timetableSlot === formData.timetableSlot && 
+      s.id !== formData.id
+    );
+  }, [formData.timetableSlot, formData.semester, formData.id, allSyllabi]);
 
   const unitCount = formData.units?.length || 0;
   const isLab = formData.type === 'Lab/Sessional';
@@ -264,6 +276,26 @@ export function SyllabusDialog({
               </div>
             )}
 
+            {timetableClash && (
+              <Alert variant="destructive" className="bg-red-50 border-red-200 shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle className="font-bold">Timetable Slot Conflict</AlertTitle>
+                <AlertDescription className="mt-1 space-y-2">
+                  <p>
+                    {isLinked 
+                      ? `Slot ${formData.timetableSlot} is inherited from the institutional parent.` 
+                      : `Slot ${formData.timetableSlot} is currently manually assigned.`}
+                  </p>
+                  <p className="font-medium text-red-800">
+                    Conflict detected with: <span className="font-black">{timetableClash.title} ({timetableClash.subjectCode})</span> in Semester {formData.semester}.
+                  </p>
+                  <p className="text-[11px] italic">
+                    University policy mandates unique slots per semester. Please reassign the slot for the clashing departmental course.
+                  </p>
+                </AlertDescription>
+              </Alert>
+            )}
+
             <Tabs defaultValue="basic">
               <TabsList className="grid w-full grid-cols-4 mb-8">
                 <TabsTrigger value="basic">{isLinked ? "Mirror Identity" : "Identity"}</TabsTrigger>
@@ -389,7 +421,7 @@ export function SyllabusDialog({
                       <Clock className="w-3 h-3" /> Timetable Slot
                     </Label>
                     <Select disabled={isFormDisabled} value={formData.timetableSlot} onValueChange={(v) => setFormData({...formData, timetableSlot: v})}>
-                      <SelectTrigger className="bg-white"><SelectValue placeholder="Select Slot..." /></SelectTrigger>
+                      <SelectTrigger className={cn("bg-white", timetableClash && "border-red-500 text-red-800")}><SelectValue placeholder="Select Slot..." /></SelectTrigger>
                       <SelectContent>
                         {timetableOptions.map(opt => (
                           <SelectItem key={opt} value={opt}>Slot {opt}</SelectItem>

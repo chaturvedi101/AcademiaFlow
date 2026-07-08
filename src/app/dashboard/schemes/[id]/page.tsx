@@ -135,7 +135,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     return resolvedLocal.sort((a, b) => {
       if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
       
-      // Arrange within semester by Timetable Slot (Numeric slots 1-6 then Alpha slots A-F)
       const slotA = a.timetableSlot || "Z";
       const slotB = b.timetableSlot || "Z";
       if (slotA !== slotB) {
@@ -288,7 +287,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       const sortedSyllabi = [...localSyllabi].sort((a, b) => {
         if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
         
-        // Arrange by Timetable Slot for deterministic code assignment
         const slotA = a.timetableSlot || "Z";
         const slotB = b.timetableSlot || "Z";
         if (slotA !== slotB) {
@@ -558,6 +556,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         open={isSyllabusDialogOpen} 
         onOpenChange={setIsSyllabusDialogOpen} 
         syllabus={activeSubject}
+        allSyllabi={syllabi}
         onSave={handleSaveSyllabus}
         canEdit={permissions.canEditSyllabus(activeSubject)}
         userProfile={profile || undefined}
