@@ -126,7 +126,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           parentSchemeId: local.parentSchemeId,
           isStandardized: true,
           standardizedFrom: 'Equivalence Manager',
-          electiveGroupId: local.electiveGroupId || parent.electiveGroupId || ''
+          electiveGroupId: local.electiveGroupId || parent.electiveGroupId || '',
+          timetableSlot: local.timetableSlot || parent.timetableSlot || ''
         } as Syllabus;
       }
       return local;
@@ -134,6 +135,14 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     return resolvedLocal.sort((a, b) => {
       if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
+      
+      // Arrange within semester by Timetable Slot
+      const slotA = a.timetableSlot || "";
+      const slotB = b.timetableSlot || "";
+      if (slotA !== slotB) {
+        return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
+      }
+
       if (a.electiveGroupId !== b.electiveGroupId) {
         return (a.electiveGroupId || "").localeCompare(b.electiveGroupId || "");
       }
@@ -278,9 +287,17 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         }
       };
 
-      // 1. Sort localSyllabi for consistent sequencing
+      // 1. Sort localSyllabi for consistent sequencing by Semester then Timetable Slot
       const sortedSyllabi = [...localSyllabi].sort((a, b) => {
         if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
+        
+        // Arrange by Timetable Slot for deterministic code assignment
+        const slotA = a.timetableSlot || "";
+        const slotB = b.timetableSlot || "";
+        if (slotA !== slotB) {
+          return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
+        }
+
         if (a.creditCategory !== b.creditCategory) return a.creditCategory.localeCompare(b.creditCategory);
         return (a.title || '').localeCompare(b.title || '');
       });
@@ -436,7 +453,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                             <TableHead>Category</TableHead>
                             <TableHead className="text-center">L-T-P</TableHead>
                             <TableHead className="text-right">Cr</TableHead>
-                            <TableHead className="text-right pr-6">Actions</TableHead>
+                            <TableHead className="text-right pr-6">Slot</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -475,21 +492,26 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                                   <TableCell className="text-center text-xs">{sub.lectureCredits}-{sub.tutorialCredits}-{sub.practicalCredits}</TableCell>
                                   <TableCell className="text-right font-bold">{sub.credits}</TableCell>
                                   <TableCell className="text-right pr-6">
-                                    <div className="flex justify-end items-center gap-2">
-                                      {sub.isStandardized && (
-                                        <Badge variant="outline" className="gap-1 border-emerald-200 bg-emerald-50 text-emerald-700">
-                                          <ShieldCheck className="w-3 h-3" />
-                                          Mirror
-                                        </Badge>
-                                      )}
-                                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }}>
-                                        {permissions.canEditSyllabus(sub) ? <Edit3 className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                                      </Button>
-                                      {permissions.isAdmin && (
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => handleDeleteSyllabus(sub.id)}>
-                                          <Trash2 className="w-3.5 h-3.5" />
+                                    <div className="flex justify-end items-center gap-4">
+                                      <Badge variant="outline" className="font-mono bg-muted/30">
+                                        {sub.timetableSlot || '-'}
+                                      </Badge>
+                                      <div className="flex items-center gap-2">
+                                        {sub.isStandardized && (
+                                          <Badge variant="outline" className="gap-1 border-emerald-200 bg-emerald-50 text-emerald-700">
+                                            <ShieldCheck className="w-3 h-3" />
+                                            Mirror
+                                          </Badge>
+                                        )}
+                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }}>
+                                          {permissions.canEditSyllabus(sub) ? <Edit3 className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                                         </Button>
-                                      )}
+                                        {permissions.isAdmin && (
+                                          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => handleDeleteSyllabus(sub.id)}>
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </Button>
+                                        )}
+                                      </div>
                                     </div>
                                   </TableCell>
                                 </TableRow>

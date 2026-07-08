@@ -1,3 +1,4 @@
+
 'use client';
 
 import jsPDF from 'jspdf';
@@ -80,7 +81,7 @@ const drawSubjectSyllabus = (
   doc.text('Academic Details:', pageWidth / 2, currentY);
   doc.setFont('helvetica', 'normal');
   doc.text(`Category: ${syllabus.creditCategory || 'N/A'}`, pageWidth / 2, currentY + 5);
-  doc.text(`Semester: ${syllabus.semester || 'N/A'}`, pageWidth / 2, currentY + 10);
+  doc.text(`Semester: ${syllabus.semester || 'N/A'} | Slot: ${syllabus.timetableSlot || '-'}`, pageWidth / 2, currentY + 10);
   currentY += 18;
 
   doc.setFontSize(12);
@@ -220,6 +221,14 @@ export const exportCompleteSyllabusToPDF = (
 
   const sortedSyllabi = [...syllabi].sort((a, b) => {
     if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
+    
+    // Sort by Timetable Slot for official book consistency
+    const slotA = a.timetableSlot || "";
+    const slotB = b.timetableSlot || "";
+    if (slotA !== slotB) {
+      return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
+    }
+
     if (a.electiveGroupId !== b.electiveGroupId) return (a.electiveGroupId || '').localeCompare(b.electiveGroupId || '');
     return (a.subjectCode || "").localeCompare(b.subjectCode || "");
   });
@@ -317,6 +326,13 @@ export const exportFullSchemeToPDF = (
     const semSubjects = syllabi
       .filter(s => (scheme.isCommitteePool ? true : s.semester === sem) && !s.isOFEContribution)
       .sort((a, b) => {
+        // Arrange by Timetable Slot in Structure PDF
+        const slotA = a.timetableSlot || "";
+        const slotB = b.timetableSlot || "";
+        if (slotA !== slotB) {
+          return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
+        }
+
         if (a.electiveGroupId !== b.electiveGroupId) return (a.electiveGroupId || '').localeCompare(b.electiveGroupId || '');
         return (a.subjectCode || "").localeCompare(b.subjectCode || "");
       });
@@ -350,7 +366,7 @@ export const exportFullSchemeToPDF = (
         body.push([
           { 
             content: `${gid} (Elective Pool Options)`, 
-            colSpan: 5, 
+            colSpan: 6, 
             styles: { fillColor: [245, 245, 245], fontStyle: 'bold', textColor: PRIMARY_COLOR } 
           }
         ]);
@@ -364,14 +380,15 @@ export const exportFullSchemeToPDF = (
         getCleanTitle(s),
         `${s.lectureCredits || 0}-${s.tutorialCredits || 0}-${s.practicalCredits || 0}`,
         s.creditCategory || '',
-        s.credits || 0
+        s.credits || 0,
+        s.timetableSlot || '-'
       ]);
     });
 
     autoTable(doc, {
       startY: currentY + 4,
-      head: [['Code', 'Course Title', 'L-T-P', 'Category', 'Cr']],
-      body: body.length > 0 ? body : [['-', 'No courses added yet', '-', '-', '-']],
+      head: [['Code', 'Course Title', 'L-T-P', 'Category', 'Cr', 'Slot']],
+      body: body.length > 0 ? body : [['-', 'No courses added yet', '-', '-', '-', '-']],
       theme: 'grid',
       headStyles: { fillColor: [100, 100, 100], fontSize: 9 },
       bodyStyles: { fontSize: 8.5 },
@@ -380,7 +397,8 @@ export const exportFullSchemeToPDF = (
         1: { cellWidth: 'auto' },
         2: { cellWidth: 20, halign: 'center' },
         3: { cellWidth: 25, halign: 'center' },
-        4: { cellWidth: 15, halign: 'center', fontStyle: 'bold' }
+        4: { cellWidth: 15, halign: 'center', fontStyle: 'bold' },
+        5: { cellWidth: 15, halign: 'center' }
       },
       margin: { left: 20, right: 20 }
     });
