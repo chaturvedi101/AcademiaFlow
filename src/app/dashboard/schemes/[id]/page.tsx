@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
@@ -249,13 +250,18 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const handleSyncCodes = async () => {
     if (!scheme || isSyncing) return;
     
-    if (!program && !scheme.isCommitteePool && !scheme.isVerticalPool) return;
+    // Check if we have enough context to resolve prefixes
+    if (!program && !scheme.isCommitteePool && !scheme.isVerticalPool) {
+        toast({ title: "Resolution Error", description: "Program context not found for prefix resolution.", variant: "destructive" });
+        return;
+    }
 
     setIsSyncing(true);
 
     try {
       const batch = writeBatch(db);
       
+      // 1. Resolve Global Effective Prefix for this scheme
       let effectivePrefix = 'XX';
       if (scheme.isCommitteePool) {
         const branchName = scheme.branch || '';
@@ -268,8 +274,24 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       } else if (scheme.isVerticalPool) {
         effectivePrefix = 'RT';
       } else if (program) {
-        effectivePrefix = program.branchPrefixes?.[scheme.branch || ''] || 'XX';
+        effectivePrefix = program.branchPrefixes?.[scheme.branch || ''] || scheme.branch?.substring(0, 2).toUpperCase() || 'XX';
       }
+
+      // 2. Sort current syllabi by Semester and Timetable Slot (The official arrangement order)
+      const sortedSyllabi = [...localSyllabi].sort((a, b) => {
+        if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
+        
+        // Arrange by slot: 1, 2, 3... then A, B, C...
+        const slotA = a.timetableSlot || "Z";
+        const slotB = b.timetableSlot || "Z";
+        if (slotA !== slotB) {
+          return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
+        }
+
+        // Secondary sort to maintain determinism
+        if (a.creditCategory !== b.creditCategory) return a.creditCategory.localeCompare(b.creditCategory);
+        return (a.title || '').localeCompare(b.title || '');
+      });
 
       const getPillarChar = (cat: CreditCategory) => {
         switch(cat) {
@@ -284,25 +306,14 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         }
       };
 
-      const sortedSyllabi = [...localSyllabi].sort((a, b) => {
-        if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
-        
-        const slotA = a.timetableSlot || "Z";
-        const slotB = b.timetableSlot || "Z";
-        if (slotA !== slotB) {
-          return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
-        }
-
-        if (a.creditCategory !== b.creditCategory) return a.creditCategory.localeCompare(b.creditCategory);
-        return (a.title || '').localeCompare(b.title || '');
-      });
-
       const sequenceCounters: Record<string, number> = {};
       let updateCount = 0;
 
+      // 3. Re-assign Codes for every single subject
       sortedSyllabi.forEach(sub => {
+        // Common Pool subjects always use RT prefix unless this is a Course Committee pool
         const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(sub.creditCategory);
-        const targetPrefix = isCommonCategory && !scheme.isCommitteePool ? 'RT' : effectivePrefix;
+        const targetPrefix = (isCommonCategory && !scheme.isCommitteePool) ? 'RT' : effectivePrefix;
         
         const pedagogyChar = sub.type === 'Lab/Sessional' ? 'P' : (sub.creditCategory === 'PRJ' ? 'I' : 'L');
         const pillarChar = getPillarChar(sub.creditCategory);
@@ -314,18 +325,18 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         const seqStr = sequenceCounters[counterKey].toString().padStart(2, '0');
         const newCode = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}${seqStr}`;
 
-        if (newCode !== sub.subjectCode) {
-          const subRef = doc(db, 'schemes', schemeId, 'syllabi', sub.id);
-          batch.update(subRef, { subjectCode: newCode, updatedAt: serverTimestamp() });
-          updateCount++;
-        }
+        // Even if code is same, we "re-assign" to ensure batch sequence integrity
+        const subRef = doc(db, 'schemes', schemeId, 'syllabi', sub.id);
+        batch.update(subRef, { 
+            subjectCode: newCode, 
+            updatedAt: serverTimestamp() 
+        });
+        updateCount++;
       });
 
       if (updateCount > 0) {
         await batch.commit();
-        toast({ title: "Re-synchronization Complete", description: `Updated ${updateCount} subject codes following RTU-NEP institutional sequence.` });
-      } else {
-        toast({ title: "Already Synchronized", description: "All codes currently follow the sequencing standard." });
+        toast({ title: "Scheme Re-synchronized", description: `Re-arranged and re-assigned codes for ${updateCount} subjects following RTU-NEP standard.` });
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
