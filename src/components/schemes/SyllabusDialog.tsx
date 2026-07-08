@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,14 +12,17 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Switch } from "@/components/ui/switch";
 import { 
   BookOpen, Loader2, Plus, ChevronDown, ChevronUp, Trash2, 
-  Sparkles, FlaskConical, ShieldCheck, Layers, Globe, Video, GraduationCap, Clock
+  Sparkles, FlaskConical, ShieldCheck, Layers, Globe, Video, GraduationCap, Clock, Link as LinkIcon
 } from "lucide-react";
 import { Syllabus, UserProfile, CreditCategory, SubjectType, Scheme, Program, PROGRAM_OUTCOMES, CorrelationLevel } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { useToast } from "@/hooks/use-toast";
+import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
+import { collection, query, getDocs, doc, getDoc } from "firebase/firestore";
 
 const ALL_CATEGORIES: CreditCategory[] = ['DSC', 'DSE', 'OFE', 'VAC', 'AEC', 'SEC', 'MDC', 'PRJ'];
 
@@ -46,6 +49,7 @@ export function SyllabusDialog({
   scheme
 }: SyllabusDialogProps) {
   const { toast } = useToast();
+  const db = useFirestore();
 
   const [expandedUnits, setExpandedUnits] = useState<Record<string, boolean>>({});
   const [isAiGenerating, setIsAiGenerating] = useState(false);
@@ -56,6 +60,15 @@ export function SyllabusDialog({
     poMappings: {}, textBooks: [], referenceBooks: [], nptelLinks: [], youtubeLinks: [], websiteLinks: [],
     followedFromId: '', electiveGroupId: '', timetableSlot: ''
   });
+
+  // Linking State
+  const [wantsToLink, setWantsToLink] = useState(false);
+  const [selectedLinkSchemeId, setSelectedLinkSchemeId] = useState("");
+  const [availableParentSyllabi, setAvailableParentSyllabi] = useState<Syllabus[]>([]);
+  const [isFetchingParentSyllabi, setIsFetchingParentSyllabi] = useState(false);
+  const [isEstablishingLink, setIsEstablishingLink] = useState(false);
+
+  const { data: allSchemes } = useCollection<Scheme>(useMemoFirebase(() => collection(db, 'schemes'), [db]));
 
   const isSuperuser = userProfile?.role === 'admin' || userProfile?.role === 'dean_academic';
 
@@ -68,6 +81,7 @@ export function SyllabusDialog({
         followedFromId: '', electiveGroupId: '', timetableSlot: '',
         ...syllabus
       });
+      setWantsToLink(!!syllabus.followedFromId);
       if (syllabus.followedFromId || (syllabus as any).isInherited) {
         const expandMap: Record<string, boolean> = {};
         syllabus.units?.forEach(u => { expandMap[u.id] = true; });
@@ -75,6 +89,19 @@ export function SyllabusDialog({
       }
     }
   }, [open, syllabus]);
+
+  useEffect(() => {
+    if (selectedLinkSchemeId) {
+      setIsFetchingParentSyllabi(true);
+      getDocs(collection(db, 'schemes', selectedLinkSchemeId, 'syllabi'))
+        .then(snap => {
+          setAvailableParentSyllabi(snap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus)));
+        })
+        .finally(() => setIsFetchingParentSyllabi(false));
+    } else {
+      setAvailableParentSyllabi([]);
+    }
+  }, [selectedLinkSchemeId, db]);
 
   const unitCount = formData.units?.length || 0;
   const isLab = formData.type === 'Lab/Sessional';
@@ -154,6 +181,42 @@ export function SyllabusDialog({
     setFormData({ ...formData, poMappings: currentMappings });
   };
 
+  const handleEstablishLink = async (parentSyllabusId: string) => {
+    if (!parentSyllabusId) return;
+    setIsEstablishingLink(true);
+    try {
+      const parentRef = doc(db, 'schemes', selectedLinkSchemeId, 'syllabi', parentSyllabusId);
+      const parentSnap = await getDoc(parentRef);
+      if (parentSnap.exists()) {
+        const parentData = parentSnap.data() as Syllabus;
+        setFormData(prev => ({
+          ...prev,
+          followedFromId: parentSyllabusId,
+          parentSchemeId: selectedLinkSchemeId,
+          parentCode: parentData.subjectCode,
+          title: parentData.title,
+          type: parentData.type,
+          credits: parentData.credits,
+          lectureCredits: parentData.lectureCredits,
+          tutorialCredits: parentData.tutorialCredits,
+          practicalCredits: parentData.practicalCredits,
+          units: parentData.units,
+          textBooks: parentData.textBooks,
+          referenceBooks: parentData.referenceBooks,
+          nptelLinks: parentData.nptelLinks,
+          youtubeLinks: parentData.youtubeLinks,
+          websiteLinks: parentData.websiteLinks,
+          poMappings: parentData.poMappings
+        }));
+        toast({ title: "Institutional Standard established", description: "Pedagogical content synchronized with parent authority." });
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Linking Failed", description: e.message });
+    } finally {
+      setIsEstablishingLink(false);
+    }
+  };
+
   const isElectiveCategory = ['DSE', 'OFE', 'VAC', 'AEC', 'MDC'].includes(formData.creditCategory || '');
 
   const timetableOptions = isLab 
@@ -177,7 +240,7 @@ export function SyllabusDialog({
             </div>
           </DialogTitle>
           <DialogDescription>
-            Construct pedagogical methodology and content. Virtual child slots maintain local identity.
+            Construct pedagogical methodology and content. Establish mirror links to institutional standards.
           </DialogDescription>
         </DialogHeader>
 
@@ -189,10 +252,10 @@ export function SyllabusDialog({
                   <ShieldCheck className="w-5 h-5" />
                   <div className="flex flex-col">
                     <p className="font-bold">Institutional Mirror Active</p>
-                    <p className="text-xs">Mirroring standard syllabus: <span className="font-black">{(formData as any).parentCode || 'BTECH Pool'}</span></p>
+                    <p className="text-xs">Mirroring standard syllabus: <span className="font-black">{(formData as any).parentCode || 'Standard Pool'}</span></p>
                   </div>
                 </div>
-                {isSuperuser && (
+                {(isSuperuser || canEdit) && (
                   <Button variant="ghost" size="sm" className="text-emerald-700 hover:bg-emerald-100" onClick={() => setFormData({...formData, followedFromId: '', parentSchemeId: '', parentCode: ''})}>
                     Sever Link & Restore Slot
                   </Button>
@@ -214,6 +277,55 @@ export function SyllabusDialog({
               </TabsList>
 
               <TabsContent value="basic" className="space-y-6">
+                {!isLinked && canEdit && (
+                  <Card className="border-dashed border-primary/20 bg-primary/5">
+                    <CardContent className="p-4 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label className="font-bold flex items-center gap-2 text-primary">
+                          <LinkIcon className="w-4 h-4" /> Establish Institutional Link?
+                        </Label>
+                        <Switch checked={wantsToLink} onCheckedChange={setWantsToLink} />
+                      </div>
+                      
+                      {wantsToLink && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t mt-2">
+                          <div className="space-y-2">
+                            <Label className="text-[10px] uppercase font-bold">Source Branch / Pool</Label>
+                            <Select value={selectedLinkSchemeId} onValueChange={setSelectedLinkSchemeId}>
+                              <SelectTrigger className="bg-white"><SelectValue placeholder="Choose Scheme..." /></SelectTrigger>
+                              <SelectContent>
+                                {allSchemes.map(s => (
+                                  <SelectItem key={s.id} value={s.id}>
+                                    {s.branch || 'Institutional Pool'} ({s.batchYear})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-[10px] uppercase font-bold">Standard Subject</Label>
+                            <Select 
+                              disabled={!selectedLinkSchemeId || isFetchingParentSyllabi} 
+                              onValueChange={handleEstablishLink}
+                            >
+                              <SelectTrigger className="bg-white">
+                                <SelectValue placeholder={isFetchingParentSyllabi ? "Fetching subjects..." : "Choose Subject..."} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {availableParentSyllabi.map(s => (
+                                  <SelectItem key={s.id} value={s.id}>
+                                    {s.subjectCode} - {s.title}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
                 {isLinked && (
                   <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-2 shadow-inner">
                     <Label className="text-[10px] uppercase font-bold text-primary flex items-center gap-2">
@@ -358,7 +470,7 @@ export function SyllabusDialog({
 
               <TabsContent value="resources" className="space-y-8">
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                   {/* Text Books */}
+                   {/* Learning Resources */}
                    <div className="space-y-4">
                       <Label className="font-bold text-primary flex items-center gap-2">
                         <BookOpen className="w-4 h-4" /> Standard Text Books
@@ -374,7 +486,6 @@ export function SyllabusDialog({
                       </div>
                    </div>
 
-                   {/* Reference Books */}
                    <div className="space-y-4">
                       <Label className="font-bold text-primary flex items-center gap-2">
                         <Layers className="w-4 h-4" /> Reference Materials
@@ -390,7 +501,6 @@ export function SyllabusDialog({
                       </div>
                    </div>
 
-                   {/* NPTEL Links */}
                    <div className="space-y-4">
                       <Label className="font-bold text-primary flex items-center gap-2">
                         <GraduationCap className="w-4 h-4" /> NPTEL / Online Courses
@@ -406,7 +516,6 @@ export function SyllabusDialog({
                       </div>
                    </div>
 
-                   {/* YouTube Links */}
                    <div className="space-y-4">
                       <Label className="font-bold text-primary flex items-center gap-2">
                         <Video className="w-4 h-4" /> YouTube / Multimedia
@@ -422,7 +531,6 @@ export function SyllabusDialog({
                       </div>
                    </div>
 
-                   {/* Digital Portals / Websites */}
                    <div className="space-y-4 md:col-span-2">
                       <Label className="font-bold text-primary flex items-center gap-2">
                         <Globe className="w-4 h-4" /> Websites & Digital Portals
@@ -513,7 +621,9 @@ export function SyllabusDialog({
              <Button 
               onClick={() => { onSave(formData); onOpenChange(false); }} 
               className="h-11 px-8 shadow-md"
+              disabled={isEstablishingLink}
              >
+               {isEstablishingLink ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                Save Subject Pattern
              </Button>
            )}
