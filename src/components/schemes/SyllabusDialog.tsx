@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   BookOpen, Loader2, Plus, ChevronDown, ChevronUp, Trash2, 
-  Sparkles, FlaskConical, AlertTriangle, ShieldCheck, Layers
+  Sparkles, FlaskConical, ShieldCheck, Layers
 } from "lucide-react";
 import { Syllabus, UserProfile, CreditCategory, SubjectType, Scheme, Program } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -77,8 +77,6 @@ export function SyllabusDialog({
 
   const unitCount = formData.units?.length || 0;
   const isLab = formData.type === 'Lab/Sessional';
-  const minRequired = isLab ? 8 : 5;
-  const isCountValid = unitCount >= minRequired;
   const unitLabel = isLab ? 'Experiment' : 'Unit';
 
   useEffect(() => {
@@ -86,8 +84,8 @@ export function SyllabusDialog({
     
     const currentUnits = formData.units || [];
     if (currentUnits.length === 0) {
-      const required = isLab ? 8 : 5;
-      const initialUnits = Array.from({ length: required }, (_, i) => ({
+      const initialCount = isLab ? 8 : 5;
+      const initialUnits = Array.from({ length: initialCount }, (_, i) => ({
         id: Math.random().toString(36).substr(2, 9),
         title: '',
         content: '',
@@ -165,7 +163,7 @@ export function SyllabusDialog({
             </div>
           </DialogTitle>
           <DialogDescription>
-            Pedagogical Mandate: <b>{isLab ? '8+ Experiments' : '5+ Units'}</b>. Virtual child slots maintain local identity.
+            Construct pedagogical methodology and content. Virtual child slots maintain local identity.
           </DialogDescription>
         </DialogHeader>
 
@@ -193,7 +191,7 @@ export function SyllabusDialog({
                 <TabsTrigger value="basic">Mirror Identity</TabsTrigger>
                 <TabsTrigger value="syllabus" className="gap-2">
                   Inherited Content 
-                  <Badge variant={isCountValid ? "outline" : "destructive"} className="text-[10px] px-1.5 h-4 min-w-4 flex items-center justify-center">
+                  <Badge variant="outline" className="text-[10px] px-1.5 h-4 min-w-4 flex items-center justify-center">
                     {unitCount}
                   </Badge>
                 </TabsTrigger>
@@ -281,12 +279,6 @@ export function SyllabusDialog({
               </TabsContent>
 
               <TabsContent value="syllabus" className="space-y-6">
-                 {!isCountValid && !isLinked && (
-                   <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-amber-800 text-sm mb-4">
-                     <AlertTriangle className="w-5 h-5 shrink-0" />
-                     <p><b>Institutional Warning:</b> {formData.type} courses mandate at least <b>{minRequired}</b> {unitLabel}s. Current: {unitCount}.</p>
-                   </div>
-                 )}
                  {formData.units?.map((u, i) => (
                    <Card key={u.id} className="border-muted overflow-hidden shadow-sm">
                      <CardHeader 
@@ -348,7 +340,6 @@ export function SyllabusDialog({
            <Button variant="outline" onClick={() => onOpenChange(false)} className="h-11 px-6">Cancel</Button>
            {!isFormDisabled && (
              <Button 
-              disabled={!isCountValid} 
               onClick={() => { onSave(formData); onOpenChange(false); }} 
               className="h-11 px-8 shadow-md"
              >
