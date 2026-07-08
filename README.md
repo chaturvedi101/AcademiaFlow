@@ -3,6 +3,40 @@
 
 Academia Flow is an enterprise-grade Academic Management System designed for **Rajasthan Technical University** (RTU), Kota. It facilitates the transition to the **NEP 2020** framework with advanced AI assistance and institutional cost optimization.
 
+## 🎓 RTU Course Code Standard
+
+All subjects in the system must follow the official RTU-NEP 2020 nomenclature:
+**Format:** `[PREFIX][PEDAGOGY][PILLAR][YEAR][SEQUENCE]`
+
+### 1. Committee Prefixes (First 4 Characters)
+- **Mathematics**: `MATH`
+- **Physics**: `PHYS`
+- **Chemistry**: `CHEM`
+- **Humanities**: `HUMA`
+- **Basic Sciences**: `BSCI`
+- **Common Pools**: `RT` (For VAC, AEC, MDC)
+- **Branch Subjects**: Uses Branch Prefix (e.g., `CS`, `ME`, `CA`)
+
+### 2. Pedagogical Methodology
+- `L`: Theory (Lecture/Tutorial)
+- `P`: Practical (Lab/Sessional)
+- `I`: Internship / Industrial / Project
+
+### 3. Credit Pillars (NEP Categories)
+- `C`: Discipline Specific Core (DSC)
+- `E`: Electives (DSE / OFE)
+- `S`: Skill Enhancement (SEC)
+- `V`: Value Added (VAC)
+- `A`: Ability Enhancement (AEC)
+- `M`: Multidisciplinary (MDC)
+- `P`: Major/Minor Project (PRJ)
+
+### 4. Year & Sequence
+- **Year**: `1`, `2`, `3`, or `4`.
+- **Sequence**: `01` to `99`.
+
+**Example:** `MATHLC101` (Math, Theory, Core, 1st Year, Slot 01)
+
 ## 🚀 Key Features
 
 - **AI Syllabus Architect**: Automatically generate syllabus units and course outcomes using Gemini Flash.
@@ -19,40 +53,3 @@ To keep hosting costs near zero for the university, the following configurations
 2.  **Resource Capping**: `maxInstances` is set to 1. This protects the university from viral traffic costs or bot attacks.
 3.  **Auto-Session Timeout**: The app automatically logs out users after 5 minutes of inactivity to stop background database listeners.
 4.  **Financial Safety**: Set a budget alert for $1.00 in the Google Cloud Billing console to ensure zero unexpected costs.
-
-## 🔑 AI Configuration (Hosting)
-
-If you see "Key Not Found" in your hosted application, you must configure the API key in the Firebase Console:
-
-1.  Visit [Google AI Studio](https://aistudio.google.com/) and create a free Gemini API key.
-2.  Go to the **Firebase Console** > **App Hosting**.
-3.  Select your backend > **Dashboard** > **Settings**.
-4.  Add an **Environment Variable** or **Secret**:
-    - **Key**: `GOOGLE_GENAI_API_KEY`
-    - **Value**: `[Your Actual Key]`
-5.  Re-deploy the application for the changes to take effect.
-
-For local development, add it to your `.env` file:
-```bash
-GOOGLE_GENAI_API_KEY=your_actual_key_here
-```
-
-## 📦 Institutional Git Sync
-
-### 🛠️ Step 1: Initialize Remote with Token (The Nuclear Option)
-Run this to bypass "ECONNREFUSED" and permission errors. Replace `[TOKEN]` with your GitHub Personal Access Token (PAT) with `repo` scope.
-```bash
-git remote set-url origin https://[TOKEN]@github.com/chaturvedi101/AcademiaFlow.git
-```
-
-### 📤 Step 2: Push to Main
-Run this command to finalize your sync. This forces the remote repository to match your local state.
-```bash
-git push origin HEAD:main --force
-```
-
-### 🆘 Troubleshooting "ECONNREFUSED"
-If your terminal continues to throw socket errors, clear the global credential helper:
-```bash
-git config --global --unset credential.helper
-```

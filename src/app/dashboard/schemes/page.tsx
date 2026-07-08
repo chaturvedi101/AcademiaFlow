@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo } from 'react';
@@ -119,7 +120,15 @@ export default function SchemesPage() {
           generatedCode = `${verticalLabel}-POOL-${newScheme.batchYear}`;
         } else {
           branchName = newScheme.committeeName;
-          const prefix = branchName.split('-')[1]?.trim().toUpperCase().substring(0, 4) || 'COMM';
+          // Robust Prefix Mapping for standard committees
+          let prefix = 'COMM';
+          if (branchName.includes('Mathematics')) prefix = 'MATH';
+          else if (branchName.includes('Physics')) prefix = 'PHYS';
+          else if (branchName.includes('Chemistry')) prefix = 'CHEM';
+          else if (branchName.includes('Humanities')) prefix = 'HUMA';
+          else if (branchName.includes('Basic Sciences')) prefix = 'BSCI';
+          else prefix = branchName.split('-')[1]?.trim().toUpperCase().substring(0, 4) || 'COMM';
+
           generatedCode = `${prefix}-POOL-${newScheme.batchYear}`;
           isCommittee = true;
         }
