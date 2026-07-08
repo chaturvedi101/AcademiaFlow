@@ -1,8 +1,9 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
 import { useFirestore, useDoc, useCollection, useUser, useMemoFirebase } from "@/firebase";
-import { doc, collection, setDoc, serverTimestamp, updateDoc, query, where, onSnapshot, Unsubscribe, deleteDoc } from "firebase/firestore";
+import { doc, collection, setDoc, serverTimestamp, updateDoc, query, where, onSnapshot, Unsubscribe, deleteDoc, writeBatch } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,10 +12,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Edit3, Loader2, FileText, BookOpen, Eye, CheckCircle2, ShieldCheck, Trash2, Hash, Layers, Info } from "lucide-react";
+import { Plus, Edit3, Loader2, FileText, BookOpen, Eye, CheckCircle2, ShieldCheck, Trash2, Hash, Layers, Info, RefreshCw } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
-import { Syllabus, Scheme, Program, UserProfile, SubmissionScope } from "@/lib/types";
+import { Syllabus, Scheme, Program, UserProfile, SubmissionScope, CreditCategory } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { exportFullSchemeToPDF, exportCompleteSyllabusToPDF } from "@/lib/pdf-export";
 import { cn } from "@/lib/utils";
@@ -40,6 +41,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [allParentSyllabi, setAllParentSyllabi] = useState<Syllabus[]>([]);
   const [parentsLoading, setParentsLoading] = useState(false);
   const [isSubmissionDialogOpen, setIsSubmissionDialogOpen] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
 
   useEffect(() => {
@@ -145,12 +147,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const isAdmin = profile.role === 'admin';
     const isSuper = isAdmin || profile.role === 'dean_academic';
     
-    // Tier Recognition for Common BOS
     const isCommonTier = profile.faculty?.includes('(Common BOS)');
     const isBTECHTier = profile.faculty?.includes('BTECH');
     const isBBATier = profile.faculty?.includes('BBA');
 
-    // Jurisdiction Resolution
     let isMyJurisdiction = false;
     
     if (isSuper) {
@@ -158,20 +158,16 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     } else if (profile.role === 'committee_convenor') {
       isMyJurisdiction = scheme.isCommitteePool && scheme.branch === profile.faculty;
     } else if (['bos_convenor', 'bos_member'].includes(profile.role)) {
-      // 1. Check explicit branch assignment
       const hasExplicitAssignment = profile.managedBranches?.some(m => 
         m.programId === scheme.programId && m.branch === scheme.branch
       );
       
-      // 2. Check tiered oversight for Common BOS members (e.g. BBA Convenor editing BBA Pool)
       let hasTieredOversight = false;
       if (isCommonTier) {
         if (scheme.programId === 'INSTITUTIONAL') {
-          // Check if pool matches their tier
           if (isBTECHTier && (scheme.branch?.includes('BTECH') || scheme.isVerticalPool)) hasTieredOversight = true;
           if (isBBATier && (scheme.branch?.includes('BBA') || scheme.isVerticalPool)) hasTieredOversight = true;
         } else if (program) {
-          // Check if program faculty matches their technical tier (NEP 2020 Framework)
           if (isBTECHTier && (program.faculty.includes('BTECH') || program.name.includes('BTECH'))) hasTieredOversight = true;
           if (isBBATier && (program.faculty.includes('Management') || program.name.includes('BBA'))) hasTieredOversight = true;
         }
@@ -180,7 +176,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       isMyJurisdiction = hasExplicitAssignment || hasTieredOversight;
     }
 
-    // SUBMISSION LOCK: If status is not Draft, BoS roles cannot edit
     const isLockedForBoS = scheme.status !== 'Draft' && !isSuper;
     const canEditScheme = isMyJurisdiction && !isLockedForBoS;
     
@@ -194,7 +189,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         if (!s) return false;
         if (isSuper) return true;
         if (isLockedForBoS) return false;
-        // Mirrors cannot be edited by BoS (they follow the parent standard)
         if (s.followedFromId || (s as any).isInherited) return false;
         return isMyJurisdiction;
       }
@@ -245,6 +239,48 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     deleteDoc(docRef).then(() => toast({ title: "Subject Removed" }));
   };
 
+  const handleSyncCodes = async () => {
+    if (!program || !scheme || isSyncing) return;
+    setIsSyncing(true);
+
+    try {
+      const batch = writeBatch(db);
+      const branchPrefix = program.branchPrefixes?.[scheme.branch || ''] || 'XX';
+      let updateCount = 0;
+
+      localSyllabi.forEach(sub => {
+        let currentCode = sub.subjectCode || '';
+        const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(sub.creditCategory);
+        const targetPrefix = isCommonCategory ? 'RT' : branchPrefix;
+        
+        let newCode = currentCode;
+        if (currentCode.startsWith('XX')) {
+          newCode = targetPrefix + currentCode.substring(2);
+        } else if (isCommonCategory && !currentCode.startsWith('RT')) {
+          // Force institutional prefix for common categories if they somehow missed it
+          newCode = 'RT' + currentCode.substring(2);
+        }
+
+        if (newCode !== currentCode) {
+          const subRef = doc(db, 'schemes', schemeId, 'syllabi', sub.id);
+          batch.update(subRef, { subjectCode: newCode, updatedAt: serverTimestamp() });
+          updateCount++;
+        }
+      });
+
+      if (updateCount > 0) {
+        await batch.commit();
+        toast({ title: "Synchronization Complete", description: `Updated ${updateCount} subject codes to match institutional standards.` });
+      } else {
+        toast({ title: "Already Synchronized", description: "All codes are currently compliant." });
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Sync Failed", description: e.message });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   if (profileLoading || schemeLoading || syllabiLoading || parentsLoading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   }
@@ -268,7 +304,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             </Badge>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {permissions.canEditScheme && (
+            <Button variant="outline" onClick={handleSyncCodes} disabled={isSyncing} className="gap-2">
+              {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              Sync Codes
+            </Button>
+          )}
           <Button variant="outline" onClick={() => exportFullSchemeToPDF(scheme, program || null, syllabi)}>
             <FileText className="w-4 h-4 mr-2" /> Structure
           </Button>
