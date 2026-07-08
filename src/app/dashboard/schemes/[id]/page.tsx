@@ -252,7 +252,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       
       let effectivePrefix = 'XX';
       if (scheme.isCommitteePool) {
-        // Resolve prefix for committees
         const branchName = scheme.branch || '';
         if (branchName.includes('Mathematics')) effectivePrefix = 'MATH';
         else if (branchName.includes('Physics')) effectivePrefix = 'PHYS';
@@ -266,26 +265,48 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         effectivePrefix = program.branchPrefixes?.[scheme.branch || ''] || 'XX';
       }
 
+      const getPillarChar = (cat: CreditCategory) => {
+        switch(cat) {
+          case 'DSC': return 'C';
+          case 'DSE': case 'OFE': return 'E';
+          case 'SEC': return 'S';
+          case 'VAC': return 'V';
+          case 'AEC': return 'A';
+          case 'MDC': return 'M';
+          case 'PRJ': return 'P';
+          default: return 'C';
+        }
+      };
+
+      // 1. Sort localSyllabi for consistent sequencing
+      const sortedSyllabi = [...localSyllabi].sort((a, b) => {
+        if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
+        if (a.creditCategory !== b.creditCategory) return a.creditCategory.localeCompare(b.creditCategory);
+        return (a.title || '').localeCompare(b.title || '');
+      });
+
+      const sequenceCounters: Record<string, number> = {};
       let updateCount = 0;
 
-      localSyllabi.forEach(sub => {
-        let currentCode = sub.subjectCode || '';
+      sortedSyllabi.forEach(sub => {
         const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(sub.creditCategory);
         
-        // Institutional pools (Vertical/Committee) often use their specific prefix for everything 
-        // OR RT for common categories. 
-        // For committees, usually everything they offer is their domain (e.g. MATH...)
+        // RT prefix for common categories in normal schemes, or the branch prefix
+        // For committees, they always use their domain prefix
         const targetPrefix = isCommonCategory && !scheme.isCommitteePool ? 'RT' : effectivePrefix;
         
-        let newCode = currentCode;
-        if (currentCode.startsWith('XX')) {
-          newCode = targetPrefix + currentCode.substring(2);
-        } else if (isCommonCategory && !currentCode.startsWith('RT') && !scheme.isCommitteePool) {
-          // Force institutional prefix for common categories if they somehow missed it
-          newCode = 'RT' + currentCode.substring(2);
-        }
+        const pedagogyChar = sub.type === 'Lab/Sessional' ? 'P' : (sub.creditCategory === 'PRJ' ? 'I' : 'L');
+        const pillarChar = getPillarChar(sub.creditCategory);
+        const yearDigit = Math.ceil((sub.semester || 1) / 2);
+        
+        // Sequence is specific to Prefix + Pedagogy + Pillar + Year
+        const counterKey = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}`;
+        sequenceCounters[counterKey] = (sequenceCounters[counterKey] || 0) + 1;
+        
+        const seqStr = sequenceCounters[counterKey].toString().padStart(2, '0');
+        const newCode = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}${seqStr}`;
 
-        if (newCode !== currentCode) {
+        if (newCode !== sub.subjectCode) {
           const subRef = doc(db, 'schemes', schemeId, 'syllabi', sub.id);
           batch.update(subRef, { subjectCode: newCode, updatedAt: serverTimestamp() });
           updateCount++;
@@ -294,9 +315,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
       if (updateCount > 0) {
         await batch.commit();
-        toast({ title: "Synchronization Complete", description: `Updated ${updateCount} subject codes to match institutional standards.` });
+        toast({ title: "Re-synchronization Complete", description: `Updated ${updateCount} subject codes following RTU-NEP institutional sequence.` });
       } else {
-        toast({ title: "Already Synchronized", description: "All codes are currently compliant." });
+        toast({ title: "Already Synchronized", description: "All codes currently follow the sequencing standard." });
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
