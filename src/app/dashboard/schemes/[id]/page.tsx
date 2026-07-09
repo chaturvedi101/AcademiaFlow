@@ -276,13 +276,21 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       } else if (program) {
         effectivePrefix = program.branchPrefixes?.[scheme.branch || ''] || scheme.branch?.substring(0, 2).toUpperCase() || 'XX';
       }
+
+      // 1. Arrange subjects strictly by Semester then Timetable Slot
       const sortedSyllabi = [...localSyllabi].sort((a, b) => {
         if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
+        
+        // Arrange by Timetable Slot (1-6 for Theory, A-F for Practical)
         const slotA = a.timetableSlot || "Z";
         const slotB = b.timetableSlot || "Z";
-        if (slotA !== slotB) return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
+        if (slotA !== slotB) {
+          return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
+        }
+        
         return (a.title || '').localeCompare(b.title || '');
       });
+
       const getPillarChar = (cat: string) => {
         switch(cat) {
           case 'DSC': return 'C';
@@ -295,25 +303,34 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           default: return 'C';
         }
       };
+
       const sequenceCounters: Record<string, number> = {};
       let updateCount = 0;
+
       sortedSyllabi.forEach(sub => {
         const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(sub.creditCategory);
         const targetPrefix = (isCommonCategory && !scheme.isCommitteePool) ? 'RT' : effectivePrefix;
         const pedagogyChar = sub.type === 'Lab/Sessional' ? 'P' : (sub.creditCategory === 'PRJ' ? 'I' : 'L');
         const pillarChar = getPillarChar(sub.creditCategory);
         const yearDigit = Math.ceil((sub.semester || 1) / 2);
+        
         const counterKey = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}`;
         sequenceCounters[counterKey] = (sequenceCounters[counterKey] || 0) + 1;
+        
         const seqStr = sequenceCounters[counterKey].toString().padStart(2, '0');
         const newCode = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}${seqStr}`;
+
         const subRef = doc(db, 'schemes', schemeId, 'syllabi', sub.id);
-        batch.update(subRef, { subjectCode: newCode, updatedAt: serverTimestamp() });
+        batch.update(subRef, { 
+          subjectCode: newCode, 
+          updatedAt: serverTimestamp() 
+        });
         updateCount++;
       });
+
       if (updateCount > 0) {
         await batch.commit();
-        toast({ title: "Scheme Re-synchronized" });
+        toast({ title: "Scheme Re-synchronized", description: `Re-assigned codes for ${updateCount} subjects in timetable order.` });
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
@@ -503,6 +520,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                 const semSyllabi = syllabi.filter(s => (scheme.isCommitteePool ? true : s.semester === sem));
                 const processedGroups = new Set<string>();
                 const renderedGroups = new Set<string>();
+                
                 const semTotalCredits = semSyllabi.reduce((sum, s) => {
                   const isCore = ['DSC', 'PRJ', 'SEC'].includes(s.creditCategory);
                   if (!isCore && s.electiveGroupId) {
@@ -511,6 +529,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                   }
                   return sum + (s.credits || 0);
                 }, 0);
+
                 return (
                   <Card key={sem} className="shadow-sm border-none overflow-hidden">
                     <CardHeader className="bg-muted/20 py-4 px-6 flex flex-row items-center justify-between">
@@ -544,6 +563,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                           {semSyllabi.map((sub, sIdx) => {
                             const showGroupHeader = sub.electiveGroupId && !renderedGroups.has(sub.electiveGroupId);
                             if (sub.electiveGroupId) renderedGroups.add(sub.electiveGroupId);
+                            
                             return (
                               <React.Fragment key={sub.id}>
                                 {showGroupHeader && (
