@@ -118,12 +118,6 @@ export function SyllabusDialog({
   }, [formData.timetableSlot, formData.semester, formData.id, allSyllabi]);
 
   const isLinked = !!formData.followedFromId;
-  /**
-   * CRITICAL SECURITY RULE:
-   * 1. If linked, pedagogical content is READ-ONLY for everyone. This ensures changes only occur at the parent authority.
-   * 2. To change child content, the link MUST be severed (making it a local copy).
-   * 3. This guarantees modifications in child can never reflect back to parent.
-   */
   const isFormDisabled = isLinked || !canEdit;
 
   useEffect(() => {
@@ -234,14 +228,16 @@ export function SyllabusDialog({
   };
 
   const severMirrorLink = () => {
-    setFormData(prev => ({
-      ...prev,
-      followedFromId: '',
-      parentSchemeId: '',
-      parentCode: '',
-      standardizedFrom: undefined,
-      isStandardized: false
-    }));
+    setFormData(prev => {
+      // Remove flags to prevent undefined values in Firestore
+      const { standardizedFrom, isStandardized, ...rest } = prev;
+      return {
+        ...rest,
+        followedFromId: '',
+        parentSchemeId: '',
+        parentCode: ''
+      };
+    });
     setWantsToLink(false);
     toast({ title: "Mirror Severed", description: "You are now editing a private local copy. Changes will not affect the master." });
   };

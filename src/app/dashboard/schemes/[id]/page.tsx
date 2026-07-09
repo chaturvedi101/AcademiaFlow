@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
@@ -185,19 +184,17 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     const isLocked = scheme.status !== 'Draft' && !isAdmin;
     
-    // PERSONNEL can edit IF Draft and IF it's their jurisdiction. 
-    // AUTHORITIES (Deans/Monitors) can NEVER edit content definition.
     const canEditScheme = !isAuthority && (isAdmin || (isPersonnel && isMyJurisdiction)) && !isLocked;
     
     return {
       isAdmin,
       canEditScheme,
       isLockedForBoS: isLocked,
-      canDeleteCourse: isAdmin, // STRICT: Only system admins can delete courses
+      canDeleteCourse: isAdmin,
       canEditSyllabus: (s: Partial<Syllabus> | undefined) => {
         if (!s) return false;
         if (isAdmin) return true;
-        if (isAuthority) return false; // Deans/Monitors are read-only
+        if (isAuthority) return false;
         if (isLocked) return false;
         if (s.followedFromId || (s as any).isInherited) return false;
         return isPersonnel && isMyJurisdiction;
@@ -239,7 +236,22 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const handleSaveSyllabus = async (data: Partial<Syllabus>) => {
     const docId = data.id || Math.random().toString(36).substr(2, 9);
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', docId);
-    setDoc(docRef, { ...data, id: docId, schemeId, updatedAt: serverTimestamp() }, { merge: true })
+
+    // CRITICAL: Filter undefined values to prevent FirebaseError
+    const payload: any = { 
+      id: docId, 
+      schemeId, 
+      updatedAt: serverTimestamp() 
+    };
+
+    Object.keys(data).forEach(key => {
+      const val = (data as any)[key];
+      if (val !== undefined) {
+        payload[key] = val;
+      }
+    });
+
+    setDoc(docRef, payload, { merge: true })
       .then(() => toast({ title: "Authorized & Synchronized" }));
   };
 
