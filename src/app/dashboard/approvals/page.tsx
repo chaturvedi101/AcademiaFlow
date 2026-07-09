@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useFirestore, useDoc, useCollection, useUser, useMemoFirebase } from '@/firebase';
-import { collection, doc, updateDoc, serverTimestamp, query, where } from 'firebase/firestore';
+import { collection, doc, updateDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { Scheme, Program, UserProfile } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { CheckCircle, Eye, Loader2, FileCheck, Clock, Layers, RotateCcw } from 'lucide-react';
+import { CheckCircle, Eye, Loader2, FileCheck, Clock, Layers, RotateCcw, ShieldCheck, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -24,16 +24,10 @@ export default function ApprovalsPage() {
   const userDocRef = useMemoFirebase(() => (user ? doc(db, 'users', user.uid) : null), [db, user]);
   const { data: profile } = useDoc<UserProfile>(userDocRef);
 
-  const targetStatus = profile?.role === 'dean_faculty' ? 'Pending Dean' : 'Pending Academics';
-  
+  // Fetch all schemes to provide a complete status overview
   const schemesQuery = useMemoFirebase(() => {
-    // Both Deans and Admins/Monitors see schemes that need review.
-    // If Monitor/Admin, see all Pending statuses.
-    if (profile?.role === 'admin' || profile?.role === 'dean_academic' || profile?.role === 'monitor') {
-        return query(collection(db, 'schemes'), where('status', 'in', ['Pending Dean', 'Pending Academics']));
-    }
-    return query(collection(db, 'schemes'), where('status', '==', targetStatus));
-  }, [db, targetStatus, profile?.role]);
+    return query(collection(db, 'schemes'), orderBy('updatedAt', 'desc'));
+  }, [db]);
 
   const { data: schemes, loading } = useCollection<Scheme>(schemesQuery);
   const { data: programs } = useCollection<Program>(useMemoFirebase(() => collection(db, 'programs'), [db]));
@@ -45,19 +39,20 @@ export default function ApprovalsPage() {
   const filteredSchemes = useMemo(() => {
     if (!profile || !programs.length) return [];
     
-    // Monitors and Dean Academics see all pending items globally
+    // Global authorities see everything
     if (profile.role === 'dean_academic' || profile.role === 'admin' || profile.role === 'monitor') return schemes;
     
-    // Dean Faculty only sees pending schemes from their faculty or technical tier
     const isBTECHTier = profile.faculty?.includes('BTECH');
     const isBBATier = profile.faculty?.includes('BBA');
 
     return schemes.filter(s => {
+      // Pool Logic
       if (s.programId === 'INSTITUTIONAL') {
-        if (isBTECHTier && s.branch?.includes('BTECH')) return true;
-        if (isBBATier && s.branch?.includes('BBA')) return true;
+        if (isBTECHTier && (s.branch?.includes('BTECH') || s.isVerticalPool)) return true;
+        if (isBBATier && (s.branch?.includes('BBA') || s.isVerticalPool)) return true;
         return false;
       }
+      // Program Logic
       const prog = programs.find(p => p.id === s.programId);
       if (!prog) return false;
       
@@ -76,7 +71,7 @@ export default function ApprovalsPage() {
     updateDoc(schemeRef, { 
       status: nextStatus, 
       updatedAt: serverTimestamp(),
-      reversionComments: null // Clear any old comments
+      reversionComments: null 
     }).then(() => {
       toast({ title: "Scheme Advanced", description: `Scheme moved to ${nextStatus}.` });
     }).catch(err => {
@@ -109,77 +104,104 @@ export default function ApprovalsPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-headline font-bold">Academic Approvals</h1>
+        <h1 className="text-3xl font-headline font-bold">Institutional Status Board</h1>
         <p className="text-muted-foreground">
           {profile?.role === 'dean_faculty' 
-            ? `Reviewing schemes for ${profile.faculty}.` 
-            : 'Reviewing schemes for university-wide accreditation.'}
+            ? `Monitoring curriculum lifecycle for ${profile.faculty}.` 
+            : 'University-wide scheme implementation and accreditation status.'}
         </p>
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="bg-muted/10">
           <CardTitle className="flex items-center gap-2">
-            <Clock className="w-5 h-5 text-accent" />
-            Pending Review
+            <Layers className="w-5 h-5 text-primary" />
+            Curriculum Registry Matrix
           </CardTitle>
           <CardDescription>
-            Schemes awaiting validation within your institutional purview.
+            Tabular overview of branch schemes and pool statuses. Actions are available when status matches your approval level.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
-            <TableHeader>
+            <TableHeader className="bg-muted/30">
               <TableRow>
-                <TableHead className="pl-6">Program & Batch</TableHead>
-                <TableHead>Submission Scope</TableHead>
-                <TableHead>Faculty</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right pr-6">Actions</TableHead>
+                <TableHead className="pl-6">Branch / Program</TableHead>
+                <TableHead>Batch</TableHead>
+                <TableHead>Current Status</TableHead>
+                <TableHead>Scope</TableHead>
+                <TableHead className="text-right pr-6">Decisions & Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredSchemes.map((scheme) => {
                 const program = programs.find(p => p.id === scheme.programId);
+                
+                // Determine if the current user can take a decision
+                const isDeanActionable = profile?.role === 'dean_faculty' && scheme.status === 'Pending Dean';
+                const isAcadActionable = (profile?.role === 'dean_academic' || profile?.role === 'admin') && scheme.status === 'Pending Academics';
+                const isActionable = isDeanActionable || isAcadActionable;
+
+                const statusColor: Record<string, string> = {
+                  'Draft': 'bg-slate-100 text-slate-700',
+                  'Pending Dean': 'bg-amber-100 text-amber-700',
+                  'Pending Academics': 'bg-blue-100 text-blue-700',
+                  'Approved': 'bg-emerald-100 text-emerald-700'
+                };
+
                 return (
-                  <TableRow key={scheme.id}>
+                  <TableRow key={scheme.id} className={cn("hover:bg-muted/5 transition-colors", isActionable && "bg-primary/5")}>
                     <TableCell className="pl-6">
-                      <div className="space-y-1">
-                        <p className="font-bold">{program?.name || scheme.branch}</p>
-                        <p className="text-xs text-muted-foreground">Batch: {scheme.batchYear}</p>
+                      <div className="space-y-0.5">
+                        <p className="font-bold text-sm">{scheme.branch || program?.name}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase font-black tracking-tighter">
+                          {program?.faculty || 'Institutional Pool'}
+                        </p>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="gap-1 bg-accent/5 text-accent border-accent/20">
-                        <Layers className="w-3 h-3" />
-                        {scheme.submissionScope || 'Complete'}
+                      <Badge variant="outline" className="font-mono text-[10px]">{scheme.batchYear}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className={cn("text-[9px] font-bold uppercase border-none", statusColor[scheme.status])}>
+                        {scheme.status}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="text-[10px]">{program?.faculty || 'Institutional Pool'}</Badge>
-                    </TableCell>
-                    <TableCell>
-                       <Badge variant="secondary" className="text-[9px] font-bold uppercase">{scheme.status}</Badge>
+                       <span className="text-[10px] font-medium text-muted-foreground">{scheme.submissionScope || 'Complete'}</span>
                     </TableCell>
                     <TableCell className="text-right pr-6">
                       <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm" asChild>
+                        <Button variant="ghost" size="sm" asChild className="h-8 px-2">
                           <Link href={`/dashboard/schemes/${scheme.id}`} className="gap-2">
-                            <Eye className="w-4 h-4" /> Review
+                            <Eye className="w-3.5 h-3.5" /> Review Pool
                           </Link>
                         </Button>
-                        {profile?.role !== 'monitor' && (
-                          <>
-                            <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50" onClick={() => {
+                        
+                        {isActionable && (
+                          <div className="flex gap-2 items-center border-l pl-3 ml-1">
+                            <Button variant="outline" size="sm" className="h-8 text-red-600 border-red-200 hover:bg-red-50 text-[10px] uppercase font-bold" onClick={() => {
                               setSelectedSchemeForRevert(scheme);
                               setRevertDialogOpen(true);
                             }}>
-                              <RotateCcw className="w-4 h-4" /> Revert
+                              <RotateCcw className="w-3.5 h-3.5 mr-1" /> Revert
                             </Button>
-                            <Button size="sm" className="gap-2 bg-emerald-600 hover:bg-emerald-700" onClick={() => handleApprove(scheme)}>
-                              <CheckCircle className="w-4 h-4" /> Approve
+                            <Button size="sm" className="h-8 gap-2 bg-emerald-600 hover:bg-emerald-700 text-[10px] uppercase font-bold" onClick={() => handleApprove(scheme)}>
+                              <CheckCircle className="w-3.5 h-3.5" /> Approve
                             </Button>
-                          </>
+                          </div>
+                        )}
+
+                        {!isActionable && scheme.status !== 'Approved' && profile?.role !== 'monitor' && (
+                           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground italic px-2">
+                             <Clock className="w-3 h-3" /> Awaiting Tier Progress
+                           </div>
+                        )}
+
+                        {scheme.status === 'Approved' && (
+                          <div className="flex items-center gap-1.5 text-[10px] text-emerald-600 font-bold px-2">
+                             <ShieldCheck className="w-3 h-3" /> Accredited
+                          </div>
                         )}
                       </div>
                     </TableCell>
@@ -188,9 +210,9 @@ export default function ApprovalsPage() {
               })}
               {filteredSchemes.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
-                    <FileCheck className="w-12 h-12 mx-auto mb-4 opacity-10" />
-                    <p>No schemes currently pending your approval.</p>
+                  <TableCell colSpan={5} className="text-center py-20 text-muted-foreground">
+                    <AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-10" />
+                    <p>No schemes found within your institutional purview.</p>
                   </TableCell>
                 </TableRow>
               )}
@@ -199,25 +221,39 @@ export default function ApprovalsPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={revertDialogOpen} onOpenChange={setRevertDialogOpen}>
+      <Dialog open={revertDialogOpen} onOpenChange={revertDialogOpen => {
+        setRevertDialogOpen(revertDialogOpen);
+        if(!revertDialogOpen) {
+           setSelectedSchemeForRevert(null);
+           setRevertComments('');
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Revert Scheme to BoS</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="w-5 h-5 text-red-600" />
+              Revert Scheme to BoS
+            </DialogTitle>
             <DialogDescription>
-              Provide observations and required corrections. The BoS will be able to edit the scheme again once it returns to Draft.
+              Identify specific pedagogical or structural corrections required. The Board of Studies will resolve these in Draft mode.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
+          <div className="py-4 space-y-4">
+             <div className="p-3 bg-muted/30 rounded-lg text-[11px] border">
+               <span className="font-bold">Target:</span> {selectedSchemeForRevert?.branch} ({selectedSchemeForRevert?.batchYear})
+             </div>
             <Textarea 
-              placeholder="Enter your observations..." 
+              placeholder="Enter technical observations or required corrections..." 
               value={revertComments} 
               onChange={e => setRevertComments(e.target.value)}
-              className="min-h-[120px]"
+              className="min-h-[120px] text-sm"
             />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRevertDialogOpen(false)}>Cancel</Button>
-            <Button variant="destructive" disabled={!revertComments} onClick={handleRevert}>Revert to BoS</Button>
+            <Button variant="destructive" disabled={!revertComments} onClick={handleRevert} className="gap-2">
+              Confirm Revert to Draft
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
