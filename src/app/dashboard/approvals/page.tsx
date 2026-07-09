@@ -138,7 +138,7 @@ export default function ApprovalsPage() {
               {filteredSchemes.map((scheme) => {
                 const program = programs.find(p => p.id === scheme.programId);
                 
-                // Determine if the current user can take a decision
+                // Determine if the current user can take a decision (Monitors can never act)
                 const isDeanActionable = profile?.role === 'dean_faculty' && scheme.status === 'Pending Dean';
                 const isAcadActionable = (profile?.role === 'dean_academic' || profile?.role === 'admin') && scheme.status === 'Pending Academics';
                 const isActionable = isDeanActionable || isAcadActionable;
@@ -196,6 +196,12 @@ export default function ApprovalsPage() {
                         {!isActionable && scheme.status !== 'Approved' && profile?.role !== 'monitor' && (
                            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground italic px-2">
                              <Clock className="w-3 h-3" /> Awaiting Tier Progress
+                           </div>
+                        )}
+
+                        {profile?.role === 'monitor' && scheme.status !== 'Approved' && (
+                           <div className="flex items-center gap-1.5 text-[10px] text-blue-600 font-bold px-2">
+                             <Clock className="w-3 h-3" /> Under Review
                            </div>
                         )}
 

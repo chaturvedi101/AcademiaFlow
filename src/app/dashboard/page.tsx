@@ -148,7 +148,7 @@ export default function DashboardPage() {
             {(['admin', 'dean_academic', 'committee_convenor'].includes(profile?.role || '')) && <ActionLink href="/dashboard/schemes" label="Manage Pool" icon={<Plus className="w-4 h-4" />} />}
             {profile?.role === 'bos_convenor' && profile?.faculty && !profile.faculty.includes('(Common BOS)') && <ActionLink href="/dashboard/team" label="Manage BoS Team" icon={<UserCircle className="w-4 h-4" />} />}
             {(['bos_convenor', 'admin'].includes(profile?.role || '')) && <ActionLink href="/dashboard/equivalence" label="Map Equivalence" icon={<Layers className="w-4 h-4" />} />}
-            {(['dean_faculty', 'dean_academic', 'admin'].includes(profile?.role || '')) && <ActionLink href="/dashboard/approvals" label="Review Pending" icon={<FileCheck className="w-4 h-4" />} />}
+            {(['dean_faculty', 'dean_academic', 'admin', 'monitor'].includes(profile?.role || '')) && <ActionLink href="/dashboard/approvals" label="Approval Status" icon={<FileCheck className="w-4 h-4" />} />}
             {(['monitor', 'admin'].includes(profile?.role || '')) && <ActionLink href="/dashboard/audit" label="System Audit" icon={<Hash className="w-4 h-4" />} />}
           </CardContent>
         </Card>

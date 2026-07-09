@@ -43,7 +43,7 @@ const navigation = [
   { name: 'Schemes', href: '/dashboard/schemes', icon: BookOpen, roles: ['bos_convenor', 'bos_member', 'dean_faculty', 'dean_academic', 'admin', 'monitor', 'committee_convenor'] },
   { name: 'Pool Distributor', href: '/dashboard/distributor', icon: Share2, roles: ['admin', 'dean_academic'] },
   { name: 'Equivalence Manager', href: '/dashboard/equivalence', icon: Layers, roles: ['bos_convenor', 'admin'] },
-  { name: 'Approvals', href: '/dashboard/approvals', icon: FileCheck, roles: ['dean_faculty', 'dean_academic'] },
+  { name: 'Approvals', href: '/dashboard/approvals', icon: FileCheck, roles: ['dean_faculty', 'dean_academic', 'admin', 'monitor'] },
   { name: 'Audit Logs', href: '/dashboard/audit', icon: History, roles: ['admin'] },
   { name: 'Backups', href: '/dashboard/backups', icon: Database, roles: ['admin'] },
   { name: 'AI Diagnostics', href: '/dashboard/diagnostics', icon: Settings2, roles: ['admin', 'dean_academic'] },
