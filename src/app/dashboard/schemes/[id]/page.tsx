@@ -50,66 +50,53 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [clonerTargetBranch, setClonerTargetBranch] = useState("");
   const [isCloning, setIsCloning] = useState(false);
 
+  // DYNAMIC INHERITANCE RESOLUTION: Subscribe to all parent schemes referenced in local syllabi
   useEffect(() => {
-    if (!scheme) return;
+    if (!scheme || syllabiLoading) return;
+
+    const parentSchemeIds = new Set<string>();
+    localSyllabi.forEach(s => {
+      if (s.parentSchemeId) parentSchemeIds.add(s.parentSchemeId);
+    });
+
+    if (parentSchemeIds.size === 0) {
+      setAllParentSyllabi([]);
+      setParentsLoading(false);
+      return;
+    }
+
     setParentsLoading(true);
-
-    const poolsQuery = query(
-      collection(db, 'schemes'),
-      where('batchYear', '==', scheme.batchYear)
-    );
-
     let activeUnsubs: Unsubscribe[] = [];
     const syllabiMap = new Map<string, Syllabus[]>();
+    const schemesToFetch = Array.from(parentSchemeIds);
+    let schemesSyncedCount = 0;
 
-    const unsubPools = onSnapshot(poolsQuery, (snap) => {
-      activeUnsubs.forEach(u => u());
-      activeUnsubs = [];
-      syllabiMap.clear();
-
-      const parentSchemes = snap.docs.filter(d => {
-        const data = d.data() as Scheme;
-        return data.isVerticalPool || data.isCommitteePool;
+    schemesToFetch.forEach(psId => {
+      const sRef = collection(db, 'schemes', psId, 'syllabi');
+      const u = onSnapshot(sRef, (sSnap) => {
+        const fetched = sSnap.docs.map(d => ({ 
+          ...d.data(), 
+          id: d.id,
+          parentSchemeId: psId,
+          isAuthoritativeSource: true
+        } as Syllabus));
+        
+        syllabiMap.set(psId, fetched);
+        const allFlattened: Syllabus[] = [];
+        syllabiMap.forEach(list => allFlattened.push(...list));
+        setAllParentSyllabi(allFlattened);
+        
+        schemesSyncedCount++;
+        if (schemesSyncedCount >= schemesToFetch.length) setParentsLoading(false);
+      }, () => {
+        schemesSyncedCount++;
+        if (schemesSyncedCount >= schemesToFetch.length) setParentsLoading(false);
       });
+      activeUnsubs.push(u);
+    });
 
-      if (parentSchemes.length === 0) {
-        setAllParentSyllabi([]);
-        setParentsLoading(false);
-        return;
-      }
-
-      let schemesSyncedCount = 0;
-
-      parentSchemes.forEach(ps => {
-        const sRef = collection(db, 'schemes', ps.id, 'syllabi');
-        const u = onSnapshot(sRef, (sSnap) => {
-          const fetched = sSnap.docs.map(d => ({ 
-            ...d.data(), 
-            id: d.id,
-            parentSchemeId: ps.id,
-            isAuthoritativeSource: true
-          } as Syllabus));
-          
-          syllabiMap.set(ps.id, fetched);
-          const allFlattened: Syllabus[] = [];
-          syllabiMap.forEach(list => allFlattened.push(...list));
-          setAllParentSyllabi(allFlattened);
-          
-          schemesSyncedCount++;
-          if (schemesSyncedCount >= parentSchemes.length) setParentsLoading(false);
-        }, () => {
-          schemesSyncedCount++;
-          if (schemesSyncedCount >= parentSchemes.length) setParentsLoading(false);
-        });
-        activeUnsubs.push(u);
-      });
-    }, () => setParentsLoading(false));
-
-    return () => {
-      unsubPools();
-      activeUnsubs.forEach(u => u());
-    };
-  }, [db, scheme]);
+    return () => activeUnsubs.forEach(u => u());
+  }, [db, scheme, localSyllabi, syllabiLoading]);
 
   const [isSyllabusDialogOpen, setIsSyllabusDialogOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Partial<Syllabus> | undefined>(undefined);
@@ -119,6 +106,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     const resolvedLocal = localSyllabi.map(local => {
       const parent = local.followedFromId ? allParentSyllabi.find(p => p.id === local.followedFromId) : null;
+      const isMirrored = !!local.followedFromId;
 
       if (parent) {
         return {
@@ -131,12 +119,16 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           followedFromId: local.followedFromId,
           parentSchemeId: local.parentSchemeId,
           isStandardized: true,
-          standardizedFrom: 'Equivalence Manager',
+          standardizedFrom: 'Institutional Cloner',
           electiveGroupId: local.electiveGroupId || parent.electiveGroupId || '',
           timetableSlot: parent.timetableSlot || local.timetableSlot || ''
         } as Syllabus;
       }
-      return local;
+      return {
+        ...local,
+        isStandardized: isMirrored,
+        standardizedFrom: isMirrored ? 'Institutional Cloner (Awaiting content)' : undefined
+      } as Syllabus;
     });
 
     return resolvedLocal.sort((a, b) => {
@@ -277,17 +269,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         effectivePrefix = program.branchPrefixes?.[scheme.branch || ''] || scheme.branch?.substring(0, 2).toUpperCase() || 'XX';
       }
 
-      // 1. Arrange subjects strictly by Semester then Timetable Slot
       const sortedSyllabi = [...localSyllabi].sort((a, b) => {
         if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
-        
-        // Arrange by Timetable Slot (1-6 for Theory, A-F for Practical)
         const slotA = a.timetableSlot || "Z";
         const slotB = b.timetableSlot || "Z";
-        if (slotA !== slotB) {
-          return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
-        }
-        
+        if (slotA !== slotB) return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
         return (a.title || '').localeCompare(b.title || '');
       });
 
@@ -347,7 +333,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       const targetPrefix = program.branchPrefixes?.[clonerTargetBranch] || clonerTargetBranch.substring(0, 2).toUpperCase();
       const newSchemeId = `${program.id.toUpperCase()}-${targetPrefix}-${scheme.batchYear}`;
       
-      // 1. Create Child Scheme
       batch.set(doc(db, 'schemes', newSchemeId), {
         programId: program.id,
         branch: clonerTargetBranch,
@@ -361,20 +346,16 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         updatedAt: serverTimestamp()
       });
 
-      // 2. Clone Syllabi with Links and Code Transformation
       for (const parentSub of localSyllabi) {
         const syllabusId = Math.random().toString(36).substr(2, 9);
         const syllabusRef = doc(db, 'schemes', newSchemeId, 'syllabi', syllabusId);
         
-        // Resolution: Grandparent Pointing
         const targetLinkId = parentSub.followedFromId || parentSub.id;
         const targetParentSchemeId = parentSub.parentSchemeId || scheme.id;
         const targetParentCode = parentSub.parentCode || parentSub.subjectCode;
 
-        // Code Transformation: DSC/DSE/PRJ/OFE initial two digit replacement
         let transformedCode = parentSub.subjectCode;
         if (['DSC', 'DSE', 'PRJ', 'OFE'].includes(parentSub.creditCategory)) {
-          // Replace initial 2 characters with branch prefix
           transformedCode = targetPrefix + parentSub.subjectCode.substring(2);
         }
 
