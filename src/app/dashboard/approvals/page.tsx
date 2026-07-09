@@ -14,6 +14,7 @@ import { CheckCircle, Eye, Loader2, FileCheck, Clock, Layers, RotateCcw, ShieldC
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
 export default function ApprovalsPage() {
