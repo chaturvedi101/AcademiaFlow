@@ -355,7 +355,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         const targetParentCode = parentSub.parentCode || parentSub.subjectCode;
 
         let transformedCode = parentSub.subjectCode;
-        if (['DSC', 'DSE', 'PRJ', 'OFE'].includes(parentSub.creditCategory)) {
+        if (['DSC', 'DSE', 'PRJ', 'OFE', 'SEC'].includes(parentSub.creditCategory)) {
           transformedCode = targetPrefix + parentSub.subjectCode.substring(2);
         }
 
@@ -444,7 +444,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                <p className="text-[11px] font-bold uppercase text-primary">Cloning Protocol:</p>
                <ul className="text-[10px] space-y-1 text-muted-foreground list-disc pl-4">
                  <li><b>Inheritance chain:</b> Mirrors directly from original standards (Grandparent) if already mirrored.</li>
-                 <li><b>Code Swap:</b> DSC/DSE/PRJ/OFE codes will automatically use the target branch prefix.</li>
+                 <li><b>Code Swap:</b> DSC/DSE/PRJ/OFE/SEC codes will automatically use the target branch prefix.</li>
                  <li><b>Live Link:</b> Child scheme will stay synchronized with pedagogical changes.</li>
                </ul>
              </div>
