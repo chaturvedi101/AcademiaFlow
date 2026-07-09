@@ -50,7 +50,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [clonerTargetBranch, setClonerTargetBranch] = useState("");
   const [isCloning, setIsCloning] = useState(false);
 
-  // DYNAMIC INHERITANCE RESOLUTION: Subscribe to all parent schemes referenced in local syllabi
+  // DYNAMIC INHERITANCE RESOLUTION
   useEffect(() => {
     if (!scheme || syllabiLoading) return;
 
@@ -148,10 +148,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   }, [localSyllabi, allParentSyllabi, scheme]);
 
   const permissions = useMemo(() => {
-    if (!profile || !scheme) return { isAdmin: false, isSuper: false, canEditScheme: false, isLockedForBoS: true, canDeleteCourse: false, canEditSyllabus: () => false };
+    if (!profile || !scheme) return { isAdmin: false, canEditScheme: false, isLockedForBoS: true, canDeleteCourse: false, canEditSyllabus: () => false };
 
     const isAdmin = profile.role === 'admin';
-    const isSuper = isAdmin || profile.role === 'dean_academic';
+    const isAuthority = ['dean_academic', 'dean_faculty', 'monitor'].includes(profile.role);
+    const isPersonnel = ['bos_convenor', 'bos_member', 'committee_convenor'].includes(profile.role);
     
     const isCommonTier = profile.faculty?.includes('(Common BOS)');
     const isBTECHTier = profile.faculty?.includes('BTECH');
@@ -159,7 +160,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     let isMyJurisdiction = false;
     
-    if (isSuper) {
+    if (isAdmin) {
       isMyJurisdiction = true;
     } else if (profile.role === 'committee_convenor') {
       isMyJurisdiction = scheme.isCommitteePool && scheme.branch === profile.faculty;
@@ -182,21 +183,24 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       isMyJurisdiction = hasExplicitAssignment || hasTieredOversight;
     }
 
-    const isLockedForBoS = scheme.status !== 'Draft' && !isSuper;
-    const canEditScheme = isMyJurisdiction && !isLockedForBoS;
+    const isLocked = scheme.status !== 'Draft' && !isAdmin;
+    
+    // PERSONNEL can edit IF Draft and IF it's their jurisdiction. 
+    // AUTHORITIES (Deans/Monitors) can NEVER edit content definition.
+    const canEditScheme = !isAuthority && (isAdmin || (isPersonnel && isMyJurisdiction)) && !isLocked;
     
     return {
       isAdmin,
-      isSuper,
       canEditScheme,
-      isLockedForBoS,
-      canDeleteCourse: isAdmin,
+      isLockedForBoS: isLocked,
+      canDeleteCourse: isAdmin, // STRICT: Only system admins can delete courses
       canEditSyllabus: (s: Partial<Syllabus> | undefined) => {
         if (!s) return false;
-        if (isSuper) return true;
-        if (isLockedForBoS) return false;
+        if (isAdmin) return true;
+        if (isAuthority) return false; // Deans/Monitors are read-only
+        if (isLocked) return false;
         if (s.followedFromId || (s as any).isInherited) return false;
-        return isMyJurisdiction;
+        return isPersonnel && isMyJurisdiction;
       }
     };
   }, [profile, scheme, program]);
@@ -240,22 +244,18 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const handleDeleteSyllabus = async (syllabusId: string) => {
-    if (!permissions.isAdmin) return;
+    if (!permissions.canDeleteCourse) return;
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', syllabusId);
     deleteDoc(docRef).then(() => toast({ title: "Subject Removed" }));
   };
 
   const handleSyncCodes = async () => {
-    if (!scheme || isSyncing) return;
-    if (!program && !scheme.isCommitteePool && !scheme.isVerticalPool) {
-        toast({ title: "Resolution Error", description: "Program context not found.", variant: "destructive" });
-        return;
-    }
+    if (!permissions.canEditScheme || isSyncing) return;
     setIsSyncing(true);
     try {
       const batch = writeBatch(db);
       let effectivePrefix = 'XX';
-      if (scheme.isCommitteePool) {
+      if (scheme?.isCommitteePool) {
         const branchName = scheme.branch || '';
         if (branchName.includes('Mathematics')) effectivePrefix = 'MATH';
         else if (branchName.includes('Physics')) effectivePrefix = 'PHYS';
@@ -263,10 +263,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         else if (branchName.includes('Humanities')) effectivePrefix = 'HUMA';
         else if (branchName.includes('Basic Sciences')) effectivePrefix = 'BSCI';
         else effectivePrefix = 'COMM';
-      } else if (scheme.isVerticalPool) {
+      } else if (scheme?.isVerticalPool) {
         effectivePrefix = 'RT';
       } else if (program) {
-        effectivePrefix = program.branchPrefixes?.[scheme.branch || ''] || scheme.branch?.substring(0, 2).toUpperCase() || 'XX';
+        effectivePrefix = program.branchPrefixes?.[scheme?.branch || ''] || scheme?.branch?.substring(0, 2).toUpperCase() || 'XX';
       }
 
       const sortedSyllabi = [...localSyllabi].sort((a, b) => {
@@ -295,7 +295,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
       sortedSyllabi.forEach(sub => {
         const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(sub.creditCategory);
-        const targetPrefix = (isCommonCategory && !scheme.isCommitteePool) ? 'RT' : effectivePrefix;
+        const targetPrefix = (isCommonCategory && !scheme?.isCommitteePool) ? 'RT' : effectivePrefix;
         const pedagogyChar = sub.type === 'Lab/Sessional' ? 'P' : (sub.creditCategory === 'PRJ' ? 'I' : 'L');
         const pillarChar = getPillarChar(sub.creditCategory);
         const yearDigit = Math.ceil((sub.semester || 1) / 2);
@@ -326,7 +326,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   };
 
   const handleCreateLinkedCopy = async () => {
-    if (!clonerTargetBranch || !program || !scheme) return;
+    if (!clonerTargetBranch || !program || !scheme || !permissions.isAdmin) return;
     setIsCloning(true);
     try {
       const batch = writeBatch(db);
@@ -480,7 +480,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         </Alert>
       )}
 
-      {permissions.isLockedForBoS && (
+      {permissions.isLockedForBoS && !permissions.isAdmin && (
         <Alert className="bg-amber-50 border-amber-200 text-amber-800">
           <ShieldCheck className="h-4 w-4" />
           <AlertTitle className="font-bold">Submission Lock Active</AlertTitle>
@@ -590,7 +590,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }}>
                                           {permissions.canEditSyllabus(sub) ? <Edit3 className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                                         </Button>
-                                        {permissions.isAdmin && (
+                                        {permissions.canDeleteCourse && (
                                           <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => handleDeleteSyllabus(sub.id)}>
                                             <Trash2 className="w-3.5 h-3.5" />
                                           </Button>
