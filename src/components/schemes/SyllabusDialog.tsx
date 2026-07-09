@@ -16,7 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   BookOpen, Loader2, Plus, ChevronDown, ChevronUp, Trash2, 
-  Sparkles, FlaskConical, ShieldCheck, Layers, Globe, Video, GraduationCap, Clock, Link as LinkIcon, AlertTriangle
+  Sparkles, FlaskConical, ShieldCheck, Layers, Globe, Video, GraduationCap, Clock, Link as LinkIcon, AlertTriangle, Unlink
 } from "lucide-react";
 import { Syllabus, UserProfile, CreditCategory, SubjectType, Scheme, Program, PROGRAM_OUTCOMES, CorrelationLevel } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -73,8 +73,6 @@ export function SyllabusDialog({
 
   const { data: allSchemes } = useCollection<Scheme>(useMemoFirebase(() => collection(db, 'schemes'), [db]));
 
-  const isSuperuser = userProfile?.role === 'admin' || userProfile?.role === 'dean_academic';
-
   useEffect(() => {
     if (open && syllabus) {
       setFormData({ 
@@ -106,7 +104,6 @@ export function SyllabusDialog({
     }
   }, [selectedLinkSchemeId, db]);
 
-  // Enforce Methodology Consistency (Theory to Theory, Lab to Lab)
   const filteredParentSyllabi = useMemo(() => {
     return availableParentSyllabi.filter(s => s.type === formData.type);
   }, [availableParentSyllabi, formData.type]);
@@ -120,21 +117,26 @@ export function SyllabusDialog({
     );
   }, [formData.timetableSlot, formData.semester, formData.id, allSyllabi]);
 
-  const unitCount = formData.units?.length || 0;
-  const isLab = formData.type === 'Lab/Sessional';
-  const unitLabel = isLab ? 'Experiment' : 'Unit';
+  const isLinked = !!formData.followedFromId;
+  /**
+   * CRITICAL SECURITY RULE:
+   * 1. If linked, pedagogical content is READ-ONLY for everyone. This ensures changes only occur at the parent authority.
+   * 2. To change child content, the link MUST be severed (making it a local copy).
+   * 3. This guarantees modifications in child can never reflect back to parent.
+   */
+  const isFormDisabled = isLinked || !canEdit;
 
   useEffect(() => {
     if (!open || !canEdit || formData.followedFromId) return;
     
     const currentUnits = formData.units || [];
     if (currentUnits.length === 0) {
-      const initialCount = isLab ? 8 : 5;
+      const initialCount = formData.type === 'Lab/Sessional' ? 8 : 5;
       const initialUnits = Array.from({ length: initialCount }, (_, i) => ({
         id: Math.random().toString(36).substr(2, 9),
         title: '',
         content: '',
-        hours: isLab ? 2 : 8,
+        hours: formData.type === 'Lab/Sessional' ? 2 : 8,
         courseOutcome: ''
       }));
       setFormData(prev => ({ ...prev, units: initialUnits }));
@@ -164,10 +166,6 @@ export function SyllabusDialog({
       setIsAiGenerating(false);
     }
   };
-
-  const isLinked = !!formData.followedFromId;
-  const isFormDisabled = (isLinked && !isSuperuser) || !canEdit;
-  const isCategoryLocked = isFormDisabled || !!syllabus?.id;
 
   const calculateCredits = (l: number, t: number, p: number) => {
     let total = l + t;
@@ -226,7 +224,7 @@ export function SyllabusDialog({
           poMappings: parentData.poMappings,
           timetableSlot: parentData.timetableSlot || ''
         }));
-        toast({ title: "Institutional Standard established", description: "All pedagogical details synchronized." });
+        toast({ title: "Institutional Standard Established", description: "This child slot now mirrors the master content." });
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Linking Failed", description: e.message });
@@ -235,11 +233,20 @@ export function SyllabusDialog({
     }
   };
 
-  const isElectiveCategory = ['DSE', 'OFE', 'VAC', 'AEC', 'MDC'].includes(formData.creditCategory || '');
+  const severMirrorLink = () => {
+    setFormData(prev => ({
+      ...prev,
+      followedFromId: '',
+      parentSchemeId: '',
+      parentCode: '',
+      standardizedFrom: undefined,
+      isStandardized: false
+    }));
+    setWantsToLink(false);
+    toast({ title: "Mirror Severed", description: "You are now editing a private local copy. Changes will not affect the master." });
+  };
 
-  const timetableOptions = isLab 
-    ? ['A', 'B', 'C', 'D', 'E', 'F'] 
-    : ['1', '2', '3', '4', '5', '6'];
+  const unitLabel = formData.type === 'Lab/Sessional' ? 'Experiment' : 'Unit';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -247,71 +254,56 @@ export function SyllabusDialog({
         <DialogHeader className="p-6 border-b shrink-0 bg-background z-10">
           <DialogTitle className="font-headline text-2xl flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {isLab ? <FlaskConical className="w-6 h-6 text-accent" /> : <BookOpen className="w-6 h-6 text-primary" />} 
+              {formData.type === 'Lab/Sessional' ? <FlaskConical className="w-6 h-6 text-accent" /> : <BookOpen className="w-6 h-6 text-primary" />} 
               Course Architect
             </div>
             <div className="flex gap-2">
-              <Button onClick={handleAiGenerate} disabled={isAiGenerating || !formData.title || isLinked} variant="outline" className="gap-2">
+              <Button onClick={handleAiGenerate} disabled={isAiGenerating || !formData.title || isLinked || !canEdit} variant="outline" className="gap-2">
                 {isAiGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-primary" />}
                 AI Architect
               </Button>
             </div>
           </DialogTitle>
           <DialogDescription>
-            Construct pedagogical methodology and content. Link to institutional standards (Theory-to-Theory, Lab-to-Lab).
+            Construct methodology. Mirror institutional standards safely. Modification in child schemes never affects master parents.
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="flex-1 w-full min-h-0 bg-muted/5">
           <div className="p-6 space-y-8">
             {isLinked && (
-              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between shadow-sm">
-                <div className="flex items-center gap-3 text-emerald-800 text-sm">
-                  <ShieldCheck className="w-5 h-5" />
-                  <div className="flex flex-col">
-                    <p className="font-bold">Institutional Mirror Active</p>
-                    <p className="text-xs">Mirroring standard syllabus: <span className="font-black">{(formData as any).parentCode || 'Standard Pool'}</span></p>
-                  </div>
-                </div>
-                {(isSuperuser || canEdit) && (
-                  <Button variant="ghost" size="sm" className="text-emerald-700 hover:bg-emerald-100" onClick={() => setFormData({...formData, followedFromId: '', parentSchemeId: '', parentCode: ''})}>
-                    Sever Link & Restore Slot
+              <Alert className="bg-emerald-50 border-emerald-200 shadow-sm">
+                <ShieldCheck className="h-5 w-5 text-emerald-600" />
+                <AlertTitle className="font-bold text-emerald-800 flex items-center justify-between">
+                  Institutional Mirror Active (Read-Only)
+                  <Button variant="outline" size="sm" className="h-7 text-red-600 border-red-200 bg-white hover:bg-red-50 gap-2" onClick={severMirrorLink}>
+                    <Unlink className="w-3.5 h-3.5" /> Sever Link for Local Override
                   </Button>
-                )}
-              </div>
+                </AlertTitle>
+                <AlertDescription className="text-emerald-700 text-xs">
+                  This slot currently inherits all content from Master: <b>{formData.parentCode}</b>. 
+                  Modifications at this level are disabled to maintain university alignment. Use "Sever Link" to branch off.
+                </AlertDescription>
+              </Alert>
             )}
 
             {timetableClash && (
-              <Alert variant="destructive" className="bg-red-50 border-red-200 shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
+              <Alert variant="destructive" className="bg-red-50 border-red-200 shadow-sm">
                 <AlertTriangle className="h-4 w-4" />
-                <AlertTitle className="font-bold">Timetable Slot Conflict</AlertTitle>
-                <AlertDescription className="mt-1 space-y-2">
-                  <p>
-                    {isLinked 
-                      ? `Slot ${formData.timetableSlot} is inherited from the institutional parent.` 
-                      : `Slot ${formData.timetableSlot} is currently manually assigned.`}
-                  </p>
-                  <p className="font-medium text-red-800">
-                    Conflict detected with: <span className="font-black">{timetableClash.title} ({timetableClash.subjectCode})</span> in Semester {formData.semester}.
-                  </p>
-                  <p className="text-[11px] italic">
-                    University policy mandates unique slots per semester. Please reassign the slot for the departmental course.
-                  </p>
+                <AlertTitle className="font-bold">Slot Conflict Detected</AlertTitle>
+                <AlertDescription className="mt-1">
+                  Conflict with: <b>{timetableClash.title} ({timetableClash.subjectCode})</b> in Sem {formData.semester}. 
+                  Each slot must be unique within a semester.
                 </AlertDescription>
               </Alert>
             )}
 
             <Tabs defaultValue="basic">
               <TabsList className="grid w-full grid-cols-4 mb-8">
-                <TabsTrigger value="basic">{isLinked ? "Mirror Identity" : "Identity"}</TabsTrigger>
-                <TabsTrigger value="syllabus" className="gap-2">
-                  Content 
-                  <Badge variant="outline" className="text-[10px] px-1.5 h-4 min-w-4 flex items-center justify-center">
-                    {unitCount}
-                  </Badge>
-                </TabsTrigger>
+                <TabsTrigger value="basic">Identity</TabsTrigger>
+                <TabsTrigger value="syllabus">Pedagogical Content</TabsTrigger>
                 <TabsTrigger value="resources">Learning Resources</TabsTrigger>
-                <TabsTrigger value="mapping">Outcomes</TabsTrigger>
+                <TabsTrigger value="mapping">Outcomes Mapping</TabsTrigger>
               </TabsList>
 
               <TabsContent value="basic" className="space-y-6">
@@ -320,7 +312,7 @@ export function SyllabusDialog({
                     <CardContent className="p-4 space-y-4">
                       <div className="flex items-center justify-between">
                         <Label className="font-bold flex items-center gap-2 text-primary">
-                          <LinkIcon className="w-4 h-4" /> Establish Institutional Link?
+                          <LinkIcon className="w-4 h-4" /> Link to Institutional Master?
                         </Label>
                         <Switch checked={wantsToLink} onCheckedChange={setWantsToLink} />
                       </div>
@@ -328,41 +320,26 @@ export function SyllabusDialog({
                       {wantsToLink && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t mt-2">
                           <div className="space-y-2">
-                            <Label className="text-[10px] uppercase font-bold">Source Branch / Pool</Label>
+                            <Label className="text-[10px] uppercase font-bold">Source Authority Pool</Label>
                             <Select value={selectedLinkSchemeId} onValueChange={setSelectedLinkSchemeId}>
-                              <SelectTrigger className="bg-white"><SelectValue placeholder="Choose Scheme..." /></SelectTrigger>
+                              <SelectTrigger className="bg-white"><SelectValue placeholder="Choose Pool..." /></SelectTrigger>
                               <SelectContent>
                                 {allSchemes.map(s => (
-                                  <SelectItem key={s.id} value={s.id}>
-                                    {s.branch || 'Institutional Pool'} ({s.batchYear})
-                                  </SelectItem>
+                                  <SelectItem key={s.id} value={s.id}>{s.branch} ({s.batchYear})</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
                           </div>
                           <div className="space-y-2">
-                            <Label className="text-[10px] uppercase font-bold">Standard Subject ({formData.type})</Label>
-                            <Select 
-                              disabled={!selectedLinkSchemeId || isFetchingParentSyllabi} 
-                              onValueChange={handleEstablishLink}
-                            >
+                            <Label className="text-[10px] uppercase font-bold">Master Course ({formData.type})</Label>
+                            <Select disabled={!selectedLinkSchemeId || isFetchingParentSyllabi} onValueChange={handleEstablishLink}>
                               <SelectTrigger className="bg-white">
-                                <SelectValue placeholder={isFetchingParentSyllabi ? "Fetching subjects..." : "Choose matching standard..."} />
+                                <SelectValue placeholder={isFetchingParentSyllabi ? "Pinging..." : "Select standard..."} />
                               </SelectTrigger>
                               <SelectContent>
-                                {filteredParentSyllabi.map(s => (
-                                  <SelectItem key={s.id} value={s.id}>
-                                    {s.subjectCode} - {s.title}
-                                  </SelectItem>
-                                ))}
-                                {filteredParentSyllabi.length === 0 && !isFetchingParentSyllabi && (
-                                  <div className="p-4 text-xs text-muted-foreground italic text-center">
-                                    No {formData.type} courses found in this pool.
-                                  </div>
-                                )}
+                                {filteredParentSyllabi.map(s => <SelectItem key={s.id} value={s.id}>{s.subjectCode} - {s.title}</SelectItem>)}
                               </SelectContent>
                             </Select>
-                            <p className="text-[9px] text-muted-foreground italic">Note: Only {formData.type} subjects from the parent pool are available for linking.</p>
                           </div>
                         </div>
                       )}
@@ -370,51 +347,32 @@ export function SyllabusDialog({
                   </Card>
                 )}
 
-                {isLinked && (
-                  <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-2 shadow-inner">
-                    <Label className="text-[10px] uppercase font-bold text-primary flex items-center gap-2">
-                      <Layers className="w-3.5 h-3.5" /> Parent Authority
-                    </Label>
-                    <p className="text-sm font-medium">
-                      This course mirrors institutional standard <span className="font-black text-primary">{(formData as any).parentCode}</span>.
-                    </p>
-                    <p className="text-[10px] text-muted-foreground italic">
-                      Units, Hours, Resources, Outcomes, and Slots are synchronized with the BoS pool.
-                    </p>
-                  </div>
-                )}
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Credit Category</Label>
-                    <Select disabled={isCategoryLocked} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v})}>
+                    <Select disabled={isLinked || !canEdit || !!syllabus?.id} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v})}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {ALL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                      </SelectContent>
+                      <SelectContent>{ALL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Course Title</Label>
-                    <Input disabled={isFormDisabled} value={formData.title || ''} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="e.g. Engineering Physics-I" />
+                    <Input disabled={isFormDisabled} value={formData.title || ''} onChange={e => setFormData({...formData, title: e.target.value})} />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Subject Code (LOCKED)</Label>
-                    <div className="h-10 flex items-center px-3 bg-muted/50 rounded-md border font-mono font-bold text-primary shadow-inner">
-                      {formData.subjectCode || 'AUTO-GEN'}
-                    </div>
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Local Course Code</Label>
+                    <div className="h-10 flex items-center px-3 bg-muted/50 rounded-md border font-mono font-bold text-primary">{formData.subjectCode || 'AUTO-GEN'}</div>
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Pedagogy</Label>
-                    <Select disabled={isFormDisabled || isLinked} value={formData.type || 'Theory'} onValueChange={(v: any) => {
+                    <Select disabled={isFormDisabled} value={formData.type || 'Theory'} onValueChange={(v: SubjectType) => {
                       const l = v === 'Lab/Sessional' ? 0 : formData.lectureCredits;
                       const t = v === 'Lab/Sessional' ? 0 : formData.tutorialCredits;
                       const p = v === 'Theory' ? 0 : formData.practicalCredits;
-                      const credits = calculateCredits(l || 0, t || 0, p || 0);
-                      setFormData({...formData, type: v, lectureCredits: l, tutorialCredits: t, practicalCredits: p, credits });
+                      setFormData({...formData, type: v, lectureCredits: l, tutorialCredits: t, practicalCredits: p, credits: calculateCredits(l||0, t||0, p||0) });
                     }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -428,248 +386,93 @@ export function SyllabusDialog({
                     <Input disabled={isFormDisabled} type="number" value={formData.semester || 1} onChange={e => setFormData({...formData, semester: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-2">
-                      <Clock className="w-3 h-3" /> Timetable Slot
-                    </Label>
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Timetable Slot</Label>
                     <Select disabled={isFormDisabled} value={formData.timetableSlot} onValueChange={(v) => setFormData({...formData, timetableSlot: v})}>
-                      <SelectTrigger className={cn("bg-white", timetableClash && "border-red-500 text-red-800")}><SelectValue placeholder="Select Slot..." /></SelectTrigger>
+                      <SelectTrigger className={cn(timetableClash && "border-red-500 text-red-800")}>
+                        <SelectValue placeholder="Slot..." />
+                      </SelectTrigger>
                       <SelectContent>
-                        {timetableOptions.map(opt => (
-                          <SelectItem key={opt} value={opt}>Slot {opt}</SelectItem>
-                        ))}
+                        {(formData.type === 'Lab/Sessional' ? ['A','B','C','D','E','F'] : ['1','2','3','4','5','6']).map(s => <SelectItem key={s} value={s}>Slot {s}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-white border rounded-xl shadow-inner">
-                  <div className="space-y-1">
-                    <Label className={cn("text-[10px] uppercase font-bold", isLab && "text-muted-foreground opacity-50")}>L (Lecture)</Label>
-                    <Input type="number" disabled={isFormDisabled || isLab} value={formData.lectureCredits || 0} onChange={e => handleLTPChange({ lectureCredits: Number(e.target.value) })} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className={cn("text-[10px] uppercase font-bold", isLab && "text-muted-foreground opacity-50")}>T (Tutorial)</Label>
-                    <Input type="number" disabled={isFormDisabled || isLab} value={formData.tutorialCredits || 0} onChange={e => handleLTPChange({ tutorialCredits: Number(e.target.value) })} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className={cn("text-[10px] uppercase font-bold", !isLab && "text-muted-foreground opacity-50")}>P (Practical Hours)</Label>
-                    <Input type="number" disabled={isFormDisabled || !isLab} value={formData.practicalCredits || 0} onChange={e => handleLTPChange({ practicalCredits: Number(e.target.value) })} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[10px] uppercase font-bold">Credits</Label>
-                    <div className="p-2 bg-primary/5 rounded font-bold text-center h-10 flex items-center justify-center text-primary border border-primary/20">{formData.credits} Cr</div>
-                  </div>
-                </div>
-
-                <div className="space-y-2 max-w-sm">
-                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Elective Slot ID</Label>
-                  <div className="flex gap-2">
-                      <Input 
-                      disabled={isFormDisabled || !isElectiveCategory} 
-                      value={formData.electiveGroupId || ''} 
-                      onChange={e => setFormData({...formData, electiveGroupId: e.target.value})} 
-                      placeholder="e.g. Elective-I" 
-                      className="font-bold text-primary"
-                    />
-                    <Badge variant="outline" className="shrink-0"><Layers className="w-3 h-3" /></Badge>
-                  </div>
+                <div className="grid grid-cols-4 gap-4 p-4 bg-white border rounded-xl shadow-inner">
+                  <div className="space-y-1"><Label className="text-[10px] font-bold">L</Label><Input type="number" disabled={isFormDisabled || formData.type === 'Lab/Sessional'} value={formData.lectureCredits || 0} onChange={e => handleLTPChange({ lectureCredits: Number(e.target.value) })} /></div>
+                  <div className="space-y-1"><Label className="text-[10px] font-bold">T</Label><Input type="number" disabled={isFormDisabled || formData.type === 'Lab/Sessional'} value={formData.tutorialCredits || 0} onChange={e => handleLTPChange({ tutorialCredits: Number(e.target.value) })} /></div>
+                  <div className="space-y-1"><Label className="text-[10px] font-bold">P</Label><Input type="number" disabled={isFormDisabled || formData.type === 'Theory'} value={formData.practicalCredits || 0} onChange={e => handleLTPChange({ practicalCredits: Number(e.target.value) })} /></div>
+                  <div className="space-y-1"><Label className="text-[10px] font-bold">Cr</Label><div className="h-10 flex items-center justify-center bg-primary/5 rounded font-bold border border-primary/20">{formData.credits}</div></div>
                 </div>
               </TabsContent>
 
               <TabsContent value="syllabus" className="space-y-6">
                  {formData.units?.map((u, i) => (
-                   <Card key={u.id} className="border-muted overflow-hidden shadow-sm">
-                     <CardHeader 
-                      className="p-4 bg-muted/20 flex flex-row items-center justify-between cursor-pointer hover:bg-muted/30 transition-colors"
-                      onClick={() => setExpandedUnits(prev => ({ ...prev, [u.id]: !prev[u.id] }))}
-                     >
-                        <div className="flex items-center gap-3">
-                          <Badge className="bg-primary/10 text-primary border-none">{unitLabel} {i+1}</Badge>
-                          <span className="font-bold">{u.title || `Untitled ${unitLabel}`}</span>
-                        </div>
+                   <Card key={u.id} className="border-muted overflow-hidden">
+                     <CardHeader className="p-4 bg-muted/20 flex flex-row items-center justify-between cursor-pointer" onClick={() => setExpandedUnits(p => ({...p, [u.id]: !p[u.id]}))}>
+                        <div className="flex items-center gap-3"><Badge>{unitLabel} {i+1}</Badge><span className="font-bold">{u.title || 'Untitled'}</span></div>
                         <div className="flex items-center gap-2">
-                          {expandedUnits[u.id] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                          {!isFormDisabled && (
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const units = [...(formData.units || [])];
-                                units.splice(i, 1);
-                                setFormData({ ...formData, units });
-                              }}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          )}
+                           {expandedUnits[u.id] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                           {!isFormDisabled && <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setFormData({...formData, units: formData.units?.filter((_, idx) => idx !== i)}); }}><Trash2 className="w-4 h-4 text-red-400" /></Button>}
                         </div>
                      </CardHeader>
                      <CardContent className={cn("p-4 space-y-4", !expandedUnits[u.id] && "hidden")}>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                           <div className="space-y-2"><Label>{unitLabel} Title</Label><Input disabled={isFormDisabled} value={u.title || ''} onChange={e => { const units = [...(formData.units || [])]; units[i].title = e.target.value; setFormData({ ...formData, units }); }} /></div>
-                           <div className="space-y-2"><Label>Teaching Hours</Label><Input type="number" disabled={isFormDisabled} value={u.hours || 0} onChange={e => { const units = [...(formData.units || [])]; units[i].hours = Number(e.target.value); setFormData({ ...formData, units }); }} /></div>
+                        <div className="grid grid-cols-2 gap-4">
+                           <div className="space-y-2"><Label>Title</Label><Input disabled={isFormDisabled} value={u.title} onChange={e => { const u2=[...formData.units!]; u2[i].title=e.target.value; setFormData({...formData, units:u2}) }} /></div>
+                           <div className="space-y-2"><Label>Hours</Label><Input type="number" disabled={isFormDisabled} value={u.hours} onChange={e => { const u2=[...formData.units!]; u2[i].hours=Number(e.target.value); setFormData({...formData, units:u2}) }} /></div>
                         </div>
-                        <div className="space-y-2">
-                          <Label>{isLab ? 'Procedure / Object' : 'Detailed Topics'}</Label>
-                          <Textarea disabled={isFormDisabled} value={u.content || ''} onChange={e => { const units = [...(formData.units || [])]; units[i].content = e.target.value; setFormData({ ...formData, units }); }} className="min-h-[120px]" />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Course Outcome (CO)</Label>
-                          <Input disabled={isFormDisabled} value={u.courseOutcome || ''} onChange={e => { const units = [...(formData.units || [])]; units[i].courseOutcome = e.target.value; setFormData({ ...formData, units }); }} placeholder="The student will be able to..." />
-                        </div>
+                        <div className="space-y-2"><Label>Content</Label><Textarea disabled={isFormDisabled} value={u.content} onChange={e => { const u2=[...formData.units!]; u2[i].content=e.target.value; setFormData({...formData, units:u2}) }} /></div>
+                        <div className="space-y-2"><Label>Course Outcome</Label><Input disabled={isFormDisabled} value={u.courseOutcome} onChange={e => { const u2=[...formData.units!]; u2[i].courseOutcome=e.target.value; setFormData({...formData, units:u2}) }} /></div>
                      </CardContent>
                    </Card>
                  ))}
-                 {!isFormDisabled && (
-                   <Button variant="outline" className="w-full border-dashed h-12" onClick={() => setFormData(p => ({...p, units: [...(p.units||[]), {id:Math.random().toString(36).substr(2,9), title:'', content:'', hours:0, courseOutcome:''}]}))}>
-                     <Plus className="w-4 h-4 mr-2" /> Add {unitLabel} Slot
-                   </Button>
-                 )}
+                 {!isFormDisabled && <Button variant="outline" className="w-full border-dashed h-12" onClick={() => setFormData(p => ({...p, units: [...(p.units||[]), {id:Math.random().toString(36).substr(2,9), title:'', content:'', hours:0, courseOutcome:''}]}))}><Plus className="w-4 h-4 mr-2" /> Add {unitLabel}</Button>}
               </TabsContent>
 
-              <TabsContent value="resources" className="space-y-8">
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                   <div className="space-y-4">
-                      <Label className="font-bold text-primary flex items-center gap-2">
-                        <BookOpen className="w-4 h-4" /> Standard Text Books
-                      </Label>
-                      <div className="space-y-2">
-                        {formData.textBooks?.map((it, i) => (
-                          <div key={i} className="flex gap-2">
-                            <Input value={it} disabled={isFormDisabled} onChange={e => { const a=[...formData.textBooks!]; a[i]=e.target.value; setFormData({...formData, textBooks:a}) }} placeholder="Author, Title, Edition, Publisher" />
-                            {!isFormDisabled && <Button variant="ghost" size="icon" onClick={() => setFormData({...formData, textBooks: formData.textBooks?.filter((_, idx) => idx !== i)})}><Trash2 className="w-4 h-4 text-red-400" /></Button>}
-                          </div>
-                        ))}
-                        {!isFormDisabled && <Button variant="ghost" size="sm" onClick={() => setFormData({...formData, textBooks: [...(formData.textBooks||[]), '']})} className="text-primary h-8"><Plus className="w-3.5 h-3.5 mr-1" /> Add Textbook</Button>}
-                      </div>
-                   </div>
-
-                   <div className="space-y-4">
-                      <Label className="font-bold text-primary flex items-center gap-2">
-                        <Layers className="w-4 h-4" /> Reference Materials
-                      </Label>
-                      <div className="space-y-2">
-                        {formData.referenceBooks?.map((it, i) => (
-                          <div key={i} className="flex gap-2">
-                            <Input value={it} disabled={isFormDisabled} onChange={e => { const a=[...formData.referenceBooks!]; a[i]=e.target.value; setFormData({...formData, referenceBooks:a}) }} placeholder="Reference details..." />
-                            {!isFormDisabled && <Button variant="ghost" size="icon" onClick={() => setFormData({...formData, referenceBooks: formData.referenceBooks?.filter((_, idx) => idx !== i)})}><Trash2 className="w-4 h-4 text-red-400" /></Button>}
-                          </div>
-                        ))}
-                        {!isFormDisabled && <Button variant="ghost" size="sm" onClick={() => setFormData({...formData, referenceBooks: [...(formData.referenceBooks||[]), '']})} className="text-primary h-8"><Plus className="w-3.5 h-3.5 mr-1" /> Add Reference</Button>}
-                      </div>
-                   </div>
-
-                   <div className="space-y-4">
-                      <Label className="font-bold text-primary flex items-center gap-2">
-                        <GraduationCap className="w-4 h-4" /> NPTEL / Online Courses
-                      </Label>
-                      <div className="space-y-2">
-                        {formData.nptelLinks?.map((it, i) => (
-                          <div key={i} className="flex gap-2">
-                            <Input value={it} disabled={isFormDisabled} onChange={e => { const a=[...formData.nptelLinks!]; a[i]=e.target.value; setFormData({...formData, nptelLinks:a}) }} placeholder="URL to NPTEL/SWAYAM Course" />
-                            {!isFormDisabled && <Button variant="ghost" size="icon" onClick={() => setFormData({...formData, nptelLinks: formData.nptelLinks?.filter((_, idx) => idx !== i)})}><Trash2 className="w-4 h-4 text-red-400" /></Button>}
-                          </div>
-                        ))}
-                        {!isFormDisabled && <Button variant="ghost" size="sm" onClick={() => setFormData({...formData, nptelLinks: [...(formData.nptelLinks||[]), '']})} className="text-primary h-8"><Plus className="w-3.5 h-3.5 mr-1" /> Add MOOC Link</Button>}
-                      </div>
-                   </div>
-
-                   <div className="space-y-4">
-                      <Label className="font-bold text-primary flex items-center gap-2">
-                        <Video className="w-4 h-4" /> YouTube / Multimedia
-                      </Label>
-                      <div className="space-y-2">
-                        {formData.youtubeLinks?.map((it, i) => (
-                          <div key={i} className="flex gap-2">
-                            <Input value={it} disabled={isFormDisabled} onChange={e => { const a=[...formData.youtubeLinks!]; a[i]=e.target.value; setFormData({...formData, youtubeLinks:a}) }} placeholder="YouTube Video URL" />
-                            {!isFormDisabled && <Button variant="ghost" size="icon" onClick={() => setFormData({...formData, youtubeLinks: formData.youtubeLinks?.filter((_, idx) => idx !== i)})}><Trash2 className="w-4 h-4 text-red-400" /></Button>}
-                          </div>
-                        ))}
-                        {!isFormDisabled && <Button variant="ghost" size="sm" onClick={() => setFormData({...formData, youtubeLinks: [...(formData.youtubeLinks||[]), '']})} className="text-primary h-8"><Plus className="w-3.5 h-3.5 mr-1" /> Add Video Link</Button>}
-                      </div>
-                   </div>
-
-                   <div className="space-y-4 md:col-span-2">
-                      <Label className="font-bold text-primary flex items-center gap-2">
-                        <Globe className="w-4 h-4" /> Websites & Digital Portals
-                      </Label>
-                      <div className="space-y-2">
-                        {formData.websiteLinks?.map((it, i) => (
-                          <div key={i} className="flex gap-2">
-                            <Input value={it} disabled={isFormDisabled} onChange={e => { const a=[...formData.websiteLinks!]; a[i]=e.target.value; setFormData({...formData, websiteLinks:a}) }} placeholder="Academic Portal URL" />
-                            {!isFormDisabled && <Button variant="ghost" size="icon" onClick={() => setFormData({...formData, websiteLinks: formData.websiteLinks?.filter((_, idx) => idx !== i)})}><Trash2 className="w-4 h-4 text-red-400" /></Button>}
-                          </div>
-                        ))}
-                        {!isFormDisabled && <Button variant="ghost" size="sm" onClick={() => setFormData({...formData, websiteLinks: [...(formData.websiteLinks||[]), '']})} className="text-primary h-8"><Plus className="w-3.5 h-3.5 mr-1" /> Add Portal URL</Button>}
-                      </div>
-                   </div>
-                 </div>
+              <TabsContent value="resources" className="space-y-6">
+                <div className="grid grid-cols-2 gap-8">
+                  {['textBooks', 'referenceBooks', 'nptelLinks', 'youtubeLinks'].map((field) => (
+                    <div key={field} className="space-y-4">
+                      <Label className="font-bold text-primary capitalize">{field.replace('Books', ' Books').replace('Links', ' Links')}</Label>
+                      {(formData as any)[field]?.map((v: string, idx: number) => (
+                        <div key={idx} className="flex gap-2">
+                          <Input disabled={isFormDisabled} value={v} onChange={e => { const a=[...(formData as any)[field]]; a[idx]=e.target.value; setFormData({...formData, [field]: a}) }} />
+                          {!isFormDisabled && <Button variant="ghost" size="icon" onClick={() => { const a=(formData as any)[field].filter((_:any, i:number)=>i!==idx); setFormData({...formData, [field]:a}) }}><Trash2 className="w-4 h-4 text-red-400" /></Button>}
+                        </div>
+                      ))}
+                      {!isFormDisabled && <Button variant="ghost" size="sm" onClick={() => setFormData({...formData, [field]: [...((formData as any)[field]||[]), '']})} className="text-primary"><Plus className="w-3.5 h-3.5 mr-1" /> Add</Button>}
+                    </div>
+                  ))}
+                </div>
               </TabsContent>
 
               <TabsContent value="mapping" className="space-y-6">
-                 <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 mb-6">
-                    <h3 className="font-bold text-lg text-primary flex items-center gap-2">
-                      <GraduationCap className="w-5 h-5" /> 
-                      CO-PO Correlation Matrix
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      Map Course Outcomes (COs) to Program Outcomes (POs). 
-                      Levels: 1: Slight, 2: Moderate, 3: Substantial, -: No Correlation.
-                    </p>
-                 </div>
-
-                 <div className="border rounded-xl bg-white shadow-sm overflow-hidden">
-                    <ScrollArea className="w-full">
-                      <Table>
-                        <TableHeader className="bg-muted/30">
-                          <TableRow>
-                            <TableHead className="w-[250px] font-black text-[10px] uppercase">Course Outcome (CO)</TableHead>
-                            {PROGRAM_OUTCOMES.map(po => (
-                              <TableHead key={po.code} className="text-center font-black text-[10px] uppercase min-w-[60px]" title={po.title}>
-                                {po.code}
-                              </TableHead>
-                            ))}
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {(formData.units || []).map((unit, uIdx) => (
-                            <TableRow key={unit.id} className="hover:bg-muted/10 transition-colors">
-                              <TableCell className="py-4">
-                                <div className="space-y-1">
-                                  <Badge variant="outline" className="text-[9px] font-black bg-primary/5 text-primary border-primary/10">CO{uIdx + 1}</Badge>
-                                  <p className="text-[10px] text-muted-foreground italic leading-tight truncate max-w-[200px]" title={unit.courseOutcome}>
-                                    {unit.courseOutcome || "Outcome not defined"}
-                                  </p>
-                                </div>
-                              </TableCell>
-                              {PROGRAM_OUTCOMES.map(po => (
-                                <TableCell key={po.code} className="p-1">
-                                  <Select 
-                                    disabled={isFormDisabled}
-                                    value={formData.poMappings?.[unit.id]?.[po.code] || '-'} 
-                                    onValueChange={(v: CorrelationLevel) => handlePOMapping(unit.id, po.code, v)}
-                                  >
-                                    <SelectTrigger className="h-8 border-none bg-transparent hover:bg-muted/50 focus:ring-0 text-center font-bold text-xs">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="-">-</SelectItem>
-                                      <SelectItem value="1">1</SelectItem>
-                                      <SelectItem value="2">2</SelectItem>
-                                      <SelectItem value="3">3</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </TableCell>
-                              ))}
-                            </TableRow>
+                <ScrollArea className="w-full border rounded-xl bg-white shadow-sm">
+                  <Table>
+                    <TableHeader className="bg-muted/30">
+                      <TableRow>
+                        <TableHead className="w-[200px] text-[10px] font-black">COURSE OUTCOME (CO)</TableHead>
+                        {PROGRAM_OUTCOMES.map(po => <TableHead key={po.code} className="text-center text-[10px] font-black">{po.code}</TableHead>)}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {formData.units?.map((unit, uIdx) => (
+                        <TableRow key={unit.id}>
+                          <TableCell className="text-[10px] font-bold">CO{uIdx + 1}: {unit.courseOutcome?.substring(0, 40)}...</TableCell>
+                          {PROGRAM_OUTCOMES.map(po => (
+                            <TableCell key={po.code} className="p-1">
+                              <Select disabled={isFormDisabled} value={formData.poMappings?.[unit.id]?.[po.code] || '-'} onValueChange={(v: CorrelationLevel) => handlePOMapping(unit.id, po.code, v)}>
+                                <SelectTrigger className="h-8 border-none bg-transparent hover:bg-muted/50 focus:ring-0 text-center font-bold text-xs"><SelectValue /></SelectTrigger>
+                                <SelectContent><SelectItem value="-">-</SelectItem><SelectItem value="1">1</SelectItem><SelectItem value="2">2</SelectItem><SelectItem value="3">3</SelectItem></SelectContent>
+                              </Select>
+                            </TableCell>
                           ))}
-                        </TableBody>
-                      </Table>
-                      <ScrollBar orientation="horizontal" />
-                    </ScrollArea>
-                 </div>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <ScrollBar orientation="horizontal" />
+                </ScrollArea>
               </TabsContent>
             </Tabs>
           </div>
@@ -678,11 +481,7 @@ export function SyllabusDialog({
         <DialogFooter className="p-6 border-t bg-background shrink-0 shadow-lg">
            <Button variant="outline" onClick={() => onOpenChange(false)} className="h-11 px-6">Cancel</Button>
            {canEdit && (
-             <Button 
-              onClick={() => { onSave(formData); onOpenChange(false); }} 
-              className="h-11 px-8 shadow-md"
-              disabled={isEstablishingLink}
-             >
+             <Button onClick={() => { onSave(formData); onOpenChange(false); }} className="h-11 px-8 shadow-md" disabled={isEstablishingLink}>
                {isEstablishingLink ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                Save Subject Pattern
              </Button>
