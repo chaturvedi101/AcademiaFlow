@@ -1,8 +1,9 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
 import { useFirestore, useDoc, useCollection, useUser, useMemoFirebase } from "@/firebase";
-import { doc, collection, setDoc, serverTimestamp, updateDoc, query, where, onSnapshot, Unsubscribe, deleteDoc, writeBatch } from "firebase/firestore";
+import { doc, collection, setDoc, serverTimestamp, updateDoc, query, where, onSnapshot, Unsubscribe, deleteDoc, writeBatch, getDocs } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,13 +12,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Edit3, Loader2, FileText, BookOpen, Eye, CheckCircle2, ShieldCheck, Trash2, Hash, Layers, Info, RefreshCw } from "lucide-react";
+import { Plus, Edit3, Loader2, FileText, BookOpen, Eye, CheckCircle2, ShieldCheck, Trash2, Hash, Layers, Info, RefreshCw, Copy, ShieldAlert, GitBranch } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile, SubmissionScope, CreditCategory } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { exportFullSchemeToPDF, exportCompleteSyllabusToPDF } from "@/lib/pdf-export";
 import { cn } from "@/lib/utils";
+import { Label } from "@/components/ui/label";
 
 export default function SchemeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: schemeId } = React.use(params);
@@ -42,6 +44,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [isSubmissionDialogOpen, setIsSubmissionDialogOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
+
+  // Cloner State
+  const [isClonerOpen, setIsClonerOpen] = useState(false);
+  const [clonerTargetBranch, setClonerTargetBranch] = useState("");
+  const [isCloning, setIsCloning] = useState(false);
 
   useEffect(() => {
     if (!scheme) return;
@@ -248,19 +255,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
   const handleSyncCodes = async () => {
     if (!scheme || isSyncing) return;
-    
-    // Check if we have enough context to resolve prefixes
     if (!program && !scheme.isCommitteePool && !scheme.isVerticalPool) {
-        toast({ title: "Resolution Error", description: "Program context not found for prefix resolution.", variant: "destructive" });
+        toast({ title: "Resolution Error", description: "Program context not found.", variant: "destructive" });
         return;
     }
-
     setIsSyncing(true);
-
     try {
       const batch = writeBatch(db);
-      
-      // 1. Resolve Global Effective Prefix for this scheme
       let effectivePrefix = 'XX';
       if (scheme.isCommitteePool) {
         const branchName = scheme.branch || '';
@@ -275,24 +276,14 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       } else if (program) {
         effectivePrefix = program.branchPrefixes?.[scheme.branch || ''] || scheme.branch?.substring(0, 2).toUpperCase() || 'XX';
       }
-
-      // 2. Sort current syllabi by Semester and Timetable Slot (The official arrangement order)
       const sortedSyllabi = [...localSyllabi].sort((a, b) => {
         if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
-        
-        // Arrange by slot: 1, 2, 3... then A, B, C...
         const slotA = a.timetableSlot || "Z";
         const slotB = b.timetableSlot || "Z";
-        if (slotA !== slotB) {
-          return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
-        }
-
-        // Secondary sort to maintain determinism
-        if (a.creditCategory !== b.creditCategory) return a.creditCategory.localeCompare(b.creditCategory);
+        if (slotA !== slotB) return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
         return (a.title || '').localeCompare(b.title || '');
       });
-
-      const getPillarChar = (cat: CreditCategory) => {
+      const getPillarChar = (cat: string) => {
         switch(cat) {
           case 'DSC': return 'C';
           case 'DSE': case 'OFE': return 'E';
@@ -304,43 +295,91 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           default: return 'C';
         }
       };
-
       const sequenceCounters: Record<string, number> = {};
       let updateCount = 0;
-
-      // 3. Re-assign Codes for every single subject
       sortedSyllabi.forEach(sub => {
-        // Common Pool subjects always use RT prefix unless this is a Course Committee pool
         const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(sub.creditCategory);
         const targetPrefix = (isCommonCategory && !scheme.isCommitteePool) ? 'RT' : effectivePrefix;
-        
         const pedagogyChar = sub.type === 'Lab/Sessional' ? 'P' : (sub.creditCategory === 'PRJ' ? 'I' : 'L');
         const pillarChar = getPillarChar(sub.creditCategory);
         const yearDigit = Math.ceil((sub.semester || 1) / 2);
-        
         const counterKey = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}`;
         sequenceCounters[counterKey] = (sequenceCounters[counterKey] || 0) + 1;
-        
         const seqStr = sequenceCounters[counterKey].toString().padStart(2, '0');
         const newCode = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}${seqStr}`;
-
-        // Even if code is same, we "re-assign" to ensure batch sequence integrity
         const subRef = doc(db, 'schemes', schemeId, 'syllabi', sub.id);
-        batch.update(subRef, { 
-            subjectCode: newCode, 
-            updatedAt: serverTimestamp() 
-        });
+        batch.update(subRef, { subjectCode: newCode, updatedAt: serverTimestamp() });
         updateCount++;
       });
-
       if (updateCount > 0) {
         await batch.commit();
-        toast({ title: "Scheme Re-synchronized", description: `Re-arranged and re-assigned codes for ${updateCount} subjects following RTU-NEP standard.` });
+        toast({ title: "Scheme Re-synchronized" });
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  const handleCreateLinkedCopy = async () => {
+    if (!clonerTargetBranch || !program || !scheme) return;
+    setIsCloning(true);
+    try {
+      const batch = writeBatch(db);
+      const targetPrefix = program.branchPrefixes?.[clonerTargetBranch] || clonerTargetBranch.substring(0, 2).toUpperCase();
+      const newSchemeId = `${program.id.toUpperCase()}-${targetPrefix}-${scheme.batchYear}`;
+      
+      // 1. Create Child Scheme
+      batch.set(doc(db, 'schemes', newSchemeId), {
+        programId: program.id,
+        branch: clonerTargetBranch,
+        batchYear: scheme.batchYear,
+        version: scheme.version,
+        id: newSchemeId,
+        schemeCode: newSchemeId,
+        status: 'Draft',
+        createdBy: user?.uid || '',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      // 2. Clone Syllabi with Links and Code Transformation
+      for (const parentSub of localSyllabi) {
+        const syllabusId = Math.random().toString(36).substr(2, 9);
+        const syllabusRef = doc(db, 'schemes', newSchemeId, 'syllabi', syllabusId);
+        
+        // Resolution: Grandparent Pointing
+        const targetLinkId = parentSub.followedFromId || parentSub.id;
+        const targetParentSchemeId = parentSub.parentSchemeId || scheme.id;
+        const targetParentCode = parentSub.parentCode || parentSub.subjectCode;
+
+        // Code Transformation: DSC/DSE/PRJ/OFE initial two digit replacement
+        let transformedCode = parentSub.subjectCode;
+        if (['DSC', 'DSE', 'PRJ', 'OFE'].includes(parentSub.creditCategory)) {
+          // Replace initial 2 characters with branch prefix
+          transformedCode = targetPrefix + parentSub.subjectCode.substring(2);
+        }
+
+        batch.set(syllabusRef, {
+          ...parentSub,
+          id: syllabusId,
+          schemeId: newSchemeId,
+          subjectCode: transformedCode,
+          followedFromId: targetLinkId,
+          parentSchemeId: targetParentSchemeId,
+          parentCode: targetParentCode,
+          updatedAt: serverTimestamp()
+        });
+      }
+
+      await batch.commit();
+      toast({ title: "Linked Branch Mirror Created", description: `Scheme for ${clonerTargetBranch} is now mirroring this structure.` });
+      setIsClonerOpen(false);
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Cloning Failed", description: e.message });
+    } finally {
+      setIsCloning(false);
     }
   };
 
@@ -368,6 +407,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          {permissions.isAdmin && !scheme.isCommitteePool && !scheme.isVerticalPool && (
+            <Button variant="outline" onClick={() => setIsClonerOpen(true)} className="gap-2 border-primary/30 text-primary hover:bg-primary/5">
+              <GitBranch className="w-4 h-4" /> Linked Cloner
+            </Button>
+          )}
           {permissions.canEditScheme && (
             <Button variant="outline" onClick={handleSyncCodes} disabled={isSyncing} className="gap-2">
               {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
@@ -385,6 +429,48 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           )}
         </div>
       </div>
+
+      <Dialog open={isClonerOpen} onOpenChange={setIsClonerOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 text-primary" />
+              Institutional Linked Cloner
+            </DialogTitle>
+            <DialogDescription>
+              Create a Virtual Mirror for a sibling branch. All subjects will inherit from this master scheme (or its parents).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+             <div className="p-4 bg-primary/5 border border-primary/10 rounded-xl space-y-2">
+               <p className="text-[11px] font-bold uppercase text-primary">Cloning Protocol:</p>
+               <ul className="text-[10px] space-y-1 text-muted-foreground list-disc pl-4">
+                 <li><b>Inheritance chain:</b> Mirrors directly from original standards (Grandparent) if already mirrored.</li>
+                 <li><b>Code Swap:</b> DSC/DSE/PRJ/OFE codes will automatically use the target branch prefix.</li>
+                 <li><b>Live Link:</b> Child scheme will stay synchronized with pedagogical changes.</li>
+               </ul>
+             </div>
+             <div className="space-y-2">
+                <Label>Target Mirror Branch</Label>
+                <Select value={clonerTargetBranch} onValueChange={setClonerTargetBranch}>
+                   <SelectTrigger className="bg-white"><SelectValue placeholder="Select sibling branch..." /></SelectTrigger>
+                   <SelectContent>
+                      {program?.branches.filter(b => b !== scheme.branch).map(b => (
+                        <SelectItem key={b} value={b}>{b}</SelectItem>
+                      ))}
+                   </SelectContent>
+                </Select>
+             </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsClonerOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreateLinkedCopy} disabled={!clonerTargetBranch || isCloning} className="gap-2">
+               {isCloning ? <Loader2 className="animate-spin w-4 h-4" /> : <Copy className="w-4 h-4" />}
+               Generate Linked Mirror
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {scheme.status === 'Draft' && scheme.reversionComments && (
         <Alert variant="destructive" className="bg-red-50 border-red-200">
@@ -415,10 +501,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             <TabsContent value="syllabi" className="mt-6 space-y-6">
               {Array.from({ length: scheme.isCommitteePool ? 1 : (program?.totalSemesters || 8) }, (_, i) => i + 1).map(sem => {
                 const semSyllabi = syllabi.filter(s => (scheme.isCommitteePool ? true : s.semester === sem));
-                
                 const processedGroups = new Set<string>();
                 const renderedGroups = new Set<string>();
-
                 const semTotalCredits = semSyllabi.reduce((sum, s) => {
                   const isCore = ['DSC', 'PRJ', 'SEC'].includes(s.creditCategory);
                   if (!isCore && s.electiveGroupId) {
@@ -427,7 +511,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                   }
                   return sum + (s.credits || 0);
                 }, 0);
-
                 return (
                   <Card key={sem} className="shadow-sm border-none overflow-hidden">
                     <CardHeader className="bg-muted/20 py-4 px-6 flex flex-row items-center justify-between">
@@ -461,7 +544,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                           {semSyllabi.map((sub, sIdx) => {
                             const showGroupHeader = sub.electiveGroupId && !renderedGroups.has(sub.electiveGroupId);
                             if (sub.electiveGroupId) renderedGroups.add(sub.electiveGroupId);
-
                             return (
                               <React.Fragment key={sub.id}>
                                 {showGroupHeader && (
