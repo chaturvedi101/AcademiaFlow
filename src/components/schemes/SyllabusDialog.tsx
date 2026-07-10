@@ -64,9 +64,9 @@ export function SyllabusDialog({
     followedFromId: '', electiveGroupId: '', timetableSlot: ''
   });
 
-  // Pool Mode State
+  // Pool Mode State - Prefilled as requested
   const [isPoolMode, setIsPoolMode] = useState(false);
-  const [poolTitles, setPoolTitles] = useState<string[]>(["Option 1", "Option 2", "Option 3"]);
+  const [poolTitles, setPoolTitles] = useState<string[]>(["Option Subject 1", "Option Subject 2", "Option Subject 3"]);
 
   // Linking State
   const [wantsToLink, setWantsToLink] = useState(false);
@@ -88,7 +88,7 @@ export function SyllabusDialog({
       });
       setWantsToLink(!!syllabus.followedFromId);
       setIsPoolMode(false);
-      setPoolTitles(["Option 1", "Option 2", "Option 3"]);
+      setPoolTitles(["Option Subject 1", "Option Subject 2", "Option Subject 3"]);
       if (syllabus.followedFromId || (syllabus as any).isInherited) {
         const expandMap: Record<string, boolean> = {};
         syllabus.units?.forEach(u => { expandMap[u.id] = true; });
@@ -263,7 +263,6 @@ export function SyllabusDialog({
         const optionData = {
           ...formData,
           title: title.trim(),
-          // Shift slots slightly if needed or keep same for elective overlap
           timetableSlot: formData.timetableSlot || '' 
         };
         onSave(optionData);
@@ -396,7 +395,7 @@ export function SyllabusDialog({
                        <div className="p-3 bg-primary/5 rounded-lg border border-primary/20 space-y-2">
                          {poolTitles.map((t, i) => (
                            <div key={i} className="flex gap-2">
-                             <Badge variant="outline" className="h-9 w-20 shrink-0 bg-white">Option {i+1}</Badge>
+                             <Badge variant="outline" className="h-9 w-24 shrink-0 bg-white">Option {i+1}</Badge>
                              <Input 
                                value={t} 
                                onChange={e => {
@@ -404,11 +403,11 @@ export function SyllabusDialog({
                                  nt[i] = e.target.value;
                                  setPoolTitles(nt);
                                }}
-                               placeholder={`Option ${i+1} Title...`}
+                               placeholder={`Option Subject ${i+1}...`}
                                className="bg-white"
                              />
                              <Button variant="ghost" size="icon" className="h-9 w-9 text-red-400" onClick={() => setPoolTitles(poolTitles.filter((_, idx) => idx !== i))}>
-                               <X className="w-4 h-4" />
+                               <Trash2 className="w-4 h-4" />
                              </Button>
                            </div>
                          ))}
@@ -575,13 +574,5 @@ export function SyllabusDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function X({ className, ...props }: any) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
-      <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
-    </svg>
   );
 }
