@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Edit3, Loader2, FileText, BookOpen, Eye, CheckCircle2, ShieldCheck, Trash2, Hash, Layers, Info, RefreshCw, Copy, ShieldAlert, GitBranch } from "lucide-react";
+import { Plus, Edit3, Loader2, FileText, BookOpen, Eye, CheckCircle2, ShieldCheck, Trash2, Hash, Layers, Info, RefreshCw, Copy, ShieldAlert, GitBranch, PlusCircle } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile, SubmissionScope, CreditCategory } from "@/lib/types";
@@ -237,7 +237,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const docId = data.id || Math.random().toString(36).substr(2, 9);
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', docId);
 
-    // CRITICAL: Filter undefined values to prevent FirebaseError
     const payload: any = { 
       id: docId, 
       schemeId, 
@@ -562,11 +561,35 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                                 {showGroupHeader && (
                                   <TableRow className="bg-primary/5 hover:bg-primary/5">
                                     <TableCell colSpan={6} className="py-2 px-6">
-                                      <div className="flex items-center gap-2">
-                                        <Layers className="w-3.5 h-3.5 text-primary" />
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-primary">
-                                          {sub.electiveGroupId} (Pool Options)
-                                        </span>
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                          <Layers className="w-3.5 h-3.5 text-primary" />
+                                          <span className="text-[10px] font-black uppercase tracking-widest text-primary">
+                                            {sub.electiveGroupId} (Pool Options)
+                                          </span>
+                                        </div>
+                                        {permissions.canEditScheme && (
+                                          <Button 
+                                            variant="ghost" 
+                                            size="sm" 
+                                            className="h-7 text-[10px] font-bold text-primary gap-1.5"
+                                            onClick={() => {
+                                              setActiveSubject({ 
+                                                semester: sem, 
+                                                creditCategory: sub.creditCategory,
+                                                electiveGroupId: sub.electiveGroupId,
+                                                type: sub.type,
+                                                credits: sub.credits,
+                                                lectureCredits: sub.lectureCredits,
+                                                tutorialCredits: sub.tutorialCredits,
+                                                practicalCredits: sub.practicalCredits
+                                              });
+                                              setIsSyllabusDialogOpen(true);
+                                            }}
+                                          >
+                                            <PlusCircle className="w-3.5 h-3.5" /> Add Option
+                                          </Button>
+                                        )}
                                       </div>
                                     </TableCell>
                                   </TableRow>

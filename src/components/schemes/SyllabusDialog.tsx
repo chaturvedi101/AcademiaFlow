@@ -16,7 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   BookOpen, Loader2, Plus, ChevronDown, ChevronUp, Trash2, 
-  Sparkles, FlaskConical, ShieldCheck, Layers, Globe, Video, GraduationCap, Clock, Link as LinkIcon, AlertTriangle, Unlink
+  Sparkles, FlaskConical, ShieldCheck, Layers, Globe, Video, GraduationCap, Clock, Link as LinkIcon, AlertTriangle, Unlink, CopyPlus
 } from "lucide-react";
 import { Syllabus, UserProfile, CreditCategory, SubjectType, Scheme, Program, PROGRAM_OUTCOMES, CorrelationLevel } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -64,6 +64,10 @@ export function SyllabusDialog({
     followedFromId: '', electiveGroupId: '', timetableSlot: ''
   });
 
+  // Pool Mode State
+  const [isPoolMode, setIsPoolMode] = useState(false);
+  const [poolTitles, setPoolTitles] = useState<string[]>(["Option 1", "Option 2", "Option 3"]);
+
   // Linking State
   const [wantsToLink, setWantsToLink] = useState(false);
   const [selectedLinkSchemeId, setSelectedLinkSchemeId] = useState("");
@@ -83,6 +87,8 @@ export function SyllabusDialog({
         ...syllabus
       });
       setWantsToLink(!!syllabus.followedFromId);
+      setIsPoolMode(false);
+      setPoolTitles(["Option 1", "Option 2", "Option 3"]);
       if (syllabus.followedFromId || (syllabus as any).isInherited) {
         const expandMap: Record<string, boolean> = {};
         syllabus.units?.forEach(u => { expandMap[u.id] = true; });
@@ -120,6 +126,7 @@ export function SyllabusDialog({
   const isLinked = !!formData.followedFromId;
   const isFormDisabled = isLinked || !canEdit;
   const isCoreCategory = formData.creditCategory === 'DSC' || formData.creditCategory === 'PRJ' || formData.creditCategory === 'SEC';
+  const isElectiveCategory = formData.creditCategory === 'DSE' || formData.creditCategory === 'OFE';
 
   useEffect(() => {
     if (!open || !canEdit || formData.followedFromId) return;
@@ -231,7 +238,6 @@ export function SyllabusDialog({
 
   const severMirrorLink = () => {
     setFormData(prev => {
-      // Remove flags to prevent undefined values in Firestore
       const { standardizedFrom, isStandardized, ...rest } = prev;
       return {
         ...rest,
@@ -242,6 +248,31 @@ export function SyllabusDialog({
     });
     setWantsToLink(false);
     toast({ title: "Mirror Severed", description: "You are now editing a private local copy. Changes will not affect the master." });
+  };
+
+  const handleFinalSave = () => {
+    if (isPoolMode && isElectiveCategory && !formData.id) {
+      // Bulk create pool options
+      if (!formData.electiveGroupId) {
+        toast({ title: "Validation Error", description: "Group ID is required for pools.", variant: "destructive" });
+        return;
+      }
+      
+      poolTitles.forEach((title, idx) => {
+        if (!title.trim()) return;
+        const optionData = {
+          ...formData,
+          title: title.trim(),
+          // Shift slots slightly if needed or keep same for elective overlap
+          timetableSlot: formData.timetableSlot || '' 
+        };
+        onSave(optionData);
+      });
+      toast({ title: "Elective Pool Generated", description: `Created ${poolTitles.length} options in group ${formData.electiveGroupId}.` });
+    } else {
+      onSave(formData);
+    }
+    onOpenChange(false);
   };
 
   const unitLabel = formData.type === 'Lab/Sessional' ? 'Experiment' : 'Unit';
@@ -256,7 +287,7 @@ export function SyllabusDialog({
               Course Architect
             </div>
             <div className="flex gap-2">
-              <Button onClick={handleAiGenerate} disabled={isAiGenerating || !formData.title || isLinked || !canEdit} variant="outline" className="gap-2">
+              <Button onClick={handleAiGenerate} disabled={isAiGenerating || !formData.title || isLinked || !canEdit || isPoolMode} variant="outline" className="gap-2">
                 {isAiGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-primary" />}
                 AI Architect
               </Button>
@@ -353,11 +384,55 @@ export function SyllabusDialog({
                       <SelectContent>{ALL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Course Title</Label>
-                    <Input disabled={isFormDisabled} value={formData.title || ''} onChange={e => setFormData({...formData, title: e.target.value})} />
-                  </div>
+                  
+                  {!isPoolMode ? (
+                    <div className="space-y-2">
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Course Title</Label>
+                      <Input disabled={isFormDisabled} value={formData.title || ''} onChange={e => setFormData({...formData, title: e.target.value})} />
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                       <Label className="text-[10px] uppercase font-bold text-muted-foreground">Pool Group Mode (Multi-Entry)</Label>
+                       <div className="p-3 bg-primary/5 rounded-lg border border-primary/20 space-y-2">
+                         {poolTitles.map((t, i) => (
+                           <div key={i} className="flex gap-2">
+                             <Badge variant="outline" className="h-9 w-20 shrink-0 bg-white">Option {i+1}</Badge>
+                             <Input 
+                               value={t} 
+                               onChange={e => {
+                                 const nt = [...poolTitles];
+                                 nt[i] = e.target.value;
+                                 setPoolTitles(nt);
+                               }}
+                               placeholder={`Option ${i+1} Title...`}
+                               className="bg-white"
+                             />
+                             <Button variant="ghost" size="icon" className="h-9 w-9 text-red-400" onClick={() => setPoolTitles(poolTitles.filter((_, idx) => idx !== i))}>
+                               <X className="w-4 h-4" />
+                             </Button>
+                           </div>
+                         ))}
+                         <Button variant="ghost" size="sm" onClick={() => setPoolTitles([...poolTitles, ""])} className="text-[10px] uppercase font-bold">
+                           <Plus className="w-3 h-3 mr-1" /> Add Option
+                         </Button>
+                       </div>
+                    </div>
+                  )}
                 </div>
+
+                {isElectiveCategory && !syllabus?.id && (
+                  <Card className="border-accent/10 bg-accent/5">
+                    <CardContent className="p-4 flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label className="font-bold flex items-center gap-2 text-accent">
+                          <CopyPlus className="w-4 h-4" /> Elective Pool Multi-Generation
+                        </Label>
+                        <p className="text-[10px] text-muted-foreground">Instantly create a standard 3-option elective group.</p>
+                      </div>
+                      <Switch checked={isPoolMode} onCheckedChange={setIsPoolMode} />
+                    </CardContent>
+                  </Card>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="space-y-2">
@@ -398,13 +473,13 @@ export function SyllabusDialog({
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                    <div className="space-y-2">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Elective Group ID (Optional)</Label>
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Elective Group ID (Pool Mapping)</Label>
                       <Input 
                         disabled={isFormDisabled || isCoreCategory} 
                         placeholder="e.g. Elective-I" 
                         value={isCoreCategory ? "CORE" : (formData.electiveGroupId || '')} 
                         onChange={e => setFormData({...formData, electiveGroupId: e.target.value})}
-                        className={cn(isCoreCategory && "bg-muted/50")}
+                        className={cn(isCoreCategory && "bg-muted/50", isPoolMode && "border-primary/50 bg-white")}
                       />
                    </div>
                 </div>
@@ -492,13 +567,21 @@ export function SyllabusDialog({
         <DialogFooter className="p-6 border-t bg-background shrink-0 shadow-lg">
            <Button variant="outline" onClick={() => onOpenChange(false)} className="h-11 px-6">Cancel</Button>
            {canEdit && (
-             <Button onClick={() => { onSave(formData); onOpenChange(false); }} className="h-11 px-8 shadow-md" disabled={isEstablishingLink}>
+             <Button onClick={handleFinalSave} className="h-11 px-8 shadow-md" disabled={isEstablishingLink}>
                {isEstablishingLink ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-               Save Subject Pattern
+               {isPoolMode ? "Generate Pool" : "Save Subject Pattern"}
              </Button>
            )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function X({ className, ...props }: any) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+      <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+    </svg>
   );
 }
