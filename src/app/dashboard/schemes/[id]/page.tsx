@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
@@ -302,6 +303,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       };
 
       const sequenceCounters: Record<string, number> = {};
+      const groupCodes: Record<string, { baseCode: string, counter: number }> = {};
       let updateCount = 0;
 
       sortedSyllabi.forEach(sub => {
@@ -311,11 +313,28 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         const pillarChar = getPillarChar(sub.creditCategory);
         const yearDigit = Math.ceil((sub.semester || 1) / 2);
         
-        const counterKey = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}`;
-        sequenceCounters[counterKey] = (sequenceCounters[counterKey] || 0) + 1;
+        const isElective = ['DSE', 'OFE'].includes(sub.creditCategory);
+        const groupId = sub.electiveGroupId;
         
-        const seqStr = sequenceCounters[counterKey].toString().padStart(2, '0');
-        const newCode = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}${seqStr}`;
+        let newCode = '';
+        
+        if (isElective && groupId) {
+          const groupKey = `${sub.semester}-${sub.creditCategory}-${groupId}`;
+          if (!groupCodes[groupKey]) {
+            const counterKey = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}`;
+            sequenceCounters[counterKey] = (sequenceCounters[counterKey] || 0) + 1;
+            const seqStr = sequenceCounters[counterKey].toString().padStart(2, '0');
+            const baseCode = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}${seqStr}`;
+            groupCodes[groupKey] = { baseCode, counter: 0 };
+          }
+          groupCodes[groupKey].counter++;
+          newCode = `${groupCodes[groupKey].baseCode}.${groupCodes[groupKey].counter}`;
+        } else {
+          const counterKey = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}`;
+          sequenceCounters[counterKey] = (sequenceCounters[counterKey] || 0) + 1;
+          const seqStr = sequenceCounters[counterKey].toString().padStart(2, '0');
+          newCode = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}${seqStr}`;
+        }
 
         const subRef = doc(db, 'schemes', schemeId, 'syllabi', sub.id);
         batch.update(subRef, { 
