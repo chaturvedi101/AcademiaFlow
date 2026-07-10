@@ -119,6 +119,7 @@ export function SyllabusDialog({
 
   const isLinked = !!formData.followedFromId;
   const isFormDisabled = isLinked || !canEdit;
+  const isCoreCategory = formData.creditCategory === 'DSC' || formData.creditCategory === 'PRJ' || formData.creditCategory === 'SEC';
 
   useEffect(() => {
     if (!open || !canEdit || formData.followedFromId) return;
@@ -216,7 +217,8 @@ export function SyllabusDialog({
           youtubeLinks: parentData.youtubeLinks,
           websiteLinks: parentData.websiteLinks,
           poMappings: parentData.poMappings,
-          timetableSlot: parentData.timetableSlot || ''
+          timetableSlot: parentData.timetableSlot || '',
+          electiveGroupId: parentData.electiveGroupId || ''
         }));
         toast({ title: "Institutional Standard Established", description: "This child slot now mirrors the master content." });
       }
@@ -392,6 +394,19 @@ export function SyllabusDialog({
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   <div className="space-y-2">
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Elective Group ID (Optional)</Label>
+                      <Input 
+                        disabled={isFormDisabled || isCoreCategory} 
+                        placeholder="e.g. Elective-I" 
+                        value={isCoreCategory ? "CORE" : (formData.electiveGroupId || '')} 
+                        onChange={e => setFormData({...formData, electiveGroupId: e.target.value})}
+                        className={cn(isCoreCategory && "bg-muted/50")}
+                      />
+                   </div>
                 </div>
 
                 <div className="grid grid-cols-4 gap-4 p-4 bg-white border rounded-xl shadow-inner">
