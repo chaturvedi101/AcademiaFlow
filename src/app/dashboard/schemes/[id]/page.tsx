@@ -244,6 +244,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       updatedAt: serverTimestamp() 
     };
 
+    // Sanitize payload to remove undefined values which crash setDoc
     Object.keys(data).forEach(key => {
       const val = (data as any)[key];
       if (val !== undefined) {
@@ -251,8 +252,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       }
     });
 
-    setDoc(docRef, payload, { merge: true })
-      .then(() => toast({ title: "Authorized & Synchronized" }));
+    return setDoc(docRef, payload, { merge: true })
+      .then(() => {
+        toast({ 
+          title: "Curriculum Synchronized", 
+          description: `Successfully stored ${payload.subjectCode || 'Course'}: ${payload.title || 'Draft'}. Units: ${payload.units?.length || 0}`
+        });
+      });
   };
 
   const handleDeleteSyllabus = async (syllabusId: string) => {

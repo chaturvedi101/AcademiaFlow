@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -16,7 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   BookOpen, Loader2, Plus, ChevronDown, ChevronUp, Trash2, 
-  Sparkles, FlaskConical, ShieldCheck, Layers, Globe, Video, GraduationCap, Clock, Link as LinkIcon, AlertTriangle, Unlink, CopyPlus
+  Sparkles, FlaskConical, ShieldCheck, Layers, Globe, Video, GraduationCap, Clock, Link as LinkIcon, AlertTriangle, Unlink, CopyPlus, Save
 } from "lucide-react";
 import { Syllabus, UserProfile, CreditCategory, SubjectType, Scheme, Program, PROGRAM_OUTCOMES, CorrelationLevel } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -32,7 +33,7 @@ interface SyllabusDialogProps {
   onOpenChange: (open: boolean) => void;
   syllabus?: Partial<Syllabus>;
   allSyllabi?: Syllabus[];
-  onSave: (data: Partial<Syllabus>) => void;
+  onSave: (data: Partial<Syllabus>) => Promise<void>;
   canEdit?: boolean;
   batchYear?: string;
   userProfile?: UserProfile;
@@ -56,6 +57,7 @@ export function SyllabusDialog({
 
   const [expandedUnits, setExpandedUnits] = useState<Record<string, boolean>>({});
   const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   
   const [formData, setFormData] = useState<Partial<Syllabus>>({
     subjectCode: '', title: '', lectureCredits: 0, tutorialCredits: 0, practicalCredits: 0,
@@ -64,7 +66,7 @@ export function SyllabusDialog({
     followedFromId: '', electiveGroupId: '', timetableSlot: ''
   });
 
-  // Pool Mode State - Prefilled as requested
+  // Pool Mode State
   const [isPoolMode, setIsPoolMode] = useState(false);
   const [poolTitles, setPoolTitles] = useState<string[]>(["Option Subject 1", "Option Subject 2", "Option Subject 3"]);
 
@@ -250,28 +252,38 @@ export function SyllabusDialog({
     toast({ title: "Mirror Severed", description: "You are now editing a private local copy. Changes will not affect the master." });
   };
 
-  const handleFinalSave = () => {
-    if (isPoolMode && isElectiveCategory && !formData.id) {
-      // Bulk create pool options
-      if (!formData.electiveGroupId) {
-        toast({ title: "Validation Error", description: "Group ID is required for pools.", variant: "destructive" });
-        return;
+  const handleFinalSave = async () => {
+    setIsSaving(true);
+    try {
+      if (isPoolMode && isElectiveCategory && !formData.id) {
+        if (!formData.electiveGroupId) {
+          toast({ title: "Validation Error", description: "Group ID is required for pools.", variant: "destructive" });
+          setIsSaving(false);
+          return;
+        }
+        
+        await Promise.all(poolTitles.map(async (title) => {
+          if (!title.trim()) return;
+          const optionData = {
+            ...formData,
+            title: title.trim(),
+            timetableSlot: formData.timetableSlot || '' 
+          };
+          return onSave(optionData);
+        }));
+      } else {
+        await onSave(formData);
       }
-      
-      poolTitles.forEach((title, idx) => {
-        if (!title.trim()) return;
-        const optionData = {
-          ...formData,
-          title: title.trim(),
-          timetableSlot: formData.timetableSlot || '' 
-        };
-        onSave(optionData);
+      onOpenChange(false);
+    } catch (error: any) {
+      toast({ 
+        variant: "destructive", 
+        title: "Synchronization Failed", 
+        description: error.message || "Could not commit changes to Firestore."
       });
-      toast({ title: "Elective Pool Generated", description: `Created ${poolTitles.length} options in group ${formData.electiveGroupId}.` });
-    } else {
-      onSave(formData);
+    } finally {
+      setIsSaving(false);
     }
-    onOpenChange(false);
   };
 
   const unitLabel = formData.type === 'Lab/Sessional' ? 'Experiment' : 'Unit';
@@ -286,7 +298,7 @@ export function SyllabusDialog({
               Course Architect
             </div>
             <div className="flex gap-2">
-              <Button onClick={handleAiGenerate} disabled={isAiGenerating || !formData.title || isLinked || !canEdit || isPoolMode} variant="outline" className="gap-2">
+              <Button onClick={handleAiGenerate} disabled={isAiGenerating || isSaving || !formData.title || isLinked || !canEdit || isPoolMode} variant="outline" className="gap-2">
                 {isAiGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-primary" />}
                 AI Architect
               </Button>
@@ -566,9 +578,9 @@ export function SyllabusDialog({
         <DialogFooter className="p-6 border-t bg-background shrink-0 shadow-lg">
            <Button variant="outline" onClick={() => onOpenChange(false)} className="h-11 px-6">Cancel</Button>
            {canEdit && (
-             <Button onClick={handleFinalSave} className="h-11 px-8 shadow-md" disabled={isEstablishingLink}>
-               {isEstablishingLink ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-               {isPoolMode ? "Generate Pool" : "Save Subject Pattern"}
+             <Button onClick={handleFinalSave} className="h-11 px-8 shadow-md" disabled={isEstablishingLink || isSaving}>
+               {isEstablishingLink || isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+               {isSaving ? "Synchronizing..." : (isPoolMode ? "Generate Pool" : "Save Subject Pattern")}
              </Button>
            )}
         </DialogFooter>
