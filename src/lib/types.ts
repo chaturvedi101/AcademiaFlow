@@ -148,6 +148,13 @@ export interface SyllabusUnit {
   subUnits?: SyllabusSubUnit[];
 }
 
+export interface SyllabusLock {
+  uid: string;
+  displayName: string;
+  sessionId: string;
+  timestamp: any;
+}
+
 export interface Syllabus {
   id: string;
   schemeId: string;
@@ -186,6 +193,7 @@ export interface Syllabus {
   standardizedFrom?: string;
   isInherited?: boolean;
   parentCode?: string;
+  lockedBy?: SyllabusLock;
 }
 
 export interface AuditLog {

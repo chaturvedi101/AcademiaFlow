@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -17,14 +16,14 @@ import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   BookOpen, Loader2, Plus, ChevronDown, ChevronUp, Trash2, 
-  Sparkles, FlaskConical, ShieldCheck, Layers, Globe, Video, GraduationCap, Clock, Link as LinkIcon, AlertTriangle, Unlink, CopyPlus, Save
+  Sparkles, FlaskConical, ShieldCheck, Layers, Globe, Video, GraduationCap, Clock, Link as LinkIcon, AlertTriangle, Unlink, CopyPlus, Save, Lock
 } from "lucide-react";
 import { Syllabus, UserProfile, CreditCategory, SubjectType, Scheme, Program, PROGRAM_OUTCOMES, CorrelationLevel } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { useToast } from "@/hooks/use-toast";
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase";
-import { collection, query, getDocs, doc, getDoc } from "firebase/firestore";
+import { useFirestore, useUser } from "@/firebase";
+import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 
 const ALL_CATEGORIES: CreditCategory[] = ['DSC', 'DSE', 'OFE', 'VAC', 'AEC', 'SEC', 'MDC', 'PRJ'];
 
@@ -54,6 +53,7 @@ export function SyllabusDialog({
 }: SyllabusDialogProps) {
   const { toast } = useToast();
   const db = useFirestore();
+  const { user } = useUser();
 
   const [expandedUnits, setExpandedUnits] = useState<Record<string, boolean>>({});
   const [isAiGenerating, setIsAiGenerating] = useState(false);
@@ -66,6 +66,10 @@ export function SyllabusDialog({
     followedFromId: '', electiveGroupId: '', timetableSlot: ''
   });
 
+  // Concurrency Lock State
+  const [sessionId] = useState(() => Math.random().toString(36).substring(7));
+  const [lockStatus, setLockStatus] = useState<{ isLocked: boolean; ownerName?: string } | null>(null);
+
   // Pool Mode State
   const [isPoolMode, setIsPoolMode] = useState(false);
   const [poolTitles, setPoolTitles] = useState<string[]>(["Option Subject 1", "Option Subject 2", "Option Subject 3"]);
@@ -77,7 +81,62 @@ export function SyllabusDialog({
   const [isFetchingParentSyllabi, setIsFetchingParentSyllabi] = useState(false);
   const [isEstablishingLink, setIsEstablishingLink] = useState(false);
 
-  const { data: allSchemes } = useCollection<Scheme>(useMemoFirebase(() => collection(db, 'schemes'), [db]));
+  // Real-time lock check via syllabus prop (which comes from the parent collection listener)
+  useEffect(() => {
+    if (open && syllabus?.lockedBy) {
+      if (syllabus.lockedBy.sessionId !== sessionId) {
+        setLockStatus({ isLocked: true, ownerName: syllabus.lockedBy.displayName });
+      } else {
+        setLockStatus({ isLocked: false });
+      }
+    } else if (open) {
+      setLockStatus({ isLocked: false });
+    }
+  }, [open, syllabus?.lockedBy, sessionId]);
+
+  // Acquire and Release Locks
+  useEffect(() => {
+    if (!open || !canEdit || !syllabus?.id || !scheme?.id || !userProfile) return;
+
+    const acquireLock = async () => {
+      const syllabusRef = doc(db, 'schemes', scheme.id, 'syllabi', syllabus.id!);
+      const snap = await getDoc(syllabusRef);
+      const currentData = snap.data() as Syllabus;
+
+      if (!currentData.lockedBy || currentData.lockedBy.sessionId === sessionId) {
+        await updateDoc(syllabusRef, {
+          lockedBy: {
+            uid: user?.uid,
+            displayName: userProfile.displayName,
+            sessionId: sessionId,
+            timestamp: serverTimestamp()
+          }
+        });
+      }
+    };
+
+    const releaseLock = async () => {
+      const syllabusRef = doc(db, 'schemes', scheme.id, 'syllabi', syllabus.id!);
+      const snap = await getDoc(syllabusRef);
+      if (snap.exists()) {
+        const currentData = snap.data() as Syllabus;
+        if (currentData.lockedBy?.sessionId === sessionId) {
+          await updateDoc(syllabusRef, { lockedBy: null });
+        }
+      }
+    };
+
+    acquireLock();
+
+    // Release lock on unmount or dialog close
+    const handleUnload = () => { releaseLock(); };
+    window.addEventListener('beforeunload', handleUnload);
+
+    return () => {
+      releaseLock();
+      window.removeEventListener('beforeunload', handleUnload);
+    };
+  }, [open, canEdit, syllabus?.id, scheme?.id, userProfile, user?.uid, sessionId, db]);
 
   useEffect(() => {
     if (open && syllabus) {
@@ -99,23 +158,6 @@ export function SyllabusDialog({
     }
   }, [open, syllabus]);
 
-  useEffect(() => {
-    if (selectedLinkSchemeId) {
-      setIsFetchingParentSyllabi(true);
-      getDocs(collection(db, 'schemes', selectedLinkSchemeId, 'syllabi'))
-        .then(snap => {
-          setAvailableParentSyllabi(snap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus)));
-        })
-        .finally(() => setIsFetchingParentSyllabi(false));
-    } else {
-      setAvailableParentSyllabi([]);
-    }
-  }, [selectedLinkSchemeId, db]);
-
-  const filteredParentSyllabi = useMemo(() => {
-    return availableParentSyllabi.filter(s => s.type === formData.type);
-  }, [availableParentSyllabi, formData.type]);
-
   const timetableClash = useMemo(() => {
     if (!formData.timetableSlot || !formData.semester || !allSyllabi) return null;
     return allSyllabi.find(s => 
@@ -126,12 +168,13 @@ export function SyllabusDialog({
   }, [formData.timetableSlot, formData.semester, formData.id, allSyllabi]);
 
   const isLinked = !!formData.followedFromId;
-  const isFormDisabled = isLinked || !canEdit;
+  const isLockedByOthers = !!lockStatus?.isLocked;
+  const isFormDisabled = isLinked || !canEdit || isLockedByOthers;
   const isCoreCategory = formData.creditCategory === 'DSC' || formData.creditCategory === 'PRJ' || formData.creditCategory === 'SEC';
   const isElectiveCategory = formData.creditCategory === 'DSE' || formData.creditCategory === 'OFE';
 
   useEffect(() => {
-    if (!open || !canEdit || formData.followedFromId) return;
+    if (!open || !canEdit || formData.followedFromId || isLockedByOthers) return;
     
     const currentUnits = formData.units || [];
     if (currentUnits.length === 0) {
@@ -145,7 +188,7 @@ export function SyllabusDialog({
       }));
       setFormData(prev => ({ ...prev, units: initialUnits }));
     }
-  }, [formData.type, open, canEdit, formData.followedFromId]);
+  }, [formData.type, open, canEdit, formData.followedFromId, isLockedByOthers]);
 
   const handleAiGenerate = async () => {
     if (!formData.title) return;
@@ -200,58 +243,6 @@ export function SyllabusDialog({
     setFormData({ ...formData, poMappings: currentMappings });
   };
 
-  const handleEstablishLink = async (parentSyllabusId: string) => {
-    if (!parentSyllabusId) return;
-    setIsEstablishingLink(true);
-    try {
-      const parentRef = doc(db, 'schemes', selectedLinkSchemeId, 'syllabi', parentSyllabusId);
-      const parentSnap = await getDoc(parentRef);
-      if (parentSnap.exists()) {
-        const parentData = parentSnap.data() as Syllabus;
-        setFormData(prev => ({
-          ...prev,
-          followedFromId: parentSyllabusId,
-          parentSchemeId: selectedLinkSchemeId,
-          parentCode: parentData.subjectCode,
-          title: parentData.title,
-          type: parentData.type,
-          credits: parentData.credits,
-          lectureCredits: parentData.lectureCredits,
-          tutorialCredits: parentData.tutorialCredits,
-          practicalCredits: parentData.practicalCredits,
-          units: parentData.units,
-          textBooks: parentData.textBooks,
-          referenceBooks: parentData.referenceBooks,
-          nptelLinks: parentData.nptelLinks,
-          youtubeLinks: parentData.youtubeLinks,
-          websiteLinks: parentData.websiteLinks,
-          poMappings: parentData.poMappings,
-          timetableSlot: parentData.timetableSlot || '',
-          electiveGroupId: parentData.electiveGroupId || ''
-        }));
-        toast({ title: "Institutional Standard Established", description: "This child slot now mirrors the master content." });
-      }
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Linking Failed", description: e.message });
-    } finally {
-      setIsEstablishingLink(false);
-    }
-  };
-
-  const severMirrorLink = () => {
-    setFormData(prev => {
-      const { standardizedFrom, isStandardized, ...rest } = prev;
-      return {
-        ...rest,
-        followedFromId: '',
-        parentSchemeId: '',
-        parentCode: ''
-      };
-    });
-    setWantsToLink(false);
-    toast({ title: "Mirror Severed", description: "You are now editing a private local copy. Changes will not affect the master." });
-  };
-
   const handleFinalSave = async () => {
     setIsSaving(true);
     try {
@@ -298,7 +289,7 @@ export function SyllabusDialog({
               Course Architect
             </div>
             <div className="flex gap-2">
-              <Button onClick={handleAiGenerate} disabled={isAiGenerating || isSaving || !formData.title || isLinked || !canEdit || isPoolMode} variant="outline" className="gap-2">
+              <Button onClick={handleAiGenerate} disabled={isAiGenerating || isSaving || !formData.title || isLinked || !canEdit || isPoolMode || isLockedByOthers} variant="outline" className="gap-2">
                 {isAiGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-primary" />}
                 AI Architect
               </Button>
@@ -311,18 +302,26 @@ export function SyllabusDialog({
 
         <ScrollArea className="flex-1 w-full min-h-0 bg-muted/5">
           <div className="p-6 space-y-8">
-            {isLinked && (
+            {isLockedByOthers && (
+              <Alert variant="destructive" className="bg-amber-50 border-amber-200 text-amber-800 shadow-sm animate-pulse">
+                <Lock className="h-5 w-5" />
+                <AlertTitle className="font-black uppercase text-[10px] tracking-widest mb-1">Concurrency Lock Active</AlertTitle>
+                <AlertDescription className="text-sm font-medium">
+                  This course is currently being edited by <span className="font-black underline">{lockStatus?.ownerName}</span> in another window. 
+                  Simultaneous editing is prohibited to ensure institutional data integrity.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {isLinked && !isLockedByOthers && (
               <Alert className="bg-emerald-50 border-emerald-200 shadow-sm">
                 <ShieldCheck className="h-5 w-5 text-emerald-600" />
-                <AlertTitle className="font-bold text-emerald-800 flex items-center justify-between">
+                <AlertTitle className="font-bold text-emerald-800">
                   Institutional Mirror Active (Read-Only)
-                  <Button variant="outline" size="sm" className="h-7 text-red-600 border-red-200 bg-white hover:bg-red-50 gap-2" onClick={severMirrorLink}>
-                    <Unlink className="w-3.5 h-3.5" /> Sever Link for Local Override
-                  </Button>
                 </AlertTitle>
                 <AlertDescription className="text-emerald-700 text-xs">
                   This slot currently inherits all content from Master: <b>{formData.parentCode}</b>. 
-                  Modifications at this level are disabled to maintain university alignment. Use "Sever Link" to branch off.
+                  Modifications at this level are disabled. Use "Sever Link" in the Scheme Detail page to branch off.
                 </AlertDescription>
               </Alert>
             )}
@@ -347,50 +346,10 @@ export function SyllabusDialog({
               </TabsList>
 
               <TabsContent value="basic" className="space-y-6">
-                {!isLinked && canEdit && (
-                  <Card className="border-dashed border-primary/20 bg-primary/5">
-                    <CardContent className="p-4 space-y-4">
-                      <div className="flex items-center justify-between">
-                        <Label className="font-bold flex items-center gap-2 text-primary">
-                          <LinkIcon className="w-4 h-4" /> Link to Institutional Master?
-                        </Label>
-                        <Switch checked={wantsToLink} onCheckedChange={setWantsToLink} />
-                      </div>
-                      
-                      {wantsToLink && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t mt-2">
-                          <div className="space-y-2">
-                            <Label className="text-[10px] uppercase font-bold">Source Authority Pool</Label>
-                            <Select value={selectedLinkSchemeId} onValueChange={setSelectedLinkSchemeId}>
-                              <SelectTrigger className="bg-white"><SelectValue placeholder="Choose Pool..." /></SelectTrigger>
-                              <SelectContent>
-                                {allSchemes.map(s => (
-                                  <SelectItem key={s.id} value={s.id}>{s.branch} ({s.batchYear})</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-[10px] uppercase font-bold">Master Course ({formData.type})</Label>
-                            <Select disabled={!selectedLinkSchemeId || isFetchingParentSyllabi} onValueChange={handleEstablishLink}>
-                              <SelectTrigger className="bg-white">
-                                <SelectValue placeholder={isFetchingParentSyllabi ? "Pinging..." : "Select standard..."} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {filteredParentSyllabi.map(s => <SelectItem key={s.id} value={s.id}>{s.subjectCode} - {s.title}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Credit Category</Label>
-                    <Select disabled={isLinked || !canEdit || !!syllabus?.id} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v})}>
+                    <Select disabled={isLinked || !canEdit || !!syllabus?.id || isLockedByOthers} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v})}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>{ALL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                     </Select>
@@ -409,6 +368,7 @@ export function SyllabusDialog({
                            <div key={i} className="flex gap-2">
                              <Badge variant="outline" className="h-9 w-24 shrink-0 bg-white">Option {i+1}</Badge>
                              <Input 
+                               disabled={isLockedByOthers}
                                value={t} 
                                onChange={e => {
                                  const nt = [...poolTitles];
@@ -418,12 +378,12 @@ export function SyllabusDialog({
                                placeholder={`Option Subject ${i+1}...`}
                                className="bg-white"
                              />
-                             <Button variant="ghost" size="icon" className="h-9 w-9 text-red-400" onClick={() => setPoolTitles(poolTitles.filter((_, idx) => idx !== i))}>
+                             <Button disabled={isLockedByOthers} variant="ghost" size="icon" className="h-9 w-9 text-red-400" onClick={() => setPoolTitles(poolTitles.filter((_, idx) => idx !== i))}>
                                <Trash2 className="w-4 h-4" />
                              </Button>
                            </div>
                          ))}
-                         <Button variant="ghost" size="sm" onClick={() => setPoolTitles([...poolTitles, ""])} className="text-[10px] uppercase font-bold">
+                         <Button disabled={isLockedByOthers} variant="ghost" size="sm" onClick={() => setPoolTitles([...poolTitles, ""])} className="text-[10px] uppercase font-bold">
                            <Plus className="w-3 h-3 mr-1" /> Add Option
                          </Button>
                        </div>
@@ -431,7 +391,7 @@ export function SyllabusDialog({
                   )}
                 </div>
 
-                {isElectiveCategory && !syllabus?.id && (
+                {isElectiveCategory && !syllabus?.id && !isLockedByOthers && (
                   <Card className="border-accent/10 bg-accent/5">
                     <CardContent className="p-4 flex items-center justify-between">
                       <div className="space-y-0.5">
@@ -577,7 +537,7 @@ export function SyllabusDialog({
         
         <DialogFooter className="p-6 border-t bg-background shrink-0 shadow-lg">
            <Button variant="outline" onClick={() => onOpenChange(false)} className="h-11 px-6">Cancel</Button>
-           {canEdit && (
+           {canEdit && !isLockedByOthers && (
              <Button onClick={handleFinalSave} className="h-11 px-8 shadow-md" disabled={isEstablishingLink || isSaving}>
                {isEstablishingLink || isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
                {isSaving ? "Synchronizing..." : (isPoolMode ? "Generate Pool" : "Save Subject Pattern")}
