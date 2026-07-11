@@ -16,14 +16,14 @@ import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   BookOpen, Loader2, Plus, ChevronDown, ChevronUp, Trash2, 
-  Sparkles, FlaskConical, ShieldCheck, Layers, Globe, Video, GraduationCap, Clock, Link as LinkIcon, AlertTriangle, Unlink, CopyPlus, Save, Lock
+  Sparkles, FlaskConical, ShieldCheck, Layers, Globe, Video, GraduationCap, Clock, Link as LinkIcon, AlertTriangle, Unlink, CopyPlus, Save, Lock, ArrowRight, Search, CheckCircle2
 } from "lucide-react";
 import { Syllabus, UserProfile, CreditCategory, SubjectType, Scheme, Program, PROGRAM_OUTCOMES, CorrelationLevel } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { generateSyllabusContent } from "@/ai/flows/generate-syllabus-content";
 import { useToast } from "@/hooks/use-toast";
-import { useFirestore, useUser } from "@/firebase";
-import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { useFirestore, useUser, useCollection, useMemoFirebase } from "@/firebase";
+import { doc, getDoc, updateDoc, serverTimestamp, collection, getDocs, query, where } from "firebase/firestore";
 
 const ALL_CATEGORIES: CreditCategory[] = ['DSC', 'DSE', 'OFE', 'VAC', 'AEC', 'SEC', 'MDC', 'PRJ'];
 
@@ -74,14 +74,18 @@ export function SyllabusDialog({
   const [isPoolMode, setIsPoolMode] = useState(false);
   const [poolTitles, setPoolTitles] = useState<string[]>(["Option Subject 1", "Option Subject 2", "Option Subject 3"]);
 
-  // Linking State
+  // Inheritance Logic State
   const [wantsToLink, setWantsToLink] = useState(false);
-  const [selectedLinkSchemeId, setSelectedLinkSchemeId] = useState("");
+  const [selectedParentSchemeId, setSelectedParentSchemeId] = useState("");
   const [availableParentSyllabi, setAvailableParentSyllabi] = useState<Syllabus[]>([]);
   const [isFetchingParentSyllabi, setIsFetchingParentSyllabi] = useState(false);
-  const [isEstablishingLink, setIsEstablishingLink] = useState(false);
+  
+  const [selectedParentGroupId, setSelectedParentGroupId] = useState("");
+  const [selectedParentOptionId, setSelectedParentOptionId] = useState("");
 
-  // Real-time lock check via syllabus prop (which comes from the parent collection listener)
+  const { data: allPoolSchemes } = useCollection<Scheme>(useMemoFirebase(() => query(collection(db, 'schemes'), where('programId', '==', 'INSTITUTIONAL')), [db]));
+
+  // Real-time lock check
   useEffect(() => {
     if (open && syllabus?.lockedBy) {
       if (syllabus.lockedBy.sessionId !== sessionId) {
@@ -101,21 +105,23 @@ export function SyllabusDialog({
     const acquireLock = async () => {
       const syllabusRef = doc(db, 'schemes', scheme.id, 'syllabi', syllabus.id!);
       const snap = await getDoc(syllabusRef);
-      const currentData = snap.data() as Syllabus;
-
-      if (!currentData.lockedBy || currentData.lockedBy.sessionId === sessionId) {
-        await updateDoc(syllabusRef, {
-          lockedBy: {
-            uid: user?.uid,
-            displayName: userProfile.displayName,
-            sessionId: sessionId,
-            timestamp: serverTimestamp()
-          }
-        });
+      if (snap.exists()) {
+        const currentData = snap.data() as Syllabus;
+        if (!currentData.lockedBy || currentData.lockedBy.sessionId === sessionId) {
+          await updateDoc(syllabusRef, {
+            lockedBy: {
+              uid: user?.uid,
+              displayName: userProfile.displayName,
+              sessionId: sessionId,
+              timestamp: serverTimestamp()
+            }
+          });
+        }
       }
     };
 
     const releaseLock = async () => {
+      if (!syllabus?.id) return;
       const syllabusRef = doc(db, 'schemes', scheme.id, 'syllabi', syllabus.id!);
       const snap = await getDoc(syllabusRef);
       if (snap.exists()) {
@@ -127,11 +133,8 @@ export function SyllabusDialog({
     };
 
     acquireLock();
-
-    // Release lock on unmount or dialog close
     const handleUnload = () => { releaseLock(); };
     window.addEventListener('beforeunload', handleUnload);
-
     return () => {
       releaseLock();
       window.removeEventListener('beforeunload', handleUnload);
@@ -147,9 +150,11 @@ export function SyllabusDialog({
         followedFromId: '', electiveGroupId: '', timetableSlot: '',
         ...syllabus
       });
-      setWantsToLink(!!syllabus.followedFromId);
+      setWantsToLink(false);
+      setSelectedParentSchemeId("");
+      setSelectedParentGroupId("");
+      setSelectedParentOptionId("");
       setIsPoolMode(false);
-      setPoolTitles(["Option Subject 1", "Option Subject 2", "Option Subject 3"]);
       if (syllabus.followedFromId || (syllabus as any).isInherited) {
         const expandMap: Record<string, boolean> = {};
         syllabus.units?.forEach(u => { expandMap[u.id] = true; });
@@ -157,6 +162,36 @@ export function SyllabusDialog({
       }
     }
   }, [open, syllabus]);
+
+  // Fetch syllabi for selected parent scheme
+  useEffect(() => {
+    if (selectedParentSchemeId) {
+      setIsFetchingParentSyllabi(true);
+      getDocs(collection(db, 'schemes', selectedParentSchemeId, 'syllabi')).then(snap => {
+        setAvailableParentSyllabi(snap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus)));
+        setIsFetchingParentSyllabi(false);
+      });
+    } else {
+      setAvailableParentSyllabi([]);
+    }
+  }, [selectedParentSchemeId, db]);
+
+  const parentElectiveGroups = useMemo(() => {
+    const groups = new Set<string>();
+    availableParentSyllabi.forEach(s => {
+      if (s.electiveGroupId && s.electiveGroupId !== 'CORE') groups.add(s.electiveGroupId);
+    });
+    return Array.from(groups);
+  }, [availableParentSyllabi]);
+
+  const parentGroupOptions = useMemo(() => {
+    if (!selectedParentGroupId) return [];
+    return availableParentSyllabi.filter(s => s.electiveGroupId === selectedParentGroupId);
+  }, [availableParentSyllabi, selectedParentGroupId]);
+
+  const nonElectiveParentSyllabi = useMemo(() => {
+    return availableParentSyllabi.filter(s => !s.electiveGroupId || s.electiveGroupId === 'CORE');
+  }, [availableParentSyllabi]);
 
   const timetableClash = useMemo(() => {
     if (!formData.timetableSlot || !formData.semester || !allSyllabi) return null;
@@ -172,23 +207,6 @@ export function SyllabusDialog({
   const isFormDisabled = isLinked || !canEdit || isLockedByOthers;
   const isCoreCategory = formData.creditCategory === 'DSC' || formData.creditCategory === 'PRJ' || formData.creditCategory === 'SEC';
   const isElectiveCategory = formData.creditCategory === 'DSE' || formData.creditCategory === 'OFE';
-
-  useEffect(() => {
-    if (!open || !canEdit || formData.followedFromId || isLockedByOthers) return;
-    
-    const currentUnits = formData.units || [];
-    if (currentUnits.length === 0) {
-      const initialCount = formData.type === 'Lab/Sessional' ? 8 : 5;
-      const initialUnits = Array.from({ length: initialCount }, (_, i) => ({
-        id: Math.random().toString(36).substr(2, 9),
-        title: '',
-        content: '',
-        hours: formData.type === 'Lab/Sessional' ? 2 : 8,
-        courseOutcome: ''
-      }));
-      setFormData(prev => ({ ...prev, units: initialUnits }));
-    }
-  }, [formData.type, open, canEdit, formData.followedFromId, isLockedByOthers]);
 
   const handleAiGenerate = async () => {
     if (!formData.title) return;
@@ -214,33 +232,50 @@ export function SyllabusDialog({
     }
   };
 
-  const calculateCredits = (l: number, t: number, p: number) => {
+  const handleLTPChange = (updates: Partial<{ lectureCredits: number, tutorialCredits: number, practicalCredits: number }>) => {
+    const newData = { ...formData, ...updates };
+    const l = newData.lectureCredits || 0;
+    const t = newData.tutorialCredits || 0;
+    const p = newData.practicalCredits || 0;
     let total = l + t;
     if (p === 1) total += 0.5;
     else if (p === 2) total += 1;
     else if (p === 3) total += 2;
     else if (p === 4) total += 2;
     else if (p > 4) total += p / 2;
-    return Number(total.toFixed(2));
+    setFormData({ ...newData, credits: Number(total.toFixed(2)) });
   };
 
-  const handleLTPChange = (updates: Partial<{ lectureCredits: number, tutorialCredits: number, practicalCredits: number }>) => {
-    const newData = { ...formData, ...updates };
-    const credits = calculateCredits(
-      newData.lectureCredits || 0,
-      newData.tutorialCredits || 0,
-      newData.practicalCredits || 0
-    );
-    setFormData({ ...newData, credits });
-  };
+  const handleEstablishLink = async () => {
+    const parent = availableParentSyllabi.find(s => s.id === selectedParentOptionId);
+    if (!parent) return;
 
-  const handlePOMapping = (unitId: string, poCode: string, level: CorrelationLevel) => {
-    if (isFormDisabled) return;
-    const currentMappings = { ...(formData.poMappings || {}) };
-    const unitMappings = { ...(currentMappings[unitId] || {}) };
-    unitMappings[poCode] = level;
-    currentMappings[unitId] = unitMappings;
-    setFormData({ ...formData, poMappings: currentMappings });
+    // Direct Inheritance: If parent is already a link, mirror the grandparent
+    const targetLinkId = parent.followedFromId || parent.id;
+    const targetParentSchemeId = parent.parentSchemeId || selectedParentSchemeId;
+    const targetParentCode = parent.parentCode || parent.subjectCode;
+
+    setFormData(prev => ({
+      ...prev,
+      followedFromId: targetLinkId,
+      parentSchemeId: targetParentSchemeId,
+      parentCode: targetParentCode,
+      title: parent.title,
+      type: parent.type,
+      credits: parent.credits,
+      lectureCredits: parent.lectureCredits,
+      tutorialCredits: parent.tutorialCredits,
+      practicalCredits: parent.practicalCredits,
+      units: parent.units || [],
+      textBooks: parent.textBooks || [],
+      referenceBooks: parent.referenceBooks || [],
+      nptelLinks: parent.nptelLinks || [],
+      youtubeLinks: parent.youtubeLinks || [],
+      websiteLinks: parent.websiteLinks || []
+    }));
+
+    toast({ title: "Mirror Connection Established", description: `Mirroring Standard: ${targetParentCode}` });
+    setWantsToLink(false);
   };
 
   const handleFinalSave = async () => {
@@ -252,26 +287,16 @@ export function SyllabusDialog({
           setIsSaving(false);
           return;
         }
-        
         await Promise.all(poolTitles.map(async (title) => {
           if (!title.trim()) return;
-          const optionData = {
-            ...formData,
-            title: title.trim(),
-            timetableSlot: formData.timetableSlot || '' 
-          };
-          return onSave(optionData);
+          return onSave({ ...formData, title: title.trim(), timetableSlot: formData.timetableSlot || '' });
         }));
       } else {
         await onSave(formData);
       }
       onOpenChange(false);
     } catch (error: any) {
-      toast({ 
-        variant: "destructive", 
-        title: "Synchronization Failed", 
-        description: error.message || "Could not commit changes to Firestore."
-      });
+      toast({ variant: "destructive", title: "Synchronization Failed", description: error.message });
     } finally {
       setIsSaving(false);
     }
@@ -296,7 +321,7 @@ export function SyllabusDialog({
             </div>
           </DialogTitle>
           <DialogDescription>
-            Construct methodology. Mirror institutional standards safely. Modification in child schemes never affects master parents.
+            Construct methodology. Mirror institutional standards safely. Child changes never affect parents.
           </DialogDescription>
         </DialogHeader>
 
@@ -307,8 +332,7 @@ export function SyllabusDialog({
                 <Lock className="h-5 w-5" />
                 <AlertTitle className="font-black uppercase text-[10px] tracking-widest mb-1">Concurrency Lock Active</AlertTitle>
                 <AlertDescription className="text-sm font-medium">
-                  This course is currently being edited by <span className="font-black underline">{lockStatus?.ownerName}</span> in another window. 
-                  Simultaneous editing is prohibited to ensure institutional data integrity.
+                  Currently being edited by <span className="font-black underline">{lockStatus?.ownerName}</span> in another window.
                 </AlertDescription>
               </Alert>
             )}
@@ -316,40 +340,27 @@ export function SyllabusDialog({
             {isLinked && !isLockedByOthers && (
               <Alert className="bg-emerald-50 border-emerald-200 shadow-sm">
                 <ShieldCheck className="h-5 w-5 text-emerald-600" />
-                <AlertTitle className="font-bold text-emerald-800">
-                  Institutional Mirror Active (Read-Only)
-                </AlertTitle>
+                <AlertTitle className="font-bold text-emerald-800">Mirror Active (Read-Only)</AlertTitle>
                 <AlertDescription className="text-emerald-700 text-xs">
-                  This slot currently inherits all content from Master: <b>{formData.parentCode}</b>. 
-                  Modifications at this level are disabled. Use "Sever Link" in the Scheme Detail page to branch off.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {timetableClash && (
-              <Alert variant="destructive" className="bg-red-50 border-red-200 shadow-sm">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle className="font-bold">Slot Conflict Detected</AlertTitle>
-                <AlertDescription className="mt-1">
-                  Conflict with: <b>{timetableClash.title} ({timetableClash.subjectCode})</b> in Sem {formData.semester}. 
-                  Each slot must be unique within a semester.
+                  Mirroring Institutional Standard: <b>{formData.parentCode}</b>. Sever link in Scheme Detail to edit.
                 </AlertDescription>
               </Alert>
             )}
 
             <Tabs defaultValue="basic">
-              <TabsList className="grid w-full grid-cols-4 mb-8">
+              <TabsList className="grid w-full grid-cols-5 mb-8">
                 <TabsTrigger value="basic">Identity</TabsTrigger>
-                <TabsTrigger value="syllabus">Pedagogical Content</TabsTrigger>
-                <TabsTrigger value="resources">Learning Resources</TabsTrigger>
-                <TabsTrigger value="mapping">Outcomes Mapping</TabsTrigger>
+                <TabsTrigger value="syllabus">Pedagogy</TabsTrigger>
+                <TabsTrigger value="resources">Resources</TabsTrigger>
+                <TabsTrigger value="mapping">Outcomes</TabsTrigger>
+                <TabsTrigger value="link" disabled={isLinked || !canEdit || isLockedByOthers}>Institutional Link</TabsTrigger>
               </TabsList>
 
               <TabsContent value="basic" className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Credit Category</Label>
-                    <Select disabled={isLinked || !canEdit || !!syllabus?.id || isLockedByOthers} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v})}>
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Category</Label>
+                    <Select disabled={isLinked || !canEdit || !!formData.id || isLockedByOthers} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v})}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>{ALL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                     </Select>
@@ -362,97 +373,46 @@ export function SyllabusDialog({
                     </div>
                   ) : (
                     <div className="space-y-2">
-                       <Label className="text-[10px] uppercase font-bold text-muted-foreground">Pool Group Mode (Multi-Entry)</Label>
+                       <Label className="text-[10px] uppercase font-bold text-muted-foreground">Pool Multi-Entry</Label>
                        <div className="p-3 bg-primary/5 rounded-lg border border-primary/20 space-y-2">
                          {poolTitles.map((t, i) => (
                            <div key={i} className="flex gap-2">
-                             <Badge variant="outline" className="h-9 w-24 shrink-0 bg-white">Option {i+1}</Badge>
-                             <Input 
-                               disabled={isLockedByOthers}
-                               value={t} 
-                               onChange={e => {
-                                 const nt = [...poolTitles];
-                                 nt[i] = e.target.value;
-                                 setPoolTitles(nt);
-                               }}
-                               placeholder={`Option Subject ${i+1}...`}
-                               className="bg-white"
-                             />
-                             <Button disabled={isLockedByOthers} variant="ghost" size="icon" className="h-9 w-9 text-red-400" onClick={() => setPoolTitles(poolTitles.filter((_, idx) => idx !== i))}>
-                               <Trash2 className="w-4 h-4" />
-                             </Button>
+                             <Input disabled={isLockedByOthers} value={t} onChange={e => { const nt=[...poolTitles]; nt[i]=e.target.value; setPoolTitles(nt); }} placeholder={`Option ${i+1}...`} className="bg-white" />
+                             <Button disabled={isLockedByOthers} variant="ghost" size="icon" className="h-9 w-9 text-red-400" onClick={() => setPoolTitles(poolTitles.filter((_, idx) => idx !== i))}><Trash2 className="w-4 h-4" /></Button>
                            </div>
                          ))}
-                         <Button disabled={isLockedByOthers} variant="ghost" size="sm" onClick={() => setPoolTitles([...poolTitles, ""])} className="text-[10px] uppercase font-bold">
-                           <Plus className="w-3 h-3 mr-1" /> Add Option
-                         </Button>
+                         <Button disabled={isLockedByOthers} variant="ghost" size="sm" onClick={() => setPoolTitles([...poolTitles, ""])} className="text-[10px] uppercase font-bold"><Plus className="w-3 h-3 mr-1" /> Add Option</Button>
                        </div>
                     </div>
                   )}
                 </div>
 
-                {isElectiveCategory && !syllabus?.id && !isLockedByOthers && (
+                {isElectiveCategory && !formData.id && !isLockedByOthers && (
                   <Card className="border-accent/10 bg-accent/5">
                     <CardContent className="p-4 flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <Label className="font-bold flex items-center gap-2 text-accent">
-                          <CopyPlus className="w-4 h-4" /> Elective Pool Multi-Generation
-                        </Label>
-                        <p className="text-[10px] text-muted-foreground">Instantly create a standard 3-option elective group.</p>
-                      </div>
+                      <Label className="font-bold flex items-center gap-2 text-accent"><CopyPlus className="w-4 h-4" /> Elective Pool Multi-Generation</Label>
                       <Switch checked={isPoolMode} onCheckedChange={setIsPoolMode} />
                     </CardContent>
                   </Card>
                 )}
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="space-y-2"><Label className="text-[10px] uppercase font-bold">Code</Label><div className="h-10 flex items-center px-3 bg-muted/50 rounded-md border font-mono font-bold text-primary">{formData.subjectCode || 'AUTO-GEN'}</div></div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Local Course Code</Label>
-                    <div className="h-10 flex items-center px-3 bg-muted/50 rounded-md border font-mono font-bold text-primary">{formData.subjectCode || 'AUTO-GEN'}</div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Pedagogy</Label>
-                    <Select disabled={isFormDisabled} value={formData.type || 'Theory'} onValueChange={(v: SubjectType) => {
-                      const l = v === 'Lab/Sessional' ? 0 : formData.lectureCredits;
-                      const t = v === 'Lab/Sessional' ? 0 : formData.tutorialCredits;
-                      const p = v === 'Theory' ? 0 : formData.practicalCredits;
-                      setFormData({...formData, type: v, lectureCredits: l, tutorialCredits: t, practicalCredits: p, credits: calculateCredits(l||0, t||0, p||0) });
-                    }}>
+                    <Label className="text-[10px] uppercase font-bold">Type</Label>
+                    <Select disabled={isFormDisabled} value={formData.type || 'Theory'} onValueChange={(v: SubjectType) => handleLTPChange({ type: v } as any)}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Theory">Theory (L-T)</SelectItem>
-                        <SelectItem value="Lab/Sessional">Practical (P)</SelectItem>
-                      </SelectContent>
+                      <SelectContent><SelectItem value="Theory">Theory</SelectItem><SelectItem value="Lab/Sessional">Practical</SelectItem></SelectContent>
                     </Select>
                   </div>
+                  <div className="space-y-2"><Label className="text-[10px] uppercase font-bold">Semester</Label><Input disabled={isFormDisabled} type="number" value={formData.semester || 1} onChange={e => setFormData({...formData, semester: Number(e.target.value)})} /></div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Semester</Label>
-                    <Input disabled={isFormDisabled} type="number" value={formData.semester || 1} onChange={e => setFormData({...formData, semester: Number(e.target.value)})} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Timetable Slot</Label>
+                    <Label className="text-[10px] uppercase font-bold">Timetable Slot</Label>
                     <Select disabled={isFormDisabled} value={formData.timetableSlot} onValueChange={(v) => setFormData({...formData, timetableSlot: v})}>
-                      <SelectTrigger className={cn(timetableClash && "border-red-500 text-red-800")}>
-                        <SelectValue placeholder="Slot..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(formData.type === 'Lab/Sessional' ? ['A','B','C','D','E','F'] : ['1','2','3','4','5','6']).map(s => <SelectItem key={s} value={s}>Slot {s}</SelectItem>)}
-                      </SelectContent>
+                      <SelectTrigger className={cn(timetableClash && "border-red-500 text-red-800")}><SelectValue placeholder="Slot..." /></SelectTrigger>
+                      <SelectContent>{(formData.type === 'Lab/Sessional' ? ['A','B','C','D','E','F'] : ['1','2','3','4','5','6']).map(s => <SelectItem key={s} value={s}>Slot {s}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   <div className="space-y-2">
-                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Elective Group ID (Pool Mapping)</Label>
-                      <Input 
-                        disabled={isFormDisabled || isCoreCategory} 
-                        placeholder="e.g. Elective-I" 
-                        value={isCoreCategory ? "CORE" : (formData.electiveGroupId || '')} 
-                        onChange={e => setFormData({...formData, electiveGroupId: e.target.value})}
-                        className={cn(isCoreCategory && "bg-muted/50", isPoolMode && "border-primary/50 bg-white")}
-                      />
-                   </div>
                 </div>
 
                 <div className="grid grid-cols-4 gap-4 p-4 bg-white border rounded-xl shadow-inner">
@@ -468,17 +428,14 @@ export function SyllabusDialog({
                    <Card key={u.id} className="border-muted overflow-hidden">
                      <CardHeader className="p-4 bg-muted/20 flex flex-row items-center justify-between cursor-pointer" onClick={() => setExpandedUnits(p => ({...p, [u.id]: !p[u.id]}))}>
                         <div className="flex items-center gap-3"><Badge>{unitLabel} {i+1}</Badge><span className="font-bold">{u.title || 'Untitled'}</span></div>
-                        <div className="flex items-center gap-2">
-                           {expandedUnits[u.id] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                           {!isFormDisabled && <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setFormData({...formData, units: formData.units?.filter((_, idx) => idx !== i)}); }}><Trash2 className="w-4 h-4 text-red-400" /></Button>}
-                        </div>
+                        {expandedUnits[u.id] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                      </CardHeader>
                      <CardContent className={cn("p-4 space-y-4", !expandedUnits[u.id] && "hidden")}>
                         <div className="grid grid-cols-2 gap-4">
                            <div className="space-y-2"><Label>Title</Label><Input disabled={isFormDisabled} value={u.title} onChange={e => { const u2=[...formData.units!]; u2[i].title=e.target.value; setFormData({...formData, units:u2}) }} /></div>
                            <div className="space-y-2"><Label>Hours</Label><Input type="number" disabled={isFormDisabled} value={u.hours} onChange={e => { const u2=[...formData.units!]; u2[i].hours=Number(e.target.value); setFormData({...formData, units:u2}) }} /></div>
                         </div>
-                        <div className="space-y-2"><Label>Content</Label><Textarea disabled={isFormDisabled} value={u.content} onChange={e => { const u2=[...formData.units!]; u2[i].content=e.target.value; setFormData({...formData, units:u2}) }} /></div>
+                        <div className="space-y-2"><Label>Topics</Label><Textarea disabled={isFormDisabled} value={u.content} onChange={e => { const u2=[...formData.units!]; u2[i].content=e.target.value; setFormData({...formData, units:u2}) }} /></div>
                         <div className="space-y-2"><Label>Course Outcome</Label><Input disabled={isFormDisabled} value={u.courseOutcome} onChange={e => { const u2=[...formData.units!]; u2[i].courseOutcome=e.target.value; setFormData({...formData, units:u2}) }} /></div>
                      </CardContent>
                    </Card>
@@ -508,17 +465,23 @@ export function SyllabusDialog({
                   <Table>
                     <TableHeader className="bg-muted/30">
                       <TableRow>
-                        <TableHead className="w-[200px] text-[10px] font-black">COURSE OUTCOME (CO)</TableHead>
+                        <TableHead className="w-[200px] text-[10px] font-black">CO</TableHead>
                         {PROGRAM_OUTCOMES.map(po => <TableHead key={po.code} className="text-center text-[10px] font-black">{po.code}</TableHead>)}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {formData.units?.map((unit, uIdx) => (
                         <TableRow key={unit.id}>
-                          <TableCell className="text-[10px] font-bold">CO{uIdx + 1}: {unit.courseOutcome?.substring(0, 40)}...</TableCell>
+                          <TableCell className="text-[10px] font-bold">CO{uIdx + 1}</TableCell>
                           {PROGRAM_OUTCOMES.map(po => (
                             <TableCell key={po.code} className="p-1">
-                              <Select disabled={isFormDisabled} value={formData.poMappings?.[unit.id]?.[po.code] || '-'} onValueChange={(v: CorrelationLevel) => handlePOMapping(unit.id, po.code, v)}>
+                              <Select disabled={isFormDisabled} value={formData.poMappings?.[unit.id]?.[po.code] || '-'} onValueChange={(v: CorrelationLevel) => {
+                                const cur = { ...(formData.poMappings || {}) };
+                                const unitM = { ...(cur[unit.id] || {}) };
+                                unitM[po.code] = v;
+                                cur[unit.id] = unitM;
+                                setFormData({...formData, poMappings: cur});
+                              }}>
                                 <SelectTrigger className="h-8 border-none bg-transparent hover:bg-muted/50 focus:ring-0 text-center font-bold text-xs"><SelectValue /></SelectTrigger>
                                 <SelectContent><SelectItem value="-">-</SelectItem><SelectItem value="1">1</SelectItem><SelectItem value="2">2</SelectItem><SelectItem value="3">3</SelectItem></SelectContent>
                               </Select>
@@ -531,6 +494,109 @@ export function SyllabusDialog({
                   <ScrollBar orientation="horizontal" />
                 </ScrollArea>
               </TabsContent>
+
+              <TabsContent value="link" className="space-y-6">
+                <Card className="border-primary/10 shadow-lg overflow-hidden">
+                  <CardHeader className="bg-primary/5 border-b py-4">
+                    <div className="flex items-center gap-2">
+                      <LinkIcon className="w-5 h-5 text-primary" />
+                      <span className="font-bold">Establish Institutional Inheritance</span>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">1. Select Authority Pool</Label>
+                        <Select value={selectedParentSchemeId} onValueChange={setSelectedParentSchemeId}>
+                          <SelectTrigger className="bg-white h-11"><SelectValue placeholder="Choose Pool..." /></SelectTrigger>
+                          <SelectContent>
+                            {allPoolSchemes.map(s => <SelectItem key={s.id} value={s.id}>{s.branch} ({s.batchYear})</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">2. Select Standard Type</Label>
+                        <div className="flex gap-2">
+                           <Button 
+                             variant={selectedParentGroupId ? "outline" : "secondary"} 
+                             className="flex-1 h-11 gap-2"
+                             onClick={() => setSelectedParentGroupId("")}
+                             disabled={!selectedParentSchemeId || isFetchingParentSyllabi}
+                           >
+                             <CheckCircle2 className="w-4 h-4" /> Compulsory
+                           </Button>
+                           <Button 
+                             variant={selectedParentGroupId ? "secondary" : "outline"} 
+                             className="flex-1 h-11 gap-2"
+                             onClick={() => setSelectedParentGroupId(parentElectiveGroups[0] || "SELECT")}
+                             disabled={!selectedParentSchemeId || isFetchingParentSyllabi || parentElectiveGroups.length === 0}
+                           >
+                             <Layers className="w-4 h-4" /> Elective Pool
+                           </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {selectedParentSchemeId && !isFetchingParentSyllabi && (
+                      <div className="space-y-6 animate-in slide-in-from-top-4 duration-300">
+                        {selectedParentGroupId ? (
+                          <div className="space-y-4 p-4 bg-accent/5 rounded-xl border border-accent/10">
+                            <div className="flex items-center gap-2 text-accent font-bold text-sm">
+                               <Layers className="w-4 h-4" /> Resolve Elective Option
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                               <div className="space-y-1">
+                                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Target Pool Group</Label>
+                                  <Select value={selectedParentGroupId} onValueChange={setSelectedParentGroupId}>
+                                    <SelectTrigger className="bg-white"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      {parentElectiveGroups.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                                    </SelectContent>
+                                  </Select>
+                               </div>
+                               <div className="space-y-1">
+                                  <Label className="text-[10px] uppercase font-bold text-accent">3. Which option should be mirrored?</Label>
+                                  <Select value={selectedParentOptionId} onValueChange={setSelectedParentOptionId}>
+                                    <SelectTrigger className="bg-white border-accent/30"><SelectValue placeholder="Select Mirror Option..." /></SelectTrigger>
+                                    <SelectContent>
+                                      {parentGroupOptions.map(o => <SelectItem key={s.id} value={o.id}>{o.subjectCode} - {o.title}</SelectItem>)}
+                                    </SelectContent>
+                                  </Select>
+                               </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                             <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">3. Select Compulsory Subject</Label>
+                             <Select value={selectedParentOptionId} onValueChange={setSelectedParentOptionId}>
+                               <SelectTrigger className="bg-white h-11"><SelectValue placeholder="Select Standard Subject..." /></SelectTrigger>
+                               <SelectContent>
+                                 {nonElectiveParentSyllabi.map(o => <SelectItem key={o.id} value={o.id}>{o.subjectCode} - {o.title}</SelectItem>)}
+                               </SelectContent>
+                             </Select>
+                          </div>
+                        )}
+
+                        <Button 
+                          className="w-full h-12 gap-2 shadow-lg" 
+                          disabled={!selectedParentOptionId}
+                          onClick={handleEstablishLink}
+                        >
+                          <LinkIcon className="w-4 h-4" /> Authorize Institutional Inheritance
+                        </Button>
+                      </div>
+                    )}
+
+                    {isFetchingParentSyllabi && (
+                      <div className="py-20 flex flex-col items-center justify-center gap-4 text-muted-foreground">
+                        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+                        <p className="font-bold animate-pulse">Syncing University Standard Repository...</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
             </Tabs>
           </div>
         </ScrollArea>
@@ -538,8 +604,8 @@ export function SyllabusDialog({
         <DialogFooter className="p-6 border-t bg-background shrink-0 shadow-lg">
            <Button variant="outline" onClick={() => onOpenChange(false)} className="h-11 px-6">Cancel</Button>
            {canEdit && !isLockedByOthers && (
-             <Button onClick={handleFinalSave} className="h-11 px-8 shadow-md" disabled={isEstablishingLink || isSaving}>
-               {isEstablishingLink || isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+             <Button onClick={handleFinalSave} className="h-11 px-8 shadow-md" disabled={isSaving}>
+               {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
                {isSaving ? "Synchronizing..." : (isPoolMode ? "Generate Pool" : "Save Subject Pattern")}
              </Button>
            )}
