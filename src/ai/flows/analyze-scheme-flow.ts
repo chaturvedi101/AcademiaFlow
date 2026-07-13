@@ -43,7 +43,7 @@ export type AnalyzeSchemeOutput = z.infer<typeof AnalyzeSchemeOutputSchema>;
 
 const analysisPrompt = ai.definePrompt({
   name: 'analyzeSchemePrompt',
-  model: googleAI.model('gemini-1.5-pro-latest'),
+  model: googleAI.model('gemini-pro-latest'),
   input: { schema: AnalyzeSchemePromptInputSchema },
   output: { schema: AnalyzeSchemeOutputSchema },
   config: {
