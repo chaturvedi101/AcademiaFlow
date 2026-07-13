@@ -92,7 +92,7 @@ export function SyllabusDialog({
     if (open && syllabus?.lockedBy) {
       const lock = syllabus.lockedBy;
       const now = Date.now();
-      const lockTime = lock.timestamp?.toMillis() || now; // fallback to now if timestamp hasn't synced back yet
+      const lockTime = lock.timestamp?.toMillis() || now; 
       const isExpired = (now - lockTime) > LOCK_EXPIRATION_MS;
 
       if (lock.sessionId !== sessionId && !isExpired) {
@@ -107,7 +107,8 @@ export function SyllabusDialog({
 
   // Acquire, Release, and Heartbeat for Locks
   useEffect(() => {
-    if (!open || !canEdit || !syllabus?.id || !scheme?.id || !userProfile) return;
+    // CRITICAL: Ensure user and userProfile are fully loaded to avoid 'undefined' values in Firestore
+    if (!open || !canEdit || !syllabus?.id || !scheme?.id || !userProfile || !user?.uid) return;
 
     const syllabusRef = doc(db, 'schemes', scheme.id, 'syllabi', syllabus.id!);
 
@@ -123,8 +124,8 @@ export function SyllabusDialog({
         if (!currentData.lockedBy || currentData.lockedBy.sessionId === sessionId || isExpired) {
           await updateDoc(syllabusRef, {
             lockedBy: {
-              uid: user?.uid,
-              displayName: userProfile.displayName,
+              uid: user.uid,
+              displayName: userProfile.displayName || "Academic User",
               sessionId: sessionId,
               timestamp: serverTimestamp()
             }
@@ -143,8 +144,9 @@ export function SyllabusDialog({
       }
     };
 
-    // Institutional Heartbeat: Keep the lock fresh while the user is actively on the screen
+    // Heartbeat: Keep the lock fresh
     const interval = setInterval(async () => {
+      if (!user?.uid) return;
       const snap = await getDoc(syllabusRef);
       if (snap.exists()) {
         const currentData = snap.data() as Syllabus;
@@ -188,7 +190,6 @@ export function SyllabusDialog({
     }
   }, [open, syllabus]);
 
-  // Fetch syllabi for selected parent scheme
   useEffect(() => {
     if (selectedParentSchemeId) {
       setIsFetchingParentSyllabi(true);
@@ -230,7 +231,6 @@ export function SyllabusDialog({
   const isLinked = !!formData.followedFromId;
   const isLockedByOthers = !!lockStatus?.isLocked;
   const isFormDisabled = isLinked || !canEdit || isLockedByOthers;
-  const isCoreCategory = formData.creditCategory === 'DSC' || formData.creditCategory === 'PRJ' || formData.creditCategory === 'SEC';
   const isElectiveCategory = formData.creditCategory === 'DSE' || formData.creditCategory === 'OFE';
 
   const handleAiGenerate = async () => {
