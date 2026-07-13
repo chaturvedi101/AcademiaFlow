@@ -1,4 +1,5 @@
-export type UserRole = 'bos_convenor' | 'bos_member' | 'dean_faculty' | 'dean_academic' | 'admin' | 'monitor' | 'committee_convenor';
+
+export type UserRole = 'bos_convenor' | 'bos_member' | 'dean_faculty' | 'dean_academic' | 'admin' | 'monitor' | 'committee_convenor' | 'guest';
 
 export const FACULTIES = [
   "Faculty of Built Environment",
@@ -148,13 +149,6 @@ export interface SyllabusUnit {
   subUnits?: SyllabusSubUnit[];
 }
 
-export interface SyllabusLock {
-  uid: string;
-  displayName: string;
-  sessionId: string;
-  timestamp: any;
-}
-
 export interface Syllabus {
   id: string;
   schemeId: string;
@@ -185,15 +179,22 @@ export interface Syllabus {
   parentSchemeId?: string;
   electiveGroupId?: string; // e.g. "Elective-I"
   electiveGroupName?: string; // e.g. "Cloud Computing Pool"
-  isOFESlot?: boolean; // True if this is just a placeholder slot in a scheme
-  isOFEContribution?: boolean; // True if this is a course offered by this branch to the global pool
   isSlot?: boolean; // Generic flag for a pre-defined locked slot
   timetableSlot?: string; // e.g. "1", "2" for Theory or "A", "B" for Practical
   isStandardized?: boolean;
   standardizedFrom?: string;
   isInherited?: boolean;
   parentCode?: string;
-  lockedBy?: SyllabusLock;
+}
+
+export interface Feedback {
+  id?: string;
+  name: string;
+  email: string;
+  phone: string;
+  feedback: string;
+  schemeId: string;
+  createdAt: any;
 }
 
 export interface AuditLog {

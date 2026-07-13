@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from "react";
@@ -5,14 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ShieldCheck, GraduationCap, FileCheck, Layers, Loader2, Github, Lock, Mail } from "lucide-react";
+import { ShieldCheck, GraduationCap, FileCheck, Layers, Loader2, Github, Lock, Mail, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore, useUser } from "@/firebase";
 import { 
   signInWithEmailAndPassword, 
   GithubAuthProvider,
   signInWithPopup,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  signInAnonymously
 } from "firebase/auth";
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
@@ -32,7 +34,12 @@ export default function Home() {
 
   useEffect(() => {
     if (user && !userLoading) {
-      router.push('/dashboard');
+      // If anonymous, they go to explorer
+      if (user.isAnonymous) {
+        router.push('/explorer');
+      } else {
+        router.push('/dashboard');
+      }
     }
   }, [user, userLoading, router]);
 
@@ -41,11 +48,26 @@ export default function Home() {
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.push('/dashboard');
     } catch (error: any) {
       toast({
         variant: 'destructive',
         title: "Sign-in Failed",
+        description: error.message,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGuestAccess = async () => {
+    setIsLoading(true);
+    try {
+      await signInAnonymously(auth);
+      router.push('/explorer');
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: "Guest Entrance Failed",
         description: error.message,
       });
     } finally {
@@ -98,7 +120,6 @@ export default function Home() {
         };
         await setDoc(userRef, userData);
       }
-      router.push('/dashboard');
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -110,7 +131,7 @@ export default function Home() {
     }
   };
 
-  if (userLoading || (user && !userLoading)) {
+  if (userLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -145,12 +166,12 @@ export default function Home() {
             <FeatureCard 
               icon={<GraduationCap className="text-accent" />}
               title="RTU Schemes"
-              desc="Draft to Approval workflow"
+              desc="Approved curriculum search"
             />
             <FeatureCard 
               icon={<FileCheck className="text-accent" />}
               title="AICTE Compliant"
-              desc="Automatic credit validation"
+              desc="Verified technical tiers"
             />
             <FeatureCard 
               icon={<Layers className="text-accent" />}
@@ -162,19 +183,19 @@ export default function Home() {
         </div>
 
         <div className="flex justify-center">
-          <Card className="w-full max-w-md shadow-2xl border-primary/10">
-            <CardHeader className="space-y-1">
+          <Card className="w-full max-w-md shadow-2xl border-primary/10 overflow-hidden">
+            <CardHeader className="space-y-1 pb-4">
               <div className="flex justify-center mb-4">
                 <div className="p-3 bg-primary/5 rounded-full">
                   <Lock className="w-6 h-6 text-primary" />
                 </div>
               </div>
-              <CardTitle className="text-2xl text-center font-headline">Secure Access</CardTitle>
+              <CardTitle className="text-2xl text-center font-headline">Institutional Portal</CardTitle>
               <CardDescription className="text-center">
-                Authorized Faculty & Staff Only
+                Authorized Faculty & Public Guest Access
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-6">
               <form onSubmit={handleSignIn} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Institutional Email</Label>
@@ -210,31 +231,30 @@ export default function Home() {
                   />
                 </div>
                 <Button type="submit" className="w-full h-12 text-base shadow-lg shadow-primary/20" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="mr-2 h-5 w-4 animate-spin" /> : "Sign In to Portal"}
+                  {isLoading ? <Loader2 className="mr-2 h-5 w-4 animate-spin" /> : "Faculty Sign In"}
                 </Button>
-                
-                <div className="relative my-6">
-                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                  <div className="relative flex justify-center text-[10px] uppercase font-bold text-muted-foreground"><span className="bg-background px-2">Institutional SSO</span></div>
-                </div>
-                
-                <Button variant="outline" type="button" className="w-full h-12 gap-2 text-base" onClick={handleGithubSignIn} disabled={isLoading}>
-                  <Github className="w-5 h-5" /> GitHub Authorization
-                </Button>
-
-                <div className="mt-6 p-3 bg-muted/30 rounded-lg flex gap-3 text-[9px] text-muted-foreground leading-tight">
-                  <Mail className="w-4 h-4 shrink-0 text-primary" />
-                  <p>
-                    <b>Institutional Policy:</b> For security, passwords cannot be retrieved. If you forget your password, enter your email and click <b>Forgot Password?</b> to receive a secure reset link.
-                  </p>
-                </div>
-
-                <p className="text-[10px] text-center text-muted-foreground mt-4 px-4">
-                  Account registration is restricted. Contact the 
-                  <span className="font-bold text-primary"> Academic Monitor</span> or 
-                  <span className="font-bold text-primary"> Dean Academic</span> for access.
-                </p>
               </form>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+                <div className="relative flex justify-center text-[10px] uppercase font-bold text-muted-foreground"><span className="bg-background px-2">Public Access</span></div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3">
+                <Button variant="secondary" className="h-12 w-full gap-2 border-primary/10 shadow-sm" onClick={handleGuestAccess} disabled={isLoading}>
+                  <Users className="w-5 h-5 text-primary" /> Institutional Guest Explorer
+                </Button>
+                <Button variant="outline" type="button" className="w-full h-11 gap-2 text-sm border-dashed" onClick={handleGithubSignIn} disabled={isLoading}>
+                  <Github className="w-4 h-4" /> GitHub SSO
+                </Button>
+              </div>
+
+              <div className="p-3 bg-muted/30 rounded-lg flex gap-3 text-[9px] text-muted-foreground leading-tight">
+                <Mail className="w-4 h-4 shrink-0 text-primary" />
+                <p>
+                  <b>Faculty Support:</b> Institutional passwords are encrypted. Use the <b>Forgot Password</b> link to reset via your university inbox.
+                </p>
+              </div>
             </CardContent>
           </Card>
         </div>

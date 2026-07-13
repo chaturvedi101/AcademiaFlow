@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "UserProfile": {
@@ -9,7 +10,7 @@
         "email": { "type": "string", "format": "email" },
         "role": {
           "type": "string",
-          "enum": ["bos_convenor", "bos_member", "dean_faculty", "dean_academic", "admin", "monitor", "committee_convenor"]
+          "enum": ["bos_convenor", "bos_member", "dean_faculty", "dean_academic", "admin", "monitor", "committee_convenor", "guest"]
         },
         "faculty": {
           "type": "string",
@@ -85,15 +86,30 @@
         "isCommitteePool": { "type": "boolean" }
       },
       "required": ["schemeCode", "programId", "batchYear", "status"]
+    },
+    "Feedback": {
+      "title": "Feedback",
+      "description": "Public feedback on academic schemes and syllabi.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "feedback": { "type": "string" },
+        "schemeId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email", "feedback"]
     }
   },
   "auth": {
-    "providers": ["password", "github"]
+    "providers": ["password", "github", "anonymous"]
   },
   "firestore": {
     "/users/{userId}": { "schema": "UserProfile", "description": "User profiles and roles." },
     "/programs/{programId}": { "schema": "Program", "description": "Program definitions." },
     "/schemes/{schemeId}": { "schema": "Scheme", "description": "Scheme definitions." },
-    "/schemes/{schemeId}/syllabi/{syllabusId}": { "schema": "Syllabus", "description": "Subject syllabi." }
+    "/schemes/{schemeId}/syllabi/{syllabusId}": { "schema": "Syllabus", "description": "Subject syllabi." },
+    "/feedback/{feedbackId}": { "schema": "Feedback", "description": "Public feedback entries." }
   }
 }
