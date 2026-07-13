@@ -16,7 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   BookOpen, Loader2, Plus, ChevronDown, ChevronUp, Trash2, 
-  Sparkles, FlaskConical, ShieldCheck, Layers, Globe, Video, GraduationCap, Clock, Link as LinkIcon, AlertTriangle, Unlink, CopyPlus, Save, Lock, ArrowRight, Search, CheckCircle2
+  Sparkles, FlaskConical, ShieldCheck, Layers, Globe, Video, GraduationCap, Clock, Link as LinkIcon, AlertTriangle, Unlink, CopyPlus, Save, Lock, ArrowRight, Search, CheckCircle2, RefreshCcw
 } from "lucide-react";
 import { Syllabus, UserProfile, CreditCategory, SubjectType, Scheme, Program, PROGRAM_OUTCOMES, CorrelationLevel } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -107,7 +107,6 @@ export function SyllabusDialog({
 
   // Acquire, Release, and Heartbeat for Locks
   useEffect(() => {
-    // CRITICAL: Ensure user and userProfile are fully loaded to avoid 'undefined' values in Firestore
     if (!open || !canEdit || !syllabus?.id || !scheme?.id || !userProfile || !user?.uid) return;
 
     const syllabusRef = doc(db, 'schemes', scheme.id, 'syllabi', syllabus.id!);
@@ -144,7 +143,6 @@ export function SyllabusDialog({
       }
     };
 
-    // Heartbeat: Keep the lock fresh
     const interval = setInterval(async () => {
       if (!user?.uid) return;
       const snap = await getDoc(syllabusRef);
@@ -232,6 +230,17 @@ export function SyllabusDialog({
   const isLockedByOthers = !!lockStatus?.isLocked;
   const isFormDisabled = isLinked || !canEdit || isLockedByOthers;
   const isElectiveCategory = formData.creditCategory === 'DSE' || formData.creditCategory === 'OFE';
+
+  const handleForceReleaseLock = async () => {
+    if (!syllabus?.id || !scheme?.id) return;
+    const syllabusRef = doc(db, 'schemes', scheme.id, 'syllabi', syllabus.id!);
+    try {
+      await updateDoc(syllabusRef, { lockedBy: null });
+      toast({ title: "Institutional Lock Overridden", description: "The previous session has been cleared. You can now claim the lock." });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Override Failed", description: e.message });
+    }
+  };
 
   const handleAiGenerate = async () => {
     if (!formData.title) return;
@@ -355,8 +364,16 @@ export function SyllabusDialog({
               <Alert variant="destructive" className="bg-amber-50 border-amber-200 text-amber-800 shadow-sm animate-pulse">
                 <Lock className="h-5 w-5" />
                 <AlertTitle className="font-black uppercase text-[10px] tracking-widest mb-1">Concurrency Lock Active</AlertTitle>
-                <AlertDescription className="text-sm font-medium">
-                  Currently being edited by <span className="font-black underline">{lockStatus?.ownerName}</span> in another window.
+                <AlertDescription className="text-sm font-medium flex items-center justify-between">
+                  <span>Currently being edited by <span className="font-black underline">{lockStatus?.ownerName}</span> in another window.</span>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="h-7 text-[10px] font-bold border-amber-300 hover:bg-amber-100 flex items-center gap-1.5"
+                    onClick={handleForceReleaseLock}
+                  >
+                    <RefreshCcw className="w-3 h-3" /> Force Override Lock
+                  </Button>
                 </AlertDescription>
               </Alert>
             )}
