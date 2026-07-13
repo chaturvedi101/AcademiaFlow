@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
@@ -6,13 +5,13 @@ import { useFirestore, useDoc, useCollection, useUser, useMemoFirebase } from "@
 import { doc, collection, setDoc, serverTimestamp, updateDoc, query, where, onSnapshot, Unsubscribe, deleteDoc, writeBatch, getDocs } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Edit3, Loader2, FileText, BookOpen, Eye, CheckCircle2, ShieldCheck, Trash2, Hash, Layers, Info, RefreshCw, Copy, ShieldAlert, GitBranch, PlusCircle } from "lucide-react";
+import { Plus, Edit3, Loader2, FileText, BookOpen, Eye, CheckCircle2, ShieldCheck, Trash2, Hash, Layers, Info, RefreshCw, Copy, ShieldAlert, GitBranch, PlusCircle, Sparkles, AlertTriangle, TrendingUp, CheckCircle, Target } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile, SubmissionScope, CreditCategory } from "@/lib/types";
@@ -20,6 +19,8 @@ import { useToast } from "@/hooks/use-toast";
 import { exportFullSchemeToPDF, exportCompleteSyllabusToPDF } from "@/lib/pdf-export";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
+import { analyzeScheme, AnalyzeSchemeOutput } from "@/ai/flows/analyze-scheme-flow";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function SchemeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: schemeId } = React.use(params);
@@ -44,6 +45,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [isSubmissionDialogOpen, setIsSubmissionDialogOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
+
+  // AI Analysis State
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<AnalyzeSchemeOutput | null>(null);
+  const [isAnalysisDialogOpen, setIsAnalysisDialogOpen] = useState(false);
 
   // Cloner State
   const [isClonerOpen, setIsClonerOpen] = useState(false);
@@ -148,9 +154,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   }, [localSyllabi, allParentSyllabi, scheme]);
 
   const permissions = useMemo(() => {
-    if (!profile || !scheme) return { isAdmin: false, canEditScheme: false, isLockedForBoS: true, canDeleteCourse: false, canEditSyllabus: () => false };
+    if (!profile || !scheme) return { isAdmin: false, isDeanAcademic: false, canEditScheme: false, isLockedForBoS: true, canDeleteCourse: false, canEditSyllabus: () => false };
 
     const isAdmin = profile.role === 'admin';
+    const isDeanAcademic = profile.role === 'dean_academic';
     const isAuthority = ['dean_academic', 'dean_faculty', 'monitor'].includes(profile.role);
     const isPersonnel = ['bos_convenor', 'bos_member', 'committee_convenor'].includes(profile.role);
     
@@ -189,6 +196,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     
     return {
       isAdmin,
+      isDeanAcademic,
       canEditScheme,
       isLockedForBoS: isLocked,
       canDeleteCourse: isAdmin,
@@ -244,7 +252,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       updatedAt: serverTimestamp() 
     };
 
-    // Sanitize payload to remove undefined values which crash setDoc
     Object.keys(data).forEach(key => {
       const val = (data as any)[key];
       if (val !== undefined) {
@@ -361,6 +368,31 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     }
   };
 
+  const handleAnalyzeScheme = async () => {
+    if (isAnalyzing || syllabi.length === 0) return;
+    setIsAnalyzing(true);
+    try {
+      const result = await analyzeScheme({
+        schemeName: scheme?.branch || program?.name || 'Academic Scheme',
+        batchYear: scheme?.batchYear || '2026-30',
+        programRules: program?.rules || {},
+        syllabi: syllabi.map(s => ({
+          subjectCode: s.subjectCode,
+          title: s.title,
+          credits: s.credits,
+          category: s.creditCategory,
+          units: s.units?.map(u => ({ title: u.title, content: u.content, co: u.courseOutcome }))
+        }))
+      });
+      setAnalysisResult(result);
+      setIsAnalysisDialogOpen(true);
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "AI Auditor Failure", description: e.message });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const handleCreateLinkedCopy = async () => {
     if (!clonerTargetBranch || !program || !scheme || !permissions.isAdmin) return;
     setIsCloning(true);
@@ -441,6 +473,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          {(permissions.isAdmin || permissions.isDeanAcademic) && (
+            <Button variant="outline" onClick={handleAnalyzeScheme} disabled={isAnalyzing || syllabi.length === 0} className="gap-2 border-primary/30 text-primary hover:bg-primary/5">
+              {isAnalyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              AI Academic Auditor
+            </Button>
+          )}
           {permissions.isAdmin && !scheme.isCommitteePool && !scheme.isVerticalPool && (
             <Button variant="outline" onClick={() => setIsClonerOpen(true)} className="gap-2 border-primary/30 text-primary hover:bg-primary/5">
               <GitBranch className="w-4 h-4" /> Linked Cloner
@@ -502,6 +540,124 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                {isCloning ? <Loader2 className="animate-spin w-4 h-4" /> : <Copy className="w-4 h-4" />}
                Generate Linked Mirror
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Analysis Dialog */}
+      <Dialog open={isAnalysisDialogOpen} onOpenChange={setIsAnalysisDialogOpen}>
+        <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="p-6 bg-primary text-white shrink-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="text-2xl font-headline flex items-center gap-3">
+                  <Sparkles className="w-6 h-6" /> AI Academic Audit Report
+                </DialogTitle>
+                <DialogDescription className="text-primary-foreground/80">
+                  Critical Analysis for {scheme.branch || program?.name} | Batch {scheme.batchYear}
+                </DialogDescription>
+              </div>
+              <div className="flex flex-col items-center justify-center bg-white/10 rounded-xl px-4 py-2 border border-white/20">
+                <span className="text-3xl font-black">{analysisResult?.overallScore || 0}</span>
+                <span className="text-[10px] font-bold uppercase opacity-60">Overall Quality Score</span>
+              </div>
+            </div>
+          </DialogHeader>
+          
+          <ScrollArea className="flex-1 p-6 bg-muted/5">
+            <div className="space-y-8 pb-12">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Card className="md:col-span-2">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-bold flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary" /> Executive Summary</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm leading-relaxed text-muted-foreground italic">"{analysisResult?.executiveSummary}"</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-emerald-50 border-emerald-100">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-bold flex items-center gap-2 text-emerald-800"><CheckCircle className="w-4 h-4" /> Compliance Status</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Badge className="bg-emerald-600 text-white border-none">{analysisResult?.structuralAudit.complianceStatus}</Badge>
+                    <p className="text-[10px] mt-2 text-emerald-700">Verified against RTU-NEP 2020 technical framework.</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <div className="space-y-4">
+                   <h3 className="font-bold text-sm uppercase text-primary border-l-4 border-primary pl-3">Institutional Strengths</h3>
+                   <div className="space-y-2">
+                     {analysisResult?.structuralAudit.strengths.map((s, i) => (
+                       <div key={i} className="flex gap-2 p-3 bg-white border rounded-lg text-xs shadow-sm">
+                         <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" /> {s}
+                       </div>
+                     ))}
+                   </div>
+                 </div>
+                 <div className="space-y-4">
+                   <h3 className="font-bold text-sm uppercase text-red-600 border-l-4 border-red-600 pl-3">Identified Weaknesses</h3>
+                   <div className="space-y-2">
+                     {analysisResult?.structuralAudit.weaknesses.map((w, i) => (
+                       <div key={i} className="flex gap-2 p-3 bg-white border rounded-lg text-xs shadow-sm">
+                         <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" /> {w}
+                       </div>
+                     ))}
+                   </div>
+                 </div>
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="font-bold text-sm uppercase text-primary border-l-4 border-primary pl-3">Detailed Pedagogical Audit (Subject-wise)</h3>
+                <div className="border rounded-xl bg-white overflow-hidden shadow-sm">
+                  <Table>
+                    <TableHeader className="bg-muted/50">
+                      <TableRow>
+                        <TableHead className="w-48">Subject</TableHead>
+                        <TableHead>Critical Findings</TableHead>
+                        <TableHead>Corrective Recommendations</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {analysisResult?.pedagogicalQuality.map((audit, i) => (
+                        <TableRow key={i}>
+                          <TableCell>
+                            <div className="space-y-0.5">
+                              <p className="font-bold text-xs">{audit.title}</p>
+                              <p className="text-[10px] font-mono text-primary">{audit.subjectCode}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-[11px] text-muted-foreground">{audit.findings}</TableCell>
+                          <TableCell className="text-[11px] text-primary font-medium">{audit.recommendations}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+
+              <div className="p-6 bg-primary/5 rounded-2xl border border-primary/20 space-y-4">
+                <h3 className="font-bold text-lg flex items-center gap-2 text-primary"><Target className="w-5 h-5" /> Strategic Recommendations</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {analysisResult?.strategicRecommendations.map((rec, i) => (
+                    <div key={i} className="flex gap-3 p-4 bg-white rounded-xl border border-primary/10 shadow-sm text-xs font-medium">
+                      <div className="h-6 w-6 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0">{i+1}</div>
+                      {rec}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </ScrollArea>
+          
+          <DialogFooter className="p-6 border-t bg-muted/20 shrink-0">
+             <Button variant="outline" onClick={() => setIsAnalysisDialogOpen(false)}>Close Audit</Button>
+             <Button className="gap-2" onClick={() => window.print()}>
+               <FileText className="w-4 h-4" /> Export Report
+             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
