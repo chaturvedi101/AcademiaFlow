@@ -26,6 +26,8 @@ import { useFirestore, useUser, useCollection, useMemoFirebase } from "@/firebas
 import { doc, getDoc, updateDoc, serverTimestamp, collection, getDocs, query, where } from "firebase/firestore";
 
 const ALL_CATEGORIES: CreditCategory[] = ['DSC', 'DSE', 'OFE', 'VAC', 'AEC', 'SEC', 'MDC', 'PRJ'];
+const LOCK_EXPIRATION_MS = 10 * 60 * 1000; // 10 minutes institutional expiration
+const HEARTBEAT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes heartbeat
 
 interface SyllabusDialogProps {
   open: boolean;
@@ -85,11 +87,16 @@ export function SyllabusDialog({
 
   const { data: allPoolSchemes } = useCollection<Scheme>(useMemoFirebase(() => query(collection(db, 'schemes'), where('programId', '==', 'INSTITUTIONAL')), [db]));
 
-  // Real-time lock check
+  // Real-time lock check with expiration logic
   useEffect(() => {
     if (open && syllabus?.lockedBy) {
-      if (syllabus.lockedBy.sessionId !== sessionId) {
-        setLockStatus({ isLocked: true, ownerName: syllabus.lockedBy.displayName });
+      const lock = syllabus.lockedBy;
+      const now = Date.now();
+      const lockTime = lock.timestamp?.toMillis() || now; // fallback to now if timestamp hasn't synced back yet
+      const isExpired = (now - lockTime) > LOCK_EXPIRATION_MS;
+
+      if (lock.sessionId !== sessionId && !isExpired) {
+        setLockStatus({ isLocked: true, ownerName: lock.displayName });
       } else {
         setLockStatus({ isLocked: false });
       }
@@ -98,16 +105,22 @@ export function SyllabusDialog({
     }
   }, [open, syllabus?.lockedBy, sessionId]);
 
-  // Acquire and Release Locks
+  // Acquire, Release, and Heartbeat for Locks
   useEffect(() => {
     if (!open || !canEdit || !syllabus?.id || !scheme?.id || !userProfile) return;
 
+    const syllabusRef = doc(db, 'schemes', scheme.id, 'syllabi', syllabus.id!);
+
     const acquireLock = async () => {
-      const syllabusRef = doc(db, 'schemes', scheme.id, 'syllabi', syllabus.id!);
       const snap = await getDoc(syllabusRef);
       if (snap.exists()) {
         const currentData = snap.data() as Syllabus;
-        if (!currentData.lockedBy || currentData.lockedBy.sessionId === sessionId) {
+        const now = Date.now();
+        const lockTime = currentData.lockedBy?.timestamp?.toMillis() || 0;
+        const isExpired = (now - lockTime) > LOCK_EXPIRATION_MS;
+
+        // Claim lock if none exists, or it's ours, or it's expired
+        if (!currentData.lockedBy || currentData.lockedBy.sessionId === sessionId || isExpired) {
           await updateDoc(syllabusRef, {
             lockedBy: {
               uid: user?.uid,
@@ -121,8 +134,6 @@ export function SyllabusDialog({
     };
 
     const releaseLock = async () => {
-      if (!syllabus?.id) return;
-      const syllabusRef = doc(db, 'schemes', scheme.id, 'syllabi', syllabus.id!);
       const snap = await getDoc(syllabusRef);
       if (snap.exists()) {
         const currentData = snap.data() as Syllabus;
@@ -132,10 +143,24 @@ export function SyllabusDialog({
       }
     };
 
+    // Institutional Heartbeat: Keep the lock fresh while the user is actively on the screen
+    const interval = setInterval(async () => {
+      const snap = await getDoc(syllabusRef);
+      if (snap.exists()) {
+        const currentData = snap.data() as Syllabus;
+        if (currentData.lockedBy?.sessionId === sessionId) {
+          await updateDoc(syllabusRef, { 'lockedBy.timestamp': serverTimestamp() });
+        }
+      }
+    }, HEARTBEAT_INTERVAL_MS);
+
     acquireLock();
+    
     const handleUnload = () => { releaseLock(); };
     window.addEventListener('beforeunload', handleUnload);
+
     return () => {
+      clearInterval(interval);
       releaseLock();
       window.removeEventListener('beforeunload', handleUnload);
     };
@@ -250,7 +275,6 @@ export function SyllabusDialog({
     const parent = availableParentSyllabi.find(s => s.id === selectedParentOptionId);
     if (!parent) return;
 
-    // Direct Inheritance: If parent is already a link, mirror the grandparent
     const targetLinkId = parent.followedFromId || parent.id;
     const targetParentSchemeId = parent.parentSchemeId || selectedParentSchemeId;
     const targetParentCode = parent.parentCode || parent.subjectCode;
@@ -560,7 +584,7 @@ export function SyllabusDialog({
                                   <Select value={selectedParentOptionId} onValueChange={setSelectedParentOptionId}>
                                     <SelectTrigger className="bg-white border-accent/30"><SelectValue placeholder="Select Mirror Option..." /></SelectTrigger>
                                     <SelectContent>
-                                      {parentGroupOptions.map(o => <SelectItem key={s.id} value={o.id}>{o.subjectCode} - {o.title}</SelectItem>)}
+                                      {parentGroupOptions.map(o => <SelectItem key={o.id} value={o.id}>{o.subjectCode} - {o.title}</SelectItem>)}
                                     </SelectContent>
                                   </Select>
                                </div>
