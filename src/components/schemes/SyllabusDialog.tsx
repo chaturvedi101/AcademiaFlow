@@ -16,7 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   BookOpen, Loader2, Plus, ChevronDown, ChevronUp, Trash2, 
-  Sparkles, FlaskConical, ShieldCheck, Layers, Globe, Video, GraduationCap, Clock, Link as LinkIcon, AlertTriangle, Unlink, CopyPlus, Save, Lock, ArrowRight, Search, CheckCircle2, RefreshCcw
+  Sparkles, FlaskConical, ShieldCheck, Layers, Globe, Video, GraduationCap, Clock, Link as LinkIcon, AlertTriangle, Unlink, CopyPlus, Save, Lock, ArrowRight, Search, CheckCircle2, RefreshCcw, Info
 } from "lucide-react";
 import { Syllabus, UserProfile, CreditCategory, SubjectType, Scheme, Program, PROGRAM_OUTCOMES, CorrelationLevel } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -26,8 +26,6 @@ import { useFirestore, useUser, useCollection, useMemoFirebase } from "@/firebas
 import { doc, getDoc, updateDoc, serverTimestamp, collection, getDocs, query, where } from "firebase/firestore";
 
 const ALL_CATEGORIES: CreditCategory[] = ['DSC', 'DSE', 'OFE', 'VAC', 'AEC', 'SEC', 'MDC', 'PRJ'];
-const LOCK_EXPIRATION_MS = 10 * 60 * 1000; // 10 minutes institutional expiration
-const HEARTBEAT_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes heartbeat
 
 interface SyllabusDialogProps {
   open: boolean;
@@ -68,10 +66,6 @@ export function SyllabusDialog({
     followedFromId: '', electiveGroupId: '', timetableSlot: ''
   });
 
-  // Concurrency Lock State
-  const [sessionId] = useState(() => Math.random().toString(36).substring(7));
-  const [lockStatus, setLockStatus] = useState<{ isLocked: boolean; ownerName?: string } | null>(null);
-
   // Pool Mode State
   const [isPoolMode, setIsPoolMode] = useState(false);
   const [poolTitles, setPoolTitles] = useState<string[]>(["Option Subject 1", "Option Subject 2", "Option Subject 3"]);
@@ -86,85 +80,6 @@ export function SyllabusDialog({
   const [selectedParentOptionId, setSelectedParentOptionId] = useState("");
 
   const { data: allPoolSchemes } = useCollection<Scheme>(useMemoFirebase(() => query(collection(db, 'schemes'), where('programId', '==', 'INSTITUTIONAL')), [db]));
-
-  // Real-time lock check with expiration logic
-  useEffect(() => {
-    if (open && syllabus?.lockedBy) {
-      const lock = syllabus.lockedBy;
-      const now = Date.now();
-      const lockTime = lock.timestamp?.toMillis() || now; 
-      const isExpired = (now - lockTime) > LOCK_EXPIRATION_MS;
-
-      if (lock.sessionId !== sessionId && !isExpired) {
-        setLockStatus({ isLocked: true, ownerName: lock.displayName });
-      } else {
-        setLockStatus({ isLocked: false });
-      }
-    } else if (open) {
-      setLockStatus({ isLocked: false });
-    }
-  }, [open, syllabus?.lockedBy, sessionId]);
-
-  // Acquire, Release, and Heartbeat for Locks
-  useEffect(() => {
-    if (!open || !canEdit || !syllabus?.id || !scheme?.id || !userProfile || !user?.uid) return;
-
-    const syllabusRef = doc(db, 'schemes', scheme.id, 'syllabi', syllabus.id!);
-
-    const acquireLock = async () => {
-      const snap = await getDoc(syllabusRef);
-      if (snap.exists()) {
-        const currentData = snap.data() as Syllabus;
-        const now = Date.now();
-        const lockTime = currentData.lockedBy?.timestamp?.toMillis() || 0;
-        const isExpired = (now - lockTime) > LOCK_EXPIRATION_MS;
-
-        // Claim lock if none exists, or it's ours, or it's expired
-        if (!currentData.lockedBy || currentData.lockedBy.sessionId === sessionId || isExpired) {
-          await updateDoc(syllabusRef, {
-            lockedBy: {
-              uid: user.uid,
-              displayName: userProfile.displayName || "Academic User",
-              sessionId: sessionId,
-              timestamp: serverTimestamp()
-            }
-          });
-        }
-      }
-    };
-
-    const releaseLock = async () => {
-      const snap = await getDoc(syllabusRef);
-      if (snap.exists()) {
-        const currentData = snap.data() as Syllabus;
-        if (currentData.lockedBy?.sessionId === sessionId) {
-          await updateDoc(syllabusRef, { lockedBy: null });
-        }
-      }
-    };
-
-    const interval = setInterval(async () => {
-      if (!user?.uid) return;
-      const snap = await getDoc(syllabusRef);
-      if (snap.exists()) {
-        const currentData = snap.data() as Syllabus;
-        if (currentData.lockedBy?.sessionId === sessionId) {
-          await updateDoc(syllabusRef, { 'lockedBy.timestamp': serverTimestamp() });
-        }
-      }
-    }, HEARTBEAT_INTERVAL_MS);
-
-    acquireLock();
-    
-    const handleUnload = () => { releaseLock(); };
-    window.addEventListener('beforeunload', handleUnload);
-
-    return () => {
-      clearInterval(interval);
-      releaseLock();
-      window.removeEventListener('beforeunload', handleUnload);
-    };
-  }, [open, canEdit, syllabus?.id, scheme?.id, userProfile, user?.uid, sessionId, db]);
 
   useEffect(() => {
     if (open && syllabus) {
@@ -227,20 +142,8 @@ export function SyllabusDialog({
   }, [formData.timetableSlot, formData.semester, formData.id, allSyllabi]);
 
   const isLinked = !!formData.followedFromId;
-  const isLockedByOthers = !!lockStatus?.isLocked;
-  const isFormDisabled = isLinked || !canEdit || isLockedByOthers;
+  const isFormDisabled = isLinked || !canEdit;
   const isElectiveCategory = formData.creditCategory === 'DSE' || formData.creditCategory === 'OFE';
-
-  const handleForceReleaseLock = async () => {
-    if (!syllabus?.id || !scheme?.id) return;
-    const syllabusRef = doc(db, 'schemes', scheme.id, 'syllabi', syllabus.id!);
-    try {
-      await updateDoc(syllabusRef, { lockedBy: null });
-      toast({ title: "Institutional Lock Overridden", description: "The previous session has been cleared. You can now claim the lock." });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Override Failed", description: e.message });
-    }
-  };
 
   const handleAiGenerate = async () => {
     if (!formData.title) return;
@@ -314,6 +217,9 @@ export function SyllabusDialog({
   const handleFinalSave = async () => {
     setIsSaving(true);
     try {
+      // Clean up any legacy locks during save
+      const cleanData = { ...formData, lockedBy: null };
+
       if (isPoolMode && isElectiveCategory && !formData.id) {
         if (!formData.electiveGroupId) {
           toast({ title: "Validation Error", description: "Group ID is required for pools.", variant: "destructive" });
@@ -322,10 +228,10 @@ export function SyllabusDialog({
         }
         await Promise.all(poolTitles.map(async (title) => {
           if (!title.trim()) return;
-          return onSave({ ...formData, title: title.trim(), timetableSlot: formData.timetableSlot || '' });
+          return onSave({ ...cleanData, title: title.trim(), timetableSlot: formData.timetableSlot || '' });
         }));
       } else {
-        await onSave(formData);
+        await onSave(cleanData);
       }
       onOpenChange(false);
     } catch (error: any) {
@@ -347,7 +253,7 @@ export function SyllabusDialog({
               Course Architect
             </div>
             <div className="flex gap-2">
-              <Button onClick={handleAiGenerate} disabled={isAiGenerating || isSaving || !formData.title || isLinked || !canEdit || isPoolMode || isLockedByOthers} variant="outline" className="gap-2">
+              <Button onClick={handleAiGenerate} disabled={isAiGenerating || isSaving || !formData.title || isLinked || !canEdit || isPoolMode} variant="outline" className="gap-2">
                 {isAiGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-primary" />}
                 AI Architect
               </Button>
@@ -360,25 +266,15 @@ export function SyllabusDialog({
 
         <ScrollArea className="flex-1 w-full min-h-0 bg-muted/5">
           <div className="p-6 space-y-8">
-            {isLockedByOthers && (
-              <Alert variant="destructive" className="bg-amber-50 border-amber-200 text-amber-800 shadow-sm animate-pulse">
-                <Lock className="h-5 w-5" />
-                <AlertTitle className="font-black uppercase text-[10px] tracking-widest mb-1">Concurrency Lock Active</AlertTitle>
-                <AlertDescription className="text-sm font-medium flex items-center justify-between">
-                  <span>Currently being edited by <span className="font-black underline">{lockStatus?.ownerName}</span> in another window.</span>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="h-7 text-[10px] font-bold border-amber-300 hover:bg-amber-100 flex items-center gap-1.5"
-                    onClick={handleForceReleaseLock}
-                  >
-                    <RefreshCcw className="w-3 h-3" /> Force Override Lock
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            )}
+            <Alert className="bg-blue-50 border-blue-200 text-blue-800 shadow-sm">
+              <Info className="h-5 w-5 text-blue-600" />
+              <AlertTitle className="font-bold">Pedagogical Guardrail</AlertTitle>
+              <AlertDescription className="text-xs">
+                To ensure data integrity, please avoid editing this course in multiple windows or by multiple users simultaneously.
+              </AlertDescription>
+            </Alert>
 
-            {isLinked && !isLockedByOthers && (
+            {isLinked && (
               <Alert className="bg-emerald-50 border-emerald-200 shadow-sm">
                 <ShieldCheck className="h-5 w-5 text-emerald-600" />
                 <AlertTitle className="font-bold text-emerald-800">Mirror Active (Read-Only)</AlertTitle>
@@ -394,14 +290,14 @@ export function SyllabusDialog({
                 <TabsTrigger value="syllabus">Pedagogy</TabsTrigger>
                 <TabsTrigger value="resources">Resources</TabsTrigger>
                 <TabsTrigger value="mapping">Outcomes</TabsTrigger>
-                <TabsTrigger value="link" disabled={isLinked || !canEdit || isLockedByOthers}>Institutional Link</TabsTrigger>
+                <TabsTrigger value="link" disabled={isLinked || !canEdit}>Institutional Link</TabsTrigger>
               </TabsList>
 
               <TabsContent value="basic" className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold text-muted-foreground">Category</Label>
-                    <Select disabled={isLinked || !canEdit || !!formData.id || isLockedByOthers} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v})}>
+                    <Select disabled={isLinked || !canEdit || !!formData.id} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v})}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>{ALL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                     </Select>
@@ -418,17 +314,17 @@ export function SyllabusDialog({
                        <div className="p-3 bg-primary/5 rounded-lg border border-primary/20 space-y-2">
                          {poolTitles.map((t, i) => (
                            <div key={i} className="flex gap-2">
-                             <Input disabled={isLockedByOthers} value={t} onChange={e => { const nt=[...poolTitles]; nt[i]=e.target.value; setPoolTitles(nt); }} placeholder={`Option ${i+1}...`} className="bg-white" />
-                             <Button disabled={isLockedByOthers} variant="ghost" size="icon" className="h-9 w-9 text-red-400" onClick={() => setPoolTitles(poolTitles.filter((_, idx) => idx !== i))}><Trash2 className="w-4 h-4" /></Button>
+                             <Input value={t} onChange={e => { const nt=[...poolTitles]; nt[i]=e.target.value; setPoolTitles(nt); }} placeholder={`Option ${i+1}...`} className="bg-white" />
+                             <Button variant="ghost" size="icon" className="h-9 w-9 text-red-400" onClick={() => setPoolTitles(poolTitles.filter((_, idx) => idx !== i))}><Trash2 className="w-4 h-4" /></Button>
                            </div>
                          ))}
-                         <Button disabled={isLockedByOthers} variant="ghost" size="sm" onClick={() => setPoolTitles([...poolTitles, ""])} className="text-[10px] uppercase font-bold"><Plus className="w-3 h-3 mr-1" /> Add Option</Button>
+                         <Button variant="ghost" size="sm" onClick={() => setPoolTitles([...poolTitles, ""])} className="text-[10px] uppercase font-bold"><Plus className="w-3 h-3 mr-1" /> Add Option</Button>
                        </div>
                     </div>
                   )}
                 </div>
 
-                {isElectiveCategory && !formData.id && !isLockedByOthers && (
+                {isElectiveCategory && !formData.id && (
                   <Card className="border-accent/10 bg-accent/5">
                     <CardContent className="p-4 flex items-center justify-between">
                       <Label className="font-bold flex items-center gap-2 text-accent"><CopyPlus className="w-4 h-4" /> Elective Pool Multi-Generation</Label>
@@ -644,7 +540,7 @@ export function SyllabusDialog({
         
         <DialogFooter className="p-6 border-t bg-background shrink-0 shadow-lg">
            <Button variant="outline" onClick={() => onOpenChange(false)} className="h-11 px-6">Cancel</Button>
-           {canEdit && !isLockedByOthers && (
+           {canEdit && (
              <Button onClick={handleFinalSave} className="h-11 px-8 shadow-md" disabled={isSaving}>
                {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
                {isSaving ? "Synchronizing..." : (isPoolMode ? "Generate Pool" : "Save Subject Pattern")}
