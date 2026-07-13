@@ -14,6 +14,13 @@ const AnalyzeSchemeInputSchema = z.object({
   syllabi: z.array(z.any()).describe('The complete list of subjects with their units and outcomes'),
 });
 
+const AnalyzeSchemePromptInputSchema = z.object({
+  schemeName: z.string(),
+  batchYear: z.string(),
+  programRulesJson: z.string(),
+  syllabiJson: z.string(),
+});
+
 const AnalyzeSchemeOutputSchema = z.object({
   overallScore: z.number().describe('A score from 1-100 based on compliance and quality'),
   executiveSummary: z.string().describe('A high-level summary of the scheme quality'),
@@ -37,7 +44,7 @@ export type AnalyzeSchemeOutput = z.infer<typeof AnalyzeSchemeOutputSchema>;
 const analysisPrompt = ai.definePrompt({
   name: 'analyzeSchemePrompt',
   model: googleAI.model('gemini-1.5-pro-latest'),
-  input: { schema: AnalyzeSchemeInputSchema },
+  input: { schema: AnalyzeSchemePromptInputSchema },
   output: { schema: AnalyzeSchemeOutputSchema },
   config: {
     googleSearchRetrieval: true,
@@ -46,8 +53,8 @@ const analysisPrompt = ai.definePrompt({
   Your task is to critically analyze the following academic scheme for the batch {{{batchYear}}}: "{{{schemeName}}}".
   
   CONTEXT:
-  - Program Rules: {{{JSON.stringify programRules}}}
-  - Complete Curriculum Structure: {{{JSON.stringify syllabi}}}
+  - Program Rules: {{{programRulesJson}}}
+  - Complete Curriculum Structure: {{{syllabiJson}}}
   
   CRITERIA FOR ANALYSIS:
   1. **Structural Integrity**: Check if the credits for DSC, DSE, VAC, AEC, and MDC meet the institutional rules. Is the progression from Year 1 to Year 4 logical?
@@ -60,7 +67,13 @@ const analysisPrompt = ai.definePrompt({
 
 export async function analyzeScheme(input: AnalyzeSchemeInput): Promise<AnalyzeSchemeOutput> {
   try {
-    const { output } = await analysisPrompt(input);
+    const { output } = await analysisPrompt({
+      schemeName: input.schemeName,
+      batchYear: input.batchYear,
+      programRulesJson: JSON.stringify(input.programRules, null, 2),
+      syllabiJson: JSON.stringify(input.syllabi, null, 2),
+    });
+    
     if (!output) throw new Error('AI failed to generate analysis. Please ensure the scheme has enough subjects.');
     return output;
   } catch (error: any) {
