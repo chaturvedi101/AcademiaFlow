@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -15,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { LogOut, Search, BookOpen, Loader2, Info, CheckCircle2, MessageSquare, Send, Download, ShieldCheck, Phone, Mail, User } from 'lucide-react';
+import { LogOut, Search, BookOpen, Loader2, Info, CheckCircle2, MessageSquare, Send, Download, ShieldCheck, Phone, Mail, User, ShieldAlert } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -28,6 +27,7 @@ export default function GuestExplorerPage() {
   const auth = useAuth();
   const router = useRouter();
   const { toast } = useToast();
+  const { user, loading: userLoading } = useUser();
   
   const [selectedProgramId, setSelectedProgramId] = useState<string>("");
   const [selectedBranch, setSelectedBranch] = useState<string>("");
@@ -40,6 +40,13 @@ export default function GuestExplorerPage() {
 
   const [feedbackForm, setFeedbackForm] = useState({ name: '', email: '', phone: '', feedback: '' });
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+
+  // Security: Redirect unauthorized access back to home
+  useEffect(() => {
+    if (!userLoading && !user) {
+      router.push('/');
+    }
+  }, [user, userLoading, router]);
 
   const { data: programs, loading: programsLoading } = useCollection<Program>(useMemoFirebase(() => collection(db, 'programs'), [db]));
   
@@ -75,6 +82,9 @@ export default function GuestExplorerPage() {
         setLoadingSyllabi(true);
         getDocs(collection(db, 'schemes', found.id, 'syllabi')).then(snap => {
           setSyllabi(snap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus)));
+          setLoadingSyllabi(false);
+        }).catch(err => {
+          console.error("Syllabi load error:", err);
           setLoadingSyllabi(false);
         });
       }
@@ -122,7 +132,7 @@ export default function GuestExplorerPage() {
 
   const rtuLogo = PlaceHolderImages.find(img => img.id === 'rtu-logo');
 
-  if (programsLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+  if (userLoading || programsLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
   return (
     <div className="min-h-screen bg-muted/5 flex flex-col">
@@ -382,13 +392,6 @@ export default function GuestExplorerPage() {
                                    {(!sub.referenceBooks || sub.referenceBooks.length === 0) && <li className="text-[11px] text-muted-foreground italic">Supplementary records to be defined.</li>}
                                  </ul>
                                </div>
-                               <div className="space-y-4">
-                                 <h4 className="font-headline font-black text-sm uppercase text-primary tracking-widest border-l-4 border-primary pl-3">Digital Resources</h4>
-                                 <div className="grid gap-2">
-                                    {(sub.nptelLinks?.length || 0) > 0 && <Badge variant="secondary" className="justify-start gap-2 bg-blue-50 text-blue-800 border-blue-100 h-9 px-3 font-bold"><ShieldCheck className="w-3.5 h-3.5" /> NPTEL Verified Course</Badge>}
-                                    {(sub.youtubeLinks?.length || 0) > 0 && <Badge variant="secondary" className="justify-start gap-2 bg-red-50 text-red-800 border-red-100 h-9 px-3 font-bold"><BookOpen className="w-3.5 h-3.5" /> Multimedia Lectures</Badge>}
-                                 </div>
-                               </div>
                              </div>
                           </div>
                         </div>
@@ -403,13 +406,17 @@ export default function GuestExplorerPage() {
                   <div className="lg:col-span-5 space-y-8">
                     <div className="space-y-4">
                       <h3 className="text-4xl font-headline font-black text-primary leading-tight">Pedagogical Observations</h3>
-                      <p className="text-lg text-muted-foreground leading-relaxed">Your feedback directly influences the quality of the next **Board of Studies (BoS)** revision cycle. We value technical accuracy and structural recommendations.</p>
+                      <p className="text-lg text-muted-foreground leading-relaxed">Your feedback directly influences the quality of the next **Board of Studies (BoS)** revision cycle.</p>
                     </div>
                     
                     <div className="grid gap-4">
-                      <FeedbackFeature icon={<CheckCircle2 className="w-5 h-5" />} title="Technical Accuracy" desc="Report unit topic inconsistencies or outdated technology." />
-                      <FeedbackFeature icon={<Layers className="w-5 h-5" />} title="Structural Integrity" desc="Suggest changes to credit weights or prerequisite logic." />
-                      <FeedbackFeature icon={<BookOpen className="w-5 h-5" />} title="Resource Quality" desc="Recommend latest editions of textbooks or digital courses." />
+                      <div className="flex items-start gap-4 p-5 rounded-2xl bg-white border shadow-sm">
+                        <div className="p-2 bg-primary/5 rounded-lg text-primary"><CheckCircle2 className="w-5 h-5" /></div>
+                        <div>
+                          <h4 className="font-black text-sm text-foreground/90">Technical Accuracy</h4>
+                          <p className="text-xs text-muted-foreground font-medium mt-0.5">Report unit topic inconsistencies.</p>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="p-8 bg-primary text-white rounded-[2rem] space-y-4 shadow-2xl shadow-primary/20">
@@ -417,7 +424,7 @@ export default function GuestExplorerPage() {
                          <ShieldCheck className="w-6 h-6" /> Quality Assurance Protocol
                        </div>
                        <p className="text-sm font-medium leading-relaxed">
-                         Observations submitted here are indexed and presented to the **Dean Academic** and the respective **Committee Convenors** during official auditing sessions.
+                         Observations submitted here are indexed and presented to the respective **Committee Convenors** during official auditing sessions.
                        </p>
                     </div>
                   </div>
@@ -475,7 +482,7 @@ export default function GuestExplorerPage() {
             </Tabs>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-40 space-y-8 animate-pulse">
+          <div className="flex flex-col items-center justify-center py-40 space-y-8">
             <div className="h-28 w-28 bg-primary/5 rounded-full flex items-center justify-center border-2 border-dashed border-primary/20">
                <BookOpen className="w-14 h-14 text-primary opacity-20" />
             </div>
@@ -494,27 +501,8 @@ export default function GuestExplorerPage() {
              {rtuLogo && <Image src={rtuLogo.imageUrl} alt="RTU Logo" width={60} height={60} className="grayscale opacity-20" data-ai-hint="RTU Logo" />}
           </div>
           <p className="text-[11px] text-muted-foreground uppercase font-black tracking-[0.5em]">Rajasthan Technical University, Kota</p>
-          <div className="flex flex-wrap items-center justify-center gap-8 text-[11px] font-bold text-muted-foreground/60 uppercase">
-             <span>© 2024 Academia Flow System</span>
-             <div className="h-1 w-1 rounded-full bg-muted-foreground/40" />
-             <span>Official Academic Transparency Portal</span>
-             <div className="h-1 w-1 rounded-full bg-muted-foreground/40" />
-             <span className="text-primary/60">NEP 2020 Compliant Framework</span>
-          </div>
         </div>
       </footer>
-    </div>
-  );
-}
-
-function FeedbackFeature({ icon, title, desc }: { icon: React.ReactNode, title: string, desc: string }) {
-  return (
-    <div className="flex items-start gap-4 p-5 rounded-2xl bg-white border shadow-sm hover:shadow-md transition-shadow">
-      <div className="p-2 bg-primary/5 rounded-lg text-primary">{icon}</div>
-      <div>
-        <h4 className="font-black text-sm text-foreground/90">{title}</h4>
-        <p className="text-xs text-muted-foreground font-medium mt-0.5">{desc}</p>
-      </div>
     </div>
   );
 }

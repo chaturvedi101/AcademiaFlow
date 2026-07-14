@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from "react";
@@ -32,7 +31,7 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [isResetting, setIsResetting] = useState(false);
 
-  // Centralized Navigation Observer
+  // Centralized Navigation Observer: Handles redirection after any auth state change
   useEffect(() => {
     if (user && !userLoading) {
       if (user.isAnonymous) {
@@ -48,7 +47,6 @@ export default function Home() {
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // Navigation handled by useEffect
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -63,13 +61,14 @@ export default function Home() {
     setIsLoading(true);
     try {
       await signInAnonymously(auth);
-      // Navigation handled by useEffect
+      // Navigation is handled automatically by the useEffect observer above
     } catch (error: any) {
+      console.error("Guest Auth Error:", error);
       let errorMessage = error.message;
       
-      // Provide specific guidance for common Firebase Auth configuration errors
+      // Diagnostic guidance for the 'operation-not-allowed' error
       if (error.code === 'auth/operation-not-allowed') {
-        errorMessage = "Anonymous authentication is not enabled in the Firebase Console. Please go to Authentication > Sign-in method and enable the 'Anonymous' provider.";
+        errorMessage = "Anonymous authentication is currently disabled. Please go to the Firebase Console > Authentication > Sign-in method and enable the 'Anonymous' provider to allow guest access.";
       }
 
       toast({
@@ -126,7 +125,6 @@ export default function Home() {
         };
         await setDoc(userRef, userData);
       }
-      // Navigation handled by useEffect
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -248,17 +246,18 @@ export default function Home() {
 
               <div className="grid grid-cols-1 gap-3">
                 <Button variant="secondary" className="h-12 w-full gap-2 border-primary/10 shadow-sm" onClick={handleGuestAccess} disabled={isLoading}>
-                  <Users className="w-5 h-5 text-primary" /> Institutional Guest Explorer
+                  {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-5 h-5 text-primary" />}
+                  Institutional Guest Explorer
                 </Button>
                 <Button variant="outline" type="button" className="w-full h-11 gap-2 text-sm border-dashed" onClick={handleGithubSignIn} disabled={isLoading}>
                   <Github className="w-4 h-4" /> GitHub SSO
                 </Button>
               </div>
 
-              <div className="p-3 bg-muted/30 rounded-lg flex gap-3 text-[9px] text-muted-foreground leading-tight">
-                <Mail className="w-4 h-4 shrink-0 text-primary" />
+              <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl flex gap-3 text-[10px] text-blue-800 leading-tight">
+                <AlertCircle className="w-4 h-4 shrink-0 text-blue-600" />
                 <p>
-                  <b>Faculty Support:</b> Institutional passwords are encrypted. Use the <b>Forgot Password</b> link to reset via your university inbox.
+                  <b>Guest Access:</b> Browse approved curricula and L-T-P patterns without an institutional account.
                 </p>
               </div>
             </CardContent>
