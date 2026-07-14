@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useFirestore, useDoc, useCollection, useUser, useMemoFirebase } from "@/firebase";
 import { doc, collection, setDoc, serverTimestamp, updateDoc, query, where, onSnapshot, Unsubscribe, deleteDoc, writeBatch, getDocs } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,8 @@ import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import { analyzeScheme, AnalyzeSchemeOutput } from "@/ai/flows/analyze-scheme-flow";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 export default function SchemeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: schemeId } = React.use(params);
@@ -46,6 +48,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [isSyncing, setIsSyncing] = useState(false);
   const [selectedScope, setSelectedScope] = useState<SubmissionScope>('Complete');
 
+  const activeListeners = useRef<Record<string, Unsubscribe>>({});
+  const syllabiMap = useRef<Map<string, Syllabus[]>>(new Map());
+
   // AI Analysis State
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalyzeSchemeOutput | null>(null);
@@ -56,30 +61,42 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [clonerTargetBranch, setClonerTargetBranch] = useState("");
   const [isCloning, setIsCloning] = useState(false);
 
-  // DYNAMIC INHERITANCE RESOLUTION
+  // DYNAMIC INHERITANCE RESOLUTION (Stabilized)
   useEffect(() => {
     if (!scheme || syllabiLoading) return;
 
-    const parentSchemeIds = new Set<string>();
+    const currentParentSchemeIds = new Set<string>();
     localSyllabi.forEach(s => {
-      if (s.parentSchemeId) parentSchemeIds.add(s.parentSchemeId);
+      if (s.parentSchemeId) currentParentSchemeIds.add(s.parentSchemeId);
     });
 
-    if (parentSchemeIds.size === 0) {
+    // Cleanup stale listeners
+    Object.keys(activeListeners.current).forEach(id => {
+      if (!currentParentSchemeIds.has(id)) {
+        activeListeners.current[id]();
+        delete activeListeners.current[id];
+        syllabiMap.current.delete(id);
+      }
+    });
+
+    if (currentParentSchemeIds.size === 0) {
       setAllParentSyllabi([]);
       setParentsLoading(false);
       return;
     }
 
     setParentsLoading(true);
-    let activeUnsubs: Unsubscribe[] = [];
-    const syllabiMap = new Map<string, Syllabus[]>();
-    const schemesToFetch = Array.from(parentSchemeIds);
-    let schemesSyncedCount = 0;
+    let resolvedCount = 0;
 
-    schemesToFetch.forEach(psId => {
+    currentParentSchemeIds.forEach(psId => {
+      if (activeListeners.current[psId]) {
+        resolvedCount++;
+        if (resolvedCount === currentParentSchemeIds.size) setParentsLoading(false);
+        return;
+      }
+
       const sRef = collection(db, 'schemes', psId, 'syllabi');
-      const u = onSnapshot(sRef, (sSnap) => {
+      activeListeners.current[psId] = onSnapshot(sRef, (sSnap) => {
         const fetched = sSnap.docs.map(d => ({ 
           ...d.data(), 
           id: d.id,
@@ -87,21 +104,23 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           isAuthoritativeSource: true
         } as Syllabus));
         
-        syllabiMap.set(psId, fetched);
+        syllabiMap.current.set(psId, fetched);
         const allFlattened: Syllabus[] = [];
-        syllabiMap.forEach(list => allFlattened.push(...list));
+        syllabiMap.current.forEach(list => allFlattened.push(...list));
         setAllParentSyllabi(allFlattened);
         
-        schemesSyncedCount++;
-        if (schemesSyncedCount >= schemesToFetch.length) setParentsLoading(false);
-      }, () => {
-        schemesSyncedCount++;
-        if (schemesSyncedCount >= schemesToFetch.length) setParentsLoading(false);
+        resolvedCount++;
+        if (resolvedCount >= currentParentSchemeIds.size) setParentsLoading(false);
+      }, (err) => {
+        console.error("Parent sync failure:", err);
+        resolvedCount++;
+        if (resolvedCount >= currentParentSchemeIds.size) setParentsLoading(false);
       });
-      activeUnsubs.push(u);
     });
 
-    return () => activeUnsubs.forEach(u => u());
+    return () => {
+      // We don't cleanup here to keep listeners active during minor syllabi changes
+    };
   }, [db, scheme, localSyllabi, syllabiLoading]);
 
   const [isSyllabusDialogOpen, setIsSyllabusDialogOpen] = useState(false);
@@ -205,7 +224,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         if (isAdmin) return true;
         if (isAuthority) return false;
         if (isLocked) return false;
-        if (s.followedFromId || (s as any).isInherited) return false;
         return isPersonnel && isMyJurisdiction;
       }
     };
@@ -246,25 +264,35 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const docId = data.id || Math.random().toString(36).substr(2, 9);
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', docId);
 
+    // Filter out internal state fields that shouldn't be persisted to Firestore
+    const { 
+      isStandardized, 
+      standardizedFrom, 
+      isAuthoritativeSource, 
+      isInherited,
+      ...persistableData 
+    } = data as any;
+
     const payload: any = { 
+      ...persistableData,
       id: docId, 
       schemeId, 
       updatedAt: serverTimestamp() 
     };
 
-    Object.keys(data).forEach(key => {
-      const val = (data as any)[key];
-      if (val !== undefined) {
-        payload[key] = val;
-      }
-    });
-
     return setDoc(docRef, payload, { merge: true })
       .then(() => {
         toast({ 
           title: "Curriculum Synchronized", 
-          description: `Successfully stored ${payload.subjectCode || 'Course'}: ${payload.title || 'Draft'}. Units: ${payload.units?.length || 0}`
+          description: `Successfully stored ${payload.subjectCode || 'Course'}: ${payload.title || 'Draft'}.`
         });
+      })
+      .catch(async (err) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: docRef.path,
+          operation: 'write',
+          requestResourceData: payload
+        }));
       });
   };
 

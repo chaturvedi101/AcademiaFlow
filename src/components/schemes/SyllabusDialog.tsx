@@ -210,16 +210,22 @@ export function SyllabusDialog({
       websiteLinks: parent.websiteLinks || []
     }));
 
-    toast({ title: "Mirror Connection Established", description: `Mirroring Standard: ${targetParentCode}` });
-    setWantsToLink(false);
+    toast({ title: "Inheritance Mapping Locked", description: "Click 'Save Pattern' to synchronize with database." });
+  };
+
+  const handleSeverLink = () => {
+    setFormData(prev => ({
+      ...prev,
+      followedFromId: '',
+      parentSchemeId: '',
+      parentCode: ''
+    }));
+    toast({ title: "Inheritance Link Severed", description: "The course is now an independent departmental slot." });
   };
 
   const handleFinalSave = async () => {
     setIsSaving(true);
     try {
-      // Clean up any legacy locks during save
-      const cleanData = { ...formData, lockedBy: null };
-
       if (isPoolMode && isElectiveCategory && !formData.id) {
         if (!formData.electiveGroupId) {
           toast({ title: "Validation Error", description: "Group ID is required for pools.", variant: "destructive" });
@@ -228,10 +234,10 @@ export function SyllabusDialog({
         }
         await Promise.all(poolTitles.map(async (title) => {
           if (!title.trim()) return;
-          return onSave({ ...cleanData, title: title.trim(), timetableSlot: formData.timetableSlot || '' });
+          return onSave({ ...formData, title: title.trim(), timetableSlot: formData.timetableSlot || '' });
         }));
       } else {
-        await onSave(cleanData);
+        await onSave(formData);
       }
       onOpenChange(false);
     } catch (error: any) {
@@ -253,6 +259,11 @@ export function SyllabusDialog({
               Course Architect
             </div>
             <div className="flex gap-2">
+              {isLinked && canEdit && (
+                <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50 gap-2" onClick={handleSeverLink}>
+                  <Unlink className="w-4 h-4" /> Sever Mirror
+                </Button>
+              )}
               <Button onClick={handleAiGenerate} disabled={isAiGenerating || isSaving || !formData.title || isLinked || !canEdit || isPoolMode} variant="outline" className="gap-2">
                 {isAiGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-primary" />}
                 AI Architect
@@ -279,7 +290,7 @@ export function SyllabusDialog({
                 <ShieldCheck className="h-5 w-5 text-emerald-600" />
                 <AlertTitle className="font-bold text-emerald-800">Mirror Active (Read-Only)</AlertTitle>
                 <AlertDescription className="text-emerald-700 text-xs">
-                  Mirroring Institutional Standard: <b>{formData.parentCode}</b>. Sever link in Scheme Detail to edit.
+                  Mirroring Institutional Standard: <b>{formData.parentCode}</b>. Sever link to enable manual overrides.
                 </AlertDescription>
               </Alert>
             )}
