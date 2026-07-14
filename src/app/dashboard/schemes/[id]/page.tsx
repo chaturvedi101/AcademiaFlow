@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
@@ -325,6 +326,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         else if (branchName.includes('Chemistry')) effectivePrefix = 'CHEM';
         else if (branchName.includes('Humanities')) effectivePrefix = 'HUMA';
         else if (branchName.includes('Basic Sciences')) effectivePrefix = 'BSCI';
+        else if (branchName.includes('Computers')) effectivePrefix = 'COMP';
         else effectivePrefix = 'COMM';
       } else if (scheme?.isVerticalPool) {
         effectivePrefix = 'RT';

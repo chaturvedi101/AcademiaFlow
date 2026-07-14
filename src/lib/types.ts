@@ -16,7 +16,8 @@ export const FACULTIES = [
   "Course Committee - Physics",
   "Course Committee - Chemistry",
   "Course Committee - Humanities",
-  "Course Committee - Basic Sciences"
+  "Course Committee - Basic Sciences",
+  "Course Committee - Computers"
 ] as const;
 
 export type FacultyName = typeof FACULTIES[number];
