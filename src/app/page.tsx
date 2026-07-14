@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ShieldCheck, GraduationCap, FileCheck, Layers, Loader2, Github, Lock, Mail, Users } from "lucide-react";
+import { ShieldCheck, GraduationCap, FileCheck, Layers, Loader2, Github, Lock, Mail, Users, AlertCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore, useUser } from "@/firebase";
 import { 
@@ -32,9 +32,9 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [isResetting, setIsResetting] = useState(false);
 
+  // Centralized Navigation Observer
   useEffect(() => {
     if (user && !userLoading) {
-      // If anonymous, they go to explorer
       if (user.isAnonymous) {
         router.push('/explorer');
       } else {
@@ -48,13 +48,13 @@ export default function Home() {
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      // Navigation handled by useEffect
     } catch (error: any) {
       toast({
         variant: 'destructive',
         title: "Sign-in Failed",
         description: error.message,
       });
-    } finally {
       setIsLoading(false);
     }
   };
@@ -63,14 +63,20 @@ export default function Home() {
     setIsLoading(true);
     try {
       await signInAnonymously(auth);
-      router.push('/explorer');
+      // Navigation handled by useEffect
     } catch (error: any) {
+      let errorMessage = error.message;
+      
+      // Provide specific guidance for common Firebase Auth configuration errors
+      if (error.code === 'auth/operation-not-allowed') {
+        errorMessage = "Anonymous authentication is not enabled in the Firebase Console. Please go to Authentication > Sign-in method and enable the 'Anonymous' provider.";
+      }
+
       toast({
         variant: 'destructive',
         title: "Guest Entrance Failed",
-        description: error.message,
+        description: errorMessage,
       });
-    } finally {
       setIsLoading(false);
     }
   };
@@ -120,13 +126,13 @@ export default function Home() {
         };
         await setDoc(userRef, userData);
       }
+      // Navigation handled by useEffect
     } catch (error: any) {
       toast({
         variant: 'destructive',
         title: "GitHub Authentication Failed",
         description: error.message,
       });
-    } finally {
       setIsLoading(false);
     }
   };
