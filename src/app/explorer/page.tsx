@@ -139,7 +139,7 @@ export default function GuestExplorerPage() {
     <div className="min-h-screen bg-muted/5 flex flex-col">
       <header className="h-20 bg-white border-b flex items-center justify-between px-8 sticky top-0 z-40 shadow-sm">
         <div className="flex items-center gap-4">
-          <div className="relative h-12 w-12 flex items-center justify-center bg-primary/5 rounded-xl border border-primary/10 p-1">
+          <div className="relative h-12 w-12 flex items-center justify-center bg-white rounded-xl border border-primary/10 p-1">
              {rtuLogo && (
                <Image 
                  src={rtuLogo.imageUrl} 
@@ -508,7 +508,7 @@ export default function GuestExplorerPage() {
 
       <footer className="py-20 border-t bg-white relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary/10 to-transparent" />
-        <div className="max-w-7xl auto px-8 text-center space-y-6">
+        <div className="max-w-7xl mx-auto px-8 text-center space-y-6">
           <div className="flex justify-center mb-6">
              {rtuLogo && (
                <Image 
