@@ -3,8 +3,8 @@
   "placeholderImages": [
     {
       "id": "rtu-logo",
-      "description": "Rajasthan Technical University Official Logo",
-      "imageUrl": "https://rtu.ac.in/index/Adminpanel/Images/Media/12092020043134-media.jpg",
+      "description": "Rajasthan Technical University Custom Logo (Navy & Orange)",
+      "imageUrl": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgPCEtLSBOYXZ5IEJsdWUgU2hpZWxkL0JhY2tncm91bmQgLS0+CiAgPHBhdGggZD0iTTIwIDQwIEwxMDAgMjAgTDE4MCA0MCBMMTgwIDEyMCBDMTgwIDE2MCAxMDAgMTkwIDEwMCAxOTAgQzEwMCAxOTAgMjAgMTYwIDIwIDEyMCBaIiBmaWxsPSIjMDAwMDgwIiAvPgogIDwhLS0gT3JhbmdlIFJUVSBUZXh0IC0tPgogIDx0ZXh0IHg9IjEwMCIgeT0iMTE1IiBmb250LWZhbWlseT0iU3BhY2UgR3JvdGVzaywgc2Fucy1zZXJpZiIgZm9udC13ZWlnaHQ9ImJvbGQiIGZvbnQtc2l6ZT0iNTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiNGRjhDMDAiPlJUVTwvdGV4dD4KICA8IS0tIERlY29yYXRpdmUgbGluZXMgLS0+CiAgPHBhdGggZD0iTTUwIDEzMCBMMTUwIDEzMCIgc3Ryb2tlPSIjRkY4QzAwIiBzdHJva2Utd2lkdGg9IjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KICA8cGF0aCBkPSJNNzAgMTQ1IEwxMzAgMTQ1IiBzdHJva2U9IiNGRjhDMDAiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPgo8L3N2Zz4=",
       "imageHint": "RTU Logo"
     }
   ]

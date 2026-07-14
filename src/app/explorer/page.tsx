@@ -516,7 +516,7 @@ export default function GuestExplorerPage() {
                  alt="RTU Logo" 
                  width={60} 
                  height={60} 
-                 className="grayscale opacity-20" 
+                 className="object-contain" 
                  unoptimized
                  data-ai-hint="RTU Logo" 
                />
