@@ -34,6 +34,8 @@ import Link from "next/link";
 import { useAuth, useUser, useDoc, useFirestore } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { UserProfile, UserRole } from "@/lib/types";
+import Image from 'next/image';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['bos_convenor', 'bos_member', 'dean_faculty', 'dean_academic', 'admin', 'monitor', 'committee_convenor'] },
@@ -63,6 +65,8 @@ export function AppSidebar() {
   const role: UserRole = profile?.role || 'bos_convenor';
   const isCommonBos = profile?.faculty?.includes('(Common BOS)');
 
+  const rtuLogo = PlaceHolderImages.find(img => img.id === 'rtu-logo');
+
   const filteredNav = navigation.filter(item => {
     if (isCommonBos && item.name === 'My BoS Team') return false;
     return item.roles.includes(role);
@@ -76,8 +80,17 @@ export function AppSidebar() {
   return (
     <Sidebar variant="inset" collapsible="icon">
       <SidebarHeader className="p-4 border-b border-sidebar-border/50 flex flex-row items-center gap-3">
-        <div className="flex items-center justify-center w-10 h-10 bg-white rounded-lg p-1 shrink-0 shadow-sm border border-primary/20">
-          <span className="text-primary font-headline font-black text-sm tracking-tighter">RTU</span>
+        <div className="flex items-center justify-center w-10 h-10 bg-white rounded-lg p-1 shrink-0 shadow-sm border border-primary/10 overflow-hidden">
+          {rtuLogo && (
+            <Image 
+              src={rtuLogo.imageUrl} 
+              alt="RTU Logo" 
+              width={32} 
+              height={32} 
+              className="object-contain"
+              data-ai-hint="RTU Logo"
+            />
+          )}
         </div>
         <div className="flex flex-col group-data-[collapsible=icon]:hidden">
           <span className="font-headline font-bold text-lg text-white leading-tight">

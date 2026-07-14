@@ -18,6 +18,8 @@ import {
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { UserRole } from "@/lib/types";
+import Image from 'next/image';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 export default function Home() {
   const { user, loading: userLoading } = useUser();
@@ -30,6 +32,8 @@ export default function Home() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isResetting, setIsResetting] = useState(false);
+
+  const rtuLogo = PlaceHolderImages.find(img => img.id === 'rtu-logo');
 
   // Centralized Navigation Observer: Handles redirection after any auth state change
   useEffect(() => {
@@ -146,8 +150,18 @@ export default function Home() {
       <div className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
         <div className="space-y-8">
           <div className="flex items-center gap-4">
-            <div className="flex items-center justify-center w-20 h-20 bg-primary rounded-2xl shadow-lg border-4 border-white shrink-0">
-              <span className="text-white font-headline font-black text-3xl tracking-tighter">RTU</span>
+            <div className="flex items-center justify-center w-20 h-20 bg-white rounded-2xl shadow-lg border-4 border-primary/10 shrink-0 p-2 overflow-hidden">
+              {rtuLogo && (
+                <Image 
+                  src={rtuLogo.imageUrl} 
+                  alt="RTU Logo" 
+                  width={64} 
+                  height={64} 
+                  className="object-contain"
+                  priority
+                  data-ai-hint="RTU Logo"
+                />
+              )}
             </div>
             <div>
               <h1 className="text-3xl font-headline font-bold text-primary tracking-tight">Academia Flow</h1>
