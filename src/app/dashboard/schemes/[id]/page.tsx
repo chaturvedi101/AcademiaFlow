@@ -51,36 +51,35 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const activeListeners = useRef<Record<string, Unsubscribe>>({});
   const syllabiMap = useRef<Map<string, Syllabus[]>>(new Map());
 
-  // AI Analysis State
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<AnalyzeSchemeOutput | null>(null);
-  const [isAnalysisDialogOpen, setIsAnalysisDialogOpen] = useState(false);
-
-  // Cloner State
-  const [isClonerOpen, setIsClonerOpen] = useState(false);
-  const [clonerTargetBranch, setClonerTargetBranch] = useState("");
-  const [isCloning, setIsCloning] = useState(false);
-
-  // DYNAMIC INHERITANCE RESOLUTION (Stabilized)
+  // RECURSIVE INHERITANCE RESOLUTION ENGINE
   useEffect(() => {
     if (!scheme || syllabiLoading) return;
 
-    const currentParentSchemeIds = new Set<string>();
-    localSyllabi.forEach(s => {
-      if (s.parentSchemeId) currentParentSchemeIds.add(s.parentSchemeId);
-    });
+    // Discover all scheme IDs needed in the chain (recursive discovery)
+    const neededSchemeIds = new Set<string>();
+    
+    const scanForIds = (list: Syllabus[]) => {
+      list.forEach(s => {
+        if (s.parentSchemeId && !neededSchemeIds.has(s.parentSchemeId)) {
+          neededSchemeIds.add(s.parentSchemeId);
+        }
+      });
+    };
+
+    scanForIds(localSyllabi);
+    scanForIds(allParentSyllabi); // Discover deeper links (e.g. Pool -> Committee)
 
     // Cleanup stale listeners
     Object.keys(activeListeners.current).forEach(id => {
-      if (!currentParentSchemeIds.has(id)) {
+      if (!neededSchemeIds.has(id)) {
         activeListeners.current[id]();
         delete activeListeners.current[id];
         syllabiMap.current.delete(id);
       }
     });
 
-    if (currentParentSchemeIds.size === 0) {
-      setAllParentSyllabi([]);
+    if (neededSchemeIds.size === 0) {
+      if (allParentSyllabi.length > 0) setAllParentSyllabi([]);
       setParentsLoading(false);
       return;
     }
@@ -88,10 +87,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     setParentsLoading(true);
     let resolvedCount = 0;
 
-    currentParentSchemeIds.forEach(psId => {
+    neededSchemeIds.forEach(psId => {
       if (activeListeners.current[psId]) {
         resolvedCount++;
-        if (resolvedCount === currentParentSchemeIds.size) setParentsLoading(false);
+        if (resolvedCount >= neededSchemeIds.size) setParentsLoading(false);
         return;
       }
 
@@ -105,54 +104,66 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         } as Syllabus));
         
         syllabiMap.current.set(psId, fetched);
+        
         const allFlattened: Syllabus[] = [];
         syllabiMap.current.forEach(list => allFlattened.push(...list));
         setAllParentSyllabi(allFlattened);
         
         resolvedCount++;
-        if (resolvedCount >= currentParentSchemeIds.size) setParentsLoading(false);
+        if (resolvedCount >= neededSchemeIds.size) setParentsLoading(false);
       }, (err) => {
         console.error("Parent sync failure:", err);
         resolvedCount++;
-        if (resolvedCount >= currentParentSchemeIds.size) setParentsLoading(false);
+        if (resolvedCount >= neededSchemeIds.size) setParentsLoading(false);
       });
     });
-
-    return () => {
-      // We don't cleanup here to keep listeners active during minor syllabi changes
-    };
-  }, [db, scheme, localSyllabi, syllabiLoading]);
+  }, [db, scheme, localSyllabi, syllabiLoading, allParentSyllabi.length]);
 
   const [isSyllabusDialogOpen, setIsSyllabusDialogOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Partial<Syllabus> | undefined>(undefined);
 
+  // RESOLVE FINAL SYLLABUS DATA (MERGING INHERITANCE CHAINS)
   const syllabi = useMemo(() => {
     if (!scheme) return [];
 
-    const resolvedLocal = localSyllabi.map(local => {
-      const parent = local.followedFromId ? allParentSyllabi.find(p => p.id === local.followedFromId) : null;
-      const isMirrored = !!local.followedFromId;
+    const findAuthoritativeSource = (id: string): Syllabus | null => {
+      // Look for the doc in all collected parent pools
+      const doc = allParentSyllabi.find(p => p.id === id);
+      if (!doc) return null;
 
-      if (parent) {
+      // If this parent is also a mirror, recursively find ITS source (the "Grandparent")
+      if (doc.followedFromId) {
+        return findAuthoritativeSource(doc.followedFromId) || doc;
+      }
+
+      return doc;
+    };
+
+    const resolvedLocal = localSyllabi.map(local => {
+      const isMirrored = !!local.followedFromId;
+      const source = local.followedFromId ? findAuthoritativeSource(local.followedFromId) : null;
+
+      if (source) {
         return {
-          ...parent, 
+          ...source, 
           id: local.id, 
           subjectCode: local.subjectCode, 
-          parentCode: parent.subjectCode, 
+          parentCode: source.subjectCode, 
           semester: local.semester, 
           schemeId: local.schemeId,
           followedFromId: local.followedFromId,
           parentSchemeId: local.parentSchemeId,
           isStandardized: true,
-          standardizedFrom: 'Institutional Cloner',
-          electiveGroupId: local.electiveGroupId || parent.electiveGroupId || '',
-          timetableSlot: parent.timetableSlot || local.timetableSlot || ''
+          standardizedFrom: 'Institutional Heritage Chain',
+          electiveGroupId: local.electiveGroupId || source.electiveGroupId || '',
+          timetableSlot: local.timetableSlot || source.timetableSlot || ''
         } as Syllabus;
       }
+
       return {
         ...local,
         isStandardized: isMirrored,
-        standardizedFrom: isMirrored ? 'Institutional Cloner (Awaiting content)' : undefined
+        standardizedFrom: isMirrored ? 'Syncing Heritage Content...' : undefined
       } as Syllabus;
     });
 
@@ -210,7 +221,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     }
 
     const isLocked = scheme.status !== 'Draft' && !isAdmin;
-    
     const canEditScheme = !isAuthority && (isAdmin || (isPersonnel && isMyJurisdiction)) && !isLocked;
     
     return {
@@ -264,7 +274,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const docId = data.id || Math.random().toString(36).substr(2, 9);
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', docId);
 
-    // Filter out internal state fields that shouldn't be persisted to Firestore
+    // Filter out transient UI fields before persistence
     const { 
       isStandardized, 
       standardizedFrom, 
@@ -358,7 +368,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         const groupId = sub.electiveGroupId;
         
         let newCode = '';
-        
         if (isElective && groupId) {
           const groupKey = `${sub.semester}-${sub.creditCategory}-${groupId}`;
           if (!groupCodes[groupKey]) {
@@ -378,16 +387,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         }
 
         const subRef = doc(db, 'schemes', schemeId, 'syllabi', sub.id);
-        batch.update(subRef, { 
-          subjectCode: newCode, 
-          updatedAt: serverTimestamp() 
-        });
+        batch.update(subRef, { subjectCode: newCode, updatedAt: serverTimestamp() });
         updateCount++;
       });
 
       if (updateCount > 0) {
         await batch.commit();
-        toast({ title: "Scheme Re-synchronized", description: `Re-assigned codes for ${updateCount} subjects in timetable order.` });
+        toast({ title: "Scheme Re-synchronized", description: `Re-assigned codes for ${updateCount} subjects in order.` });
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
@@ -396,30 +402,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     }
   };
 
-  const handleAnalyzeScheme = async () => {
-    if (isAnalyzing || syllabi.length === 0) return;
-    setIsAnalyzing(true);
-    try {
-      const result = await analyzeScheme({
-        schemeName: scheme?.branch || program?.name || 'Academic Scheme',
-        batchYear: scheme?.batchYear || '2026-30',
-        programRules: program?.rules || {},
-        syllabi: syllabi.map(s => ({
-          subjectCode: s.subjectCode,
-          title: s.title,
-          credits: s.credits,
-          category: s.creditCategory,
-          units: s.units?.map(u => ({ title: u.title, content: u.content, co: u.courseOutcome }))
-        }))
-      });
-      setAnalysisResult(result);
-      setIsAnalysisDialogOpen(true);
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "AI Auditor Failure", description: e.message });
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
+  const [isClonerOpen, setIsClonerOpen] = useState(false);
+  const [clonerTargetBranch, setClonerTargetBranch] = useState("");
+  const [isCloning, setIsCloning] = useState(false);
 
   const handleCreateLinkedCopy = async () => {
     if (!clonerTargetBranch || !program || !scheme || !permissions.isAdmin) return;
@@ -468,7 +453,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       }
 
       await batch.commit();
-      toast({ title: "Linked Branch Mirror Created", description: `Scheme for ${clonerTargetBranch} is now mirroring this structure.` });
+      toast({ title: "Linked Mirror Created", description: `${clonerTargetBranch} is now mirroring this structure.` });
       setIsClonerOpen(false);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Cloning Failed", description: e.message });
@@ -501,12 +486,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {(permissions.isAdmin || permissions.isDeanAcademic) && (
-            <Button variant="outline" onClick={handleAnalyzeScheme} disabled={isAnalyzing || syllabi.length === 0} className="gap-2 border-primary/30 text-primary hover:bg-primary/5">
-              {isAnalyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-              AI Academic Auditor
-            </Button>
-          )}
           {permissions.isAdmin && !scheme.isCommitteePool && !scheme.isVerticalPool && (
             <Button variant="outline" onClick={() => setIsClonerOpen(true)} className="gap-2 border-primary/30 text-primary hover:bg-primary/5">
               <GitBranch className="w-4 h-4" /> Linked Cloner
@@ -534,20 +513,16 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ShieldAlert className="w-5 h-5 text-primary" />
-              Institutional Linked Cloner
+              <ShieldAlert className="w-5 h-5 text-primary" /> Institutional Linked Cloner
             </DialogTitle>
-            <DialogDescription>
-              Create a Virtual Mirror for a sibling branch. All subjects will inherit from this master scheme (or its parents).
-            </DialogDescription>
+            <DialogDescription>Create a Virtual Mirror for a sibling branch. All subjects will inherit heritage data recursively.</DialogDescription>
           </DialogHeader>
           <div className="space-y-6 py-4">
              <div className="p-4 bg-primary/5 border border-primary/10 rounded-xl space-y-2">
                <p className="text-[11px] font-bold uppercase text-primary">Cloning Protocol:</p>
                <ul className="text-[10px] space-y-1 text-muted-foreground list-disc pl-4">
-                 <li><b>Inheritance chain:</b> Mirrors directly from original standards (Grandparent) if already mirrored.</li>
-                 <li><b>Code Swap:</b> DSC/DSE/PRJ/OFE/SEC codes will automatically use the target branch prefix.</li>
-                 <li><b>Live Link:</b> Child scheme will stay synchronized with pedagogical changes.</li>
+                 <li><b>Heritage chain:</b> Mirrors directly from original source standard.</li>
+                 <li><b>Live Link:</b> Child stays synchronized with pedagogical changes.</li>
                </ul>
              </div>
              <div className="space-y-2">
@@ -564,128 +539,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsClonerOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreateLinkedCopy} disabled={!clonerTargetBranch || isCloning} className="gap-2">
-               {isCloning ? <Loader2 className="animate-spin w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            <Button onClick={handleCreateLinkedCopy} disabled={!clonerTargetBranch || isCloning}>
+               {isCloning ? <Loader2 className="animate-spin w-4 h-4" /> : <Copy className="w-4 h-4 mr-2" />}
                Generate Linked Mirror
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* AI Analysis Dialog */}
-      <Dialog open={isAnalysisDialogOpen} onOpenChange={setIsAnalysisDialogOpen}>
-        <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0 overflow-hidden">
-          <DialogHeader className="p-6 bg-primary text-white shrink-0">
-            <div className="flex items-center justify-between">
-              <div>
-                <DialogTitle className="text-2xl font-headline flex items-center gap-3">
-                  <Sparkles className="w-6 h-6" /> AI Academic Audit Report
-                </DialogTitle>
-                <DialogDescription className="text-primary-foreground/80">
-                  Critical Analysis for {scheme.branch || program?.name} | Batch {scheme.batchYear}
-                </DialogDescription>
-              </div>
-              <div className="flex flex-col items-center justify-center bg-white/10 rounded-xl px-4 py-2 border border-white/20">
-                <span className="text-3xl font-black">{analysisResult?.overallScore || 0}</span>
-                <span className="text-[10px] font-bold uppercase opacity-60">Overall Quality Score</span>
-              </div>
-            </div>
-          </DialogHeader>
-          
-          <ScrollArea className="flex-1 p-6 bg-muted/5">
-            <div className="space-y-8 pb-12">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="md:col-span-2">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-bold flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary" /> Executive Summary</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm leading-relaxed text-muted-foreground italic">"{analysisResult?.executiveSummary}"</p>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-emerald-50 border-emerald-100">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-bold flex items-center gap-2 text-emerald-800"><CheckCircle className="w-4 h-4" /> Compliance Status</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <Badge className="bg-emerald-600 text-white border-none">{analysisResult?.structuralAudit.complianceStatus}</Badge>
-                    <p className="text-[10px] mt-2 text-emerald-700">Verified against RTU-NEP 2020 technical framework.</p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <div className="space-y-4">
-                   <h3 className="font-bold text-sm uppercase text-primary border-l-4 border-primary pl-3">Institutional Strengths</h3>
-                   <div className="space-y-2">
-                     {analysisResult?.structuralAudit.strengths.map((s, i) => (
-                       <div key={i} className="flex gap-2 p-3 bg-white border rounded-lg text-xs shadow-sm">
-                         <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" /> {s}
-                       </div>
-                     ))}
-                   </div>
-                 </div>
-                 <div className="space-y-4">
-                   <h3 className="font-bold text-sm uppercase text-red-600 border-l-4 border-red-600 pl-3">Identified Weaknesses</h3>
-                   <div className="space-y-2">
-                     {analysisResult?.structuralAudit.weaknesses.map((w, i) => (
-                       <div key={i} className="flex gap-2 p-3 bg-white border rounded-lg text-xs shadow-sm">
-                         <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" /> {w}
-                       </div>
-                     ))}
-                   </div>
-                 </div>
-              </div>
-
-              <div className="space-y-4">
-                <h3 className="font-bold text-sm uppercase text-primary border-l-4 border-primary pl-3">Detailed Pedagogical Audit (Subject-wise)</h3>
-                <div className="border rounded-xl bg-white overflow-hidden shadow-sm">
-                  <Table>
-                    <TableHeader className="bg-muted/50">
-                      <TableRow>
-                        <TableHead className="w-48">Subject</TableHead>
-                        <TableHead>Critical Findings</TableHead>
-                        <TableHead>Corrective Recommendations</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {analysisResult?.pedagogicalQuality.map((audit, i) => (
-                        <TableRow key={i}>
-                          <TableCell>
-                            <div className="space-y-0.5">
-                              <p className="font-bold text-xs">{audit.title}</p>
-                              <p className="text-[10px] font-mono text-primary">{audit.subjectCode}</p>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-[11px] text-muted-foreground">{audit.findings}</TableCell>
-                          <TableCell className="text-[11px] text-primary font-medium">{audit.recommendations}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-
-              <div className="p-6 bg-primary/5 rounded-2xl border border-primary/20 space-y-4">
-                <h3 className="font-bold text-lg flex items-center gap-2 text-primary"><Target className="w-5 h-5" /> Strategic Recommendations</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {analysisResult?.strategicRecommendations.map((rec, i) => (
-                    <div key={i} className="flex gap-3 p-4 bg-white rounded-xl border border-primary/10 shadow-sm text-xs font-medium">
-                      <div className="h-6 w-6 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0">{i+1}</div>
-                      {rec}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </ScrollArea>
-          
-          <DialogFooter className="p-6 border-t bg-muted/20 shrink-0">
-             <Button variant="outline" onClick={() => setIsAnalysisDialogOpen(false)}>Close Audit</Button>
-             <Button className="gap-2" onClick={() => window.print()}>
-               <FileText className="w-4 h-4" /> Export Report
-             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -694,9 +551,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         <Alert variant="destructive" className="bg-red-50 border-red-200">
           <Info className="h-4 w-4" />
           <AlertTitle className="font-bold">Dean's Observations (Requires Correction)</AlertTitle>
-          <AlertDescription className="mt-2 text-sm italic">
-            "{scheme.reversionComments}"
-          </AlertDescription>
+          <AlertDescription className="mt-2 text-sm italic">"{scheme.reversionComments}"</AlertDescription>
         </Alert>
       )}
 
@@ -704,9 +559,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         <Alert className="bg-amber-50 border-amber-200 text-amber-800">
           <ShieldCheck className="h-4 w-4" />
           <AlertTitle className="font-bold">Submission Lock Active</AlertTitle>
-          <AlertDescription>
-            This scheme has been submitted and is currently under institutional review. Editing is disabled until a Dean reverts it to Draft.
-          </AlertDescription>
+          <AlertDescription>Review process active. Editing disabled until reversion.</AlertDescription>
         </Alert>
       )}
 
@@ -738,7 +591,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                         <CardTitle className="text-lg">{scheme.isCommitteePool ? 'Course Registry' : `Semester ${sem}`}</CardTitle>
                         {!scheme.isCommitteePool && (
                           <Badge variant="secondary" className="bg-white/50 text-primary border-primary/20">
-                            Total: {semTotalCredits} Credits (Deduplicated)
+                            Total: {semTotalCredits} Credits
                           </Badge>
                         )}
                       </div>
@@ -761,7 +614,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {semSyllabi.map((sub, sIdx) => {
+                          {semSyllabi.map((sub) => {
                             const showGroupHeader = sub.electiveGroupId && !renderedGroups.has(sub.electiveGroupId);
                             if (sub.electiveGroupId) renderedGroups.add(sub.electiveGroupId);
                             
@@ -807,7 +660,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                                   <TableCell className={cn("pl-6 font-mono font-bold", sub.electiveGroupId && "pl-10")}>
                                     <div className="flex flex-col">
                                       <span className={cn(sub.isStandardized && "text-primary")}>{sub.subjectCode}</span>
-                                      {sub.parentCode && <span className="text-[9px] text-muted-foreground italic font-normal">Standard: {sub.parentCode}</span>}
+                                      {sub.parentCode && <span className="text-[9px] text-muted-foreground italic font-normal">Heritage: {sub.parentCode}</span>}
                                     </div>
                                   </TableCell>
                                   <TableCell className="font-medium">
@@ -821,23 +674,18 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                                   <TableCell className="text-right font-bold">{sub.credits}</TableCell>
                                   <TableCell className="text-right pr-6">
                                     <div className="flex justify-end items-center gap-4">
-                                      <Badge variant="outline" className="font-mono bg-muted/30">
-                                        {sub.timetableSlot || '-'}
-                                      </Badge>
+                                      <Badge variant="outline" className="font-mono bg-muted/30">{sub.timetableSlot || '-'}</Badge>
                                       <div className="flex items-center gap-2">
                                         {sub.isStandardized && (
                                           <Badge variant="outline" className="gap-1 border-emerald-200 bg-emerald-50 text-emerald-700">
-                                            <ShieldCheck className="w-3 h-3" />
-                                            Mirror
+                                            <ShieldCheck className="w-3 h-3" /> Mirror
                                           </Badge>
                                         )}
                                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setActiveSubject(sub); setIsSyllabusDialogOpen(true); }}>
                                           {permissions.canEditSyllabus(sub) ? <Edit3 className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                                         </Button>
                                         {permissions.canDeleteCourse && (
-                                          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => handleDeleteSyllabus(sub.id)}>
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                          </Button>
+                                          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={() => handleDeleteSyllabus(sub.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                                         )}
                                       </div>
                                     </div>
