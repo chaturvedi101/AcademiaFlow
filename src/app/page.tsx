@@ -61,12 +61,10 @@ export default function Home() {
     setIsLoading(true);
     try {
       await signInAnonymously(auth);
-      // Navigation is handled automatically by the useEffect observer above
     } catch (error: any) {
       console.error("Guest Auth Error:", error);
       let errorMessage = error.message;
       
-      // Diagnostic guidance for the 'operation-not-allowed' error
       if (error.code === 'auth/operation-not-allowed') {
         errorMessage = "Anonymous authentication is currently disabled. Please go to the Firebase Console > Authentication > Sign-in method and enable the 'Anonymous' provider to allow guest access.";
       }
@@ -153,7 +151,7 @@ export default function Home() {
             </div>
             <div>
               <h1 className="text-3xl font-headline font-bold text-primary tracking-tight">Academia Flow</h1>
-              <p className="text-xs font-bold text-muted-foreground uppercase tracking-[0.2em]">Rajasthan Technical University</p>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-[0.2em]">Rajasthan Technical University, Kota</p>
             </div>
           </div>
           <div className="space-y-4">
