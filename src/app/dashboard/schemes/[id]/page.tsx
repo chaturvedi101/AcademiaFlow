@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
@@ -177,9 +176,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
       }
 
-      if (a.electiveGroupId !== b.electiveGroupId) {
-        return (a.electiveGroupId || "").localeCompare(b.electiveGroupId || "");
-      }
       return (a.subjectCode || "").localeCompare(b.subjectCode || "");
     });
   }, [localSyllabi, allParentSyllabi, scheme]);

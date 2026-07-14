@@ -221,14 +221,13 @@ export const exportCompleteSyllabusToPDF = (
   const sortedSyllabi = [...syllabi].sort((a, b) => {
     if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
     
-    // Arrange by Timetable Slot for official book consistency
+    // Strictly Slot then Code
     const slotA = a.timetableSlot || "Z";
     const slotB = b.timetableSlot || "Z";
     if (slotA !== slotB) {
       return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
     }
 
-    if (a.electiveGroupId !== b.electiveGroupId) return (a.electiveGroupId || '').localeCompare(b.electiveGroupId || '');
     return (a.subjectCode || "").localeCompare(b.subjectCode || "");
   });
 
@@ -325,14 +324,13 @@ export const exportFullSchemeToPDF = (
     const semSubjects = syllabi
       .filter(s => (scheme.isCommitteePool ? true : s.semester === sem) && !s.isOFEContribution)
       .sort((a, b) => {
-        // Arrange by Timetable Slot in Structure PDF
+        // Strictly Slot then Code
         const slotA = a.timetableSlot || "Z";
         const slotB = b.timetableSlot || "Z";
         if (slotA !== slotB) {
           return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
         }
 
-        if (a.electiveGroupId !== b.electiveGroupId) return (a.electiveGroupId || '').localeCompare(b.electiveGroupId || '');
         return (a.subjectCode || "").localeCompare(b.subjectCode || "");
       });
 

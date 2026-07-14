@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -98,10 +97,16 @@ export default function GuestExplorerPage() {
   const filteredSyllabi = useMemo(() => {
     const sorted = [...syllabi].sort((a, b) => {
       if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
+      
       const slotA = a.timetableSlot || "Z";
       const slotB = b.timetableSlot || "Z";
-      return slotA.localeCompare(slotB, undefined, { numeric: true });
+      if (slotA !== slotB) {
+        return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
+      }
+      
+      return (a.subjectCode || "").localeCompare(b.subjectCode || "");
     });
+    
     if (selectedSemester === "All") return sorted;
     return sorted.filter(s => s.semester === Number(selectedSemester));
   }, [syllabi, selectedSemester]);
@@ -256,7 +261,12 @@ export default function GuestExplorerPage() {
 
               <TabsContent value="structure" className="space-y-8">
                 {Array.from({ length: 8 }, (_, i) => i + 1).map(sem => {
-                  const semSyllabi = syllabi.filter(s => s.semester === sem).sort((a,b) => (a.timetableSlot||'').localeCompare(b.timetableSlot||'', undefined, {numeric: true}));
+                  const semSyllabi = syllabi.filter(s => s.semester === sem).sort((a, b) => {
+                    const slotA = a.timetableSlot || "Z";
+                    const slotB = b.timetableSlot || "Z";
+                    if (slotA !== slotB) return slotA.localeCompare(slotB, undefined, { numeric: true });
+                    return (a.subjectCode || "").localeCompare(b.subjectCode || "");
+                  });
                   if (semSyllabi.length === 0) return null;
 
                   return (
