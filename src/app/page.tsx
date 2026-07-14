@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from "react";
@@ -159,6 +160,7 @@ export default function Home() {
                   height={64} 
                   className="object-contain"
                   priority
+                  unoptimized
                   data-ai-hint="RTU Logo"
                 />
               )}
