@@ -76,8 +76,19 @@ export function SyllabusDialog({
   const [selectedParentGroupId, setSelectedParentGroupId] = useState("");
   const [selectedParentOptionId, setSelectedParentOptionId] = useState("");
 
-  const poolsQuery = useMemoFirebase(() => query(collection(db, 'schemes'), where('programId', '==', 'INSTITUTIONAL')), [db]);
-  const { data: allPoolSchemes } = useCollection<Scheme>(poolsQuery);
+  // Universal Retrieval: Get all schemes to allow cross-branch mirroring
+  const allSchemesQuery = useMemoFirebase(() => query(collection(db, 'schemes')), [db]);
+  const { data: allSchemes } = useCollection<Scheme>(allSchemesQuery);
+
+  const availableParentSchemes = useMemo(() => {
+    // Filter out current scheme to prevent circular self-referencing
+    return allSchemes.filter(s => s.id !== scheme?.id).sort((a, b) => {
+       // Prioritize Institutional Pools in the list
+       if (a.programId === 'INSTITUTIONAL' && b.programId !== 'INSTITUTIONAL') return -1;
+       if (a.programId !== 'INSTITUTIONAL' && b.programId === 'INSTITUTIONAL') return 1;
+       return (a.branch || '').localeCompare(b.branch || '');
+    });
+  }, [allSchemes, scheme?.id]);
 
   useEffect(() => {
     if (open && syllabus) {
@@ -105,7 +116,7 @@ export function SyllabusDialog({
       getDocs(collection(db, 'schemes', selectedParentSchemeId, 'syllabi')).then(snap => {
         setAvailableParentSyllabi(snap.docs.map(d => ({ ...d.data(), id: d.id } as Syllabus)));
         setIsFetchingParentSyllabi(false);
-      });
+      }).catch(() => setIsFetchingParentSyllabi(false));
     }
   }, [selectedParentSchemeId, db]);
 
@@ -172,7 +183,6 @@ export function SyllabusDialog({
     const parent = availableParentSyllabi.find(s => s.id === selectedParentOptionId);
     if (!parent) return;
 
-    // Correctly resolve deeper heritage links (e.g. departmental -> pool -> committee)
     const targetLinkId = parent.followedFromId || parent.id;
     const targetParentSchemeId = parent.parentSchemeId || selectedParentSchemeId;
     const targetParentCode = parent.parentCode || parent.subjectCode;
@@ -251,7 +261,7 @@ export function SyllabusDialog({
               </Button>
             </div>
           </DialogTitle>
-          <DialogDescription>Recursive heritage tracking active for institutional mirrored content.</DialogDescription>
+          <DialogDescription>Universal heritage inheritance enabled across all technical schemes.</DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="flex-1 w-full min-h-0 bg-muted/5">
@@ -260,7 +270,7 @@ export function SyllabusDialog({
               <Alert className="bg-emerald-50 border-emerald-200 shadow-sm">
                 <ShieldCheck className="h-5 w-5 text-emerald-600" />
                 <AlertTitle className="font-bold text-emerald-800">Mirror Heritage Active (Read-Only)</AlertTitle>
-                <AlertDescription className="text-emerald-700 text-xs">Mirroring standard: <b>{formData.parentCode}</b>.</AlertDescription>
+                <AlertDescription className="text-emerald-700 text-xs">Mirroring course: <b>{formData.parentCode}</b>.</AlertDescription>
               </Alert>
             )}
 
@@ -406,21 +416,29 @@ export function SyllabusDialog({
               <TabsContent value="link" className="space-y-6">
                 <Card className="border-primary/10 shadow-lg overflow-hidden">
                   <CardHeader className="bg-primary/5 border-b py-4">
-                    <div className="flex items-center gap-2"><LinkIcon className="w-5 h-5 text-primary" /><span className="font-bold">Institutional Heritage Inheritance</span></div>
+                    <div className="flex items-center gap-2"><LinkIcon className="w-5 h-5 text-primary" /><span className="font-bold">Cross-Scheme Heritage Link</span></div>
                   </CardHeader>
                   <CardContent className="p-6 space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
-                        <Label className="text-[10px] uppercase font-bold">1. Select Authority Pool</Label>
+                        <Label className="text-[10px] uppercase font-bold">1. Select Target Scheme</Label>
                         <Select value={selectedParentSchemeId} onValueChange={setSelectedParentSchemeId}>
-                          <SelectTrigger className="bg-white h-11"><SelectValue placeholder="Choose Pool..." /></SelectTrigger>
-                          <SelectContent>{allPoolSchemes.map(s => <SelectItem key={s.id} value={s.id}>{s.branch} ({s.batchYear})</SelectItem>)}</SelectContent>
+                          <SelectTrigger className="bg-white h-11"><SelectValue placeholder="Choose Scheme..." /></SelectTrigger>
+                          <SelectContent>
+                            <ScrollArea className="h-[250px]">
+                              {availableParentSchemes.map(s => (
+                                <SelectItem key={s.id} value={s.id}>
+                                  {s.branch || 'Institutional Pool'} ({s.batchYear})
+                                </SelectItem>
+                              ))}
+                            </ScrollArea>
+                          </SelectContent>
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-[10px] uppercase font-bold">2. Select Link Type</Label>
+                        <Label className="text-[10px] uppercase font-bold">2. Select Course Group</Label>
                         <div className="flex gap-2">
-                           <Button variant={selectedParentGroupId ? "outline" : "secondary"} className="flex-1 h-11" onClick={() => setSelectedParentGroupId("")} disabled={!selectedParentSchemeId}>Compulsory</Button>
+                           <Button variant={selectedParentGroupId ? "outline" : "secondary"} className="flex-1 h-11" onClick={() => setSelectedParentGroupId("")} disabled={!selectedParentSchemeId}>Individual Course</Button>
                            <Button variant={selectedParentGroupId ? "secondary" : "outline"} className="flex-1 h-11" onClick={() => setSelectedParentGroupId(parentElectiveGroups[0] || "SELECT")} disabled={!selectedParentSchemeId || parentElectiveGroups.length === 0}>Elective Pool</Button>
                         </div>
                       </div>
@@ -433,17 +451,21 @@ export function SyllabusDialog({
                            <Select value={selectedParentOptionId} onValueChange={setSelectedParentOptionId}>
                              <SelectTrigger className="bg-white h-11"><SelectValue placeholder="Select Standard Subject..." /></SelectTrigger>
                              <SelectContent>
-                               {(selectedParentGroupId ? parentGroupOptions : nonElectiveParentSyllabi).map(o => <SelectItem key={o.id} value={o.id}>{o.subjectCode} - {o.title}</SelectItem>)}
+                               <ScrollArea className="h-[200px]">
+                                 {(selectedParentGroupId ? parentGroupOptions : nonElectiveParentSyllabi).map(o => (
+                                   <SelectItem key={o.id} value={o.id}>{o.subjectCode} - {o.title}</SelectItem>
+                                 ))}
+                               </ScrollArea>
                              </SelectContent>
                            </Select>
                         </div>
-                        <Button className="w-full h-12 gap-2 shadow-lg" disabled={!selectedParentOptionId} onClick={handleEstablishLink}><LinkIcon className="w-4 h-4" /> Authorize Heritage Link</Button>
+                        <Button className="w-full h-12 gap-2 shadow-lg" disabled={!selectedParentOptionId} onClick={handleEstablishLink}><LinkIcon className="w-4 h-4" /> Authorize Mirror Link</Button>
                       </div>
                     )}
 
                     {isFetchingParentSyllabi && (
                       <div className="py-10 flex flex-col items-center justify-center gap-2">
-                        <Loader2 className="w-8 h-8 animate-spin text-primary" /><p className="text-xs font-bold">Syncing Standards...</p>
+                        <Loader2 className="w-8 h-8 animate-spin text-primary" /><p className="text-xs font-bold">Syncing Records...</p>
                       </div>
                     )}
                   </CardContent>
