@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { LogOut, Search, BookOpen, Loader2, Info, CheckCircle2, MessageSquare, Send, Download, ShieldCheck, Phone, Mail, User, ShieldAlert } from 'lucide-react';
+import { LogOut, Search, BookOpen, Loader2, Info, CheckCircle2, MessageSquare, Send, Download, ShieldCheck, Phone, Mail, User, ShieldAlert, GraduationCap } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -496,7 +496,7 @@ export default function GuestExplorerPage() {
 
       <footer className="py-20 border-t bg-white relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary/10 to-transparent" />
-        <div className="max-w-7xl mx-auto px-8 text-center space-y-6">
+        <div className="max-w-7xl auto px-8 text-center space-y-6">
           <div className="flex justify-center mb-6">
              {rtuLogo && <Image src={rtuLogo.imageUrl} alt="RTU Logo" width={60} height={60} className="grayscale opacity-20" data-ai-hint="RTU Logo" />}
           </div>
