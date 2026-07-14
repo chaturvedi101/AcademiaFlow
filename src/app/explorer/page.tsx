@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -139,7 +140,18 @@ export default function GuestExplorerPage() {
       <header className="h-20 bg-white border-b flex items-center justify-between px-8 sticky top-0 z-40 shadow-sm">
         <div className="flex items-center gap-4">
           <div className="relative h-12 w-12 flex items-center justify-center bg-primary/5 rounded-xl border border-primary/10 p-1">
-             {rtuLogo && <Image src={rtuLogo.imageUrl} alt="RTU Logo" width={40} height={40} className="object-contain" data-ai-hint="RTU Logo" />}
+             {rtuLogo && (
+               <Image 
+                 src={rtuLogo.imageUrl} 
+                 alt="RTU Logo" 
+                 width={40} 
+                 height={40} 
+                 className="object-contain" 
+                 unoptimized
+                 priority
+                 data-ai-hint="RTU Logo" 
+               />
+             )}
           </div>
           <div className="border-l pl-4">
             <h1 className="text-xl font-headline font-bold text-primary leading-tight">Institutional Explorer</h1>
@@ -498,7 +510,17 @@ export default function GuestExplorerPage() {
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary/10 to-transparent" />
         <div className="max-w-7xl auto px-8 text-center space-y-6">
           <div className="flex justify-center mb-6">
-             {rtuLogo && <Image src={rtuLogo.imageUrl} alt="RTU Logo" width={60} height={60} className="grayscale opacity-20" data-ai-hint="RTU Logo" />}
+             {rtuLogo && (
+               <Image 
+                 src={rtuLogo.imageUrl} 
+                 alt="RTU Logo" 
+                 width={60} 
+                 height={60} 
+                 className="grayscale opacity-20" 
+                 unoptimized
+                 data-ai-hint="RTU Logo" 
+               />
+             )}
           </div>
           <p className="text-[11px] text-muted-foreground uppercase font-black tracking-[0.5em]">Rajasthan Technical University, Kota</p>
         </div>

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo } from 'react';
@@ -88,6 +89,8 @@ export function AppSidebar() {
               width={32} 
               height={32} 
               className="object-contain"
+              priority
+              unoptimized
               data-ai-hint="RTU Logo"
             />
           )}
