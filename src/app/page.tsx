@@ -175,7 +175,7 @@ export default function Home() {
               Institutional Academic Management for <span className="text-accent">NEP 2020</span>.
             </h2>
             <p className="text-muted-foreground text-lg max-w-lg">
-              Authorized platform for Rajasthan Technical University to manage schemes, syllabi, 
+              Authorized platform for Rajasthan Technical University, Kota to manage schemes, syllabi, 
               and AICTE compliance with centralized BoS coordination.
             </p>
           </div>
