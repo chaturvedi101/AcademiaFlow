@@ -219,7 +219,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       canDeleteCourse: isAdmin,
       canEditSyllabus: (s: Partial<Syllabus> | undefined) => {
         if (!s) return false;
-        if (isAdmin) return true;
+        if (isAdmin) true;
         if (isAuthority) return false;
         if (isLocked) return false;
         return isPersonnel && isMyJurisdiction;
@@ -299,13 +299,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     deleteDoc(docRef).then(() => toast({ title: "Subject Removed" }));
   };
 
-  /**
-   * Sync Codes Logic:
-   * 1. Deterministically sort courses by Semester, Slot, and Title (Stable Tie-breaker).
-   * 2. Identify Committee Prefixes (MATH, PHYS, CHEM, HUMA) based on institutional standards.
-   * 3. Re-calculate codes starting from '01' for each Prefix+Pedagogy+Pillar+Year group.
-   * 4. Update all documents in a single atomic batch.
-   */
   const handleSyncCodes = async () => {
     if (!permissions.canEditScheme || isSyncing) return;
     setIsSyncing(true);
@@ -328,8 +321,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         effectivePrefix = program.branchPrefixes?.[scheme?.branch || ''] || scheme?.branch?.substring(0, 2).toUpperCase() || 'XX';
       }
 
-      // Logic Step 1: Arrange courses as per Semester, Slot, and Title for deterministic sequencing.
-      // Note: We use Title as a tie-breaker instead of the existing Subject Code to ensure "Math" always gets sequenced correctly regardless of its previous incorrect code.
       const sortedSyllabi = [...localSyllabi].sort((a, b) => {
         if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
         const slotA = a.timetableSlot || "Z";
@@ -355,17 +346,14 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       const groupCodes: Record<string, { baseCode: string, counter: number }> = {};
       let updateCount = 0;
 
-      // Logic Step 2: Reassign the codes based on this specific sequence starting from 01.
       sortedSyllabi.forEach(sub => {
         const title = (sub.title || '').toUpperCase();
         let targetPrefix = effectivePrefix;
 
-        // Identify Committee or Vertical prefixes based on standard nomenclature rules
         const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(sub.creditCategory);
         if (isCommonCategory && !scheme?.isCommitteePool) {
           targetPrefix = 'RT';
         } else if (!scheme?.isCommitteePool && !scheme?.isVerticalPool) {
-          // RTU Institutional Standard: Subjects belonging to centralized committees get their own prefix
           if (title.includes('MATHEMATICS') || title.includes('MATHS')) targetPrefix = 'MATH';
           else if (title.includes('PHYSICS')) targetPrefix = 'PHYS';
           else if (title.includes('CHEMISTRY')) targetPrefix = 'CHEM';
@@ -387,7 +375,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         if (isElective && groupId) {
           const groupKey = `${sub.semester}-${sub.creditCategory}-${groupId}`;
           if (!groupCodes[groupKey]) {
-            // New elective group: Increment group counter starting from 01
             sequenceCounters[counterKey] = (sequenceCounters[counterKey] || 0) + 1;
             const seqStr = sequenceCounters[counterKey].toString().padStart(2, '0');
             const baseCode = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}${seqStr}`;
@@ -396,7 +383,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           groupCodes[groupKey].counter++;
           newCode = `${groupCodes[groupKey].baseCode}.${groupCodes[groupKey].counter}`;
         } else {
-          // Standard core course sequence: Increment counter starting from 01
           sequenceCounters[counterKey] = (sequenceCounters[counterKey] || 0) + 1;
           const seqStr = sequenceCounters[counterKey].toString().padStart(2, '0');
           newCode = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}${seqStr}`;
@@ -409,7 +395,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
       if (updateCount > 0) {
         await batch.commit();
-        toast({ title: "Codes Synchronized", description: `Re-sequenced ${updateCount} subjects starting from 01. Cross-discipline subjects (Math/Physics) correctly prefixed.` });
+        toast({ title: "Codes Synchronized", description: `Re-sequenced ${updateCount} subjects starting from 01 based on slot order.` });
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
@@ -621,7 +607,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead className="pl-6">Local Code</TableHead>
+                            <TableHead className="pl-6">Course Code (Local/Heritage)</TableHead>
                             <TableHead>Course Title</TableHead>
                             <TableHead>Category</TableHead>
                             <TableHead className="text-center">L-T-P</TableHead>
@@ -676,7 +662,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                                   <TableCell className={cn("pl-6 font-mono font-bold", sub.electiveGroupId && "pl-10")}>
                                     <div className="flex flex-col">
                                       <span className={cn(sub.isStandardized && "text-primary")}>{sub.subjectCode}</span>
-                                      {sub.parentCode && <span className="text-[9px] text-muted-foreground italic font-normal">Heritage: {sub.parentCode}</span>}
+                                      {sub.parentCode && (
+                                        <span className="text-[9px] text-emerald-600 italic font-black uppercase tracking-tighter">
+                                          Mirror: {sub.parentCode}
+                                        </span>
+                                      )}
                                     </div>
                                   </TableCell>
                                   <TableCell className="font-medium">

@@ -65,7 +65,8 @@ const drawSubjectSyllabus = (
   doc.rect(15, currentY, pageWidth - 30, 10, 'F');
   doc.setTextColor(255);
   doc.setFontSize(11);
-  doc.text(`COURSE CODE: ${syllabus.subjectCode || 'CODE'} - ${displayTitle.toUpperCase()}`, 20, currentY + 6.5);
+  const heritageInfo = syllabus.parentCode ? ` (Mirror: ${syllabus.parentCode})` : '';
+  doc.text(`COURSE CODE: ${syllabus.subjectCode || 'CODE'}${heritageInfo} - ${displayTitle.toUpperCase()}`, 20, currentY + 6.5);
   currentY += 16;
 
   doc.setTextColor(0);
@@ -372,8 +373,10 @@ export const exportFullSchemeToPDF = (
         currentGroupId = '';
       }
 
+      const displayCode = s.parentCode ? `${s.subjectCode}\n(Mirror: ${s.parentCode})` : (s.subjectCode || '');
+
       body.push([
-        s.subjectCode || '',
+        displayCode,
         getCleanTitle(s),
         `${s.lectureCredits || 0}-${s.tutorialCredits || 0}-${s.practicalCredits || 0}`,
         s.creditCategory || '',
@@ -390,7 +393,7 @@ export const exportFullSchemeToPDF = (
       headStyles: { fillColor: [100, 100, 100], fontSize: 9 },
       bodyStyles: { fontSize: 8.5 },
       columnStyles: {
-        0: { cellWidth: 25, fontStyle: 'bold' },
+        0: { cellWidth: 30, fontStyle: 'bold' },
         1: { cellWidth: 'auto' },
         2: { cellWidth: 20, halign: 'center' },
         3: { cellWidth: 25, halign: 'center' },
