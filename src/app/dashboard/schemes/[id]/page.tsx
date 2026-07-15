@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Edit3, Loader2, FileText, BookOpen, Eye, CheckCircle2, ShieldCheck, Trash2, Hash, Layers, Info, RefreshCw, Copy, ShieldAlert, GitBranch, PlusCircle, Sparkles, AlertTriangle, TrendingUp, CheckCircle, Target } from "lucide-react";
+import { Plus, Edit3, Loader2, FileText, BookOpen, Eye, CheckCircle2, ShieldCheck, Trash2, Hash, Layers, Info, RefreshCw, Copy, ShieldAlert, GitBranch, PlusCircle, Sparkles, AlertTriangle, TrendingUp, CheckCircle, Target, Unlink } from "lucide-react";
 import { SyllabusDialog } from "@/components/schemes/SyllabusDialog";
 import { CreditValidator } from "@/components/schemes/CreditValidator";
 import { Syllabus, Scheme, Program, UserProfile, SubmissionScope, CreditCategory } from "@/lib/types";
@@ -55,7 +55,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   useEffect(() => {
     if (!scheme || syllabiLoading) return;
 
-    // Discover all scheme IDs needed in the chain (recursive discovery)
     const neededSchemeIds = new Set<string>();
     
     const scanForIds = (list: Syllabus[]) => {
@@ -67,9 +66,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     };
 
     scanForIds(localSyllabi);
-    scanForIds(allParentSyllabi); // Discover deeper links (e.g. Pool -> Committee)
+    scanForIds(allParentSyllabi);
 
-    // Cleanup stale listeners
     Object.keys(activeListeners.current).forEach(id => {
       if (!neededSchemeIds.has(id)) {
         activeListeners.current[id]();
@@ -122,20 +120,15 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const [isSyllabusDialogOpen, setIsSyllabusDialogOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Partial<Syllabus> | undefined>(undefined);
 
-  // RESOLVE FINAL SYLLABUS DATA (MERGING INHERITANCE CHAINS)
   const syllabi = useMemo(() => {
     if (!scheme) return [];
 
     const findAuthoritativeSource = (id: string): Syllabus | null => {
-      // Look for the doc in all collected parent pools
       const doc = allParentSyllabi.find(p => p.id === id);
       if (!doc) return null;
-
-      // If this parent is also a mirror, recursively find ITS source (the "Grandparent")
       if (doc.followedFromId) {
         return findAuthoritativeSource(doc.followedFromId) || doc;
       }
-
       return doc;
     };
 
@@ -169,13 +162,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
     return resolvedLocal.sort((a, b) => {
       if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
-      
       const slotA = a.timetableSlot || "Z";
       const slotB = b.timetableSlot || "Z";
       if (slotA !== slotB) {
         return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
       }
-
       return (a.subjectCode || "").localeCompare(b.subjectCode || "");
     });
   }, [localSyllabi, allParentSyllabi, scheme]);
@@ -271,7 +262,6 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const docId = data.id || Math.random().toString(36).substr(2, 9);
     const docRef = doc(db, 'schemes', schemeId, 'syllabi', docId);
 
-    // Filter out transient UI fields before persistence
     const { 
       isStandardized, 
       standardizedFrom, 
@@ -309,13 +299,18 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     deleteDoc(docRef).then(() => toast({ title: "Subject Removed" }));
   };
 
+  /**
+   * Sync Codes Logic:
+   * 1. Deterministically sort courses by Semester, Slot, and existing Code.
+   * 2. Re-calculate codes starting from '01' for each Prefix+Pedagogy+Pillar+Year group.
+   * 3. Update all documents in a single atomic batch.
+   */
   const handleSyncCodes = async () => {
     if (!permissions.canEditScheme || isSyncing) return;
     setIsSyncing(true);
     try {
       const batch = writeBatch(db);
       
-      // Determine base prefix
       let effectivePrefix = 'XX';
       if (scheme?.isCommitteePool) {
         const branchName = scheme.branch || '';
@@ -332,17 +327,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         effectivePrefix = program.branchPrefixes?.[scheme?.branch || ''] || scheme?.branch?.substring(0, 2).toUpperCase() || 'XX';
       }
 
-      // Logic Step 1: Arrange courses as per Semester, Slot, and existing Subject Code
+      // Logic Step 1: Arrange courses as per Semester, Slot, and existing Subject Code for deterministic sequencing.
       const sortedSyllabi = [...localSyllabi].sort((a, b) => {
-        // 1. Semester
         if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
-        
-        // 2. Slot
         const slotA = a.timetableSlot || "Z";
         const slotB = b.timetableSlot || "Z";
         if (slotA !== slotB) return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
-        
-        // 3. Subject Code (Tie-breaker for stable re-assignment)
         return (a.subjectCode || "").localeCompare(b.subjectCode || "");
       });
 
@@ -363,10 +353,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       const groupCodes: Record<string, { baseCode: string, counter: number }> = {};
       let updateCount = 0;
 
-      // Logic Step 2: Reassign the codes based on this specific sequence
+      // Logic Step 2: Reassign the codes based on this specific sequence starting from 01.
       sortedSyllabi.forEach(sub => {
         const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(sub.creditCategory);
-        // Common categories use 'RT' prefix unless it's a committee-specific pool
         const targetPrefix = (isCommonCategory && !scheme?.isCommitteePool) ? 'RT' : effectivePrefix;
         const pedagogyChar = sub.type === 'Lab/Sessional' ? 'P' : (sub.creditCategory === 'PRJ' ? 'I' : 'L');
         const pillarChar = getPillarChar(sub.creditCategory);
@@ -376,11 +365,12 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         const groupId = sub.electiveGroupId;
         
         let newCode = '';
-        // Special logic for elective groups: share the same base sequence number
+        const counterKey = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}`;
+
         if (isElective && groupId) {
           const groupKey = `${sub.semester}-${sub.creditCategory}-${groupId}`;
           if (!groupCodes[groupKey]) {
-            const counterKey = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}`;
+            // New elective group: Increment group counter starting from 01
             sequenceCounters[counterKey] = (sequenceCounters[counterKey] || 0) + 1;
             const seqStr = sequenceCounters[counterKey].toString().padStart(2, '0');
             const baseCode = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}${seqStr}`;
@@ -389,8 +379,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           groupCodes[groupKey].counter++;
           newCode = `${groupCodes[groupKey].baseCode}.${groupCodes[groupKey].counter}`;
         } else {
-          // Standard core course sequence
-          const counterKey = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}`;
+          // Standard core course sequence: Increment counter starting from 01
           sequenceCounters[counterKey] = (sequenceCounters[counterKey] || 0) + 1;
           const seqStr = sequenceCounters[counterKey].toString().padStart(2, '0');
           newCode = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}${seqStr}`;
@@ -403,7 +392,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
       if (updateCount > 0) {
         await batch.commit();
-        toast({ title: "Codes Synchronized", description: `Re-sequenced ${updateCount} subjects by Semester and Slot.` });
+        toast({ title: "Codes Synchronized", description: `Re-sequenced ${updateCount} subjects from 01 based on Semester and Slot.` });
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
