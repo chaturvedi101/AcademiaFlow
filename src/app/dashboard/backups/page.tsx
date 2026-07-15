@@ -7,7 +7,7 @@ import { UserProfile, Program, Scheme, Syllabus } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Download, Upload, ShieldAlert, Loader2, Database, FileJson, CheckCircle2, AlertCircle, Search, Info, GitBranch } from 'lucide-react';
+import { Download, Upload, ShieldAlert, Loader2, Database, FileJson, CheckCircle2, AlertCircle, Search, Info, GitBranch, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -37,37 +37,49 @@ export default function BackupsPage() {
   const [parsedBackup, setParsedBackup] = useState<BackupData | null>(null);
 
   const isAdmin = profile?.role === 'admin';
-  const canExport = isAdmin || profile?.role === 'bos_convenor';
+  const isBoSConvenor = profile?.role === 'bos_convenor';
+  const canExport = isAdmin || isBoSConvenor;
 
   const handleExport = async () => {
     if (!canExport) return;
     setIsExporting(true);
     try {
-      // 1. Fetch Programs
+      // 1. Fetch All Potential Core Data
       const programsSnap = await getDocs(collection(db, 'programs'));
-      const programs = programsSnap.docs.map(d => ({ ...d.data(), id: d.id }));
-
-      // 2. Fetch Schemes and their Syllabi
       const schemesSnap = await getDocs(collection(db, 'schemes'));
+      
+      let allPrograms = programsSnap.docs.map(d => ({ ...d.data(), id: d.id }));
+      let allSchemesRaw = schemesSnap.docs.map(d => ({ ...d.data(), id: d.id } as any));
+
+      // 2. Apply Jurisdictional Scoping for BoS Convenors
+      if (isBoSConvenor && !isAdmin) {
+        const managed = profile.managedBranches || [];
+        allSchemesRaw = allSchemesRaw.filter(s => 
+          managed.some(m => m.programId === s.programId && m.branch === s.branch)
+        );
+        // Only include programs referenced in their managed schemes
+        const managedProgIds = new Set(allSchemesRaw.map(s => s.programId));
+        allPrograms = allPrograms.filter(p => managedProgIds.has(p.id));
+      }
+
+      // 3. Fetch Syllabi for the scoped schemes
       const schemesWithSyllabi = await Promise.all(
-        schemesSnap.docs.map(async (schemeDoc) => {
-          const schemeData = schemeDoc.data() as Scheme;
-          const syllabiSnap = await getDocs(collection(db, 'schemes', schemeDoc.id, 'syllabi'));
+        allSchemesRaw.map(async (schemeData: any) => {
+          const syllabiSnap = await getDocs(collection(db, 'schemes', schemeData.id, 'syllabi'));
           const syllabi = syllabiSnap.docs.map(s => ({ ...s.data(), id: s.id }));
           return {
             ...schemeData,
-            id: schemeDoc.id,
             syllabi
           };
         })
       );
 
       const backupData: BackupData = {
-        version: '1.2',
+        version: '1.3',
         timestamp: new Date().toISOString(),
         exportedBy: user?.email || 'Anonymous',
         data: {
-          programs,
+          programs: allPrograms,
           schemes: schemesWithSyllabi
         }
       };
@@ -76,12 +88,16 @@ export default function BackupsPage() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `RTU_AcademiaFlow_Backup_${new Date().toISOString().split('T')[0]}.json`;
+      const filePrefix = isAdmin ? 'RTU_GLOBAL' : 'RTU_DEPARTMENTAL';
+      link.download = `${filePrefix}_Backup_${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
 
-      toast({ title: "Institutional Export Successful", description: "Curriculum snapshot saved locally." });
+      toast({ 
+        title: isAdmin ? "Institutional Global Export Successful" : "Departmental Archive Exported", 
+        description: isAdmin ? "Full curriculum snapshot saved locally." : "Your assigned schemes have been archived."
+      });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Export Failed", description: error.message });
     } finally {
@@ -90,6 +106,7 @@ export default function BackupsPage() {
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isAdmin) return;
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -132,7 +149,7 @@ export default function BackupsPage() {
         writeCount++;
       }
 
-      toast({ title: "Full Restore Complete", description: `Successfully processed ${writeCount} core entities.` });
+      toast({ title: "Full Institutional Restore Complete", description: `Successfully processed ${writeCount} core entities.` });
       setParsedBackup(null);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Full Restore Failed", description: error.message });
@@ -148,7 +165,6 @@ export default function BackupsPage() {
       const scheme = parsedBackup.data.schemes.find(s => s.id === schemeId);
       if (!scheme) throw new Error("Selected scheme not found in backup.");
 
-      // Also restore the associated program if it exists in backup
       const program = parsedBackup.data.programs?.find(p => p.id === scheme.programId);
       if (program) {
         const { id, ...data } = program;
@@ -168,10 +184,8 @@ export default function BackupsPage() {
     const { id, syllabi, ...schemeData } = scheme;
     const schemeRef = doc(db, 'schemes', id);
     
-    // 1. Sync Scheme Base
     await setDoc(schemeRef, { ...schemeData, updatedAt: serverTimestamp() }, { merge: true });
 
-    // 2. Sync Syllabi
     if (syllabi && syllabi.length > 0) {
       const batch = writeBatch(db);
       syllabi.forEach((syllabus: any) => {
@@ -191,7 +205,7 @@ export default function BackupsPage() {
         <ShieldAlert className="w-16 h-16 text-red-500 opacity-20" />
         <h2 className="text-2xl font-headline font-bold">Access Restricted</h2>
         <p className="text-muted-foreground text-center max-w-md">
-          Curriculum data management is restricted to BoS Convenors and System Administrators.
+          Curriculum data management is restricted to authorized BoS Convenors and Administrators.
         </p>
       </div>
     );
@@ -201,7 +215,11 @@ export default function BackupsPage() {
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-headline font-bold text-primary">Curriculum Data Management</h1>
-        <p className="text-muted-foreground">Export institutional archives or selectively restore branch schemes for **Batch 2026-30**.</p>
+        <p className="text-muted-foreground">
+          {isAdmin 
+            ? "Global institutional archives and technical restoration tools." 
+            : "Archival export of your assigned departmental schemes for Batch 2026-30."}
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -211,35 +229,43 @@ export default function BackupsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Download className="w-5 h-5 text-primary" />
-                Institutional Export
+                {isAdmin ? "Institutional Export" : "Departmental Export"}
               </CardTitle>
-              <CardDescription>Generate a comprehensive snapshot of all authorized programs and schemes.</CardDescription>
+              <CardDescription>
+                {isAdmin 
+                  ? "Generate a comprehensive snapshot of all university programs and schemes." 
+                  : "Archive the curricula and structure for branches within your jurisdiction."}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex gap-3 text-xs text-primary/80">
                 <Info className="w-5 h-5 shrink-0" />
-                <p>This export contains all branch hierarchies, master slot patterns, and pedagogical units. Use this for offline archival and BoS coordination.</p>
+                <p>
+                  {isAdmin 
+                    ? "This snapshot contains the entire university repository including master patterns." 
+                    : "This snapshot contains your managed branches and their associated pedagogical units."}
+                </p>
               </div>
               <Button className="w-full h-12 gap-2 shadow-sm" onClick={handleExport} disabled={isExporting}>
                 {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileJson className="w-4 h-4" />}
-                Download Complete Archive
+                {isAdmin ? "Download Global Archive" : "Download My Assigned Schemes"}
               </Button>
             </CardContent>
           </Card>
 
-          {isAdmin && (
+          {isAdmin ? (
             <Card className="border-accent/10 shadow-lg">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-accent">
                   <Upload className="w-5 h-5" />
-                  Selective & Full Restore
+                  Technical Restoration Center
                 </CardTitle>
-                <CardDescription>Upload an institutional backup file to synchronize records.</CardDescription>
+                <CardDescription>Authorize institutional data synchronization from archive.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex gap-3 text-xs text-amber-800">
                   <AlertCircle className="w-5 h-5 shrink-0" />
-                  <p>Restoring data merges records by ID. Use **Selective Restore** to fix specific branch syllabi without affecting other technical tiers.</p>
+                  <p>Restoring data merges records by ID. Use **Selective Restore** in the inspector to fix specific branches without affecting other technical tiers.</p>
                 </div>
                 <div className="relative">
                   <input
@@ -252,17 +278,25 @@ export default function BackupsPage() {
                   />
                   <Button variant="outline" className="w-full h-12 gap-2 border-dashed border-accent/40 text-accent hover:bg-accent/5 pointer-events-none" disabled={isImporting}>
                     {isImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                    {parsedBackup ? "File Loaded - See Inspector" : "Select Backup File (.json)"}
+                    {parsedBackup ? "Archive Verified - See Inspector" : "Select Backup File (.json)"}
                   </Button>
                 </div>
 
                 {parsedBackup && (
                   <Button variant="destructive" className="w-full h-12 gap-2 shadow-inner" onClick={handleRestoreFull} disabled={isImporting}>
-                     <ShieldAlert className="w-4 h-4" /> Finalize Full Institutional Restore
+                     <ShieldAlert className="w-4 h-4" /> Commit Full Institutional Restore
                   </Button>
                 )}
               </CardContent>
             </Card>
+          ) : (
+            <div className="p-8 bg-muted/20 border border-dashed rounded-2xl flex flex-col items-center justify-center text-center space-y-3 opacity-60">
+              <ShieldCheck className="w-10 h-10 text-muted-foreground" />
+              <div className="space-y-1">
+                <p className="font-bold text-sm">Restoration Disabled</p>
+                <p className="text-[10px] text-muted-foreground max-w-[200px]">Data restoration is an administrative privilege. Please contact university leadership for technical synchronization.</p>
+              </div>
+            </div>
           )}
         </div>
 
@@ -271,9 +305,13 @@ export default function BackupsPage() {
              <CardHeader className="bg-muted/10 border-b">
                <CardTitle className="text-lg flex items-center gap-2">
                  <GitBranch className="w-5 h-5 text-muted-foreground" />
-                 Backup Inspector & Selective Sync
+                 Backup Inspector
                </CardTitle>
-               <CardDescription>Preview content before applying changes to the production database.</CardDescription>
+               <CardDescription>
+                 {parsedBackup 
+                   ? "Verification of archive content and heritage metadata." 
+                   : "Upload a departmental or global JSON snapshot to inspect contents."}
+               </CardDescription>
              </CardHeader>
              <CardContent className="p-0">
                {parsedBackup ? (
@@ -317,7 +355,7 @@ export default function BackupsPage() {
                                     <RefreshCcw className="w-3.5 h-3.5" /> SELECTIVE SYNC
                                   </Button>
                                 ) : (
-                                  <span className="text-[10px] text-muted-foreground italic">Admin-only restore</span>
+                                  <Badge variant="outline" className="text-[8px] font-black uppercase text-muted-foreground">READ ONLY</Badge>
                                 )}
                               </TableCell>
                             </TableRow>
@@ -329,7 +367,7 @@ export default function BackupsPage() {
                ) : (
                  <div className="flex flex-col items-center justify-center py-32 text-muted-foreground space-y-4">
                     <FileJson className="w-12 h-12 opacity-10" />
-                    <p className="text-sm">Upload a JSON backup to inspect branch contents.</p>
+                    <p className="text-sm">No archive loaded for inspection.</p>
                  </div>
                )}
              </CardContent>
@@ -341,7 +379,7 @@ export default function BackupsPage() {
         <CheckCircle2 className="w-8 h-8 text-emerald-500 opacity-50" />
         <div className="max-w-xl space-y-2">
           <h3 className="font-bold">Institutional Integrity Guard</h3>
-          <p className="text-sm text-muted-foreground">The selective restore engine ensures that program rules are synchronized before curriculum content is applied, maintaining RTU-NEP 2020 compliance across all branches in Kota.</p>
+          <p className="text-sm text-muted-foreground">The archival engine ensures that curriculum heritage links are preserved during exports, maintaining RTU-NEP 2020 compliance across all technical tiers in Kota.</p>
         </div>
       </div>
     </div>
