@@ -146,6 +146,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           schemeId: local.schemeId,
           followedFromId: local.followedFromId,
           parentSchemeId: local.parentSchemeId,
+          creditCategory: local.creditCategory, // Ensure child category is preserved (e.g. SEC mirroring DSC)
           isStandardized: true,
           standardizedFrom: 'Institutional Heritage Chain',
           electiveGroupId: local.electiveGroupId || source.electiveGroupId || '',
