@@ -301,9 +301,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
   /**
    * Sync Codes Logic:
-   * 1. Deterministically sort courses by Semester, Slot, and existing Code.
-   * 2. Re-calculate codes starting from '01' for each Prefix+Pedagogy+Pillar+Year group.
-   * 3. Update all documents in a single atomic batch.
+   * 1. Deterministically sort courses by Semester, Slot, and Title (Stable Tie-breaker).
+   * 2. Identify Committee Prefixes (MATH, PHYS, CHEM, HUMA) based on institutional standards.
+   * 3. Re-calculate codes starting from '01' for each Prefix+Pedagogy+Pillar+Year group.
+   * 4. Update all documents in a single atomic batch.
    */
   const handleSyncCodes = async () => {
     if (!permissions.canEditScheme || isSyncing) return;
@@ -327,13 +328,14 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         effectivePrefix = program.branchPrefixes?.[scheme?.branch || ''] || scheme?.branch?.substring(0, 2).toUpperCase() || 'XX';
       }
 
-      // Logic Step 1: Arrange courses as per Semester, Slot, and existing Subject Code for deterministic sequencing.
+      // Logic Step 1: Arrange courses as per Semester, Slot, and Title for deterministic sequencing.
+      // Note: We use Title as a tie-breaker instead of the existing Subject Code to ensure "Math" always gets sequenced correctly regardless of its previous incorrect code.
       const sortedSyllabi = [...localSyllabi].sort((a, b) => {
         if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
         const slotA = a.timetableSlot || "Z";
         const slotB = b.timetableSlot || "Z";
         if (slotA !== slotB) return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
-        return (a.subjectCode || "").localeCompare(b.subjectCode || "");
+        return (a.title || "").localeCompare(b.title || "");
       });
 
       const getPillarChar = (cat: string) => {
@@ -355,8 +357,23 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
       // Logic Step 2: Reassign the codes based on this specific sequence starting from 01.
       sortedSyllabi.forEach(sub => {
+        const title = (sub.title || '').toUpperCase();
+        let targetPrefix = effectivePrefix;
+
+        // Identify Committee or Vertical prefixes based on standard nomenclature rules
         const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(sub.creditCategory);
-        const targetPrefix = (isCommonCategory && !scheme?.isCommitteePool) ? 'RT' : effectivePrefix;
+        if (isCommonCategory && !scheme?.isCommitteePool) {
+          targetPrefix = 'RT';
+        } else if (!scheme?.isCommitteePool && !scheme?.isVerticalPool) {
+          // RTU Institutional Standard: Subjects belonging to centralized committees get their own prefix
+          if (title.includes('MATHEMATICS') || title.includes('MATHS')) targetPrefix = 'MATH';
+          else if (title.includes('PHYSICS')) targetPrefix = 'PHYS';
+          else if (title.includes('CHEMISTRY')) targetPrefix = 'CHEM';
+          else if (title.includes('HUMANITIES') || title.includes('COMMUNICATION') || title.includes('ENGLISH')) targetPrefix = 'HUMA';
+          else if (title.includes('BASIC SCIENCE')) targetPrefix = 'BSCI';
+          else if (title.includes('COMPUTER') && !effectivePrefix.includes('CS') && !effectivePrefix.includes('CA')) targetPrefix = 'COMP';
+        }
+
         const pedagogyChar = sub.type === 'Lab/Sessional' ? 'P' : (sub.creditCategory === 'PRJ' ? 'I' : 'L');
         const pillarChar = getPillarChar(sub.creditCategory);
         const yearDigit = Math.ceil((sub.semester || 1) / 2);
@@ -392,7 +409,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
       if (updateCount > 0) {
         await batch.commit();
-        toast({ title: "Codes Synchronized", description: `Re-sequenced ${updateCount} subjects from 01 based on Semester and Slot.` });
+        toast({ title: "Codes Synchronized", description: `Re-sequenced ${updateCount} subjects starting from 01. Cross-discipline subjects (Math/Physics) correctly prefixed.` });
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
