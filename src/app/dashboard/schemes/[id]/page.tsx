@@ -219,7 +219,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       canDeleteCourse: isAdmin,
       canEditSyllabus: (s: Partial<Syllabus> | undefined) => {
         if (!s) return false;
-        if (isAdmin) true;
+        if (isAdmin) return true;
         if (isAuthority) return false;
         if (isLocked) return false;
         return isPersonnel && isMyJurisdiction;
@@ -305,29 +305,40 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     try {
       const batch = writeBatch(db);
       
-      let effectivePrefix = 'XX';
+      let branchPrefix = 'XX';
       if (scheme?.isCommitteePool) {
         const branchName = scheme.branch || '';
-        if (branchName.includes('Mathematics')) effectivePrefix = 'MATH';
-        else if (branchName.includes('Physics')) effectivePrefix = 'PHYS';
-        else if (branchName.includes('Chemistry')) effectivePrefix = 'CHEM';
-        else if (branchName.includes('Humanities')) effectivePrefix = 'HUMA';
-        else if (branchName.includes('Basic Sciences')) effectivePrefix = 'BSCI';
-        else if (branchName.includes('Computers')) effectivePrefix = 'COMP';
-        else effectivePrefix = 'COMM';
+        if (branchName.includes('Mathematics')) branchPrefix = 'MATH';
+        else if (branchName.includes('Physics')) branchPrefix = 'PHYS';
+        else if (branchName.includes('Chemistry')) branchPrefix = 'CHEM';
+        else if (branchName.includes('Humanities')) branchPrefix = 'HUMA';
+        else if (branchName.includes('Basic Sciences')) branchPrefix = 'BSCI';
+        else if (branchName.includes('Computers')) branchPrefix = 'COMP';
+        else branchPrefix = 'COMM';
       } else if (scheme?.isVerticalPool) {
-        effectivePrefix = 'RT';
+        branchPrefix = 'RT';
       } else if (program) {
-        effectivePrefix = program.branchPrefixes?.[scheme?.branch || ''] || scheme?.branch?.substring(0, 2).toUpperCase() || 'XX';
+        branchPrefix = program.branchPrefixes?.[scheme?.branch || ''] || scheme?.branch?.substring(0, 2).toUpperCase() || 'XX';
       }
 
+      // Step 1: Sort syllabi strictly by Semester and Timetable Slot
       const sortedSyllabi = [...localSyllabi].sort((a, b) => {
         if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
+        
+        // Slot Priority: 1, 2, 3, 4, 5, 6, A, B, C, D, E, F
         const slotA = a.timetableSlot || "Z";
         const slotB = b.timetableSlot || "Z";
-        if (slotA !== slotB) return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
-        return (a.title || "").localeCompare(b.title || "");
+        if (slotA !== slotB) {
+          return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
+        }
+        
+        // Tie-breaker: Original Subject Code or Title
+        return (a.subjectCode || a.title || "").localeCompare(b.subjectCode || b.title || "");
       });
+
+      const sequenceCounters: Record<string, number> = {};
+      const groupCodes: Record<string, { baseCode: string, counter: number }> = {};
+      let updateCount = 0;
 
       const getPillarChar = (cat: string) => {
         switch(cat) {
@@ -342,38 +353,27 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         }
       };
 
-      const sequenceCounters: Record<string, number> = {};
-      const groupCodes: Record<string, { baseCode: string, counter: number }> = {};
-      let updateCount = 0;
-
+      // Step 2: Sequential Reassignment from 01
       sortedSyllabi.forEach(sub => {
-        const title = (sub.title || '').toUpperCase();
-        let targetPrefix = effectivePrefix;
+        let targetPrefix = branchPrefix;
 
+        // Use RT prefix for common categories regardless of branch, unless it's a committee pool
         const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(sub.creditCategory);
         if (isCommonCategory && !scheme?.isCommitteePool) {
           targetPrefix = 'RT';
-        } else if (!scheme?.isCommitteePool && !scheme?.isVerticalPool) {
-          if (title.includes('MATHEMATICS') || title.includes('MATHS')) targetPrefix = 'MATH';
-          else if (title.includes('PHYSICS')) targetPrefix = 'PHYS';
-          else if (title.includes('CHEMISTRY')) targetPrefix = 'CHEM';
-          else if (title.includes('HUMANITIES') || title.includes('COMMUNICATION') || title.includes('ENGLISH')) targetPrefix = 'HUMA';
-          else if (title.includes('BASIC SCIENCE')) targetPrefix = 'BSCI';
-          else if (title.includes('COMPUTER') && !effectivePrefix.includes('CS') && !effectivePrefix.includes('CA')) targetPrefix = 'COMP';
         }
 
         const pedagogyChar = sub.type === 'Lab/Sessional' ? 'P' : (sub.creditCategory === 'PRJ' ? 'I' : 'L');
         const pillarChar = getPillarChar(sub.creditCategory);
         const yearDigit = Math.ceil((sub.semester || 1) / 2);
         
+        const counterKey = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}`;
         const isElective = ['DSE', 'OFE'].includes(sub.creditCategory);
-        const groupId = sub.electiveGroupId;
         
         let newCode = '';
-        const counterKey = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}`;
 
-        if (isElective && groupId) {
-          const groupKey = `${sub.semester}-${sub.creditCategory}-${groupId}`;
+        if (isElective && sub.electiveGroupId) {
+          const groupKey = `${sub.semester}-${sub.creditCategory}-${sub.electiveGroupId}`;
           if (!groupCodes[groupKey]) {
             sequenceCounters[counterKey] = (sequenceCounters[counterKey] || 0) + 1;
             const seqStr = sequenceCounters[counterKey].toString().padStart(2, '0');
