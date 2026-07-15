@@ -219,10 +219,10 @@ export const exportCompleteSyllabusToPDF = (
   doc.setFontSize(10);
   doc.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth / 2, 170, { align: 'center' });
 
+  // STRICT ORDERING BY SLOT FOR SYLLABUS BOOK
   const sortedSyllabi = [...syllabi].sort((a, b) => {
     if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
     
-    // Strictly Slot then Code
     const slotA = a.timetableSlot || "Z";
     const slotB = b.timetableSlot || "Z";
     if (slotA !== slotB) {
@@ -325,7 +325,7 @@ export const exportFullSchemeToPDF = (
     const semSubjects = syllabi
       .filter(s => (scheme.isCommitteePool ? true : s.semester === sem) && !s.isOFEContribution)
       .sort((a, b) => {
-        // Strictly Slot then Code
+        // STRICT SLOT ORDERING FOR STRUCTURE PDF
         const slotA = a.timetableSlot || "Z";
         const slotB = b.timetableSlot || "Z";
         if (slotA !== slotB) {

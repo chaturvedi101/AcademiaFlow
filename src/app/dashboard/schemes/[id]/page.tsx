@@ -160,13 +160,19 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       } as Syllabus;
     });
 
+    // CRITICAL: Sorting by Semester then strictly by Timetable Slot
     return resolvedLocal.sort((a, b) => {
       if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
+      
       const slotA = a.timetableSlot || "Z";
       const slotB = b.timetableSlot || "Z";
+      
+      // Numerical or alphabetical slot comparison
       if (slotA !== slotB) {
         return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
       }
+      
+      // Tie-breaker by subject code
       return (a.subjectCode || "").localeCompare(b.subjectCode || "");
     });
   }, [localSyllabi, allParentSyllabi, scheme]);
@@ -208,6 +214,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       isMyJurisdiction = hasExplicitAssignment || hasTieredOversight;
     }
 
+    // Fully editable if status is 'Draft', which is the state after a revert
     const isLocked = scheme.status !== 'Draft' && !isAdmin;
     const canEditScheme = !isAuthority && (isAdmin || (isPersonnel && isMyJurisdiction)) && !isLocked;
     
@@ -216,7 +223,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       isDeanAcademic,
       canEditScheme,
       isLockedForBoS: isLocked,
-      canDeleteCourse: isAdmin,
+      canDeleteCourse: isAdmin || canEditScheme,
       canEditSyllabus: (s: Partial<Syllabus> | undefined) => {
         if (!s) return false;
         if (isAdmin) return true;
@@ -321,19 +328,17 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         branchPrefix = program.branchPrefixes?.[scheme?.branch || ''] || scheme?.branch?.substring(0, 2).toUpperCase() || 'XX';
       }
 
-      // Step 1: Sort syllabi strictly by Semester and Timetable Slot
+      // Step 1: Sort syllabi strictly by Semester and Timetable Slot for deterministic reassignment
       const sortedSyllabi = [...localSyllabi].sort((a, b) => {
         if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
         
-        // Slot Priority: 1, 2, 3, 4, 5, 6, A, B, C, D, E, F
         const slotA = a.timetableSlot || "Z";
         const slotB = b.timetableSlot || "Z";
         if (slotA !== slotB) {
           return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
         }
         
-        // Tie-breaker: Original Subject Code or Title
-        return (a.subjectCode || a.title || "").localeCompare(b.subjectCode || b.title || "");
+        return (a.title || "").localeCompare(b.title || "");
       });
 
       const sequenceCounters: Record<string, number> = {};
@@ -353,11 +358,11 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         }
       };
 
-      // Step 2: Sequential Reassignment from 01
+      // Step 2: Sequential Reassignment from 01 based on sorted slots
       sortedSyllabi.forEach(sub => {
         let targetPrefix = branchPrefix;
 
-        // Use RT prefix for common categories regardless of branch, unless it's a committee pool
+        // Common categories use RT prefix unless it's a committee pool
         const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(sub.creditCategory);
         if (isCommonCategory && !scheme?.isCommitteePool) {
           targetPrefix = 'RT';
