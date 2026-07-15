@@ -314,6 +314,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     setIsSyncing(true);
     try {
       const batch = writeBatch(db);
+      
+      // Determine base prefix
       let effectivePrefix = 'XX';
       if (scheme?.isCommitteePool) {
         const branchName = scheme.branch || '';
@@ -330,12 +332,18 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         effectivePrefix = program.branchPrefixes?.[scheme?.branch || ''] || scheme?.branch?.substring(0, 2).toUpperCase() || 'XX';
       }
 
+      // Logic Step 1: Arrange courses as per Semester, Slot, and existing Subject Code
       const sortedSyllabi = [...localSyllabi].sort((a, b) => {
+        // 1. Semester
         if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
+        
+        // 2. Slot
         const slotA = a.timetableSlot || "Z";
         const slotB = b.timetableSlot || "Z";
         if (slotA !== slotB) return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
-        return (a.title || '').localeCompare(b.title || '');
+        
+        // 3. Subject Code (Tie-breaker for stable re-assignment)
+        return (a.subjectCode || "").localeCompare(b.subjectCode || "");
       });
 
       const getPillarChar = (cat: string) => {
@@ -355,8 +363,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       const groupCodes: Record<string, { baseCode: string, counter: number }> = {};
       let updateCount = 0;
 
+      // Logic Step 2: Reassign the codes based on this specific sequence
       sortedSyllabi.forEach(sub => {
         const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(sub.creditCategory);
+        // Common categories use 'RT' prefix unless it's a committee-specific pool
         const targetPrefix = (isCommonCategory && !scheme?.isCommitteePool) ? 'RT' : effectivePrefix;
         const pedagogyChar = sub.type === 'Lab/Sessional' ? 'P' : (sub.creditCategory === 'PRJ' ? 'I' : 'L');
         const pillarChar = getPillarChar(sub.creditCategory);
@@ -366,6 +376,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         const groupId = sub.electiveGroupId;
         
         let newCode = '';
+        // Special logic for elective groups: share the same base sequence number
         if (isElective && groupId) {
           const groupKey = `${sub.semester}-${sub.creditCategory}-${groupId}`;
           if (!groupCodes[groupKey]) {
@@ -378,6 +389,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           groupCodes[groupKey].counter++;
           newCode = `${groupCodes[groupKey].baseCode}.${groupCodes[groupKey].counter}`;
         } else {
+          // Standard core course sequence
           const counterKey = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}`;
           sequenceCounters[counterKey] = (sequenceCounters[counterKey] || 0) + 1;
           const seqStr = sequenceCounters[counterKey].toString().padStart(2, '0');
@@ -391,7 +403,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
 
       if (updateCount > 0) {
         await batch.commit();
-        toast({ title: "Scheme Re-synchronized", description: `Re-assigned codes for ${updateCount} subjects in order.` });
+        toast({ title: "Codes Synchronized", description: `Re-sequenced ${updateCount} subjects by Semester and Slot.` });
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message });
