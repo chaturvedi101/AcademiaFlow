@@ -59,7 +59,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     
     const scanForIds = (list: Syllabus[]) => {
       list.forEach(s => {
-        if (s.parentSchemeId && !neededSchemeIds.has(s.parentSchemeId)) {
+        if (s.parentSchemeId && s.parentSchemeId !== schemeId && !neededSchemeIds.has(s.parentSchemeId)) {
           neededSchemeIds.add(s.parentSchemeId);
         }
       });
@@ -115,7 +115,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         if (resolvedCount >= neededSchemeIds.size) setParentsLoading(false);
       });
     });
-  }, [db, scheme, localSyllabi, syllabiLoading, allParentSyllabi.length]);
+  }, [db, schemeId, scheme, localSyllabi, syllabiLoading, allParentSyllabi.length]);
 
   const [isSyllabusDialogOpen, setIsSyllabusDialogOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Partial<Syllabus> | undefined>(undefined);
@@ -123,13 +123,23 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
   const syllabi = useMemo(() => {
     if (!scheme) return [];
 
-    const findAuthoritativeSource = (id: string): Syllabus | null => {
-      const doc = allParentSyllabi.find(p => p.id === id);
-      if (!doc) return null;
-      if (doc.followedFromId) {
-        return findAuthoritativeSource(doc.followedFromId) || doc;
+    // Cycle-safe iterative resolver for heritage chain
+    const findAuthoritativeSource = (startId: string): Syllabus | null => {
+      let currentId = startId;
+      let lastDoc: Syllabus | null = null;
+      const visited = new Set<string>();
+
+      while (currentId && !visited.has(currentId)) {
+        visited.add(currentId);
+        const doc = allParentSyllabi.find(p => p.id === currentId);
+        if (!doc) break;
+        
+        lastDoc = doc;
+        // If it doesn't follow anything else, or follows itself, we've found the root
+        if (!doc.followedFromId || doc.followedFromId === currentId) break;
+        currentId = doc.followedFromId;
       }
-      return doc;
+      return lastDoc;
     };
 
     const resolvedLocal = localSyllabi.map(local => {
@@ -146,7 +156,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           schemeId: local.schemeId,
           followedFromId: local.followedFromId,
           parentSchemeId: local.parentSchemeId,
-          creditCategory: local.creditCategory, // Ensure child category is preserved (e.g. SEC mirroring DSC)
+          creditCategory: local.creditCategory, 
           isStandardized: true,
           standardizedFrom: 'Institutional Heritage Chain',
           electiveGroupId: local.electiveGroupId || source.electiveGroupId || '',
@@ -161,19 +171,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
       } as Syllabus;
     });
 
-    // CRITICAL: Sorting by Semester then strictly by Timetable Slot
     return resolvedLocal.sort((a, b) => {
       if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
-      
       const slotA = a.timetableSlot || "Z";
       const slotB = b.timetableSlot || "Z";
-      
-      // Numerical or alphabetical slot comparison
       if (slotA !== slotB) {
         return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
       }
-      
-      // Tie-breaker by subject code
       return (a.subjectCode || "").localeCompare(b.subjectCode || "");
     });
   }, [localSyllabi, allParentSyllabi, scheme]);
@@ -211,11 +215,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           if (isBBATier && (program.faculty.includes('Management') || program.name.includes('BBA'))) hasTieredOversight = true;
         }
       }
-      
       isMyJurisdiction = hasExplicitAssignment || hasTieredOversight;
     }
 
-    // Fully editable if status is 'Draft', which is the state after a revert
     const isLocked = scheme.status !== 'Draft' && !isAdmin;
     const canEditScheme = !isAuthority && (isAdmin || (isPersonnel && isMyJurisdiction)) && !isLocked;
     
@@ -329,16 +331,13 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         branchPrefix = program.branchPrefixes?.[scheme?.branch || ''] || scheme?.branch?.substring(0, 2).toUpperCase() || 'XX';
       }
 
-      // Step 1: Sort syllabi strictly by Semester and Timetable Slot for deterministic reassignment
       const sortedSyllabi = [...localSyllabi].sort((a, b) => {
         if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
-        
         const slotA = a.timetableSlot || "Z";
         const slotB = b.timetableSlot || "Z";
         if (slotA !== slotB) {
           return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
         }
-        
         return (a.title || "").localeCompare(b.title || "");
       });
 
@@ -359,11 +358,8 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         }
       };
 
-      // Step 2: Sequential Reassignment from 01 based on sorted slots
       sortedSyllabi.forEach(sub => {
         let targetPrefix = branchPrefix;
-
-        // Common categories use RT prefix unless it's a committee pool
         const isCommonCategory = ['VAC', 'AEC', 'MDC'].includes(sub.creditCategory);
         if (isCommonCategory && !scheme?.isCommitteePool) {
           targetPrefix = 'RT';
