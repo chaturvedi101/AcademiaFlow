@@ -7,12 +7,14 @@ import { UserProfile, Program, Scheme, Syllabus } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Download, Upload, ShieldAlert, Loader2, Database, FileJson, CheckCircle2, AlertCircle, Search, Info, GitBranch, ShieldCheck } from 'lucide-react';
+import { Download, Upload, ShieldAlert, Loader2, Database, FileJson, CheckCircle2, AlertCircle, Search, Info, GitBranch, ShieldCheck, Filter, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 interface BackupData {
   version: string;
@@ -35,6 +37,11 @@ export default function BackupsPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [parsedBackup, setParsedBackup] = useState<BackupData | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Selective Restore State
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [pendingRestoreScheme, setPendingRestoreScheme] = useState<any>(null);
 
   const isAdmin = profile?.role === 'admin';
   const isBoSConvenor = profile?.role === 'bos_convenor';
@@ -75,7 +82,7 @@ export default function BackupsPage() {
       );
 
       const backupData: BackupData = {
-        version: '1.3',
+        version: '1.4', // Updated for selective verification
         timestamp: new Date().toISOString(),
         exportedBy: user?.email || 'Anonymous',
         data: {
@@ -158,14 +165,13 @@ export default function BackupsPage() {
     }
   };
 
-  const handleRestoreSelective = async (schemeId: string) => {
-    if (!isAdmin || !parsedBackup) return;
+  const executeSelectiveRestore = async () => {
+    if (!isAdmin || !pendingRestoreScheme) return;
     setIsImporting(true);
     try {
-      const scheme = parsedBackup.data.schemes.find(s => s.id === schemeId);
-      if (!scheme) throw new Error("Selected scheme not found in backup.");
-
-      const program = parsedBackup.data.programs?.find(p => p.id === scheme.programId);
+      const scheme = pendingRestoreScheme;
+      const program = parsedBackup?.data.programs?.find(p => p.id === scheme.programId);
+      
       if (program) {
         const { id, ...data } = program;
         await setDoc(doc(db, 'programs', id), { ...data, updatedAt: serverTimestamp() }, { merge: true });
@@ -173,6 +179,8 @@ export default function BackupsPage() {
 
       await restoreSingleSchemeData(scheme);
       toast({ title: "Selective Restore Complete", description: `Successfully synchronized ${scheme.branch || scheme.id}.` });
+      setConfirmDialogOpen(false);
+      setPendingRestoreScheme(null);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Selective Restore Failed", description: error.message });
     } finally {
@@ -196,6 +204,17 @@ export default function BackupsPage() {
       await batch.commit();
     }
   };
+
+  const filteredBackupSchemes = useMemo(() => {
+    if (!parsedBackup) return [];
+    if (!searchTerm) return parsedBackup.data.schemes;
+    const lowerSearch = searchTerm.toLowerCase();
+    return parsedBackup.data.schemes.filter(s => 
+      s.branch?.toLowerCase().includes(lowerSearch) || 
+      s.programId?.toLowerCase().includes(lowerSearch) ||
+      s.id?.toLowerCase().includes(lowerSearch)
+    );
+  }, [parsedBackup, searchTerm]);
 
   if (profileLoading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary w-8 h-8" /></div>;
 
@@ -303,15 +322,30 @@ export default function BackupsPage() {
         <div className="lg:col-span-7">
           <Card className="h-full border-none shadow-sm bg-white overflow-hidden">
              <CardHeader className="bg-muted/10 border-b">
-               <CardTitle className="text-lg flex items-center gap-2">
-                 <GitBranch className="w-5 h-5 text-muted-foreground" />
-                 Backup Inspector
-               </CardTitle>
-               <CardDescription>
-                 {parsedBackup 
-                   ? "Verification of archive content and heritage metadata." 
-                   : "Upload a departmental or global JSON snapshot to inspect contents."}
-               </CardDescription>
+               <div className="flex items-center justify-between">
+                 <div className="space-y-1">
+                   <CardTitle className="text-lg flex items-center gap-2">
+                     <GitBranch className="w-5 h-5 text-muted-foreground" />
+                     Backup Inspector
+                   </CardTitle>
+                   <CardDescription>
+                     {parsedBackup 
+                       ? "Verification of archive content and heritage metadata." 
+                       : "Upload a departmental or global JSON snapshot to inspect contents."}
+                   </CardDescription>
+                 </div>
+                 {parsedBackup && (
+                    <div className="relative w-48">
+                       <Filter className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                       <Input 
+                        placeholder="Filter branch..." 
+                        value={searchTerm} 
+                        onChange={e => setSearchTerm(e.target.value)}
+                        className="pl-8 h-9 text-xs"
+                       />
+                    </div>
+                 )}
+               </div>
              </CardHeader>
              <CardContent className="p-0">
                {parsedBackup ? (
@@ -334,24 +368,33 @@ export default function BackupsPage() {
                       <Table>
                         <TableHeader className="bg-muted/30">
                           <TableRow>
-                            <TableHead className="pl-6">Branch Scheme</TableHead>
+                            <TableHead className="pl-6">Program / Branch / Committee</TableHead>
                             <TableHead>Batch</TableHead>
                             <TableHead className="text-right pr-6">Action</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {parsedBackup.data.schemes.map((s, idx) => (
-                            <TableRow key={idx}>
+                          {filteredBackupSchemes.map((s, idx) => (
+                            <TableRow key={idx} className="hover:bg-muted/5 transition-colors">
                               <TableCell className="pl-6">
                                 <div className="flex flex-col">
-                                  <span className="font-bold text-sm">{s.branch || 'Institutional Pool'}</span>
-                                  <span className="text-[10px] text-muted-foreground uppercase font-black">{s.programId}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-bold text-sm">{s.branch || 'Untitled Branch'}</span>
+                                    {s.isCommitteePool && <Badge className="bg-blue-100 text-blue-700 border-none text-[8px] h-4">COMMITTEE</Badge>}
+                                    {s.isVerticalPool && <Badge className="bg-emerald-100 text-emerald-700 border-none text-[8px] h-4">VERTICAL</Badge>}
+                                  </div>
+                                  <span className="text-[10px] text-muted-foreground uppercase font-black tracking-tighter">
+                                    {s.programId === 'INSTITUTIONAL' ? 'Common Pool' : `Program: ${s.programId}`}
+                                  </span>
                                 </div>
                               </TableCell>
                               <TableCell><Badge variant="outline" className="font-mono text-[10px]">{s.batchYear}</Badge></TableCell>
                               <TableCell className="text-right pr-6">
                                 {isAdmin ? (
-                                  <Button variant="ghost" size="sm" className="text-primary h-8 gap-2 font-bold text-[10px]" onClick={() => handleRestoreSelective(s.id)} disabled={isImporting}>
+                                  <Button variant="ghost" size="sm" className="text-primary h-8 gap-2 font-bold text-[10px] hover:bg-primary/5" onClick={() => {
+                                    setPendingRestoreScheme(s);
+                                    setConfirmDialogOpen(true);
+                                  }} disabled={isImporting}>
                                     <RefreshCcw className="w-3.5 h-3.5" /> SELECTIVE SYNC
                                   </Button>
                                 ) : (
@@ -360,6 +403,13 @@ export default function BackupsPage() {
                               </TableCell>
                             </TableRow>
                           ))}
+                          {filteredBackupSchemes.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={3} className="text-center py-20 text-muted-foreground italic text-xs">
+                                No matching schemes found in this archive.
+                              </TableCell>
+                            </TableRow>
+                          )}
                         </TableBody>
                       </Table>
                     </ScrollArea>
@@ -367,13 +417,59 @@ export default function BackupsPage() {
                ) : (
                  <div className="flex flex-col items-center justify-center py-32 text-muted-foreground space-y-4">
                     <FileJson className="w-12 h-12 opacity-10" />
-                    <p className="text-sm">No archive loaded for inspection.</p>
+                    <p className="text-sm font-medium">No archive loaded for inspection.</p>
+                    <p className="text-[10px] opacity-60">Upload a departmental or global JSON backup above.</p>
                  </div>
                )}
              </CardContent>
           </Card>
         </div>
       </div>
+
+      <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 text-accent" />
+              Confirm Selective Sync
+            </DialogTitle>
+            <DialogDescription>
+              You are about to restore a specific academic scheme from the archive. This will overwrite the live structure and syllabus for this branch.
+            </DialogDescription>
+          </DialogHeader>
+          {pendingRestoreScheme && (
+             <div className="py-4 space-y-4">
+                <div className="p-4 bg-muted/30 border rounded-xl space-y-3">
+                   <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                         <p className="text-[10px] font-bold uppercase text-muted-foreground">Target Framework</p>
+                         <p className="text-xs font-bold">{pendingRestoreScheme.programId === 'INSTITUTIONAL' ? 'Institutional Pool' : pendingRestoreScheme.programId}</p>
+                      </div>
+                      <div className="space-y-1">
+                         <p className="text-[10px] font-bold uppercase text-muted-foreground">Branch / Committee</p>
+                         <p className="text-xs font-bold text-primary">{pendingRestoreScheme.branch}</p>
+                      </div>
+                   </div>
+                   <div className="space-y-1">
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground">Payload Scope</p>
+                      <p className="text-xs font-medium italic">Full master structure + {pendingRestoreScheme.syllabi?.length || 0} pedagogical units.</p>
+                   </div>
+                </div>
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-[10px] text-amber-800 flex gap-2">
+                   <AlertCircle className="w-4 h-4 shrink-0" />
+                   <p>This action is immutable. Ensure the backup batch (<b>{pendingRestoreScheme.batchYear}</b>) matches the target implementation year in the live registry.</p>
+                </div>
+             </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setConfirmDialogOpen(false); setPendingRestoreScheme(null); }}>Cancel</Button>
+            <Button className="gap-2 bg-accent hover:bg-accent/90" onClick={executeSelectiveRestore} disabled={isImporting}>
+               {isImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+               Confirm & Sync Branch
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="bg-muted/30 p-8 rounded-2xl border border-dashed flex flex-col items-center justify-center text-center space-y-4">
         <CheckCircle2 className="w-8 h-8 text-emerald-500 opacity-50" />
