@@ -41,10 +41,12 @@ export default function AuditPage() {
       // Fetch all schemes to check for existence
       const schemesSnap = await getDocs(collection(db, 'schemes'));
       const activeSchemeIds = new Set(schemesSnap.docs.map(d => d.id));
+      const activeSchemes = schemesSnap.docs.map(d => ({ id: d.id, ...d.data() } as Scheme));
 
       // Fetch all syllabi globally
       const syllabiSnap = await getDocs(collectionGroup(db, 'syllabi'));
       const detectedFragments: any[] = [];
+      const codeUsageMap = new Map<string, string[]>(); // code -> [schemeIds]
 
       syllabiSnap.docs.forEach(d => {
         const data = d.data() as Syllabus;
@@ -59,10 +61,20 @@ export default function AuditPage() {
             reason: 'Zombie (Deleted Parent Scheme)',
             path: path
           });
+          return;
         }
-        
-        // Logic 2: Duplicate check / Orphan check can be added here
+
+        // Track code usage for active schemes
+        const fullCode = `${data.schemeId}:${data.subjectCode}`;
+        if (!codeUsageMap.has(data.subjectCode)) {
+          codeUsageMap.set(data.subjectCode, []);
+        }
+        codeUsageMap.get(data.subjectCode)?.push(data.schemeId);
       });
+
+      // Logic 2: Cross-Branch Nomenclature Collision
+      // (Optional advanced check: if multiple active schemes use the exact same nomenclature slot 
+      // but aren't explicitly mirrored, it might be a conflict. For now, focus on Zombies.)
 
       setFragments(detectedFragments);
       toast({ title: "Audit Complete", description: `Detected ${detectedFragments.length} orphaned or fragmented records.` });

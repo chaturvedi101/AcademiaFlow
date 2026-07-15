@@ -46,7 +46,7 @@ const navigation = [
   { name: 'Pool Distributor', href: '/dashboard/distributor', icon: Share2, roles: ['admin', 'dean_academic'] },
   { name: 'Equivalence Manager', href: '/dashboard/equivalence', icon: Layers, roles: ['bos_convenor', 'admin'] },
   { name: 'Approvals', href: '/dashboard/approvals', icon: FileCheck, roles: ['dean_faculty', 'dean_academic', 'admin', 'monitor'] },
-  { name: 'Audit Logs', href: '/dashboard/audit', icon: History, roles: ['admin'] },
+  { name: 'Audit & Integrity', href: '/dashboard/audit', icon: History, roles: ['admin'] },
   { name: 'Backups', href: '/dashboard/backups', icon: Database, roles: ['admin', 'bos_convenor'] },
   { name: 'AI Diagnostics', href: '/dashboard/diagnostics', icon: Settings2, roles: ['admin', 'dean_academic'] },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings, roles: ['bos_convenor', 'dean_faculty', 'dean_academic', 'admin', 'monitor', 'committee_convenor'] },
