@@ -48,6 +48,7 @@ export function SyllabusDialog({
   onSave,
   canEdit = true,
   userProfile,
+  batchYear,
   program,
   scheme
 }: SyllabusDialogProps) {
@@ -76,14 +77,14 @@ export function SyllabusDialog({
   const [selectedParentGroupId, setSelectedParentGroupId] = useState("");
   const [selectedParentOptionId, setSelectedParentOptionId] = useState("");
 
+  const isAdmin = userProfile?.role === 'admin';
+
   // Universal Retrieval: Get all schemes to allow cross-branch mirroring
   const allSchemesQuery = useMemoFirebase(() => query(collection(db, 'schemes')), [db]);
   const { data: allSchemes } = useCollection<Scheme>(allSchemesQuery);
 
   const availableParentSchemes = useMemo(() => {
-    // Filter out current scheme to prevent circular self-referencing
     return allSchemes.filter(s => s.id !== scheme?.id).sort((a, b) => {
-       // Prioritize Institutional Pools in the list
        if (a.programId === 'INSTITUTIONAL' && b.programId !== 'INSTITUTIONAL') return -1;
        if (a.programId !== 'INSTITUTIONAL' && b.programId === 'INSTITUTIONAL') return 1;
        return (a.branch || '').localeCompare(b.branch || '');
@@ -315,7 +316,26 @@ export function SyllabusDialog({
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="space-y-2"><Label className="text-[10px] uppercase font-bold">Code</Label><div className="h-10 flex items-center px-3 bg-muted/50 rounded-md border font-mono font-bold text-primary">{formData.subjectCode || 'AUTO-GEN'}</div></div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] uppercase font-bold">Subject Code</Label>
+                    {isAdmin ? (
+                      <div className="space-y-1.5">
+                        <Input 
+                          value={formData.subjectCode || ''} 
+                          onChange={e => setFormData({...formData, subjectCode: e.target.value.toUpperCase()})}
+                          className="font-mono font-bold text-primary h-10"
+                          placeholder="MANUAL-CODE"
+                        />
+                        <p className="text-[9px] text-amber-600 font-bold flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" /> Manual override may break automatic sequencing.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="h-10 flex items-center px-3 bg-muted/50 rounded-md border font-mono font-bold text-primary">
+                        {formData.subjectCode || 'AUTO-GEN'}
+                      </div>
+                    )}
+                  </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] uppercase font-bold">Type</Label>
                     <Select disabled={isFormDisabled} value={formData.type || 'Theory'} onValueChange={(v: SubjectType) => handleLTPChange({ type: v } as any)}>
