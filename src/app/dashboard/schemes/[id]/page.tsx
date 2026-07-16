@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
@@ -375,7 +376,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         const yearDigit = Math.ceil((sub.semester || 1) / 2);
         
         const counterKey = `${targetPrefix}${pedagogyChar}${pillarChar}${yearDigit}`;
-        const isElective = ['DSE', 'OFE'].includes(sub.creditCategory);
+        const isElective = ['DSE', 'OFE', 'VAC', 'AEC', 'MDC', 'SEC'].includes(sub.creditCategory);
         
         let newCode = '';
 
@@ -530,7 +531,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
             <DialogDescription>Create a Virtual Mirror for a sibling branch. All subjects will inherit heritage data recursively.</DialogDescription>
           </DialogHeader>
           <div className="space-y-6 py-4">
-             <div className="p-4 bg-primary/5 border border-primary/10 rounded-xl space-y-2">
+             <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 rounded-xl space-y-2">
                <p className="text-[11px] font-bold uppercase text-primary">Cloning Protocol:</p>
                <ul className="text-[10px] space-y-1 text-muted-foreground list-disc pl-4">
                  <li><b>Heritage chain:</b> Mirrors directly from original source standard.</li>
@@ -768,3 +769,4 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     </div>
   );
 }
+
