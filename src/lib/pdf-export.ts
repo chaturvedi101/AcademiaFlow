@@ -59,7 +59,11 @@ const drawSubjectSyllabus = (
   let currentY = startY;
 
   const displayTitle = getCleanTitle(syllabus);
-  const itemLabel = syllabus.type === 'Lab/Sessional' ? 'Experiment' : 'Unit';
+  
+  // Resolve pedagogical label as per institutional RTU standards
+  const itemLabel = syllabus.type === 'Lab/Sessional' 
+    ? (syllabus.creditCategory === 'VAC' ? 'Experiment/Activity' : 'Experiment') 
+    : 'Unit';
 
   doc.setFillColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
   doc.rect(15, currentY, pageWidth - 30, 10, 'F');
@@ -87,7 +91,7 @@ const drawSubjectSyllabus = (
   doc.setFontSize(12);
   doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
   doc.setFont('helvetica', 'bold');
-  doc.text(syllabus.type === 'Lab/Sessional' ? 'Practical Experiments' : 'Course Content & Outcomes', 15, currentY + 5);
+  doc.text(syllabus.type === 'Lab/Sessional' ? 'Practical Experiments/Activities' : 'Course Content & Outcomes', 15, currentY + 5);
 
   const unitRows = (syllabus.units || []).map((unit, idx) => [
     `${itemLabel} ${idx + 1}\n${unit.title || 'Untitled'}\n(${unit.hours} Hrs)`,

@@ -240,7 +240,10 @@ export function SyllabusDialog({
     }
   };
 
-  const unitLabel = formData.type === 'Lab/Sessional' ? 'Experiment' : 'Unit';
+  // Determine pedagogical label based on institutional RTU standards
+  const unitLabel = formData.type === 'Lab/Sessional' 
+    ? (formData.creditCategory === 'VAC' ? 'Experiment/Activity' : 'Experiment') 
+    : 'Unit';
 
   const handleRemoveUnit = (id: string) => {
     if (!isAdmin) {
