@@ -140,7 +140,7 @@ export function SyllabusDialog({
 
   const isLinked = !!formData.followedFromId;
   const isFormDisabled = isLinked || !canEdit;
-  const isElectiveCategory = formData.creditCategory === 'DSE' || formData.creditCategory === 'OFE';
+  const isPoolableCategory = ['DSE', 'OFE', 'VAC', 'AEC', 'MDC', 'SEC'].includes(formData.creditCategory || '');
 
   const handleAiGenerate = async () => {
     if (!formData.title) return;
@@ -218,15 +218,16 @@ export function SyllabusDialog({
   const handleFinalSave = async () => {
     setIsSaving(true);
     try {
-      if (isPoolMode && isElectiveCategory && !formData.id) {
+      if (isPoolMode && isPoolableCategory && !formData.id) {
         if (!formData.electiveGroupId) {
-          toast({ title: "Validation Error", description: "Group ID required.", variant: "destructive" });
+          toast({ title: "Validation Error", description: "Elective Group ID required for pools.", variant: "destructive" });
           setIsSaving(false);
           return;
         }
         await Promise.all(poolTitles.map(async (title) => {
           if (!title.trim()) return;
-          return onSave({ ...formData, title: title.trim() });
+          // Create new document for each option
+          return onSave({ ...formData, title: title.trim(), id: undefined });
         }));
       } else {
         await onSave(formData);
@@ -300,12 +301,27 @@ export function SyllabusDialog({
 
               <TabsContent value="basic" className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Category</Label>
-                    <Select disabled={isLinked || !canEdit || !!formData.id} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v})}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>{ALL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                    </Select>
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Category</Label>
+                      <Select disabled={isLinked || !canEdit || !!formData.id} value={formData.creditCategory} onValueChange={(v: any) => setFormData({...formData, creditCategory: v})}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>{ALL_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+
+                    {isPoolableCategory && !formData.id && (
+                      <div className="flex items-center justify-between p-4 bg-primary/5 rounded-xl border border-primary/10">
+                        <div className="space-y-0.5">
+                          <Label className="font-bold flex items-center gap-2">
+                            <Layers className="w-4 h-4 text-primary" />
+                            Multi-Option Pool Mode
+                          </Label>
+                          <p className="text-[10px] text-muted-foreground">Create multiple course entries for this slot simultaneously.</p>
+                        </div>
+                        <Switch checked={isPoolMode} onCheckedChange={setIsPoolMode} />
+                      </div>
+                    )}
                   </div>
                   
                   {!isPoolMode ? (
@@ -315,15 +331,15 @@ export function SyllabusDialog({
                     </div>
                   ) : (
                     <div className="space-y-2">
-                       <Label className="text-[10px] uppercase font-bold text-muted-foreground">Pool Options</Label>
-                       <div className="p-3 bg-primary/5 rounded-lg border border-primary/20 space-y-2">
+                       <Label className="text-[10px] uppercase font-bold text-muted-foreground">Pool Option Titles</Label>
+                       <div className="p-4 bg-white rounded-xl border space-y-3 shadow-inner">
                          {poolTitles.map((t, i) => (
                            <div key={i} className="flex gap-2">
-                             <Input value={t} onChange={e => { const nt=[...poolTitles]; nt[i]=e.target.value; setPoolTitles(nt); }} placeholder={`Option ${i+1}`} className="bg-white" />
-                             <Button variant="ghost" size="icon" className="text-red-400" onClick={() => setPoolTitles(poolTitles.filter((_, idx) => idx !== i))}><Trash2 className="w-4 h-4" /></Button>
+                             <Input value={t} onChange={e => { const nt=[...poolTitles]; nt[i]=e.target.value; setPoolTitles(nt); }} placeholder={`Option ${i+1}`} />
+                             <Button variant="ghost" size="icon" className="text-red-400 h-10 w-10 hover:bg-red-50" onClick={() => setPoolTitles(poolTitles.filter((_, idx) => idx !== i))}><Trash2 className="w-4 h-4" /></Button>
                            </div>
                          ))}
-                         <Button variant="ghost" size="sm" onClick={() => setPoolTitles([...poolTitles, ""])}><Plus className="w-3 h-3 mr-1" /> Add Option</Button>
+                         <Button variant="ghost" size="sm" className="w-full border-dashed" onClick={() => setPoolTitles([...poolTitles, ""])}><Plus className="w-3.5 h-3.5 mr-2" /> Add Course Option</Button>
                        </div>
                     </div>
                   )}
@@ -357,21 +373,33 @@ export function SyllabusDialog({
                       <SelectContent><SelectItem value="Theory">Theory</SelectItem><SelectItem value="Lab/Sessional">Practical</SelectItem></SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2"><Label className="text-[10px] uppercase font-bold">Semester</Label><Input disabled={isFormDisabled} type="number" value={formData.semester || 1} onChange={e => setFormData({...formData, semester: Number(e.target.value)})} /></div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] uppercase font-bold">Timetable Slot</Label>
-                    <Select disabled={isFormDisabled} value={formData.timetableSlot} onValueChange={(v) => setFormData({...formData, timetableSlot: v})}>
-                      <SelectTrigger><SelectValue placeholder="Slot..." /></SelectTrigger>
-                      <SelectContent>{(formData.type === 'Lab/Sessional' ? ['A','B','C','D','E','F'] : ['1','2','3','4','5','6']).map(s => <SelectItem key={s} value={s}>Slot {s}</SelectItem>)}</SelectContent>
-                    </Select>
+                    <Label className="text-[10px] uppercase font-bold">Semester</Label>
+                    <Input disabled={isFormDisabled} type="number" value={formData.semester || 1} onChange={e => setFormData({...formData, semester: Number(e.target.value)})} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Elective Group ID</Label>
+                    <Input 
+                      disabled={isLinked || !canEdit} 
+                      value={formData.electiveGroupId || ''} 
+                      onChange={e => setFormData({...formData, electiveGroupId: e.target.value})} 
+                      placeholder="e.g. Elective-I"
+                    />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-4 gap-4 p-4 bg-white border rounded-xl shadow-inner">
+                <div className="grid grid-cols-5 gap-4 p-4 bg-white border rounded-xl shadow-inner">
                   <div className="space-y-1"><Label className="text-[10px] font-bold">L</Label><Input type="number" disabled={isFormDisabled || formData.type === 'Lab/Sessional'} value={formData.lectureCredits || 0} onChange={e => handleLTPChange({ lectureCredits: Number(e.target.value) })} /></div>
                   <div className="space-y-1"><Label className="text-[10px] font-bold">T</Label><Input type="number" disabled={isFormDisabled || formData.type === 'Lab/Sessional'} value={formData.tutorialCredits || 0} onChange={e => handleLTPChange({ tutorialCredits: Number(e.target.value) })} /></div>
                   <div className="space-y-1"><Label className="text-[10px] font-bold">P</Label><Input type="number" disabled={isFormDisabled || formData.type === 'Theory'} value={formData.practicalCredits || 0} onChange={e => handleLTPChange({ practicalCredits: Number(e.target.value) })} /></div>
                   <div className="space-y-1"><Label className="text-[10px] font-bold">Cr</Label><div className="h-10 flex items-center justify-center bg-primary/5 rounded font-bold border border-primary/20">{formData.credits}</div></div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-bold">Timetable Slot</Label>
+                    <Select disabled={isFormDisabled} value={formData.timetableSlot} onValueChange={(v) => setFormData({...formData, timetableSlot: v})}>
+                      <SelectTrigger className="h-10"><SelectValue placeholder="Slot..." /></SelectTrigger>
+                      <SelectContent>{(formData.type === 'Lab/Sessional' ? ['A','B','C','D','E','F'] : ['1','2','3','4','5','6']).map(s => <SelectItem key={s} value={s}>Slot {s}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </TabsContent>
 
@@ -529,7 +557,7 @@ export function SyllabusDialog({
            {canEdit && (
              <Button onClick={handleFinalSave} className="h-11 px-8 shadow-md" disabled={isSaving}>
                {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-               {isSaving ? "Synchronizing..." : "Save Subject Pattern"}
+               {isSaving ? "Synchronizing..." : isPoolMode ? "Generate Options" : "Save Subject Pattern"}
              </Button>
            )}
         </DialogFooter>
