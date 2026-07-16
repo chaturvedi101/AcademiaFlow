@@ -241,6 +241,20 @@ export function SyllabusDialog({
 
   const unitLabel = formData.type === 'Lab/Sessional' ? 'Experiment' : 'Unit';
 
+  const handleRemoveUnit = (id: string) => {
+    if (!isAdmin) {
+      toast({ 
+        variant: "destructive", 
+        title: "Access Restricted", 
+        description: "Only Administrators can remove pedagogical units to maintain curriculum integrity." 
+      });
+      return;
+    }
+    const newUnits = formData.units?.filter(u => u.id !== id);
+    setFormData({ ...formData, units: newUnits });
+    toast({ title: "Unit Removed", description: "Pedagogical content updated." });
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] lg:max-w-6xl h-[95vh] flex flex-col p-0 overflow-hidden border-none shadow-2xl">
@@ -366,7 +380,22 @@ export function SyllabusDialog({
                    <Card key={u.id} className="border-muted overflow-hidden">
                      <CardHeader className="p-4 bg-muted/20 flex flex-row items-center justify-between cursor-pointer" onClick={() => setExpandedUnits(p => ({...p, [u.id]: !p[u.id]}))}>
                         <div className="flex items-center gap-3"><Badge>{unitLabel} {i+1}</Badge><span className="font-bold">{u.title || 'Untitled'}</span></div>
-                        {expandedUnits[u.id] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        <div className="flex items-center gap-2">
+                           {isAdmin && (
+                             <Button 
+                               variant="ghost" 
+                               size="icon" 
+                               className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50" 
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 handleRemoveUnit(u.id);
+                               }}
+                             >
+                               <Trash2 className="w-4 h-4" />
+                             </Button>
+                           )}
+                           {expandedUnits[u.id] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </div>
                      </CardHeader>
                      <CardContent className={cn("p-4 space-y-4", !expandedUnits[u.id] && "hidden")}>
                         <div className="grid grid-cols-2 gap-4">
