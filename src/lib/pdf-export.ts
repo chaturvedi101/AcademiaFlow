@@ -101,7 +101,7 @@ const drawSubjectSyllabus = (
 
   autoTable(doc, {
     startY: currentY + 10,
-    head: [[`${itemLabel} & Title`, syllabus.type === 'Lab/Sessional' ? 'Procedure / Description' : 'Topics', 'Learning Outcome']],
+    head: [[`${itemLabel} & Title`, syllabus.type === 'Lab/Sessional' ? 'Procedure / Description' : 'Topics', 'Course Outcome']],
     body: unitRows,
     theme: 'grid',
     headStyles: { 
@@ -230,7 +230,7 @@ export const exportCompleteSyllabusToPDF = (
     const slotA = a.timetableSlot || "Z";
     const slotB = b.timetableSlot || "Z";
     if (slotA !== slotB) {
-      return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
+      return slotA.localeCompare(slotB, undefined, { numeric: true });
     }
 
     return (a.subjectCode || "").localeCompare(b.subjectCode || "");
@@ -333,7 +333,7 @@ export const exportFullSchemeToPDF = (
         const slotA = a.timetableSlot || "Z";
         const slotB = b.timetableSlot || "Z";
         if (slotA !== slotB) {
-          return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
+          return slotA.localeCompare(slotB, undefined, { numeric: true });
         }
 
         return (a.subjectCode || "").localeCompare(b.subjectCode || "");

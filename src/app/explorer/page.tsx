@@ -101,7 +101,7 @@ export default function GuestExplorerPage() {
       const slotA = a.timetableSlot || "Z";
       const slotB = b.timetableSlot || "Z";
       if (slotA !== slotB) {
-        return slotA.localeCompare(slotB, undefined, { numeric: true, sensitivity: 'base' });
+        return slotA.localeCompare(slotB, undefined, { numeric: true });
       }
       
       return (a.subjectCode || "").localeCompare(b.subjectCode || "");
@@ -320,7 +320,7 @@ export default function GuestExplorerPage() {
                     <div className="p-2.5 bg-primary/5 rounded-xl border border-primary/10"><Info className="w-5 h-5 text-primary" /></div>
                     <div>
                       <Label className="font-black text-[10px] uppercase text-muted-foreground tracking-widest leading-none mb-1.5 block">Syllabus Directory</Label>
-                      <p className="text-sm font-bold text-primary">Browse individual unit patterns and learning outcomes.</p>
+                      <p className="text-sm font-bold text-primary">Browse individual unit patterns and Course Outcomes.</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-4 w-full md:w-auto border-l pl-6 ml-auto">
@@ -361,7 +361,7 @@ export default function GuestExplorerPage() {
                           <div className="lg:col-span-8 space-y-8">
                             <div className="flex items-center gap-3 border-b-2 border-primary pb-3 mb-6">
                                <ShieldCheck className="w-5 h-5 text-primary" />
-                               <h4 className="font-headline font-black text-lg uppercase tracking-tight text-primary">Pedagogical Units & Outcomes</h4>
+                               <h4 className="font-headline font-black text-lg uppercase tracking-tight text-primary">Pedagogical Units & Course Outcomes</h4>
                             </div>
                             <div className="grid gap-6">
                               {sub.units?.map((unit, uIdx) => (
@@ -375,7 +375,7 @@ export default function GuestExplorerPage() {
                                   </div>
                                   <p className="text-sm text-muted-foreground leading-relaxed pl-14 pr-4 border-l-2 border-muted-foreground/10 mb-6">{unit.content}</p>
                                   <div className="pl-14 pt-4 mt-4 border-t border-muted-foreground/5 flex items-center gap-3">
-                                    <div className="px-2 py-0.5 bg-primary/10 rounded text-[9px] font-black text-primary uppercase">Learning Outcome</div>
+                                    <div className="px-2 py-0.5 bg-primary/10 rounded text-[9px] font-black text-primary uppercase">Course Outcome</div>
                                     <p className="text-[11px] font-bold text-primary italic leading-tight">"{unit.courseOutcome}"</p>
                                   </div>
                                 </div>
@@ -510,7 +510,7 @@ export default function GuestExplorerPage() {
             </div>
             <div className="text-center space-y-2">
               <h3 className="text-2xl font-headline font-black text-primary">Awaiting Institutional Parameters</h3>
-              <p className="text-muted-foreground font-medium max-w-sm">Choose a program, branch, and batch from the discovery engine above to view official records.</p>
+              <p className="text-muted-foreground font-medium max-sm">Choose a program, branch, and batch from the discovery engine above to view official records.</p>
             </div>
           </div>
         )}
