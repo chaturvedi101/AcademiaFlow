@@ -30,7 +30,7 @@ export default function ApprovalsPage() {
     return query(collection(db, 'schemes'), orderBy('updatedAt', 'desc'));
   }, [db]);
 
-  const { data: schemes, loading } = useCollection<Scheme>(schemesQuery);
+  const { data: schemes, loading: schemesLoading } = useCollection<Scheme>(schemesQuery);
   const { data: programs } = useCollection<Program>(useMemoFirebase(() => collection(db, 'programs'), [db]));
 
   const [revertDialogOpen, setRevertDialogOpen] = useState(false);
@@ -45,10 +45,17 @@ export default function ApprovalsPage() {
     
     const isBTECHTier = profile.faculty?.includes('BTECH');
     const isBBATier = profile.faculty?.includes('BBA');
+    const isScienceDean = profile.role === 'dean_faculty' && profile.faculty === 'Faculty of Sciences';
 
     return schemes.filter(s => {
       // Pool Logic
       if (s.programId === 'INSTITUTIONAL') {
+        // Special Oversight: Dean Sciences for Science Committees
+        if (isScienceDean) {
+           const scienceCommittees = ['Course Committee - Physics', 'Course Committee - Chemistry', 'Course Committee - Mathematics'];
+           if (scienceCommittees.includes(s.branch || '')) return true;
+        }
+
         if (isBTECHTier && (s.branch?.includes('BTECH') || s.isVerticalPool)) return true;
         if (isBBATier && (s.branch?.includes('BBA') || s.isVerticalPool)) return true;
         return false;
@@ -100,7 +107,7 @@ export default function ApprovalsPage() {
     setRevertComments('');
   };
 
-  if (loading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary w-8 h-8" /></div>;
+  if (schemesLoading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin text-primary w-8 h-8" /></div>;
 
   return (
     <div className="space-y-6">
@@ -139,6 +146,8 @@ export default function ApprovalsPage() {
                 const program = programs.find(p => p.id === scheme.programId);
                 
                 // Determine if the current user can take a decision (Monitors can never act)
+                // A Dean can act if they have jurisdiction (which filteredSchemes already ensures) 
+                // and the status is "Pending Dean".
                 const isDeanActionable = profile?.role === 'dean_faculty' && scheme.status === 'Pending Dean';
                 const isAcadActionable = (profile?.role === 'dean_academic' || profile?.role === 'admin') && scheme.status === 'Pending Academics';
                 const isActionable = isDeanActionable || isAcadActionable;

@@ -35,12 +35,19 @@ export default function DashboardPage() {
     const isCommonTier = profile.faculty?.includes('(Common BOS)');
     const isBTECHTier = profile.faculty?.includes('BTECH');
     const isBBATier = profile.faculty?.includes('BBA');
+    const isScienceDean = profile.role === 'dean_faculty' && profile.faculty === 'Faculty of Sciences';
 
     // 3. Deans & Common BOS Purview Resolution
     if (profile.role === 'dean_faculty' || isCommonTier) {
       return schemes.filter(s => {
-        // Pool Visibility: Show pools matching the Dean's tier (e.g. BTECH Dean seeing BTECH Pools)
+        // Pool Visibility
         if (s.programId === 'INSTITUTIONAL') {
+          // Special Oversight: Dean Sciences for Science Committees
+          if (isScienceDean) {
+             const scienceCommittees = ['Course Committee - Physics', 'Course Committee - Chemistry', 'Course Committee - Mathematics'];
+             if (scienceCommittees.includes(s.branch || '')) return true;
+          }
+          
           if (isBTECHTier && (s.branch?.includes('BTECH') || s.isVerticalPool)) return true;
           if (isBBATier && (s.branch?.includes('BBA') || s.isVerticalPool)) return true;
           return false;

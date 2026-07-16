@@ -193,6 +193,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
     const isCommonTier = profile.faculty?.includes('(Common BOS)');
     const isBTECHTier = profile.faculty?.includes('BTECH');
     const isBBATier = profile.faculty?.includes('BBA');
+    const isScienceDean = profile.role === 'dean_faculty' && profile.faculty === 'Faculty of Sciences';
 
     let isMyJurisdiction = false;
     
@@ -216,6 +217,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         }
       }
       isMyJurisdiction = hasExplicitAssignment || hasTieredOversight;
+    } else if (isScienceDean && scheme.isCommitteePool) {
+      // Oversight for specific committees
+      const scienceCommittees = ['Course Committee - Physics', 'Course Committee - Chemistry', 'Course Committee - Mathematics'];
+      if (scienceCommittees.includes(scheme.branch || '')) isMyJurisdiction = true;
     }
 
     const isLocked = scheme.status !== 'Draft' && !isAdmin;
@@ -428,7 +433,10 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         status: 'Draft',
         createdBy: user?.uid || '',
         createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
+        hasMultipleExits: false,
+        exitOptions: [],
+        abcEnabled: true
       });
 
       for (const parentSub of localSyllabi) {

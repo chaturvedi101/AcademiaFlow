@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo } from 'react';
@@ -66,6 +65,7 @@ export default function SchemesPage() {
     const isCommonTier = profile.faculty?.includes('(Common BOS)');
     const isBTECHTier = profile.faculty?.includes('BTECH');
     const isBBATier = profile.faculty?.includes('BBA');
+    const isScienceDean = profile.role === 'dean_faculty' && profile.faculty === 'Faculty of Sciences';
 
     return schemes.filter(s => {
       // 2. Committee Convenors
@@ -75,6 +75,12 @@ export default function SchemesPage() {
       if (profile.role === 'dean_faculty' || isCommonTier) {
         // Pool Matching
         if (s.programId === 'INSTITUTIONAL') {
+          // Special Oversight: Dean Sciences for Science Committees
+          if (isScienceDean) {
+             const scienceCommittees = ['Course Committee - Physics', 'Course Committee - Chemistry', 'Course Committee - Mathematics'];
+             if (scienceCommittees.includes(s.branch || '')) return true;
+          }
+
           if (isBTECHTier && (s.branch?.includes('BTECH') || s.isVerticalPool)) return true;
           if (isBBATier && (s.branch?.includes('BBA') || s.isVerticalPool)) return true;
           return false;
@@ -146,7 +152,10 @@ export default function SchemesPage() {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           isVerticalPool: !isCommittee,
-          isCommitteePool: isCommittee
+          isCommitteePool: isCommittee,
+          hasMultipleExits: false,
+          exitOptions: [],
+          abcEnabled: true
         });
 
         await batch.commit();
@@ -170,7 +179,10 @@ export default function SchemesPage() {
             status: 'Draft',
             createdBy: user?.uid || '',
             createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
+            updatedAt: serverTimestamp(),
+            hasMultipleExits: false,
+            exitOptions: [],
+            abcEnabled: true
           });
 
           // 2. Auto-instantiate Syllabus slots from Master Pattern
