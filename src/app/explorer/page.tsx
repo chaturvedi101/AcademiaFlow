@@ -14,13 +14,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { LogOut, Search, BookOpen, Loader2, Info, CheckCircle2, MessageSquare, Send, Download, ShieldCheck, Phone, Mail, User, ShieldAlert, GraduationCap } from 'lucide-react';
+import { LogOut, Search, BookOpen, Loader2, Info, CheckCircle2, MessageSquare, Send, Download, ShieldCheck, Phone, Mail, User, ShieldAlert, GraduationCap, Clock } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { exportFullSchemeToPDF, exportCompleteSyllabusToPDF } from "@/lib/pdf-export";
 import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { cn } from '@/lib/utils';
 
 export default function GuestExplorerPage() {
   const db = useFirestore();
@@ -50,29 +51,33 @@ export default function GuestExplorerPage() {
 
   const { data: programs, loading: programsLoading } = useCollection<Program>(useMemoFirebase(() => collection(db, 'programs'), [db]));
   
+  // Show all schemes that have been submitted (out of Draft)
   const schemesQuery = useMemoFirebase(() => {
-    return query(collection(db, 'schemes'), where('status', '==', 'Approved'));
+    return query(
+      collection(db, 'schemes'), 
+      where('status', 'in', ['Pending Dean', 'Pending Academics', 'Approved'])
+    );
   }, [db]);
-  const { data: approvedSchemes } = useCollection<Scheme>(schemesQuery);
+  const { data: visibleSchemes } = useCollection<Scheme>(schemesQuery);
 
   const availableBranches = useMemo(() => {
     if (!selectedProgramId) return [];
-    const branchSet = new Set(approvedSchemes
+    const branchSet = new Set(visibleSchemes
       .filter(s => s.programId === selectedProgramId)
       .map(s => s.branch));
     return Array.from(branchSet).filter(Boolean) as string[];
-  }, [selectedProgramId, approvedSchemes]);
+  }, [selectedProgramId, visibleSchemes]);
 
   const availableBatches = useMemo(() => {
     if (!selectedProgramId || !selectedBranch) return [];
-    return Array.from(new Set(approvedSchemes
+    return Array.from(new Set(visibleSchemes
       .filter(s => s.programId === selectedProgramId && s.branch === selectedBranch)
       .map(s => s.batchYear)));
-  }, [selectedProgramId, selectedBranch, approvedSchemes]);
+  }, [selectedProgramId, selectedBranch, visibleSchemes]);
 
   useEffect(() => {
     if (selectedProgramId && selectedBranch && selectedBatch) {
-      const found = approvedSchemes.find(s => 
+      const found = visibleSchemes.find(s => 
         s.programId === selectedProgramId && 
         s.branch === selectedBranch && 
         s.batchYear === selectedBatch
@@ -92,7 +97,7 @@ export default function GuestExplorerPage() {
       setScheme(null);
       setSyllabi([]);
     }
-  }, [selectedProgramId, selectedBranch, selectedBatch, approvedSchemes, db]);
+  }, [selectedProgramId, selectedBranch, selectedBatch, visibleSchemes, db]);
 
   const filteredSyllabi = useMemo(() => {
     const sorted = [...syllabi].sort((a, b) => {
@@ -183,7 +188,7 @@ export default function GuestExplorerPage() {
               <div className="p-2 bg-primary rounded-lg text-white"><Search className="w-5 h-5" /></div>
               Curriculum Search Engine
             </CardTitle>
-            <CardDescription className="text-sm font-medium">Discover official, approved academic structures and subject syllabi for RTU-NEP 2020.</CardDescription>
+            <CardDescription className="text-sm font-medium">Discover official academic structures and subject syllabi for RTU-NEP 2020.</CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-8">
             <div className="space-y-2.5">
@@ -234,7 +239,13 @@ export default function GuestExplorerPage() {
               <div className="space-y-2">
                 <div className="flex items-center gap-3">
                   <h2 className="text-4xl font-headline font-black text-primary tracking-tight">{selectedBranch}</h2>
-                  <Badge className="bg-emerald-600 text-white border-none px-3 py-1 text-[10px] font-bold">ACCREDITED SCHEME</Badge>
+                  <Badge className={cn(
+                    "border-none px-3 py-1 text-[10px] font-bold gap-2",
+                    scheme.status === 'Approved' ? "bg-emerald-600 text-white" : "bg-amber-500 text-white"
+                  )}>
+                    {scheme.status === 'Approved' ? <ShieldCheck className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                    {scheme.status === 'Approved' ? "ACCREDITED SCHEME" : "SUBMITTED FOR REVIEW"}
+                  </Badge>
                 </div>
                 <div className="flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
                   <div className="flex items-center gap-2"><div className="h-2 w-2 rounded-full bg-primary" /> <span className="font-mono font-bold text-primary">{scheme.schemeCode}</span></div>
