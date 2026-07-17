@@ -51,7 +51,14 @@ export default function GuestExplorerPage() {
 
   const { data: programs, loading: programsLoading } = useCollection<Program>(useMemoFirebase(() => collection(db, 'programs'), [db]));
   
-  // Show all schemes that have been submitted (out of Draft)
+  /**
+   * INCLUSIVITY LOGIC:
+   * Show all schemes that have left the BoS 'Draft' state.
+   * This includes:
+   * - Pending Dean (Submitted by BoS)
+   * - Pending Academics (Submitted by Dean)
+   * - Approved (Accredited)
+   */
   const schemesQuery = useMemoFirebase(() => {
     return query(
       collection(db, 'schemes'), 
@@ -142,6 +149,15 @@ export default function GuestExplorerPage() {
   };
 
   const rtuLogo = PlaceHolderImages.find(img => img.id === 'rtu-logo');
+
+  const getStatusLabel = (status?: string) => {
+    switch (status) {
+      case 'Approved': return "OFFICIALLY ACCREDITED SCHEME";
+      case 'Pending Academics': return "SUBMITTED BY DEAN (UNDER ACADEMIC AUDIT)";
+      case 'Pending Dean': return "SUBMITTED BY BoS (UNDER DEAN REVIEW)";
+      default: return "SUBMITTED FOR REVIEW";
+    }
+  };
 
   if (userLoading || programsLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
@@ -244,7 +260,7 @@ export default function GuestExplorerPage() {
                     scheme.status === 'Approved' ? "bg-emerald-600 text-white" : "bg-amber-500 text-white"
                   )}>
                     {scheme.status === 'Approved' ? <ShieldCheck className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                    {scheme.status === 'Approved' ? "ACCREDITED SCHEME" : "SUBMITTED FOR REVIEW"}
+                    {getStatusLabel(scheme.status)}
                   </Badge>
                 </div>
                 <div className="flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
