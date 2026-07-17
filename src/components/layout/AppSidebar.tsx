@@ -27,7 +27,8 @@ import {
   UserCircle,
   Database,
   Settings,
-  Share2
+  Share2,
+  MessageSquare
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -43,6 +44,7 @@ const navigation = [
   { name: 'BoS Authorization', href: '/dashboard/users', icon: ShieldCheck, roles: ['dean_academic', 'admin', 'monitor'] },
   { name: 'My BoS Team', href: '/dashboard/team', icon: UserCircle, roles: ['bos_convenor'] },
   { name: 'Schemes', href: '/dashboard/schemes', icon: BookOpen, roles: ['bos_convenor', 'bos_member', 'dean_faculty', 'dean_academic', 'admin', 'monitor', 'committee_convenor'] },
+  { name: 'Public Feedback', href: '/dashboard/feedback', icon: MessageSquare, roles: ['bos_convenor', 'bos_member', 'dean_faculty', 'dean_academic', 'admin', 'monitor', 'committee_convenor'] },
   { name: 'Pool Distributor', href: '/dashboard/distributor', icon: Share2, roles: ['admin', 'dean_academic'] },
   { name: 'Equivalence Manager', href: '/dashboard/equivalence', icon: Layers, roles: ['bos_convenor', 'admin'] },
   { name: 'Approvals', href: '/dashboard/approvals', icon: FileCheck, roles: ['dean_faculty', 'dean_academic', 'admin', 'monitor'] },
