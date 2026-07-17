@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
@@ -244,7 +243,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         if (isLocked) return false;
         return isPersonnel && isMyJurisdiction;
       },
-      canAudit: isAdmin || isAuthority || (isPersonnel && isMyJurisdiction)
+      canAudit: isAdmin // RESTRICTED TO ADMIN ONLY
     };
   }, [profile, scheme, program]);
 
@@ -256,17 +255,20 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
         schemeName: scheme.branch || program.name,
         batchYear: scheme.batchYear,
         programRules: program.rules,
-        syllabi: syllabi.map(s => ({
-          code: s.subjectCode,
-          title: s.title,
-          credits: s.credits,
-          category: s.creditCategory,
-          units: s.units?.map(u => ({ title: u.title, co: u.courseOutcome }))
-        }))
+        // LIMIT AUDIT TO FIRST TWO SEMESTERS ONLY
+        syllabi: syllabi
+          .filter(s => s.semester === 1 || s.semester === 2)
+          .map(s => ({
+            code: s.subjectCode,
+            title: s.title,
+            credits: s.credits,
+            category: s.creditCategory,
+            units: s.units?.map(u => ({ title: u.title, co: u.courseOutcome }))
+          }))
       });
       setAnalysisReport(result);
       setIsAnalysisDialogOpen(true);
-      toast({ title: "Institutional Audit Complete", description: "AI Auditor has finalized the curriculum report." });
+      toast({ title: "Institutional Audit Complete", description: "AI Auditor has finalized the Year 1 curriculum report." });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Audit Engine Error", description: e.message });
     } finally {
@@ -533,7 +535,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
           {permissions.canAudit && (
             <Button variant="outline" onClick={handlePerformAIAudit} disabled={isAnalyzing} className="gap-2 border-primary/20 bg-primary/5 text-primary hover:bg-primary/10">
               {isAnalyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-              AI Audit Report
+              AI Audit (Year 1)
             </Button>
           )}
           {permissions.isAdmin && !scheme.isCommitteePool && !scheme.isVerticalPool && (
@@ -604,9 +606,9 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                <div>
                   <DialogTitle className="text-2xl font-headline font-bold flex items-center gap-3">
                     <ShieldCheck className="w-6 h-6 text-primary" />
-                    Institutional AI Auditor Report
+                    Institutional AI Auditor Report (Year 1)
                   </DialogTitle>
-                  <DialogDescription>Technical analysis of framework compliance and pedagogical quality.</DialogDescription>
+                  <DialogDescription>Technical analysis of framework compliance for Semesters 1 & 2.</DialogDescription>
                </div>
                <div className="flex flex-col items-center justify-center bg-white rounded-xl px-6 py-2 border shadow-sm">
                   <span className={cn("text-3xl font-black", 
@@ -614,7 +616,7 @@ export default function SchemeDetailPage({ params }: { params: Promise<{ id: str
                   )}>
                     {analysisReport?.overallScore}
                   </span>
-                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Quality Score</span>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Year 1 Score</span>
                </div>
             </div>
           </DialogHeader>

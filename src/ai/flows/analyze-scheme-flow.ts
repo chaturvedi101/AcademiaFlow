@@ -52,17 +52,19 @@ const analysisPrompt = ai.definePrompt({
   prompt: `You are a Senior Academic Auditor for a Technical University. 
   Your task is to critically analyze the following academic scheme for the batch {{{batchYear}}}: "{{{schemeName}}}".
   
+  IMPORTANT: This audit is focused strictly on Year 1 (Semesters 1 & 2) implementation.
+  
   CONTEXT:
   - Program Rules: {{{programRulesJson}}}
-  - Complete Curriculum Structure: {{{syllabiJson}}}
+  - Year 1 Curriculum Structure: {{{syllabiJson}}}
   
   CRITERIA FOR ANALYSIS:
-  1. **Structural Integrity**: Check if the credits for DSC, DSE, VAC, AEC, and MDC meet the institutional rules. Is the progression from Year 1 to Year 4 logical?
-  2. **Pedagogical Depth**: Review the subject syllabi. Are the units comprehensive? Are the Course Outcomes (COs) measurable and mapped to Bloom's Taxonomy?
+  1. **Structural Integrity**: Check if the credits for Year 1 (DSC, VAC, AEC, MDC) meet the institutional rules for early progression.
+  2. **Pedagogical Depth**: Review the subject syllabi for Semesters 1 and 2. Are the units comprehensive? Are the Course Outcomes (COs) measurable?
   3. **Industry Relevance**: Use Google Search to verify if the topics in technical subjects are modern (2024-25 standards).
-  4. **Redundancy**: Identify if any topics are overlapping across different subjects in the same scheme.
+  4. **Redundancy**: Identify if any topics are overlapping across different subjects in these first two semesters.
   
-  Provide a professional, critical, and constructive report.`,
+  Provide a professional, critical, and constructive report focused on the foundation year quality.`,
 });
 
 export async function analyzeScheme(input: AnalyzeSchemeInput): Promise<AnalyzeSchemeOutput> {
@@ -74,7 +76,7 @@ export async function analyzeScheme(input: AnalyzeSchemeInput): Promise<AnalyzeS
       syllabiJson: JSON.stringify(input.syllabi, null, 2),
     });
     
-    if (!output) throw new Error('AI failed to generate analysis. Please ensure the scheme has enough subjects.');
+    if (!output) throw new Error('AI failed to generate analysis. Please ensure the scheme has subjects in Semester 1 or 2.');
     return output;
   } catch (error: any) {
     console.error('Scheme Analysis Flow Error:', error);
