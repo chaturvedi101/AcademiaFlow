@@ -35,7 +35,7 @@ const getDeduplicatedTotal = (items: Syllabus[]) => {
   return Number(total.toFixed(2));
 };
 
-const filterSyllabiByScope = (syllabi: Syllabus[], scope?: SubmissionScope) => {
+export const filterSyllabiByScope = (syllabi: Syllabus[], scope?: SubmissionScope) => {
   if (!scope || scope === 'Complete') return syllabi;
   
   let maxSem = 8;

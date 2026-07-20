@@ -18,7 +18,7 @@ import { LogOut, Search, BookOpen, Loader2, Info, CheckCircle2, MessageSquare, S
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { exportFullSchemeToPDF, exportCompleteSyllabusToPDF } from "@/lib/pdf-export";
+import { exportFullSchemeToPDF, exportCompleteSyllabusToPDF, filterSyllabiByScope } from "@/lib/pdf-export";
 import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { cn } from '@/lib/utils';
@@ -54,10 +54,6 @@ export default function GuestExplorerPage() {
   /**
    * INCLUSIVITY LOGIC:
    * Show all schemes that have left the BoS 'Draft' state.
-   * This includes:
-   * - Pending Dean (Submitted by BoS)
-   * - Pending Academics (Submitted by Dean)
-   * - Approved (Accredited)
    */
   const schemesQuery = useMemoFirebase(() => {
     return query(
@@ -106,8 +102,19 @@ export default function GuestExplorerPage() {
     }
   }, [selectedProgramId, selectedBranch, selectedBatch, visibleSchemes, db]);
 
+  const maxSemestersVisible = useMemo(() => {
+    if (!scheme?.submissionScope || scheme.submissionScope === 'Complete') return 8;
+    if (scheme.submissionScope === 'Year 1') return 2;
+    if (scheme.submissionScope === 'Year 2') return 4;
+    if (scheme.submissionScope === 'Year 3') return 6;
+    return 8;
+  }, [scheme]);
+
   const filteredSyllabi = useMemo(() => {
-    const sorted = [...syllabi].sort((a, b) => {
+    // 1. First, strictly restrict syllabi to the BoS-authorized submission scope
+    const scopedSyllabi = filterSyllabiByScope(syllabi, scheme?.submissionScope);
+
+    const sorted = [...scopedSyllabi].sort((a, b) => {
       if (a.semester !== b.semester) return (a.semester || 1) - (b.semester || 1);
       
       const slotA = a.timetableSlot || "Z";
@@ -121,7 +128,7 @@ export default function GuestExplorerPage() {
     
     if (selectedSemester === "All") return sorted;
     return sorted.filter(s => s.semester === Number(selectedSemester));
-  }, [syllabi, selectedSemester]);
+  }, [syllabi, selectedSemester, scheme?.submissionScope]);
 
   const handleLogout = () => {
     auth.signOut().then(() => router.push('/'));
@@ -287,13 +294,8 @@ export default function GuestExplorerPage() {
               </TabsList>
 
               <TabsContent value="structure" className="space-y-8">
-                {Array.from({ length: 8 }, (_, i) => i + 1).map(sem => {
-                  const semSyllabi = syllabi.filter(s => s.semester === sem).sort((a, b) => {
-                    const slotA = a.timetableSlot || "Z";
-                    const slotB = b.timetableSlot || "Z";
-                    if (slotA !== slotB) return slotA.localeCompare(slotB, undefined, { numeric: true });
-                    return (a.subjectCode || "").localeCompare(b.subjectCode || "");
-                  });
+                {Array.from({ length: maxSemestersVisible }, (_, i) => i + 1).map(sem => {
+                  const semSyllabi = filteredSyllabi.filter(s => s.semester === sem);
                   if (semSyllabi.length === 0) return null;
 
                   return (
@@ -355,8 +357,10 @@ export default function GuestExplorerPage() {
                     <Select value={selectedSemester} onValueChange={setSelectedSemester}>
                       <SelectTrigger className="w-40 h-10 border-primary/20"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="All">Complete Course</SelectItem>
-                        {[1,2,3,4,5,6,7,8].map(s => <SelectItem key={s} value={String(s)}>Semester {s}</SelectItem>)}
+                        <SelectItem value="All">Visible Course Range</SelectItem>
+                        {Array.from({ length: maxSemestersVisible }, (_, i) => i + 1).map(s => (
+                          <SelectItem key={s} value={String(s)}>Semester {s}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -407,11 +411,6 @@ export default function GuestExplorerPage() {
                                   </div>
                                 </div>
                               ))}
-                              {(!sub.units || sub.units.length === 0) && (
-                                <div className="py-20 text-center text-muted-foreground italic border-2 border-dashed rounded-3xl opacity-50 bg-white">
-                                  Content pattern awaiting BoS synchronization.
-                                </div>
-                              )}
                             </div>
                           </div>
                           
@@ -426,7 +425,6 @@ export default function GuestExplorerPage() {
                                        {b}
                                      </li>
                                    ))}
-                                   {(!sub.textBooks || sub.textBooks.length === 0) && <li className="text-[11px] text-muted-foreground italic">Standard registry to be defined.</li>}
                                  </ul>
                                </div>
                                <div className="space-y-4">
@@ -438,7 +436,6 @@ export default function GuestExplorerPage() {
                                        {b}
                                      </li>
                                    ))}
-                                   {(!sub.referenceBooks || sub.referenceBooks.length === 0) && <li className="text-[11px] text-muted-foreground italic">Supplementary records to be defined.</li>}
                                  </ul>
                                </div>
                              </div>
